@@ -6,12 +6,15 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <curses.h>
 #include <inttypes.h>
+#include <pthread.h>
 #include "udp.h"
 #include "url.h"
 #include "pids.h"
 
 #define DEFAULT_FIFOSIZE 1048576
+#define DEFAULT_TRAILERROW 18
 
 static int gRunning = 0;
 
@@ -19,6 +22,7 @@ struct tool_context_s
 {
 	struct iso13818_udp_receiver_s *udprx;
 	struct url_opts_s *url;
+	char *iname;
 	int verbose;
 
 	FILE *ofh;
@@ -26,6 +30,11 @@ struct tool_context_s
 	uint64_t bytesWritten;
 
 	struct stream_statistics_s stream;
+
+	int monitor;
+	pthread_t threadId;
+	int trailerRow;
+	int threadTerminate, threadRunning, threadTerminated;
 };
 
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
@@ -42,6 +51,9 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 		ctx->stream.pids[pid].enabled = 1;
 		ctx->stream.pids[pid].packetCount++;
 
+		if (isTEI(buf + i))
+			ctx->stream.pids[pid].teiErrors++;
+
 		if (ctx->verbose) {
 			for (int i = 0; i < byteCount; i += 188) {
 				for (int j = 0; j < 16; j++) {
@@ -53,6 +65,85 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 			}
 		}
 	}
+
+	return 0;
+}
+
+static void *thread_func(void *p)
+{
+	struct tool_context_s *ctx = p;
+	ctx->threadRunning = 1;
+	ctx->threadTerminate = 0;
+	ctx->threadTerminated = 0;
+	ctx->trailerRow = DEFAULT_TRAILERROW;
+
+	noecho();
+	curs_set(0);
+	start_color();
+	init_pair(1, COLOR_WHITE, COLOR_BLUE);
+	init_pair(2, COLOR_CYAN, COLOR_BLACK);
+	init_pair(3, COLOR_RED, COLOR_BLACK);
+
+	while (!ctx->threadTerminate) {
+
+		time_t now;
+		time(&now);
+
+		clear();
+
+		char title_a[160], title_b[160], title_c[160];
+		sprintf(title_a, "%s", ctx->iname);
+		sprintf(title_c, "@ %.02f Mb/s", 0.0);
+		int blen = 75 - (strlen(title_a) + strlen(title_c));
+		memset(title_b, 0x20, sizeof(title_b));
+		title_b[blen] = 0;
+
+		attron(COLOR_PAIR(1));
+		mvprintw( 0, 0, "%s%s%s", title_a, title_b, title_c);
+		mvprintw( 1, 0, "-- PID ---- PACKETS - Disc/Count -------- TEI                              ");
+		attroff(COLOR_PAIR(1));
+
+		int pidcnt = 0;
+		for (int i = 0; i < MAX_PID; i++) {
+			struct pid_statistics_s *pid = &ctx->stream.pids[i];
+			if (!pid->enabled)
+				continue;
+
+			if (pid->ccErrors)
+                                attron(COLOR_PAIR(3));
+
+                        mvprintw(pidcnt + 2, 0, "0x%04x %12lld %12lld %12lld\n",
+                                i, pid->packetCount, pid->ccErrors, pid->teiErrors
+                        );
+
+			if (pid->ccErrors)
+                                attroff(COLOR_PAIR(3));
+		
+			pidcnt++;
+		}
+		ctx->trailerRow = pidcnt + 2;
+
+		attron(COLOR_PAIR(2));
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset");
+		attroff(COLOR_PAIR(2));
+
+		char tail_a[160], tail_b[160], tail_c[160];
+		memset(tail_b, '-', sizeof(tail_b));
+		sprintf(tail_a, "TSTOOLS_UDP_CAPTURE");
+		sprintf(tail_c, "%s", ctime(&now));
+		blen = 76 - (strlen(tail_a) + strlen(tail_c));
+		memset(tail_b, 0x20, sizeof(tail_b));
+		tail_b[blen] = 0;
+
+		attron(COLOR_PAIR(1));
+		mvprintw(ctx->trailerRow + 1, 0, "%s%s%s", tail_a, tail_b, tail_c);
+		attroff(COLOR_PAIR(1));
+
+                refresh();
+
+		usleep(100 * 1000);
+	}
+	ctx->threadTerminated = 1;
 
 	return 0;
 }
@@ -70,13 +161,13 @@ static void usage(const char *progname)
 	printf("  -o <output filename>\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
+	printf("  -M Display an interactive console with stats.\n");
 }
 
 int udp_capture(int argc, char *argv[])
 {
 	int ret = 0;
 	int ch;
-	char *iname = NULL;
 	char *oname = NULL;
 	int fifosize = DEFAULT_FIFOSIZE;
 
@@ -84,7 +175,7 @@ int udp_capture(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-	while ((ch = getopt(argc, argv, "?hi:o:v")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:o:vM")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -96,10 +187,13 @@ int udp_capture(int argc, char *argv[])
 				fprintf(stderr, "Problem parsing url, aborting.\n");
 				exit(1);
 			}
-			iname = optarg;
+			ctx->iname = optarg;
 			break;
 		case 'v':
 			ctx->verbose++;
+			break;
+		case 'M':
+			ctx->monitor = 1;
 			break;
 		case 'o':
 			oname = optarg;
@@ -110,7 +204,7 @@ int udp_capture(int argc, char *argv[])
 		}
 	}
 
-	if (iname == NULL) {
+	if (ctx->iname == NULL) {
 		fprintf(stderr, "-i is mandatory.\n");
 		exit(1);
 	}
@@ -149,9 +243,26 @@ int udp_capture(int argc, char *argv[])
 
 	signal(SIGINT, signal_handler);
 	gRunning = 1;
+
+	if (ctx->monitor) {
+		initscr();
+		pthread_create(&ctx->threadId, 0, thread_func, ctx);
+	}
+
 	while (gRunning) {
+		int ch = getch();
+		if (ch == 'q')
+			break;
+
 		usleep(50 * 1000);
 	}
+	ctx->threadTerminate = 1;
+	while (!ctx->threadTerminated)
+		usleep(50 * 1000);
+
+	if (ctx->monitor)
+		endwin();
+
 	ret = 0;
 
 	printf("\nWrote %" PRIu64 " bytes to %s\n", ctx->bytesWritten, oname);
