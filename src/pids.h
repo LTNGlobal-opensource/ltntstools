@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 #define getPID(pkt) (((*((pkt) + 1) << 8) | *((pkt) + 2)) & 0x1fff)
+#define getCC(pkt) (*((pkt) + 3) & 0x0f)
 #define isTEI(pkt) (*((pkt) + 1) & 0x80)
 
 #define MAX_PID 8191
@@ -17,6 +18,8 @@ struct pid_statistics_s
 	uint64_t packetCount;
 	uint64_t ccErrors;
 	uint64_t teiErrors;
+
+	uint8_t lastCC;
 };
 
 struct stream_statistics_s

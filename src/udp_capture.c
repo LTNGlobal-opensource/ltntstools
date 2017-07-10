@@ -47,19 +47,28 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 	}
 
 	for (int i = 0; i < byteCount; i += 188) {
-		uint16_t pid = getPID(buf + i);
-		ctx->stream.pids[pid].enabled = 1;
-		ctx->stream.pids[pid].packetCount++;
+		uint16_t pidnr = getPID(buf + i);
+		struct pid_statistics_s *pid = &ctx->stream.pids[pidnr];
+
+		pid->enabled = 1;
+		pid->packetCount++;
+
+		uint8_t cc = getCC(buf + i);
+		if (((pid->lastCC + 1) & 0x0f) != cc) {
+			if (pid->packetCount > 1)
+				pid->ccErrors++;
+		}
+		pid->lastCC = cc;
 
 		if (isTEI(buf + i))
-			ctx->stream.pids[pid].teiErrors++;
+			pid->teiErrors++;
 
 		if (ctx->verbose) {
 			for (int i = 0; i < byteCount; i += 188) {
 				for (int j = 0; j < 16; j++) {
 					printf("%02x ", buf[i + j]);
 					if (j == 3)
-						printf("-- 0x%04x(%d) -- ", pid, pid);
+						printf("-- 0x%04x(%d) -- ", pidnr, pidnr);
 				}
 				printf("\n");
 			}
@@ -93,7 +102,7 @@ static void *thread_func(void *p)
 
 		char title_a[160], title_b[160], title_c[160];
 		sprintf(title_a, "%s", ctx->iname);
-		sprintf(title_c, "@ %.02f Mb/s", 0.0);
+		sprintf(title_c, "(C) LiveTimeNet, Inc.");
 		int blen = 75 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
@@ -253,15 +262,28 @@ int udp_capture(int argc, char *argv[])
 		int ch = getch();
 		if (ch == 'q')
 			break;
+		if (ch == 'r') {
+			for (int i = 0; i < MAX_PID; i++) {
+				struct pid_statistics_s *pid = &ctx->stream.pids[i];
+				if (!pid->enabled)
+					continue;
+				pid->ccErrors = 0;
+				pid->teiErrors = 0;
+				pid->packetCount = 0;
+				pid->enabled = 0;
+			}
+		}
 
 		usleep(50 * 1000);
 	}
-	ctx->threadTerminate = 1;
-	while (!ctx->threadTerminated)
-		usleep(50 * 1000);
 
-	if (ctx->monitor)
+	if (ctx->monitor) {
+		ctx->threadTerminate = 1;
+		while (!ctx->threadTerminated)
+			usleep(50 * 1000);
+
 		endwin();
+	}
 
 	ret = 0;
 
