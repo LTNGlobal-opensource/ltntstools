@@ -38,3 +38,4 @@ noinst_HEADERS  = hexdump.h
 noinst_HEADERS += version.h
 noinst_HEADERS += udp.h
 noinst_HEADERS += url.h
+noinst_HEADERS += pids.h

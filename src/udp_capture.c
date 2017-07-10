@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include "udp.h"
 #include "url.h"
+#include "pids.h"
 
 #define DEFAULT_FIFOSIZE 1048576
 
@@ -23,6 +24,8 @@ struct tool_context_s
 	FILE *ofh;
 
 	uint64_t bytesWritten;
+
+	struct stream_statistics_s stream;
 };
 
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
@@ -34,14 +37,20 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 		fprintf(stderr, "Warning: unable to write output\n");
 	}
 
-	if (ctx->verbose) {
-		for (int i = 0; i < byteCount; i += 188) {
-			for (int j = 0; j < 16; j++) {
-				printf("%02x ", buf[i + j]);
-				if (j == 3)
-					printf("-- ");
+	for (int i = 0; i < byteCount; i += 188) {
+		uint16_t pid = getPID(buf + i);
+		ctx->stream.pids[pid].enabled = 1;
+		ctx->stream.pids[pid].packetCount++;
+
+		if (ctx->verbose) {
+			for (int i = 0; i < byteCount; i += 188) {
+				for (int j = 0; j < 16; j++) {
+					printf("%02x ", buf[i + j]);
+					if (j == 3)
+						printf("-- 0x%04x(%d) -- ", pid, pid);
+				}
+				printf("\n");
 			}
-			printf("\n");
 		}
 	}
 
@@ -146,6 +155,16 @@ int udp_capture(int argc, char *argv[])
 	ret = 0;
 
 	printf("\nWrote %" PRIu64 " bytes to %s\n", ctx->bytesWritten, oname);
+
+	printf("   PID    PacketCount   CCErrors\n");
+	printf("---------------------- ---------\n");
+	for (int i = 0; i < MAX_PID; i++) {	
+		if (ctx->stream.pids[i].enabled) {
+			printf("0x%04x %14" PRIu64 " %10" PRIu64 "\n", i,
+				ctx->stream.pids[i].packetCount,
+				ctx->stream.pids[i].ccErrors);
+		}
+	}
 
 no_thread:
 	if (ctx->udprx)
