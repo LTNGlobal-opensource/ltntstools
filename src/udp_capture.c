@@ -28,6 +28,8 @@ struct tool_context_s
 	FILE *ofh;
 
 	uint64_t bytesWritten;
+	uint64_t bytesWrittenCurrent;
+	time_t bytesWrittenTime;
 
 	struct stream_statistics_s stream;
 
@@ -40,15 +42,25 @@ struct tool_context_s
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
 {
 	size_t wlen = fwrite(buf, 1, byteCount, ctx->ofh);
-	ctx->bytesWritten += wlen;
 
 	if (wlen != byteCount) {
 		fprintf(stderr, "Warning: unable to write output\n");
 	}
 
+	time_t now;
+	time(&now);
+
+	if (now != ctx->bytesWrittenTime) {
+		ctx->bytesWrittenTime = now;
+		ctx->bytesWritten = ctx->bytesWrittenCurrent;
+		ctx->bytesWrittenCurrent = 0;
+	}
+
 	for (int i = 0; i < byteCount; i += 188) {
 		uint16_t pidnr = getPID(buf + i);
 		struct pid_statistics_s *pid = &ctx->stream.pids[pidnr];
+
+		ctx->bytesWrittenCurrent += 188;
 
 		pid->enabled = 1;
 		pid->packetCount++;
@@ -102,7 +114,7 @@ static void *thread_func(void *p)
 
 		char title_a[160], title_b[160], title_c[160];
 		sprintf(title_a, "%s", ctx->iname);
-		sprintf(title_c, "(C) LiveTimeNet, Inc.");
+		sprintf(title_c, "%2.2f Mb/s", ((double)ctx->bytesWritten * 8) / 1000000.0);
 		int blen = 75 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
@@ -289,13 +301,14 @@ int udp_capture(int argc, char *argv[])
 
 	printf("\nWrote %" PRIu64 " bytes to %s\n", ctx->bytesWritten, oname);
 
-	printf("   PID    PacketCount   CCErrors\n");
-	printf("---------------------- ---------\n");
+	printf("   PID    PacketCount   CCErrors  TEIErrors\n");
+	printf("---------------------- --------- ----------\n");
 	for (int i = 0; i < MAX_PID; i++) {	
 		if (ctx->stream.pids[i].enabled) {
-			printf("0x%04x %14" PRIu64 " %10" PRIu64 "\n", i,
+			printf("0x%04x %14" PRIu64 " %10" PRIu64 " %10" PRIu64 "\n", i,
 				ctx->stream.pids[i].packetCount,
-				ctx->stream.pids[i].ccErrors);
+				ctx->stream.pids[i].ccErrors,
+				ctx->stream.pids[i].teiErrors);
 		}
 	}
 
