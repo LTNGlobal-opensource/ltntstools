@@ -11,13 +11,15 @@
 
 #include "dump.h"
 
-
-#define VIDEO_STREAM_DR		0xF2
-#define CA_DR			0x09
-#define SYSTEM_CLOCK_DR		0x0B
-#define MAX_BITRATE_DR		0x0E
+#define DATA_STREAM_ALIGNMENT_DR		    0x06
+#define VIDEO_STREAM_DR		    0xF2
+#define CA_DR			            0x09
+#define SYSTEM_CLOCK_DR		    0x0B
+#define MAX_BITRATE_DR		    0x0E
 #define STREAM_IDENTIFIER_DR	0x52
-#define SUBTITLING_DR		0x59
+#define SUBTITLING_DR		      0x59
+#define CUE_IDENTIFICATION_DR 0x8a
+#define REGISTRATION_DR       0x05
 
 int tstools_ReadPacket(int fd, uint8_t *dst)
 {
@@ -118,43 +120,78 @@ static void DumpVideoStreamDescriptor(dvbpsi_mpeg_vstream_dr_t *d)
 		d->i_frame_rate_code);
 }
 
+static void DumpCueIdentificationDescriptor(dvbpsi_scte_cuei_dr_t *p_descriptor)
+{
+  if (p_descriptor == NULL) {
+    printf("Cue Identification -- Bug in libdvbpsi, avoiding segfault\n");
+  } else
+  	printf("Cue Identification: 0x%02x\n", p_descriptor->i_cue_stream_type);
+}
+
+static void DumpDataStreamAlignmentDescriptor(dvbpsi_mpeg_ds_alignment_dr_t *p_descriptor)
+{
+	printf("Data Stream Alignment: 0x%02x\n", p_descriptor->i_alignment_type);
+}
+
+static void DumpRegistrationDescriptor(dvbpsi_mpeg_registration_dr_t *p_descriptor)
+{
+  char b[5] = {
+    p_descriptor->i_format_identifier >> 24,
+    p_descriptor->i_format_identifier >> 16,
+    p_descriptor->i_format_identifier >> 8,
+    p_descriptor->i_format_identifier,
+    0
+  };
+
+  for (int i = 0; i < 4; i++) {
+    if (!isprint(b[i]))
+      b[i] = '.';
+  }
+	printf("Registration: 0x%x [%s]\n", p_descriptor->i_format_identifier, b);
+}
+
 void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
 {
-  int i;
-
-  while(p_descriptor)
-  {
+  while(p_descriptor) {
     printf("%s%02x %02x : ", str, p_descriptor->i_tag, p_descriptor->i_length);
     for (int x = 0; x < p_descriptor->i_length; x++)
-        printf("%02x ", p_descriptor->p_data[x]);
+      printf("%02x ", p_descriptor->p_data[x]);
     printf("- ");
 
-    switch (p_descriptor->i_tag)
-      {
-      case SYSTEM_CLOCK_DR:
-    DumpSystemClockDescriptor(dvbpsi_decode_mpeg_system_clock_dr(p_descriptor));
-    break;
-      case MAX_BITRATE_DR:
-    DumpMaxBitrateDescriptor(dvbpsi_decode_mpeg_max_bitrate_dr(p_descriptor));
-    break;
-      case STREAM_IDENTIFIER_DR:
-    DumpStreamIdentifierDescriptor(dvbpsi_decode_dvb_stream_identifier_dr(p_descriptor));
-    break;
-      case SUBTITLING_DR:
-	    DumpSubtitleDescriptor(dvbpsi_decode_dvb_subtitling_dr(p_descriptor));
-	    break;
-	case CA_DR:
-		DumpCADescriptor((dvbpsi_mpeg_ca_dr_t *)p_descriptor);
-		break;
-		case VIDEO_STREAM_DR:
-			DumpVideoStreamDescriptor((dvbpsi_mpeg_vstream_dr_t *)p_descriptor);
-			break;
-      default:
-    printf("\"");
-    for(i = 0; i < p_descriptor->i_length; i++)
-      printf("%c", isprint(p_descriptor->p_data[i]) ? p_descriptor->p_data[i] : '.');
-    printf("\"\n");
-      }
+    switch (p_descriptor->i_tag) {
+    case SYSTEM_CLOCK_DR:
+      DumpSystemClockDescriptor(dvbpsi_decode_mpeg_system_clock_dr(p_descriptor));
+      break;
+    case MAX_BITRATE_DR:
+      DumpMaxBitrateDescriptor(dvbpsi_decode_mpeg_max_bitrate_dr(p_descriptor));
+      break;
+    case STREAM_IDENTIFIER_DR:
+      DumpStreamIdentifierDescriptor(dvbpsi_decode_dvb_stream_identifier_dr(p_descriptor));
+      break;
+    case SUBTITLING_DR:
+      DumpSubtitleDescriptor(dvbpsi_decode_dvb_subtitling_dr(p_descriptor));
+      break;
+    case CA_DR:
+      DumpCADescriptor((dvbpsi_mpeg_ca_dr_t *)p_descriptor);
+      break;
+    case VIDEO_STREAM_DR:
+      DumpVideoStreamDescriptor((dvbpsi_mpeg_vstream_dr_t *)p_descriptor);
+      break;
+    case CUE_IDENTIFICATION_DR:
+      DumpCueIdentificationDescriptor(dvbpsi_decode_scte_cuei_dr(p_descriptor));
+      break;
+    case DATA_STREAM_ALIGNMENT_DR:
+      DumpDataStreamAlignmentDescriptor(dvbpsi_decode_mpeg_ds_alignment_dr(p_descriptor));
+      break;
+    case REGISTRATION_DR:
+      DumpRegistrationDescriptor(dvbpsi_decode_mpeg_registration_dr(p_descriptor));
+      break;
+    default:
+      printf("\"");
+      for(int i = 0; i < p_descriptor->i_length; i++)
+        printf("%c", isprint(p_descriptor->p_data[i]) ? p_descriptor->p_data[i] : '.');
+      printf("\"\n");
+    }
     p_descriptor = p_descriptor->p_next;
   }
 };
