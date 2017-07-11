@@ -185,7 +185,7 @@ static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
 
 static void usage(const char *progname)
 {
-	printf("A tool to display one or more PAT/PMT structures from a ISO13818 transport stream.\n");
+	printf("A tool to display the PAT/PMT transport tree structures from file.\n");
 	printf("Usage:\n");
 	printf("  -i <inputfile.ts>\n");
 	printf("  -v Increase level of verbosity (enable descriptor dumping).\n");
