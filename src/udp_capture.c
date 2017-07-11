@@ -41,10 +41,12 @@ struct tool_context_s
 
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
 {
-	size_t wlen = fwrite(buf, 1, byteCount, ctx->ofh);
+	if (ctx->ofh) {
+		size_t wlen = fwrite(buf, 1, byteCount, ctx->ofh);
 
-	if (wlen != byteCount) {
-		fprintf(stderr, "Warning: unable to write output\n");
+		if (wlen != byteCount) {
+			fprintf(stderr, "Warning: unable to write output\n");
+		}
 	}
 
 	time_t now;
@@ -182,7 +184,7 @@ static void usage(const char *progname)
 	printf("A tool to capture ISO13818 TS packet from the UDP network.\n");
 	printf("Usage:\n");
 	printf("  -i <url> Eg: udp://234.1.1.1:5000?ifname=eno1\n");
-	printf("  -o <output filename>\n");
+	printf("  -o <output filename> (optional)\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -M Display an interactive console with stats.\n");
@@ -232,16 +234,18 @@ int udp_capture(int argc, char *argv[])
 		fprintf(stderr, "-i is mandatory.\n");
 		exit(1);
 	}
-	if (oname == NULL) {
-		fprintf(stderr, "-o is mandatory.\n");
+	if (oname == NULL && !ctx->monitor) {
+		fprintf(stderr, "-o is mandatory, or switch to using monitoring mode (-M).\n");
 		exit(1);
 	}
 
-	ctx->ofh = fopen(oname, "wb");
-	if (!ctx->ofh) {
-		fprintf(stderr, "Problem opening output file, aborting.\n");
-		ret = -1;
-		goto no_output;
+	if (oname) {
+		ctx->ofh = fopen(oname, "wb");
+		if (!ctx->ofh) {
+			fprintf(stderr, "Problem opening output file, aborting.\n");
+			ret = -1;
+			goto no_output;
+		}
 	}
 
 	if (ctx->url->has_fifosize)
@@ -323,7 +327,8 @@ no_udp:
 	if (ctx->url)
 		url_free(ctx->url);
 
-	fclose(ctx->ofh);
+	if (ctx->ofh)
+		fclose(ctx->ofh);
 
 no_output:
 	return ret;
