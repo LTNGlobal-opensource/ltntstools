@@ -120,12 +120,31 @@ static void DumpVideoStreamDescriptor(dvbpsi_mpeg_vstream_dr_t *d)
 		d->i_frame_rate_code);
 }
 
+static const char *cue_stream_type_descriptions[] = 
+{
+  "splice_insert, splice_null, splice_schedule",
+  "All Commands",
+  "Segmentation",
+  "Tiered Splicing",
+  "Tiered Segmentation",
+  "Reserved",
+  "User Defined"
+};
+
 static void DumpCueIdentificationDescriptor(dvbpsi_scte_cuei_dr_t *p_descriptor)
 {
   if (p_descriptor == NULL) {
     printf("Cue Identification -- Bug in libdvbpsi, avoiding segfault\n");
-  } else
-  	printf("Cue Identification: 0x%02x\n", p_descriptor->i_cue_stream_type);
+  } else {
+    const char *desc = cue_stream_type_descriptions[5];
+    if (p_descriptor->i_cue_stream_type <= 4)
+      desc = cue_stream_type_descriptions[p_descriptor->i_cue_stream_type];
+    else
+    if (p_descriptor->i_cue_stream_type >= 0x80)
+      desc = cue_stream_type_descriptions[6];
+
+  	printf("Cue Identification: 0x%02x [%s]\n", p_descriptor->i_cue_stream_type, desc);
+  }
 }
 
 static void DumpDataStreamAlignmentDescriptor(dvbpsi_mpeg_ds_alignment_dr_t *p_descriptor)
