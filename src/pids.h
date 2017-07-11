@@ -9,6 +9,7 @@ extern "C" {
 
 #define getPID(pkt) (((*((pkt) + 1) << 8) | *((pkt) + 2)) & 0x1fff)
 #define getCC(pkt) (*((pkt) + 3) & 0x0f)
+#define getPacketAdaption(pkt) ((*((pkt) + 3) & 0x30) >> 4)
 #define isTEI(pkt) (*((pkt) + 1) & 0x80)
 
 #define MAX_PID 8192
@@ -26,6 +27,23 @@ struct stream_statistics_s
 {
 	struct pid_statistics_s pids[MAX_PID];
 };
+
+__inline__ int isCCInError(uint8_t *pkt, uint8_t oldCC)
+{
+	unsigned int adap = getPacketAdaption(pkt);
+	unsigned int cc = getCC(pkt);
+
+	if (((adap == 0) || (adap == 2)) && (oldCC == cc))
+		return 0;
+
+	if (((adap == 1) || (adap == 3)) && (oldCC == cc))
+		return 1;
+
+	if (((oldCC + 1) & 0x0f) == cc)
+		return 0;
+
+	return 1;
+}
 
 #ifdef __cplusplus
 };

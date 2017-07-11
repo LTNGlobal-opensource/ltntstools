@@ -66,10 +66,13 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 		pid->packetCount++;
 
 		uint8_t cc = getCC(buf + i);
-		if (((pid->lastCC + 1) & 0x0f) != cc) {
-			if (pid->packetCount > 1 && pidnr != 0x1fff)
+		if (isCCInError(buf + i, pid->lastCC)) {
+			if (pid->packetCount > 1 && pidnr != 0x1fff) {
+printf("pid %04x Got %x wanted %x BAD\n", pidnr, cc, (pid->lastCC + 1) & 0x0f);
 				pid->ccErrors++;
+			}
 		}
+
 		pid->lastCC = cc;
 
 		if (isTEI(buf + i))
