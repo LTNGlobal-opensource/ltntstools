@@ -18,6 +18,26 @@
 #define STREAM_IDENTIFIER_DR	0x52
 #define SUBTITLING_DR		0x59
 
+int tstools_ReadPacket(int fd, uint8_t *dst)
+{
+	int i = 187;
+	int rc = 1;
+
+	dst[0] = 0;
+
+ 	while((dst[0] != 0x47) && (rc > 0)) {
+		rc = read(fd, dst, 1);
+ 	}
+
+	while((i != 0) && (rc > 0)) {
+		rc = read(fd, dst + 188 - i, i);
+		if (rc >= 0)
+			i -= rc;
+	}
+
+	return (i == 0) ? true : false;
+}
+
 char *tstools_GetTypeName(uint8_t type)
 {
   switch (type)

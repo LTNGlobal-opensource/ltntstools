@@ -20,17 +20,21 @@ SRC += pat_inspector.c
 SRC += pmt_inspector.c
 SRC += udp.c
 SRC += url.c
+SRC += dump.c
 SRC += udp_capture.c
+SRC += si_inspector.c
 
 bin_PROGRAMS  = tstools_util
 bin_PROGRAMS += tstools_pat_inspector
 bin_PROGRAMS += tstools_pmt_inspector
 bin_PROGRAMS += tstools_udp_capture
+bin_PROGRAMS += tstools_si_inspector
 
 tstools_util_SOURCES = $(SRC)
 tstools_pat_inspector_SOURCES = $(SRC)
 tstools_pmt_inspector_SOURCES = $(SRC)
 tstools_udp_capture_SOURCES = $(SRC)
+tstools_si_inspector_SOURCES = $(SRC)
 
 libtstools_noinst_includedir = $(includedir)
 
@@ -39,3 +43,4 @@ noinst_HEADERS += version.h
 noinst_HEADERS += udp.h
 noinst_HEADERS += url.h
 noinst_HEADERS += pids.h
+noinst_HEADERS += dump.h

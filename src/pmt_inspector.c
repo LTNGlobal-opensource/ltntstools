@@ -15,28 +15,6 @@ static int gDumpAll = 0;
 static int gPMTCount = 0;
 static int gVerbose = 0;
 
-static bool ReadPacket(int i_fd, uint8_t* p_dst)
-{
-  int i = 187;
-  int i_rc = 1;
-
-  p_dst[0] = 0;
-
-  while((p_dst[0] != 0x47) && (i_rc > 0))
-  {
-    i_rc = read(i_fd, p_dst, 1);
-  }
-
-  while((i != 0) && (i_rc > 0))
-  {
-    i_rc = read(i_fd, p_dst + 188 - i, i);
-    if(i_rc >= 0)
-      i -= i_rc;
-  }
-
-  return (i == 0) ? true : false;
-}
-
 static void DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt)
 {
   tstools_DumpPMT(p_zero, p_pmt);
@@ -72,14 +50,14 @@ int pmt_inspector(int i_argc, char* pa_argv[])
   if (!dvbpsi_pmt_attach(p_dvbpsi, i_program_number, DumpPMT, NULL))
       goto out;
 
-  b_ok = ReadPacket(i_fd, data);
+  b_ok = tstools_ReadPacket(i_fd, data);
 
   while(b_ok)
   {
     uint16_t i_pid = ((uint16_t)(data[1] & 0x1f) << 8) + data[2];
     if(i_pid == i_pmt_pid)
       dvbpsi_packet_push(p_dvbpsi, data);
-    b_ok = ReadPacket(i_fd, data);
+    b_ok = tstools_ReadPacket(i_fd, data);
 
 		if (gPMTCount && !gDumpAll)
 			break;

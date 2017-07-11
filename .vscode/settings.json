@@ -34,6 +34,25 @@
         "src/tstools_udp_capture": true,
         "src/.gitignore": true,
         "src/tstools_si_inspector": true,
+    },
+    "files.associations": {
+        "__functional_base": "c",
+        "__functional_base_03": "c",
+        "__tuple": "c",
+        "functional": "c",
+        "limits": "c",
+        "memory": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "curses.h": "c",
+        "math.h": "c",
+        "assert.h": "c",
+        "stdio.h": "c",
+        "psi.h": "c",
+        "pmt_inspector.c": "cpp",
+        "pat_inspector.c": "cpp",
+        "dump.c": "cpp",
+        "si_inspector.c": "cpp"
     }
-
 }

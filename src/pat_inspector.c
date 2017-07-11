@@ -12,26 +12,6 @@ static int gDumpAll = 0;
 static int gPATCount = 0;
 static int gVerbose = 0;
 
-static int ReadPacket(int fd, uint8_t *dst)
-{
-	int i = 187;
-	int rc = 1;
-
-	dst[0] = 0;
-
- 	while((dst[0] != 0x47) && (rc > 0)) {
-		rc = read(fd, dst, 1);
- 	}
-
-	while((i != 0) && (rc > 0)) {
-		rc = read(fd, dst + 188 - i, i);
-		if (rc >= 0)
-			i -= rc;
-	}
-
-	return (i == 0) ? true : false;
-}
-
 static void DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat)
 {
 	tstools_DumpPAT(p_zero, p_pat);
@@ -98,14 +78,14 @@ int pat_inspector(int argc, char *argv[])
 	if (!dvbpsi_pat_attach(p_dvbpsi, DumpPAT, NULL))
 		goto out;
 
-	b_ok = ReadPacket(i_fd, data);
+	b_ok = tstools_ReadPacket(i_fd, data);
 
 	while(b_ok)
 	{
 		uint16_t i_pid = ((uint16_t)(data[1] & 0x1f) << 8) + data[2];
 		if(i_pid == 0x0)
 			dvbpsi_packet_push(p_dvbpsi, data);
-		b_ok = ReadPacket(i_fd, data);
+		b_ok = tstools_ReadPacket(i_fd, data);
 
 		if (gPATCount && !gDumpAll)
 			break;

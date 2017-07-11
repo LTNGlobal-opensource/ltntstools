@@ -19,6 +19,7 @@ void tstools_DumpPMT(void* p_zero, dvbpsi_pmt_t* p_pmt);
 void tstools_message(dvbpsi_t *handle, const dvbpsi_msg_level_t level, const char* msg);
 char *tstools_GetTypeName(uint8_t type);
 void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor);
+int tstools_ReadPacket(int fd, uint8_t *dst);
 
 #ifdef __cplusplus
 };

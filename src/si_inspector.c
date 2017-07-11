@@ -144,26 +144,6 @@ void updateStream(struct ts_stream_s *strm, unsigned char *buf, unsigned int len
 	}
 }
 
-static bool ReadPacket(int i_fd, uint8_t* p_dst)
-{
-	int i = 187;
-	int i_rc = 1;
-
-	p_dst[0] = 0;
-
-	while((p_dst[0] != 0x47) && (i_rc > 0)) {
-		i_rc = read(i_fd, p_dst, 1);
-	}
-
-	while((i != 0) && (i_rc > 0)) {
-		i_rc = read(i_fd, p_dst + 188 - i, i);
-		if(i_rc >= 0)
-			i -= i_rc;
-	}
-
-	return (i == 0) ? true : false;
-}
-
 static void completionPMT(void* p_zero, dvbpsi_pmt_t* p_pmt)
 {
 	struct ts_pid_s *pid = p_zero;
@@ -234,15 +214,14 @@ int si_inspector(int i_argc, char* pa_argv[])
 	pat->used = 1;
 	pat->psip_type = PID_PAT;
 
-	b_ok = ReadPacket(i_fd, data);
+	b_ok = tstools_ReadPacket(i_fd, data);
 	while (b_ok) {
 		updateStream(strm, data, 188);
-		b_ok = ReadPacket(i_fd, data);
+		b_ok = tstools_ReadPacket(i_fd, data);
 
     if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS))
       break;
 	}
-  printf("break\n");
 
 out:
 	close(i_fd);
