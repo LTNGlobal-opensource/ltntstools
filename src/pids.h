@@ -11,7 +11,7 @@ extern "C" {
 #define getCC(pkt) (*((pkt) + 3) & 0x0f)
 #define isTEI(pkt) (*((pkt) + 1) & 0x80)
 
-#define MAX_PID 8191
+#define MAX_PID 8192
 struct pid_statistics_s
 {
 	int enabled;
