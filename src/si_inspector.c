@@ -42,11 +42,12 @@ struct ts_pid_s
 	enum ts_pid_psiptype_e	psip_type;
 };
 
-struct ts_stream_s {
+struct ts_stream_s
+{
 	struct ts_pid_s		*pids;
 	void			        *userctx;
-  int                totalPMTS;
-  int                countPMTS;
+  	int                totalPMTS;
+  	int                countPMTS;
 };
 
 void destroyPID(struct ts_pid_s *pid);
@@ -145,9 +146,9 @@ static void completionPMT(void* p_zero, dvbpsi_pmt_t* p_pmt)
 {
 	struct ts_pid_s *pid = p_zero;
 	struct ts_stream_s *strm = pid->strm;
-  strm->countPMTS++;
+  	strm->countPMTS++;
 
-  tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0, pid->pid);
+  	tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0, pid->pid);
 
 	//dvbpsi_pmt_es_t* p_es = p_pmt->p_first_es;
 
@@ -158,28 +159,27 @@ static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
 {
 	struct ts_stream_s *strm = p_zero;
 
-  tstools_DumpPAT(p_zero, p_pat);
+  	tstools_DumpPAT(p_zero, p_pat);
 
 	dvbpsi_pat_program_t *p_program = p_pat->p_first_program;
 	while (p_program) {
 		struct ts_pid_s *pid = findPID(strm, p_program->i_pid);
 
-    if (p_program->i_number != 0) {
-      strm->totalPMTS++;
-      pid->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
-      if (pid->dvbpsi == NULL) {
-        printf("Huh?\n");
-        assert(0);
-      }
+    	if (p_program->i_number != 0) {
+			strm->totalPMTS++;
+			pid->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
+			if (pid->dvbpsi == NULL) {
+				printf("Huh?\n");
+				assert(0);
+			}
 
-      dvbpsi_pmt_attach(pid->dvbpsi, p_program->i_number, completionPMT, pid);
-      pid->used = 1;
-      pid->psip_type = PID_PMT;
-    }
+			dvbpsi_pmt_attach(pid->dvbpsi, p_program->i_number, completionPMT, pid);
+			pid->used = 1;
+			pid->psip_type = PID_PMT;
+		}
 
 		p_program = p_program->p_next;
 	}
-
 	dvbpsi_pat_delete(p_pat);
 }
 
@@ -194,14 +194,8 @@ static void usage(const char *progname)
 
 int si_inspector(int argc, char *argv[])
 {
-	struct ts_stream_s *strm;
-	struct ts_pid_s *pat;
-
-	uint8_t data[188];
-	int i_fd;
-	bool b_ok;
-  int ch;
-  char *iname = NULL;
+	int ch;
+	char *iname = NULL;
 
 	while ((ch = getopt(argc, argv, "a?hvi:")) != -1) {
 		switch (ch) {
@@ -230,30 +224,33 @@ int si_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
+	struct ts_stream_s *strm;
 	if (allocStream(&strm, NULL) < 0)
 		return 1;
 
-	i_fd = open(iname, 0);
+	int i_fd = open(iname, 0);
 	if (i_fd < 0)
 		return 1;
 
-	pat = findPID(strm, 0);
+	struct ts_pid_s *pat = findPID(strm, 0);
 	pat->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
 	if (pat->dvbpsi == NULL)
 		goto out;
 
 	if (!dvbpsi_pat_attach(pat->dvbpsi, completionPAT, strm))
 		goto out;
+
 	pat->used = 1;
 	pat->psip_type = PID_PAT;
 
-	b_ok = tstools_ReadPacket(i_fd, data);
+	uint8_t data[188];
+	bool b_ok = tstools_ReadPacket(i_fd, data);
 	while (b_ok) {
 		updateStream(strm, data, 188);
 		b_ok = tstools_ReadPacket(i_fd, data);
 
-    if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS))
-      break;
+    	if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS))
+      		break;
 	}
 
 out:
