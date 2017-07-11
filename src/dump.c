@@ -180,12 +180,12 @@ void tstools_DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt, int dumpDescriptors)
   dvbpsi_pmt_es_t *p_es = p_pmt->p_first_es;
   printf("PMT -- program_number = %d  ", p_pmt->i_program_number);
   printf("version_number = %d  ", p_pmt->i_version);
-  printf("PCR_PID = 0x%x (%d)\n", p_pmt->i_pcr_pid, p_pmt->i_pcr_pid);
+  printf("PCR_PID = 0x%04x (%d)\n", p_pmt->i_pcr_pid, p_pmt->i_pcr_pid);
   if (dumpDescriptors)
   	tstools_DumpDescriptors("       -> descr ", p_pmt->p_first_descriptor);
   while(p_es)
   {
-    printf("       stream_type = 0x%02x, pid = 0x%x (%d) [%s]\n",
+    printf("       stream_type = 0x%02x, pid = 0x%04x (%d) [%s]\n",
            p_es->i_type,
        p_es->i_pid, p_es->i_pid,
        tstools_GetTypeName(p_es->i_type));
