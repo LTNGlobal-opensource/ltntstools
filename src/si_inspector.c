@@ -13,14 +13,14 @@
 #include "hexdump.h"
 #include "dump.h"
 
-#define VIDEO_STREAM_DR		0xF2
-#define CA_DR			0x09
-#define SYSTEM_CLOCK_DR		0x0B
-#define MAX_BITRATE_DR		0x0E
+#define VIDEO_STREAM_DR			0xF2
+#define CA_DR					0x09
+#define SYSTEM_CLOCK_DR			0x0B
+#define MAX_BITRATE_DR			0x0E
 #define STREAM_IDENTIFIER_DR	0x52
-#define SUBTITLING_DR		0x59
+#define SUBTITLING_DR			0x59
 
-#define MAX_PIDS 8192
+#define MAX_PIDS				8192
 
 struct ts_stream_s;
 
@@ -35,7 +35,7 @@ enum ts_pid_psiptype_e
 
 struct ts_pid_s
 {
-	struct ts_stream_s *strm;
+	struct ts_stream_s     *strm;
 	unsigned int		    used;
 	uint16_t		        pid;
 	dvbpsi_t		       *dvbpsi;
@@ -44,10 +44,10 @@ struct ts_pid_s
 
 struct ts_stream_s
 {
-	struct ts_pid_s		*pids;
-	void			        *userctx;
-  	int                totalPMTS;
-  	int                countPMTS;
+	struct ts_pid_s	*pids;
+	void			*userctx;
+  	int              totalPMTS;
+  	int              countPMTS;
 };
 
 void destroyPID(struct ts_pid_s *pid);
