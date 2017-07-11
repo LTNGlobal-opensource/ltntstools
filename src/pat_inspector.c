@@ -6,9 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <inttypes.h>
-#include <dvbpsi/dvbpsi.h>
-#include <dvbpsi/psi.h>
-#include <dvbpsi/pat.h>
+#include "dump.h"
 
 static int gDumpAll = 0;
 static int gPATCount = 0;
@@ -36,32 +34,9 @@ static int ReadPacket(int fd, uint8_t *dst)
 
 static void DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat)
 {
-	dvbpsi_pat_program_t* p_program = p_pat->p_first_program;
-	printf("transport_stream_id = 0x%04x\n", p_pat->i_ts_id);
-	printf("version_number      = %d\n", p_pat->i_version);
-	printf("current_next        = %d\n", p_pat->b_current_next);
-
-	int i = 0;
-	while(p_program) {
-		printf("  [%02d] program_number = %d, pid = 0x%04x (%d)\n",
-			i, p_program->i_number, p_program->i_pid, p_program->i_pid);
-
-		p_program = p_program->p_next;
-	}
+	tstools_DumpPAT(p_zero, p_pat);
 	dvbpsi_pat_delete(p_pat);
 	gPATCount++;
-}
-
-static void message(dvbpsi_t *handle, const dvbpsi_msg_level_t level, const char* msg)
-{
-	switch(level) {
-        case DVBPSI_MSG_ERROR: fprintf(stderr, "Error: "); break;
-        case DVBPSI_MSG_WARN:  fprintf(stderr, "Warning: "); break;
-        case DVBPSI_MSG_DEBUG: fprintf(stderr, "Debug: "); break;
-        default: /* do nothing */
-            return;
-	}
-	fprintf(stderr, "%s\n", msg);
 }
 
 static void usage(const char *progname)
@@ -114,9 +89,9 @@ int pat_inspector(int argc, char *argv[])
 		return 1;
 
 	if (gVerbose)
-		p_dvbpsi = dvbpsi_new(&message, DVBPSI_MSG_DEBUG);
+		p_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_DEBUG);
 	else
-		p_dvbpsi = dvbpsi_new(&message, DVBPSI_MSG_NONE);
+		p_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
 	if (p_dvbpsi == NULL)
 		goto out;
 

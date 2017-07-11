@@ -8,18 +8,12 @@
 #include <math.h>
 #include <inttypes.h>
 
-#include <dvbpsi/dvbpsi.h>
-#include <dvbpsi/psi.h>
-#include <dvbpsi/descriptor.h>
-#include <dvbpsi/pmt.h>
-#include <dvbpsi/dr.h>
-
 #include "hexdump.h"
+#include "dump.h"
 
-#define SYSTEM_CLOCK_DR 0x0B
-#define MAX_BITRATE_DR 0x0E
-#define STREAM_IDENTIFIER_DR 0x52
-#define SUBTITLING_DR 0x59
+static int gDumpAll = 0;
+static int gPMTCount = 0;
+static int gVerbose = 0;
 
 static bool ReadPacket(int i_fd, uint8_t* p_dst)
 {
@@ -43,134 +37,11 @@ static bool ReadPacket(int i_fd, uint8_t* p_dst)
   return (i == 0) ? true : false;
 }
 
-static char* GetTypeName(uint8_t type)
+static void DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt)
 {
-  switch (type)
-    {
-    case 0x00: return "Reserved";
-    case 0x01: return "ISO/IEC 11172 Video";
-    case 0x02: return "ISO/IEC 13818-2 Video";
-    case 0x03: return "ISO/IEC 11172 Audio";
-    case 0x04: return "ISO/IEC 13818-3 Audio";
-    case 0x05: return "ISO/IEC 13818-1 Private Section";
-    case 0x06: return "ISO/IEC 13818-1 Private PES data packets";
-    case 0x07: return "ISO/IEC 13522 MHEG";
-    case 0x08: return "ISO/IEC 13818-1 Annex A DSM CC";
-    case 0x09: return "H222.1";
-    case 0x0A: return "ISO/IEC 13818-6 type A";
-    case 0x0B: return "ISO/IEC 13818-6 type B";
-    case 0x0C: return "ISO/IEC 13818-6 type C";
-    case 0x0D: return "ISO/IEC 13818-6 type D";
-    case 0x0E: return "ISO/IEC 13818-1 auxillary";
-    default:
-      if (type < 0x80)
-        return "ISO/IEC 13818-1 reserved";
-      else
-        return "User Private";
-    }
-}
-
-static void DumpMaxBitrateDescriptor(dvbpsi_mpeg_max_bitrate_dr_t* bitrate_descriptor)
-{
-  printf("Bitrate: %d\n", bitrate_descriptor->i_max_bitrate);
-}
-
-static void DumpSystemClockDescriptor(dvbpsi_mpeg_system_clock_dr_t* p_clock_descriptor)
-{
-  printf("External clock: %s, Accuracy: %E\n",
-     p_clock_descriptor->b_external_clock_ref ? "Yes" : "No",
-     p_clock_descriptor->i_clock_accuracy_integer *
-     pow(10.0, -(double)p_clock_descriptor->i_clock_accuracy_exponent));
-}
-
-static void DumpStreamIdentifierDescriptor(dvbpsi_dvb_stream_identifier_dr_t* p_si_descriptor)
-{
-  printf("Component tag: %d\n",
-     p_si_descriptor->i_component_tag);
-}
-
-static void DumpSubtitleDescriptor(dvbpsi_dvb_subtitling_dr_t* p_subtitle_descriptor)
-{
-  int a;
-
-  printf("%d subtitles,\n", p_subtitle_descriptor->i_subtitles_number);
-  for (a = 0; a < p_subtitle_descriptor->i_subtitles_number; ++a)
-    {
-      printf("       | %d - lang: %c%c%c, type: %d, cpid: %d, apid: %d\n", a,
-         p_subtitle_descriptor->p_subtitle[a].i_iso6392_language_code[0],
-         p_subtitle_descriptor->p_subtitle[a].i_iso6392_language_code[1],
-         p_subtitle_descriptor->p_subtitle[a].i_iso6392_language_code[2],
-         p_subtitle_descriptor->p_subtitle[a].i_subtitling_type,
-         p_subtitle_descriptor->p_subtitle[a].i_composition_page_id,
-         p_subtitle_descriptor->p_subtitle[a].i_ancillary_page_id);
-    }
-}
-
-static void DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
-{
-  int i;
-
-  while(p_descriptor)
-  {
-    printf("%s", str);
-    for (int x = 0; x < p_descriptor->i_length; x++)
-        printf("%02x ", p_descriptor->p_data[x]);
-    printf("- ");
-
-    switch (p_descriptor->i_tag)
-      {
-      case SYSTEM_CLOCK_DR:
-    DumpSystemClockDescriptor(dvbpsi_decode_mpeg_system_clock_dr(p_descriptor));
-    break;
-      case MAX_BITRATE_DR:
-    DumpMaxBitrateDescriptor(dvbpsi_decode_mpeg_max_bitrate_dr(p_descriptor));
-    break;
-      case STREAM_IDENTIFIER_DR:
-    DumpStreamIdentifierDescriptor(dvbpsi_decode_dvb_stream_identifier_dr(p_descriptor));
-    break;
-      case SUBTITLING_DR:
-    DumpSubtitleDescriptor(dvbpsi_decode_dvb_subtitling_dr(p_descriptor));
-    break;
-      default:
-    printf("\"");
-    for(i = 0; i < p_descriptor->i_length; i++)
-      printf("%c", p_descriptor->p_data[i]);
-    printf("\"\n");
-      }
-    p_descriptor = p_descriptor->p_next;
-  }
-};
-
-static void DumpPMT(void* p_zero, dvbpsi_pmt_t* p_pmt)
-{
-  dvbpsi_pmt_es_t* p_es = p_pmt->p_first_es;
-  printf("program_number = %d  ", p_pmt->i_program_number);
-  printf("version_number = %d  ", p_pmt->i_version);
-  printf("PCR_PID = 0x%x (%d)\n", p_pmt->i_pcr_pid, p_pmt->i_pcr_pid);
-  DumpDescriptors("  ]", p_pmt->p_first_descriptor);
-  while(p_es)
-  {
-    printf("  stream_type = 0x%02x pid 0x%x (%d) [%s]\n",
-           p_es->i_type,
-       p_es->i_pid, p_es->i_pid,
-       GetTypeName(p_es->i_type));
-    DumpDescriptors("    -> ", p_es->p_first_descriptor);
-    p_es = p_es->p_next;
-  }
+  tstools_DumpPMT(p_zero, p_pmt);
   dvbpsi_pmt_delete(p_pmt);
-}
-
-static void message(dvbpsi_t *handle, const dvbpsi_msg_level_t level, const char* msg)
-{
-    switch(level)
-    {
-        case DVBPSI_MSG_ERROR: fprintf(stderr, "Error: "); break;
-        case DVBPSI_MSG_WARN:  fprintf(stderr, "Warning: "); break;
-        case DVBPSI_MSG_DEBUG: fprintf(stderr, "Debug: "); break;
-        default: /* do nothing */
-            return;
-    }
-    fprintf(stderr, "%s\n", msg);
+  gPMTCount++;
 }
 
 /*****************************************************************************
@@ -194,7 +65,7 @@ int pmt_inspector(int i_argc, char* pa_argv[])
   i_program_number = atoi(pa_argv[2]);
   i_pmt_pid = atoi(pa_argv[3]);
 
-  p_dvbpsi = dvbpsi_new(&message, DVBPSI_MSG_NONE);
+  p_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
   if (p_dvbpsi == NULL)
         goto out;
 
@@ -209,6 +80,9 @@ int pmt_inspector(int i_argc, char* pa_argv[])
     if(i_pid == i_pmt_pid)
       dvbpsi_packet_push(p_dvbpsi, data);
     b_ok = ReadPacket(i_fd, data);
+
+		if (gPMTCount && !gDumpAll)
+			break;
   }
 
 out:

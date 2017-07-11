@@ -8,6 +8,7 @@
 /* External tool hooks */
 extern int pat_inspector(int argc, char *argv[]);
 extern int pmt_inspector(int argc, char *argv[]);
+extern int si_inspector(int argc, char *argv[]);
 extern int udp_capture(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
@@ -26,6 +27,7 @@ int main(int argc, char *argv[])
 		{ "tstools_pat_inspector",	pat_inspector, },
 		{ "tstools_pmt_inspector",	pmt_inspector, },
 		{ "tstools_udp_capture",	udp_capture, },
+		{ "tstools_si_inspector",	si_inspector, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);
