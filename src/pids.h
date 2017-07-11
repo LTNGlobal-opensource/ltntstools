@@ -10,7 +10,9 @@ extern "C" {
 #define getPID(pkt) (((*((pkt) + 1) << 8) | *((pkt) + 2)) & 0x1fff)
 #define getCC(pkt) (*((pkt) + 3) & 0x0f)
 #define getPacketAdaption(pkt) ((*((pkt) + 3) & 0x30) >> 4)
-#define isTEI(pkt) (*((pkt) + 1) & 0x80)
+#define getScrambled(pkt) ((*((pkt) + 3) & 0xc0) >> 6)
+#define isTEI(pkt) ((*((pkt) + 1) & 0x80) ? 1 : 0)
+#define isPayloadStartIndicator(pkt) (*((pkt) + 1) & 0x40 ? 1 : 0)
 
 #define MAX_PID 8192
 struct pid_statistics_s
