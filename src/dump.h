@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 void tstools_DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat);
-void tstools_DumpPMT(void* p_zero, dvbpsi_pmt_t* p_pmt, int dumpDescriptors);
+void tstools_DumpPMT(void* p_zero, dvbpsi_pmt_t* p_pmt, int dumpDescriptors, uint16_t pid);
 void tstools_message(dvbpsi_t *handle, const dvbpsi_msg_level_t level, const char* msg);
 char *tstools_GetTypeName(uint8_t type);
 void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor);

@@ -147,7 +147,7 @@ static void completionPMT(void* p_zero, dvbpsi_pmt_t* p_pmt)
 	struct ts_stream_s *strm = pid->strm;
   strm->countPMTS++;
 
-  tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0);
+  tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0, pid->pid);
 
 	//dvbpsi_pmt_es_t* p_es = p_pmt->p_first_es;
 

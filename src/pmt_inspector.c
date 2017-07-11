@@ -15,9 +15,11 @@ static int gDumpAll = 0;
 static int gPMTCount = 0;
 static int gVerbose = 0;
 
+static uint16_t i_program_number, i_pmt_pid;
+
 static void DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt)
 {
-  tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0);
+  tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0, i_pmt_pid);
   dvbpsi_pmt_delete(p_pmt);
   gPMTCount++;
 }
@@ -31,7 +33,6 @@ int pmt_inspector(int i_argc, char* pa_argv[])
   uint8_t data[188];
   dvbpsi_t *p_dvbpsi;
   bool b_ok;
-  uint16_t i_program_number, i_pmt_pid;
 
   if (i_argc != 4)
     return 1;

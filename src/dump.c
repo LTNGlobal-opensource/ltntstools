@@ -175,22 +175,28 @@ void tstools_DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat)
 	}
 }
 
-void tstools_DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt, int dumpDescriptors)
+void tstools_DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt, int dumpDescriptors, uint16_t pid)
 {
   dvbpsi_pmt_es_t *p_es = p_pmt->p_first_es;
-  printf("PMT -- program_number = %d  ", p_pmt->i_program_number);
+  printf("PMT -- program_number = %d  pid 0x%04x  ",
+    p_pmt->i_program_number,
+    pid);
+    
   printf("version_number = %d  ", p_pmt->i_version);
   printf("PCR_PID = 0x%04x (%d)\n", p_pmt->i_pcr_pid, p_pmt->i_pcr_pid);
   if (dumpDescriptors)
-  	tstools_DumpDescriptors("       -> descr ", p_pmt->p_first_descriptor);
+    tstools_DumpDescriptors("       -> program descriptors ", p_pmt->p_first_descriptor);
+
+  int es_position = 0;
   while(p_es)
   {
-    printf("       stream_type = 0x%02x, pid = 0x%04x (%d) [%s]\n",
-           p_es->i_type,
-       p_es->i_pid, p_es->i_pid,
-       tstools_GetTypeName(p_es->i_type));
-	  if (dumpDescriptors)
-    	tstools_DumpDescriptors("         -> descr ", p_es->p_first_descriptor);
+    printf("       [%02d] stream_type = 0x%02x, pid = 0x%04x (%d) [%s]\n",
+      es_position++,
+      p_es->i_type,
+      p_es->i_pid, p_es->i_pid,
+      tstools_GetTypeName(p_es->i_type));
+    if (dumpDescriptors)
+      tstools_DumpDescriptors("         -> es descriptors ", p_es->p_first_descriptor);
     p_es = p_es->p_next;
   }
 }
