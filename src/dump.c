@@ -162,7 +162,7 @@ void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
 void tstools_DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat)
 {
 	dvbpsi_pat_program_t* p_program = p_pat->p_first_program;
-	printf("PAT -- transport_stream_id = 0x%04x  ", p_pat->i_ts_id);
+	printf("PAT -- transport_stream_id = 0x%04x (%d)  ", p_pat->i_ts_id, p_pat->i_ts_id);
 	printf("version_number = %d  ", p_pat->i_version);
 	printf("current_next = %d\n", p_pat->b_current_next);
 
@@ -178,10 +178,10 @@ void tstools_DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat)
 void tstools_DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt, int dumpDescriptors, uint16_t pid)
 {
   dvbpsi_pmt_es_t *p_es = p_pmt->p_first_es;
-  printf("PMT -- program_number = %d  pid 0x%04x  ",
+  printf("PMT -- program_number = %d  pid = 0x%04x  ",
     p_pmt->i_program_number,
     pid);
-    
+
   printf("version_number = %d  ", p_pmt->i_version);
   printf("PCR_PID = 0x%04x (%d)\n", p_pmt->i_pcr_pid, p_pmt->i_pcr_pid);
   if (dumpDescriptors)

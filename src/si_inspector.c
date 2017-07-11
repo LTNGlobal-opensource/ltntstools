@@ -150,8 +150,6 @@ static void completionPMT(void* p_zero, dvbpsi_pmt_t* p_pmt)
 
   	tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0, pid->pid);
 
-	//dvbpsi_pmt_es_t* p_es = p_pmt->p_first_es;
-
 	dvbpsi_pmt_delete(p_pmt);
 }
 
@@ -186,6 +184,7 @@ static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
 static void usage(const char *progname)
 {
 	printf("A tool to display the PAT/PMT transport tree structures from file.\n");
+	printf("The first PAT and first set of PMTs are displayed, then the program terminates.\n");
 	printf("Usage:\n");
 	printf("  -i <inputfile.ts>\n");
 	printf("  -v Increase level of verbosity (enable descriptor dumping).\n");
@@ -220,7 +219,7 @@ int si_inspector(int argc, char *argv[])
 	}
 
 	if (iname == NULL) {
-		fprintf(stderr, "-i is mandatory.\n");
+		fprintf(stderr, "\n-i is mandatory.\n\n");
 		exit(1);
 	}
 
