@@ -7,7 +7,7 @@ AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_O
 	-DKL_USERSPACE -D__STDC_FORMAT_MACROS \
 	-DGIT_VERSION=\"$(GIT_VERSION)\"
 
-LDADD = -lpthread -lz -ldl -ldvbpsi
+LDADD = -lpthread -lz -ldl -ldvbpsi -lm
 
 if DEBUG
 	CFLAGS += -g
