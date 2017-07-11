@@ -67,7 +67,7 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 
 		uint8_t cc = getCC(buf + i);
 		if (((pid->lastCC + 1) & 0x0f) != cc) {
-			if (pid->packetCount > 1)
+			if (pid->packetCount > 1 && pidnr != 0x1fff)
 				pid->ccErrors++;
 		}
 		pid->lastCC = cc;
