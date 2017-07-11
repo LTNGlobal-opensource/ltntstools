@@ -17,7 +17,7 @@ static int gVerbose = 0;
 
 static void DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt)
 {
-  tstools_DumpPMT(p_zero, p_pmt);
+  tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0);
   dvbpsi_pmt_delete(p_pmt);
   gPMTCount++;
 }

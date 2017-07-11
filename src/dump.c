@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
+#include <ctype.h>
 
 #include "dump.h"
 
@@ -98,10 +99,10 @@ static void DumpSubtitleDescriptor(dvbpsi_dvb_subtitling_dr_t* p_subtitle_descri
 {
   int a;
 
-  printf("%d subtitles,\n", p_subtitle_descriptor->i_subtitles_number);
+  printf("%d subtitles:\n", p_subtitle_descriptor->i_subtitles_number);
   for (a = 0; a < p_subtitle_descriptor->i_subtitles_number; ++a)
     {
-      printf("       | %d - lang: %c%c%c, type: %d, cpid: %d, apid: %d\n", a,
+      printf("            [%d] - lang: %c%c%c, type: %d, cpid: %d, apid: %d\n", a,
          p_subtitle_descriptor->p_subtitle[a].i_iso6392_language_code[0],
          p_subtitle_descriptor->p_subtitle[a].i_iso6392_language_code[1],
          p_subtitle_descriptor->p_subtitle[a].i_iso6392_language_code[2],
@@ -151,7 +152,7 @@ void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
       default:
     printf("\"");
     for(i = 0; i < p_descriptor->i_length; i++)
-      printf("%c", p_descriptor->p_data[i]);
+      printf("%c", isprint(p_descriptor->p_data[i]) ? p_descriptor->p_data[i] : '.');
     printf("\"\n");
       }
     p_descriptor = p_descriptor->p_next;
@@ -174,20 +175,22 @@ void tstools_DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat)
 	}
 }
 
-void tstools_DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt)
+void tstools_DumpPMT(void *p_zero, dvbpsi_pmt_t *p_pmt, int dumpDescriptors)
 {
   dvbpsi_pmt_es_t *p_es = p_pmt->p_first_es;
   printf("PMT -- program_number = %d  ", p_pmt->i_program_number);
   printf("version_number = %d  ", p_pmt->i_version);
   printf("PCR_PID = 0x%x (%d)\n", p_pmt->i_pcr_pid, p_pmt->i_pcr_pid);
-  tstools_DumpDescriptors("       -> descr ", p_pmt->p_first_descriptor);
+  if (dumpDescriptors)
+  	tstools_DumpDescriptors("       -> descr ", p_pmt->p_first_descriptor);
   while(p_es)
   {
-    printf("       stream_type = 0x%02x pid 0x%x (%d) [%s]\n",
+    printf("       stream_type = 0x%02x, pid = 0x%x (%d) [%s]\n",
            p_es->i_type,
        p_es->i_pid, p_es->i_pid,
        tstools_GetTypeName(p_es->i_type));
-    tstools_DumpDescriptors("         -> descr ", p_es->p_first_descriptor);
+	  if (dumpDescriptors)
+    	tstools_DumpDescriptors("         -> descr ", p_es->p_first_descriptor);
     p_es = p_es->p_next;
   }
 }

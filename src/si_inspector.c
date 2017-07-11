@@ -55,6 +55,9 @@ int  allocStream(struct ts_stream_s **strm, void *userctx);
 __inline__ struct ts_pid_s *findPID(struct ts_stream_s *strm, uint16_t pid);
 void updateStream(struct ts_stream_s *strm, unsigned char *buf, unsigned int len);
 
+static int gVerbose = 0;
+static int gDumpAll = 0;
+
 __inline__ struct ts_pid_s *findPID(struct ts_stream_s *strm, uint16_t pid)
 {
 	assert(pid < MAX_PIDS);
@@ -63,10 +66,8 @@ __inline__ struct ts_pid_s *findPID(struct ts_stream_s *strm, uint16_t pid)
 
 void freeStream(struct ts_stream_s *strm)
 {
-	struct ts_pid_s *p;
-
 	for (int i = 0; i < MAX_PIDS; i++) {
-		p = findPID(strm, i);
+		struct ts_pid_s *p = findPID(strm, i);
 		destroyPID(p);
 	}
 
@@ -132,13 +133,9 @@ void destroyPID(struct ts_pid_s *pid)
 
 void updateStream(struct ts_stream_s *strm, unsigned char *buf, unsigned int len)
 {
-	struct ts_pid_s *pid;
-	unsigned int i;
-	uint16_t i_pid;
-
-	for (i = 0; i < len; i += 188) {
-		i_pid = ((uint16_t)(*(buf + 1) & 0x1f) << 8) | *(buf + 2);
-		pid = findPID(strm, i_pid);
+	for (unsigned int i = 0; i < len; i += 188) {
+		uint16_t i_pid = ((uint16_t)(*(buf + 1) & 0x1f) << 8) | *(buf + 2);
+		struct ts_pid_s *pid = findPID(strm, i_pid);
 		if (pid->used)
 			dvbpsi_packet_push(pid->dvbpsi, buf + i);
 	}
@@ -150,7 +147,7 @@ static void completionPMT(void* p_zero, dvbpsi_pmt_t* p_pmt)
 	struct ts_stream_s *strm = pid->strm;
   strm->countPMTS++;
 
-  tstools_DumpPMT(p_zero, p_pmt);
+  tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0);
 
 	//dvbpsi_pmt_es_t* p_es = p_pmt->p_first_es;
 
@@ -160,24 +157,25 @@ static void completionPMT(void* p_zero, dvbpsi_pmt_t* p_pmt)
 static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
 {
 	struct ts_stream_s *strm = p_zero;
-	struct ts_pid_s *pid;
 
   tstools_DumpPAT(p_zero, p_pat);
 
 	dvbpsi_pat_program_t *p_program = p_pat->p_first_program;
 	while (p_program) {
-		pid = findPID(strm, p_program->i_pid);
+		struct ts_pid_s *pid = findPID(strm, p_program->i_pid);
 
-    strm->totalPMTS++;
-		pid->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
-		if (pid->dvbpsi == NULL) {
-			printf("Huh?\n");
-			assert(0);
-		}
+    if (p_program->i_number != 0) {
+      strm->totalPMTS++;
+      pid->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
+      if (pid->dvbpsi == NULL) {
+        printf("Huh?\n");
+        assert(0);
+      }
 
-		dvbpsi_pmt_attach(pid->dvbpsi, p_program->i_number, completionPMT, pid);
-		pid->used = 1;
-		pid->psip_type = PID_PMT;
+      dvbpsi_pmt_attach(pid->dvbpsi, p_program->i_number, completionPMT, pid);
+      pid->used = 1;
+      pid->psip_type = PID_PMT;
+    }
 
 		p_program = p_program->p_next;
 	}
@@ -185,7 +183,16 @@ static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
 	dvbpsi_pat_delete(p_pat);
 }
 
-int si_inspector(int i_argc, char* pa_argv[])
+static void usage(const char *progname)
+{
+	printf("A tool to display one or more PAT/PMT structures from a ISO13818 transport stream.\n");
+	printf("Usage:\n");
+	printf("  -i <inputfile.ts>\n");
+	printf("  -v Increase level of verbosity (enable descriptor dumping).\n");
+	printf("  -h Display command line help.\n");
+}
+
+int si_inspector(int argc, char *argv[])
 {
 	struct ts_stream_s *strm;
 	struct ts_pid_s *pat;
@@ -193,14 +200,40 @@ int si_inspector(int i_argc, char* pa_argv[])
 	uint8_t data[188];
 	int i_fd;
 	bool b_ok;
+  int ch;
+  char *iname = NULL;
 
-	if (i_argc != 2)
-		return 1;
+	while ((ch = getopt(argc, argv, "a?hvi:")) != -1) {
+		switch (ch) {
+		case 'a':
+			gDumpAll = 1;
+			break;
+		case '?':
+		case 'h':
+			usage(argv[0]);
+			exit(1);
+			break;
+		case 'i':
+			iname = optarg;
+			break;
+		case 'v':
+			gVerbose = 1;
+			break;
+		default:
+			usage(argv[0]);
+			exit(1);
+		}
+	}
+
+	if (iname == NULL) {
+		fprintf(stderr, "-i is mandatory.\n");
+		exit(1);
+	}
 
 	if (allocStream(&strm, NULL) < 0)
 		return 1;
 
-	i_fd = open(pa_argv[1], 0);
+	i_fd = open(iname, 0);
 	if (i_fd < 0)
 		return 1;
 
