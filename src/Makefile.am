@@ -7,9 +7,11 @@ AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_O
 	-DKL_USERSPACE -D__STDC_FORMAT_MACROS \
 	-DGIT_VERSION=\"$(GIT_VERSION)\"
 
-LDADD = -lpthread -lz -ldl -ldvbpsi -lm
-AM_CFLAGS += -I../../ffmpeg/root/include
-LDADD = -L../../ffmpeg/root/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -liconv -ldvbpsi
+LDADD = -lpthread -lz -ldl -lm
+AM_CFLAGS += -I../../ltntstools-ffmpeg/root/include
+AM_CFLAGS += -I../../ltntstools-libdvbpsi/root/include
+LDADD += -L../../ltntstools-libdvbpsi/root/lib -ldvbpsi
+LDADD += -L../../ltntstools-ffmpeg/root/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -liconv
 
 if DEBUG
 	CFLAGS += -g

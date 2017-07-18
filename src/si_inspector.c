@@ -18,7 +18,7 @@
 #include <libavutil/mem.h>
 #include <libavformat/avformat.h>
 
-#include "../../ffmpeg/libavformat/url.h"
+#include "../../ltntstools-ffmpeg/libavformat/url.h"
 
 #define VIDEO_STREAM_DR			0xF2
 #define CA_DR					0x09
@@ -123,10 +123,10 @@ void destroyPID(struct ts_pid_s *pid)
 
 	switch (pid->psip_type) {
 	case PID_PAT:
-		dvbpsi_pat_detach(pid->dvbpsi, 0, 0);
+		dvbpsi_pat_detach(pid->dvbpsi);
 		break;
 	case PID_PMT:
-		dvbpsi_pmt_detach(pid->dvbpsi, 2, 1);
+		dvbpsi_pmt_detach(pid->dvbpsi);
 		break;
 	default:
 		printf("psip_type = %d\n", pid->psip_type);
@@ -179,7 +179,7 @@ static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
 				assert(0);
 			}
 
-			dvbpsi_pmt_attach(pid->dvbpsi, 2, 1, completionPMT, pid);
+			dvbpsi_pmt_attach(pid->dvbpsi, p_program->i_number, completionPMT, pid);
 			pid->used = 1;
 			pid->psip_type = PID_PMT;
 		}
@@ -251,7 +251,7 @@ int si_inspector(int argc, char *argv[])
 	if (pat->dvbpsi == NULL)
 		goto out;
 
-	if (!dvbpsi_pat_attach(pat->dvbpsi, 0, 0, completionPAT, strm))
+	if (!dvbpsi_pat_attach(pat->dvbpsi, completionPAT, strm))
 		goto out;
 
 	pat->used = 1;

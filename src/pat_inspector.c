@@ -13,7 +13,7 @@
 #include <libavutil/mem.h>
 #include <libavformat/avformat.h>
 
-#include "../../ffmpeg/libavformat/url.h"
+#include "../../ltntstools-ffmpeg/libavformat/url.h"
 
 static int gDumpAll = 0;
 static int gPATCount = 0;
@@ -83,7 +83,7 @@ int pat_inspector(int argc, char *argv[])
 	if (p_dvbpsi == NULL)
 		goto out;
 
-	if (!dvbpsi_pat_attach(p_dvbpsi, 0, 1, DumpPAT, NULL))
+	if (!dvbpsi_pat_attach(p_dvbpsi, DumpPAT, NULL))
 		goto out;
 
 	unsigned char buf[7 * 188];
@@ -111,7 +111,7 @@ int pat_inspector(int argc, char *argv[])
 
 out:
 	if (p_dvbpsi) {
-		dvbpsi_pat_detach(p_dvbpsi, 0, 1);
+		dvbpsi_pat_detach(p_dvbpsi);
 		dvbpsi_delete(p_dvbpsi);
 	}
 

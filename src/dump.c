@@ -71,19 +71,19 @@ char *tstools_GetTypeName(uint8_t type)
     }
 }
 
-static void DumpCADescriptor(dvbpsi_mpeg_ca_dr_t *p_ca_descriptor)
+static void DumpCADescriptor(dvbpsi_ca_dr_t *p_ca_descriptor)
 {
 	printf("CA: System %04x PID %04x\n",
 		p_ca_descriptor->i_ca_system_id,
 		p_ca_descriptor->i_ca_pid);
 }
 
-static void DumpMaxBitrateDescriptor(dvbpsi_mpeg_max_bitrate_dr_t* bitrate_descriptor)
+static void DumpMaxBitrateDescriptor(dvbpsi_max_bitrate_dr_t* bitrate_descriptor)
 {
   printf("Bitrate: %d\n", bitrate_descriptor->i_max_bitrate);
 }
 
-static void DumpSystemClockDescriptor(dvbpsi_mpeg_system_clock_dr_t* p_clock_descriptor)
+static void DumpSystemClockDescriptor(dvbpsi_system_clock_dr_t* p_clock_descriptor)
 {
   printf("External clock: %s, Accuracy: %E\n",
      p_clock_descriptor->b_external_clock_ref ? "Yes" : "No",
@@ -91,13 +91,13 @@ static void DumpSystemClockDescriptor(dvbpsi_mpeg_system_clock_dr_t* p_clock_des
      pow(10.0, -(double)p_clock_descriptor->i_clock_accuracy_exponent));
 }
 
-static void DumpStreamIdentifierDescriptor(dvbpsi_dvb_stream_identifier_dr_t* p_si_descriptor)
+static void DumpStreamIdentifierDescriptor(dvbpsi_stream_identifier_dr_t* p_si_descriptor)
 {
   printf("Component tag: %d\n",
      p_si_descriptor->i_component_tag);
 }
 
-static void DumpSubtitleDescriptor(dvbpsi_dvb_subtitling_dr_t* p_subtitle_descriptor)
+static void DumpSubtitleDescriptor(dvbpsi_subtitling_dr_t* p_subtitle_descriptor)
 {
   int a;
 
@@ -114,7 +114,7 @@ static void DumpSubtitleDescriptor(dvbpsi_dvb_subtitling_dr_t* p_subtitle_descri
     }
 }
 
-static void DumpVideoStreamDescriptor(dvbpsi_mpeg_vstream_dr_t *d)
+static void DumpVideoStreamDescriptor(dvbpsi_vstream_dr_t *d)
 {
 	printf("Video Stream: frame_rate_code 0x%02x\n",
 		d->i_frame_rate_code);
@@ -131,7 +131,7 @@ static const char *cue_stream_type_descriptions[] =
   "User Defined"
 };
 
-static void DumpCueIdentificationDescriptor(dvbpsi_scte_cuei_dr_t *p_descriptor)
+static void DumpCueIdentificationDescriptor(dvbpsi_cuei_dr_t *p_descriptor)
 {
   if (p_descriptor == NULL) {
     printf("Cue Identification -- Bug in libdvbpsi, avoiding segfault\n");
@@ -147,12 +147,12 @@ static void DumpCueIdentificationDescriptor(dvbpsi_scte_cuei_dr_t *p_descriptor)
   }
 }
 
-static void DumpDataStreamAlignmentDescriptor(dvbpsi_mpeg_ds_alignment_dr_t *p_descriptor)
+static void DumpDataStreamAlignmentDescriptor(dvbpsi_ds_alignment_dr_t *p_descriptor)
 {
 	printf("Data Stream Alignment: 0x%02x\n", p_descriptor->i_alignment_type);
 }
 
-static void DumpRegistrationDescriptor(dvbpsi_mpeg_registration_dr_t *p_descriptor)
+static void DumpRegistrationDescriptor(dvbpsi_registration_dr_t *p_descriptor)
 {
   char b[5] = {
     p_descriptor->i_format_identifier >> 24,
@@ -179,31 +179,31 @@ void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
 
     switch (p_descriptor->i_tag) {
     case SYSTEM_CLOCK_DR:
-      DumpSystemClockDescriptor(dvbpsi_decode_mpeg_system_clock_dr(p_descriptor));
+      DumpSystemClockDescriptor(dvbpsi_DecodeSystemClockDr(p_descriptor));
       break;
     case MAX_BITRATE_DR:
-      DumpMaxBitrateDescriptor(dvbpsi_decode_mpeg_max_bitrate_dr(p_descriptor));
+      DumpMaxBitrateDescriptor(dvbpsi_DecodeMaxBitrateDr(p_descriptor));
       break;
     case STREAM_IDENTIFIER_DR:
-      DumpStreamIdentifierDescriptor(dvbpsi_decode_dvb_stream_identifier_dr(p_descriptor));
+      DumpStreamIdentifierDescriptor(dvbpsi_DecodeStreamIdentifierDr(p_descriptor));
       break;
     case SUBTITLING_DR:
-      DumpSubtitleDescriptor(dvbpsi_decode_dvb_subtitling_dr(p_descriptor));
+      DumpSubtitleDescriptor(dvbpsi_DecodeSubtitlingDr(p_descriptor));
       break;
     case CA_DR:
-      DumpCADescriptor((dvbpsi_mpeg_ca_dr_t *)p_descriptor);
+      DumpCADescriptor(dvbpsi_DecodeCADr(p_descriptor));
       break;
     case VIDEO_STREAM_DR:
-      DumpVideoStreamDescriptor((dvbpsi_mpeg_vstream_dr_t *)p_descriptor);
+      DumpVideoStreamDescriptor(dvbpsi_DecodeVStreamDr(p_descriptor));
       break;
     case CUE_IDENTIFICATION_DR:
-      DumpCueIdentificationDescriptor(dvbpsi_decode_scte_cuei_dr(p_descriptor));
+      DumpCueIdentificationDescriptor(dvbpsi_DecodeCUEIDr(p_descriptor));
       break;
     case DATA_STREAM_ALIGNMENT_DR:
-      DumpDataStreamAlignmentDescriptor(dvbpsi_decode_mpeg_ds_alignment_dr(p_descriptor));
+      DumpDataStreamAlignmentDescriptor(dvbpsi_DecodeDSAlignmentDr(p_descriptor));
       break;
     case REGISTRATION_DR:
-      DumpRegistrationDescriptor(dvbpsi_decode_mpeg_registration_dr(p_descriptor));
+      DumpRegistrationDescriptor(dvbpsi_DecodeRegistrationDr(p_descriptor));
       break;
     default:
       printf("\"");
