@@ -13,12 +13,7 @@
 #include "hexdump.h"
 #include "dump.h"
 #include "pids.h"
-
-#include <libavutil/avstring.h>
-#include <libavutil/mem.h>
-#include <libavformat/avformat.h>
-
-#include "../../ltntstools-ffmpeg/libavformat/url.h"
+#include "ffmpeg-includes.h"
 
 #define VIDEO_STREAM_DR			0xF2
 #define CA_DR					0x09

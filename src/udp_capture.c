@@ -12,6 +12,7 @@
 #include "udp.h"
 #include "url.h"
 #include "pids.h"
+#include "ffmpeg-includes.h"
 
 #define DEFAULT_FIFOSIZE 1048576
 #define DEFAULT_TRAILERROW 18
@@ -20,8 +21,6 @@ static int gRunning = 0;
 
 struct tool_context_s
 {
-	struct iso13818_udp_receiver_s *udprx;
-	struct url_opts_s *url;
 	char *iname;
 	int verbose;
 
@@ -37,6 +36,11 @@ struct tool_context_s
 	pthread_t threadId;
 	int trailerRow;
 	int threadTerminate, threadRunning, threadTerminated;
+
+	/* ffmpeg related */
+	pthread_t ffmpeg_threadId;
+	int ffmpeg_threadTerminate, ffmpeg_threadRunning, ffmpeg_threadTerminated;
+	URLContext *puc;
 };
 
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
@@ -92,6 +96,40 @@ printf("pid %04x Got %x wanted %x BAD\n", pidnr, cc, (pid->lastCC + 1) & 0x0f);
 		}
 	}
 
+	return 0;
+}
+
+static void *thread_packet_rx(void *p)
+{
+	struct tool_context_s *ctx = p;
+	ctx->ffmpeg_threadRunning = 1;
+	ctx->ffmpeg_threadTerminate = 0;
+	ctx->ffmpeg_threadTerminated = 0;
+
+	unsigned char buf[7 * 188];
+
+	while (!ctx->ffmpeg_threadTerminate) {
+		int rlen = ffurl_read(ctx->puc, buf, sizeof(buf));
+		if (ctx->verbose == 2) {
+			printf("source received %d bytes\n", rlen);
+		}
+		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
+			usleep(2 * 1000);
+			continue;
+		} else
+		if (rlen < 0) {
+			usleep(2 * 1000);
+			gRunning = 0;
+			/* General Error or end of stream. */
+			continue;
+		}
+
+		for (int i = 0; i < rlen; i += 188) {
+			packet_cb(ctx, &buf[i], 188);			
+		}
+
+	}
+	ctx->ffmpeg_threadTerminated = 1;
 	return 0;
 }
 
@@ -195,7 +233,6 @@ int udp_capture(int argc, char *argv[])
 	int ret = 0;
 	int ch;
 	char *oname = NULL;
-	int fifosize = DEFAULT_FIFOSIZE;
 
 	struct tool_context_s tctx, *ctx;
 	ctx = &tctx;
@@ -209,10 +246,6 @@ int udp_capture(int argc, char *argv[])
 			exit(1);
 			break;
 		case 'i':
-			if (url_parse(optarg, &ctx->url) < 0) {
-				fprintf(stderr, "Problem parsing url, aborting.\n");
-				exit(1);
-			}
 			ctx->iname = optarg;
 			break;
 		case 'v':
@@ -234,9 +267,14 @@ int udp_capture(int argc, char *argv[])
 		fprintf(stderr, "-i is mandatory.\n");
 		exit(1);
 	}
-	if (oname == NULL && !ctx->monitor) {
-		fprintf(stderr, "-o is mandatory, or switch to using monitoring mode (-M).\n");
-		exit(1);
+
+	avformat_network_init();
+	
+	ret = ffurl_open(&ctx->puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK, NULL, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "-i syntax error\n");
+		ret = -1;
+		goto no_output;
 	}
 
 	if (oname) {
@@ -248,27 +286,6 @@ int udp_capture(int argc, char *argv[])
 		}
 	}
 
-	if (ctx->url->has_fifosize)
-		fifosize = ctx->url->fifosize;
-
-	ret = iso13818_udp_receiver_alloc(&ctx->udprx, fifosize, ctx->url->hostname, ctx->url->port,
-		(tsudp_receiver_callback)packet_cb, ctx, 0);
-	if (ret < 0) {
-		fprintf(stderr, "Problem allocating the URL receiver, aborting.\n");
-		ret = -1;
-		goto no_udp;
-	}
-
-	if (ctx->url->has_ifname)
-		iso13818_udp_receiver_join_multicast(ctx->udprx, ctx->url->ifname);
-
-	ret = iso13818_udp_receiver_thread_start(ctx->udprx);
-	if (ret < 0) {
-		fprintf(stderr, "Problem allocating the UDP receiver thread, aborting.\n");
-		ret = -1;
-		goto no_thread;
-	}
-
 	signal(SIGINT, signal_handler);
 	gRunning = 1;
 
@@ -276,6 +293,8 @@ int udp_capture(int argc, char *argv[])
 		initscr();
 		pthread_create(&ctx->threadId, 0, thread_func, ctx);
 	}
+
+	pthread_create(&ctx->ffmpeg_threadId, 0, thread_packet_rx, ctx);
 
 	while (gRunning) {
 		int ch = getch();
@@ -295,6 +314,12 @@ int udp_capture(int argc, char *argv[])
 
 		usleep(50 * 1000);
 	}
+	ffurl_shutdown(ctx->puc, 0);
+
+	/* Shutdown ffmpeg */
+	ctx->ffmpeg_threadTerminate = 1;
+	while (!ctx->ffmpeg_threadTerminated)
+		usleep(50 * 1000);
 
 	if (ctx->monitor) {
 		ctx->threadTerminate = 1;
@@ -318,14 +343,6 @@ int udp_capture(int argc, char *argv[])
 				ctx->stream.pids[i].teiErrors);
 		}
 	}
-
-no_thread:
-	if (ctx->udprx)
-		iso13818_udp_receiver_free(&ctx->udprx);
-
-no_udp:
-	if (ctx->url)
-		url_free(ctx->url);
 
 	if (ctx->ofh)
 		fclose(ctx->ofh);
