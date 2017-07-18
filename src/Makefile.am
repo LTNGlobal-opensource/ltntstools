@@ -22,8 +22,6 @@ CXXFLAGS = $(CFLAGS)
 SRC  = tstools_util.c
 SRC += pat_inspector.c
 SRC += pmt_inspector.c
-SRC += udp.c
-SRC += url.c
 SRC += dump.c
 SRC += udp_capture.c
 SRC += si_inspector.c
@@ -44,7 +42,6 @@ libtstools_noinst_includedir = $(includedir)
 
 noinst_HEADERS  = hexdump.h
 noinst_HEADERS += version.h
-noinst_HEADERS += udp.h
-noinst_HEADERS += url.h
 noinst_HEADERS += pids.h
 noinst_HEADERS += dump.h
+noinst_HEADERS += histogram.h

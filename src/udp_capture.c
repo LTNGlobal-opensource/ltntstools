@@ -9,8 +9,6 @@
 #include <curses.h>
 #include <inttypes.h>
 #include <pthread.h>
-#include "udp.h"
-#include "url.h"
 #include "pids.h"
 #include "ffmpeg-includes.h"
 
