@@ -12,6 +12,13 @@
 
 #include "hexdump.h"
 #include "dump.h"
+#include "pids.h"
+
+#include <libavutil/avstring.h>
+#include <libavutil/mem.h>
+#include <libavformat/avformat.h>
+
+#include "../../ffmpeg/libavformat/url.h"
 
 #define VIDEO_STREAM_DR			0xF2
 #define CA_DR					0x09
@@ -116,10 +123,10 @@ void destroyPID(struct ts_pid_s *pid)
 
 	switch (pid->psip_type) {
 	case PID_PAT:
-		dvbpsi_pat_detach(pid->dvbpsi);
+		dvbpsi_pat_detach(pid->dvbpsi, 0, 0);
 		break;
 	case PID_PMT:
-		dvbpsi_pmt_detach(pid->dvbpsi);
+		dvbpsi_pmt_detach(pid->dvbpsi, 2, 1);
 		break;
 	default:
 		printf("psip_type = %d\n", pid->psip_type);
@@ -135,10 +142,11 @@ void destroyPID(struct ts_pid_s *pid)
 void updateStream(struct ts_stream_s *strm, unsigned char *buf, unsigned int len)
 {
 	for (unsigned int i = 0; i < len; i += 188) {
-		uint16_t i_pid = ((uint16_t)(*(buf + 1) & 0x1f) << 8) | *(buf + 2);
+		uint16_t i_pid = getPID(buf + i);
 		struct ts_pid_s *pid = findPID(strm, i_pid);
-		if (pid->used)
+		if (pid->used) {
 			dvbpsi_packet_push(pid->dvbpsi, buf + i);
+		}
 	}
 }
 
@@ -171,7 +179,7 @@ static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
 				assert(0);
 			}
 
-			dvbpsi_pmt_attach(pid->dvbpsi, p_program->i_number, completionPMT, pid);
+			dvbpsi_pmt_attach(pid->dvbpsi, 2, 1, completionPMT, pid);
 			pid->used = 1;
 			pid->psip_type = PID_PMT;
 		}
@@ -227,33 +235,47 @@ int si_inspector(int argc, char *argv[])
 	if (allocStream(&strm, NULL) < 0)
 		return 1;
 
-	int i_fd = open(iname, 0);
-	if (i_fd < 0)
+	avformat_network_init();
+	URLContext *puc;
+	int ret = ffurl_open(&puc, iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK, NULL, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "-i syntax error\n");
 		return 1;
+	}
 
 	struct ts_pid_s *pat = findPID(strm, 0);
-	pat->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
+	if (gVerbose)
+		pat->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_DEBUG);
+	else
+		pat->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
 	if (pat->dvbpsi == NULL)
 		goto out;
 
-	if (!dvbpsi_pat_attach(pat->dvbpsi, completionPAT, strm))
+	if (!dvbpsi_pat_attach(pat->dvbpsi, 0, 0, completionPAT, strm))
 		goto out;
 
 	pat->used = 1;
 	pat->psip_type = PID_PAT;
 
-	uint8_t data[188];
-	bool b_ok = tstools_ReadPacket(i_fd, data);
-	while (b_ok) {
-		updateStream(strm, data, 188);
-		b_ok = tstools_ReadPacket(i_fd, data);
+	uint8_t buf[7 * 188];
+	int ok = 1;
+	while (ok) {
+		int rlen = ffurl_read(puc, &buf[0], sizeof(buf));
+		if (rlen == -EAGAIN) {
+			usleep(2 * 1000);
+			continue;
+		}
 
-    	if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS))
-      		break;
+		//printf("Read %d\n", rlen);
+		updateStream(strm, buf, rlen);
+		if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS)) {
+			ok = 0;
+			break;
+		}
 	}
+	ffurl_shutdown(puc, 0);
 
 out:
-	close(i_fd);
 
 	freeStream(strm);
 

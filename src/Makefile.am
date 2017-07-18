@@ -8,6 +8,8 @@ AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_O
 	-DGIT_VERSION=\"$(GIT_VERSION)\"
 
 LDADD = -lpthread -lz -ldl -ldvbpsi -lm
+AM_CFLAGS += -I../../ffmpeg/root/include
+LDADD = -L../../ffmpeg/root/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -liconv -ldvbpsi
 
 if DEBUG
 	CFLAGS += -g

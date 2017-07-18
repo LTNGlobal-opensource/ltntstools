@@ -48,7 +48,7 @@ int pmt_inspector(int i_argc, char* pa_argv[])
   if (p_dvbpsi == NULL)
         goto out;
 
-  if (!dvbpsi_pmt_attach(p_dvbpsi, i_program_number, DumpPMT, NULL))
+  if (!dvbpsi_pmt_attach(p_dvbpsi, 2, 1, DumpPMT, NULL))
       goto out;
 
   b_ok = tstools_ReadPacket(i_fd, data);
@@ -67,7 +67,7 @@ int pmt_inspector(int i_argc, char* pa_argv[])
 out:
   if (p_dvbpsi)
   {
-    dvbpsi_pmt_detach(p_dvbpsi);
+    dvbpsi_pmt_detach(p_dvbpsi, 2, 0);
     dvbpsi_delete(p_dvbpsi);
   }
   close(i_fd);

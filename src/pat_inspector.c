@@ -7,6 +7,13 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include "dump.h"
+#include "pids.h"
+
+#include <libavutil/avstring.h>
+#include <libavutil/mem.h>
+#include <libavformat/avformat.h>
+
+#include "../../ffmpeg/libavformat/url.h"
 
 static int gDumpAll = 0;
 static int gPATCount = 0;
@@ -31,10 +38,7 @@ static void usage(const char *progname)
 int pat_inspector(int argc, char *argv[])
 {
 	int ch;
-	int i_fd;
-	uint8_t data[188];
 	dvbpsi_t *p_dvbpsi;
-	bool b_ok;
 	char *iname = NULL;
 
 	while ((ch = getopt(argc, argv, "a?hvi:")) != -1) {
@@ -64,9 +68,13 @@ int pat_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
-	i_fd = open(iname, 0);
-	if (i_fd < 0)
+	avformat_network_init();
+	URLContext *puc;
+	int ret = ffurl_open(&puc, iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK, NULL, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "-i syntax error\n");
 		return 1;
+	}
 
 	if (gVerbose)
 		p_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_DEBUG);
@@ -75,28 +83,37 @@ int pat_inspector(int argc, char *argv[])
 	if (p_dvbpsi == NULL)
 		goto out;
 
-	if (!dvbpsi_pat_attach(p_dvbpsi, DumpPAT, NULL))
+	if (!dvbpsi_pat_attach(p_dvbpsi, 0, 1, DumpPAT, NULL))
 		goto out;
 
-	b_ok = tstools_ReadPacket(i_fd, data);
-
-	while(b_ok)
+	unsigned char buf[7 * 188];
+	int ok = 1;
+	while (ok)
 	{
-		uint16_t i_pid = ((uint16_t)(data[1] & 0x1f) << 8) + data[2];
-		if(i_pid == 0x0)
-			dvbpsi_packet_push(p_dvbpsi, data);
-		b_ok = tstools_ReadPacket(i_fd, data);
+		int rlen = ffurl_read(puc, buf, sizeof(buf));
+		if (rlen == -EAGAIN) {
+			usleep(2 * 1000);
+			continue;
+		}
 
-		if (gPATCount && !gDumpAll)
-			break;
+		for (int i = 0; i < rlen; i += 188) {
+			uint16_t i_pid = getPID(&buf[i]);
+			if (i_pid == 0x0)
+				dvbpsi_packet_push(p_dvbpsi, &buf[i]);
+
+			if (gPATCount && !gDumpAll) {
+				ok = 0;
+				break;
+			}
+		}
 	}
+	ffurl_shutdown(puc, 0);
 
 out:
 	if (p_dvbpsi) {
-		dvbpsi_pat_detach(p_dvbpsi);
+		dvbpsi_pat_detach(p_dvbpsi, 0, 1);
 		dvbpsi_delete(p_dvbpsi);
 	}
-	close(i_fd);
 
 	return 0;
 }
