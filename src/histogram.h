@@ -1,5 +1,10 @@
 /* Copyright LiveTimeNet, Inc. 2017. All Rights Reserved. */
 
+/* The original version of this code lives in the ltntstools project,
+ * so please reflect any modifications 'upstream' if this code gets
+ * pulled into other projects.
+ */
+
 /* Basic histogram facility geared towards video use cases, where
  * buckets span from 1-Nms, and the finest granularity is 1ms.
  * We intensionally tradeoff a large amount of ram for fast
