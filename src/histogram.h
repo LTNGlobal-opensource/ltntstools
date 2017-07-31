@@ -1,5 +1,10 @@
 /* Copyright LiveTimeNet, Inc. 2017. All Rights Reserved. */
 
+/* The original version of this code lives in the ltntstools project,
+ * so please reflect any modifications 'upstream' if this code gets
+ * pulled into other projects.
+ */
+
 /* Basic histogram facility geared towards video use cases, where
  * buckets span from 1-Nms, and the finest granularity is 1ms.
  * We intensionally tradeoff a large amount of ram for fast
@@ -16,17 +21,35 @@
  *   ltn_histogram_interval_update(hdl);
  *
  *   // Whenever you see fit, print the histogram content:
- *   ltn_histogram_interval_print(STDOUT_FILENO, hdl);
+ *   ltn_histogram_interval_print(STDOUT_FILENO, hdl, 0);
  *
  *   // Free the memory allocations when you're done.
  *   ltn_histogram_free(hdl);
+ * 
  *
+ * Use case: Measure the amount of time a specific piece of processing takes,
+ *           for example, measureing a video frame colorspace conversion.
+ *   struct ltn_histogram_s *hdl;
+ *   ltn_histogram_alloc_video_defaults(&hdl, "GOP compression time");
+ * 
+ *   // Perform as many sample measurements as your need.
+ *   ltn_histogram_sample_begin(hdl)
+ *   ..... do some processing work here, we'll measure performance.
+ *   ltn_histogram_sample_end(hdl)
  *
+ *   // Assuming this is called multiple times per second,
+ *   // every four seconds print the histogram content to console.
+ *   ltn_histogram_interval_print(STDOUT_FILENO, hdl, 4);
+ *
+ *   // Free the memory allocations when you're done.
+ *   ltn_histogram_free(hdl);
+ * 
+ * 
  * Use case: Measuring frame encode time in a cumulative summary,
  *           for example measuring how long it took to compress a gop.
  *
  *   struct ltn_histogram_s *hdl;
- *   ltn_histogram_alloc_video_defaults(&hdl, "GOP compression time");
+ *   ltn_histogram_alloc_video_defaults(&hdl, "CSC conversion time");
  *
  *   // At the start of a cumulative period, reset any counters, such as when
  *   // the GOP begins.
@@ -76,7 +99,33 @@ struct ltn_histogram_s
 	/* Cumulative histograms */
 	uint64_t cumulativeMs;
 	struct timeval cumulativeLast;
+
+	/* Per-unit sample histograms */
+	uint64_t sampleMs;
+	struct timeval sampleLast;
+
+	/* Helper mechism for printing the histogram routinely. */
+	struct timeval printLast;
+	struct timeval printSummaryLast;
 };
+
+/* Compare time T1 to T2. */
+static __inline__ int _compareTime(struct timeval *t1, struct timeval *t2)
+{
+	if (t1->tv_sec > t2->tv_sec)
+		return 1;
+	if (t1->tv_sec < t2->tv_sec)
+		return -1;
+
+	/* Seconds are identical, compare usecs */
+	if (t1->tv_usec > t2->tv_usec)
+		return 1;
+	if (t1->tv_usec < t2->tv_usec)
+		return -1;
+
+	/* Identical. */
+	return 0;
+}
 
 static __inline__ struct ltn_histogram_bucket_s *ltn_histogram_bucket(struct ltn_histogram_s *ctx, uint32_t ms)
 {
@@ -127,6 +176,8 @@ static __inline__ void ltn_histogram_free(struct ltn_histogram_s *ctx)
 
 static __inline__ int ltn_histogram_alloc(struct ltn_histogram_s **handle, const char *name, uint64_t minValMs, uint64_t maxValMs)
 {
+	*handle = NULL;
+
 	if (minValMs == maxValMs)
 		return -1;
 	if (maxValMs < minValMs)
@@ -136,7 +187,7 @@ static __inline__ int ltn_histogram_alloc(struct ltn_histogram_s **handle, const
 	if (!name)
 		return -1;
 	
-	struct ltn_histogram_s *ctx = calloc(1, sizeof(*ctx));
+	struct ltn_histogram_s *ctx = (struct ltn_histogram_s *)calloc(1, sizeof(*ctx));
 	if (!ctx)
 		return -1;
 
@@ -146,7 +197,7 @@ static __inline__ int ltn_histogram_alloc(struct ltn_histogram_s **handle, const
 	strncpy(ctx->name, name, sizeof(ctx->name));
 	gettimeofday(&ctx->intervalLast, NULL);
 
-	ctx->buckets = calloc(ctx->bucketCount, sizeof(struct ltn_histogram_s));
+	ctx->buckets = (struct ltn_histogram_bucket_s *)calloc(ctx->bucketCount, sizeof(struct ltn_histogram_s));
 	if (!ctx->buckets)
 		return -1;
 
@@ -182,12 +233,26 @@ static __inline__ int ltn_histogram_interval_update(struct ltn_histogram_s *ctx)
 	return diffMs;
 }
 
-static __inline__ void ltn_histogram_interval_print(int fd, struct ltn_histogram_s *ctx)
+static __inline__ void ltn_histogram_interval_print(int fd, struct ltn_histogram_s *ctx, unsigned int seconds)
 {
+	if (seconds) {
+		struct timeval now;
+		gettimeofday(&now, NULL);
+
+		struct timeval r;
+		ltn_histogram_timeval_subtract(&r, &now, &ctx->printLast);
+		uint32_t diffMs = ltn_histogram_timeval_to_ms(&r);
+
+		if (diffMs < (seconds * 1000))
+			return;
+
+		ctx->printLast = now; /* Implicit struct copy. */
+	}
+
 	dprintf(fd, "Histogram '%s' (ms, count, last update time)\n", ctx->name);
 
 	uint64_t cnt = 0, measurements = 0;
-	for (int i = 0; i < ctx->bucketCount; i++) {
+	for (uint32_t i = 0; i < ctx->bucketCount; i++) {
 		struct ltn_histogram_bucket_s *b = &ctx->buckets[i];
 		if (!b->count)
 			continue;
@@ -201,13 +266,13 @@ static __inline__ void ltn_histogram_interval_print(int fd, struct ltn_histogram
 			"-> %5" PRIu64 " %8" PRIu64 "  %s (%ld.%d)\n",
 #endif
 #if defined(__linux__)
-			"-> %5" PRIu64 " %8" PRIu64 "  %s (%d.%d)\n",
+			"-> %5" PRIu64 " %8" PRIu64 "  %s (%u.%u)\n",
 #endif
 			ctx->minValMs + i,
 			b->count,
 			timestamp,
-			b->lastUpdate.tv_sec,
-			b->lastUpdate.tv_usec);
+			(unsigned int)b->lastUpdate.tv_sec,
+			(unsigned int)b->lastUpdate.tv_usec);
 
 		cnt++;
 		measurements += b->count;
@@ -222,6 +287,48 @@ static __inline__ void ltn_histogram_interval_print(int fd, struct ltn_histogram
 		measurements,
 		ctx->minValMs, ctx->maxValMs);
 }
+
+static __inline__ void ltn_histogram_summary_print(int fd, struct ltn_histogram_s *ctx, unsigned int seconds, unsigned int bucketSizeMs)
+{
+	if (seconds) {
+		struct timeval now;
+		gettimeofday(&now, NULL);
+
+		struct timeval r;
+		ltn_histogram_timeval_subtract(&r, &now, &ctx->printSummaryLast);
+		uint32_t diffMs = ltn_histogram_timeval_to_ms(&r);
+
+		if (diffMs < (seconds * 1000))
+			return;
+
+		ctx->printSummaryLast = now; /* Implicit struct copy. */
+	}
+
+	struct ltn_histogram_s *h;
+	char name[256];
+	sprintf(name, "%s - Summarized into buckets of %d ms", ctx->name, bucketSizeMs);
+	ltn_histogram_alloc(&h, name, ctx->minValMs, ctx->maxValMs);
+
+	/* Walk all of the buckets based on ms, grab the bucket and summary it into a new histogram with a new bucketsize */
+	for (uint64_t i = ctx->minValMs; i < ctx->maxValMs; i += bucketSizeMs) {
+		struct ltn_histogram_bucket_s *dst = ltn_histogram_bucket(h, i + bucketSizeMs);
+
+		for (uint64_t j = 0; j < (bucketSizeMs - 1); j++) {
+			struct ltn_histogram_bucket_s *src = ltn_histogram_bucket(ctx, i + j);
+			if (!src)
+				continue;
+
+			dst->count += src->count;
+
+			/* We want the latest update time in the summarized histogram. */
+			if (_compareTime(&src->lastUpdate, &dst->lastUpdate) > 0)
+				dst->lastUpdate = src->lastUpdate; /* Implicit struct copy. */
+		}
+	}
+	ltn_histogram_interval_print(fd, h, seconds);
+	ltn_histogram_free(h);
+}
+
 
 __inline__ static void ltn_histogram_cumulative_initialize(struct ltn_histogram_s *ctx)
 {
@@ -259,6 +366,33 @@ __inline__ static uint64_t ltn_histogram_cumulative_finalize(struct ltn_histogra
 	}
 
 	return ctx->cumulativeMs;
+}
+
+__inline__ static void ltn_histogram_sample_begin(struct ltn_histogram_s *ctx)
+{
+	gettimeofday(&ctx->sampleLast, 0);
+}
+
+__inline__ static uint64_t ltn_histogram_sample_end(struct ltn_histogram_s *ctx)
+{
+	struct timeval now;
+	gettimeofday(&now, 0);
+
+	struct timeval r;
+	ltn_histogram_timeval_subtract(&r, &now, &ctx->sampleLast);
+
+	ctx->sampleMs = ltn_histogram_timeval_to_ms(&r);
+
+	/* Write ctx->sampleMs into the buckets. */
+	if ((ctx->sampleMs < ctx->minValMs) || (ctx->sampleMs > ctx->maxValMs)) {
+		ctx->bucketMissCount++;
+	} else {
+		struct ltn_histogram_bucket_s *bucket = ltn_histogram_bucket(ctx, ctx->sampleMs);
+		gettimeofday(&bucket->lastUpdate, 0);
+		bucket->count++;
+	}
+
+	return ctx->sampleMs;
 }
 
 #endif /* LTN_HISTOGRAM_H */
