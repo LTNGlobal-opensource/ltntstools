@@ -17,6 +17,9 @@ AC_PROG_LIBTOOL
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netinet/in.h stdint.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h])
+AC_CHECK_HEADERS([pcap.h],
+                 [break],
+                 [AC_MSG_ERROR([libpcap headers not found or not usable])])
 AC_CHECK_HEADERS([zlib.h],
                  [break],
                  [AC_MSG_ERROR([zlib-dev headers not found or not usable])])
