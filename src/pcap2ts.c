@@ -34,16 +34,28 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 		hexdump(buf, 32, 32);
 	}
 
-	struct iphdr *ip = NULL;
 	struct udphdr *udp = NULL;
+#if defined(__linux__)
+	struct iphdr *ip = NULL;
+#endif
+#if defined(__APPLE__)
+	struct ip *ip = NULL;
+#endif
 	int hdrlen = 0;
 
 	uint32_t *x = (uint32_t *)buf;
 	if (*x == 2) {
 		/* Loopback capture */
+#if defined(__linux__)
 		ip = (struct iphdr *)(buf + 4);
 		udp = (struct udphdr *)(buf + 4 + sizeof(struct iphdr));
 		hdrlen = 4 + sizeof(struct iphdr) + sizeof(struct udphdr);
+#endif
+#if defined(__APPLE__)
+		ip = (struct ip *)(buf + 4);
+		udp = (struct udphdr *)(buf + 4 + sizeof(struct ip));
+		hdrlen = 4 + sizeof(struct ip) + sizeof(struct udphdr);
+#endif
 	}
 
 	if ((!ip) || (!udp))
@@ -55,7 +67,12 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 	if (ntohs(udp->uh_dport) != port)
 		return;
 
+#if defined(__linux__)
 	if (ip->daddr != sa.sin_addr.s_addr)
+#endif
+#if defined(__APPLE__)
+	if (ip->ip_dst.s_addr != sa.sin_addr.s_addr)
+#endif
 		return;
 
 	if (verbose) {
