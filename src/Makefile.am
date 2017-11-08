@@ -13,7 +13,10 @@ AM_CFLAGS += -I../../ltntstools-libdvbpsi/root/include
 LDADD += -L../../ltntstools-libdvbpsi/root/lib -ldvbpsi
 LDADD += -L../../ltntstools-ffmpeg/root/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil
 LDADD += -lpcap
-#LDADD += -liconv
+
+#ifdef __APPLE__
+LDADD += -liconv
+#endif
 
 if DEBUG
 	CFLAGS += -g
