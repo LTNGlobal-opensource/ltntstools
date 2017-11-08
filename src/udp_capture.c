@@ -84,10 +84,10 @@ printf("pid %04x Got %x wanted %x BAD\n", pidnr, cc, (pid->lastCC + 1) & 0x0f);
 
 		if (ctx->verbose) {
 			for (int i = 0; i < byteCount; i += 188) {
-				for (int j = 0; j < 16; j++) {
+				for (int j = 0; j < 24; j++) {
 					printf("%02x ", buf[i + j]);
 					if (j == 3)
-						printf("-- 0x%04x(%d) -- ", pidnr, pidnr);
+						printf("-- 0x%04x(%4d) -- ", pidnr, pidnr);
 				}
 				printf("\n");
 			}
@@ -262,6 +262,7 @@ int udp_capture(int argc, char *argv[])
 	}
 
 	if (ctx->iname == NULL) {
+		usage(argv[0]);
 		fprintf(stderr, "-i is mandatory.\n");
 		exit(1);
 	}
@@ -329,13 +330,14 @@ int udp_capture(int argc, char *argv[])
 
 	ret = 0;
 
-	printf("\nWrote %" PRIu64 " bytes to %s\n", ctx->bytesWritten, oname);
+	if (oname)
+		printf("\nWrote %" PRIu64 " bytes to %s\n", ctx->bytesWritten, oname);
 
-	printf("   PID    PacketCount   CCErrors  TEIErrors\n");
-	printf("---------------------- --------- ----------\n");
+	printf("   PID   PID     PacketCount   CCErrors  TEIErrors\n");
+	printf("----------------------------  --------- ----------\n");
 	for (int i = 0; i < MAX_PID; i++) {	
 		if (ctx->stream.pids[i].enabled) {
-			printf("0x%04x %14" PRIu64 " %10" PRIu64 " %10" PRIu64 "\n", i,
+			printf("0x%04x (%4d) %14" PRIu64 " %10" PRIu64 " %10" PRIu64 "\n", i, i,
 				ctx->stream.pids[i].packetCount,
 				ctx->stream.pids[i].ccErrors,
 				ctx->stream.pids[i].teiErrors);

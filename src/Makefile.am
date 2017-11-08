@@ -11,7 +11,9 @@ LDADD = -lpthread -lz -ldl -lm
 AM_CFLAGS += -I../../ltntstools-ffmpeg/root/include
 AM_CFLAGS += -I../../ltntstools-libdvbpsi/root/include
 LDADD += -L../../ltntstools-libdvbpsi/root/lib -ldvbpsi
-LDADD += -L../../ltntstools-ffmpeg/root/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -liconv
+LDADD += -L../../ltntstools-ffmpeg/root/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil
+LDADD += -lpcap
+#LDADD += -liconv
 
 if DEBUG
 	CFLAGS += -g
@@ -25,18 +27,21 @@ SRC += pmt_inspector.c
 SRC += dump.c
 SRC += udp_capture.c
 SRC += si_inspector.c
+SRC += pcap2ts.c
 
 bin_PROGRAMS  = tstools_util
 bin_PROGRAMS += tstools_pat_inspector
 bin_PROGRAMS += tstools_pmt_inspector
 bin_PROGRAMS += tstools_udp_capture
 bin_PROGRAMS += tstools_si_inspector
+bin_PROGRAMS += tstools_pcap2ts
 
 tstools_util_SOURCES = $(SRC)
 tstools_pat_inspector_SOURCES = $(SRC)
 tstools_pmt_inspector_SOURCES = $(SRC)
 tstools_udp_capture_SOURCES = $(SRC)
 tstools_si_inspector_SOURCES = $(SRC)
+tstools_pcap2ts_SOURCES = $(SRC)
 
 libtstools_noinst_includedir = $(includedir)
 
