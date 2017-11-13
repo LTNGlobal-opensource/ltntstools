@@ -27,6 +27,8 @@ static void hexdump(unsigned char *buf, unsigned int len, int bytesPerRow /* Typ
 
 static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 {
+	struct in_addr s, d;
+
 	if (verbose) {
 		printf("%" PRIu64 ":%" PRIu64 " (%4" PRIu64 ") - ",
 			(uint64_t)hdr->ts.tv_sec, (uint64_t)hdr->ts.tv_usec, (uint64_t)hdr->len);
@@ -68,16 +70,32 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 	if ((!ip) || (!udp))
 		return;
 
+#if defined(__APPLE__)
 	if (ip->ip_p != 0x11 /* UDP */)
+#endif
+#if defined(__linux__)
+	if (ip->protocol != 0x11 /* UDP */)
+#endif
 		return;
 
 	uint8_t *data = buf + hdrlen;
 	uint32_t len = hdr->len - hdrlen;
 
 	if (verbose) {
+#if defined(__linux__)
+		s.s_addr = ip->saddr;
+		d.s_addr = ip->daddr;
+#endif
+
 		printf("%s:%d -> %s:%d  = ",
+#if defined(__APPLE__)
 			inet_ntoa(ip->ip_src), ntohs(udp->uh_sport),
 			inet_ntoa(ip->ip_dst), ntohs(udp->uh_dport));
+#endif
+#if defined(__linux__)
+			inet_ntoa(s), ntohs(udp->uh_sport),
+			inet_ntoa(d), ntohs(udp->uh_dport));
+#endif
 		hexdump(buf, 31, 32);
 	}
 
@@ -92,8 +110,6 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 #endif
 		return;
 
-	if (verbose) {
-	}
 	count++;
 	if (*data != 0x47) {
 		fprintf(stderr, "Error at packet %d\n", count);
