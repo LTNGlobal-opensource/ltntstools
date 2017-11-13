@@ -16,6 +16,7 @@ static char *addr = NULL;
 static int port = 0;
 static int verbose = 0;
 static struct sockaddr_in sa;
+static uint64_t tspkt_count_output = 0;
 
 static void hexdump(unsigned char *buf, unsigned int len, int bytesPerRow /* Typically 16 */)
 {
@@ -27,7 +28,7 @@ static void hexdump(unsigned char *buf, unsigned int len, int bytesPerRow /* Typ
 static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 {
 	if (verbose) {
-		printf("%" PRIu64 ":%" PRIu64 " (%" PRIu64 ")\n",
+		printf("%" PRIu64 ":%" PRIu64 " (%4" PRIu64 ") - ",
 			(uint64_t)hdr->ts.tv_sec, (uint64_t)hdr->ts.tv_usec, (uint64_t)hdr->len);
 	}
 	if (verbose > 1) {
@@ -42,27 +43,43 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 	struct ip *ip = NULL;
 #endif
 	int hdrlen = 0;
+	int ipoffset = 0;
 
 	uint32_t *x = (uint32_t *)buf;
 	if (*x == 2) {
 		/* Loopback capture */
+		ipoffset = 4;
+	} else {
+		/* Assume ethernet */
+		ipoffset = sizeof(struct ether_header);
+	}
+
 #if defined(__linux__)
-		ip = (struct iphdr *)(buf + 4);
-		udp = (struct udphdr *)(buf + 4 + sizeof(struct iphdr));
-		hdrlen = 4 + sizeof(struct iphdr) + sizeof(struct udphdr);
+	ip = (struct iphdr *)(buf + ipoffset);
+	udp = (struct udphdr *)(buf + ipoffset + sizeof(struct iphdr));
+	hdrlen = ipoffset + sizeof(struct iphdr) + sizeof(struct udphdr);
 #endif
 #if defined(__APPLE__)
-		ip = (struct ip *)(buf + 4);
-		udp = (struct udphdr *)(buf + 4 + sizeof(struct ip));
-		hdrlen = 4 + sizeof(struct ip) + sizeof(struct udphdr);
+	ip = (struct ip *)(buf + ipoffset);
+	udp = (struct udphdr *)(buf + ipoffset + sizeof(struct ip));
+	hdrlen = ipoffset + sizeof(struct ip) + sizeof(struct udphdr);
 #endif
-	}
 
 	if ((!ip) || (!udp))
 		return;
 
+	if (ip->ip_p != 0x11 /* UDP */)
+		return;
+
 	uint8_t *data = buf + hdrlen;
 	uint32_t len = hdr->len - hdrlen;
+
+	if (verbose) {
+		printf("%s:%d -> %s:%d  = ",
+			inet_ntoa(ip->ip_src), ntohs(udp->uh_sport),
+			inet_ntoa(ip->ip_dst), ntohs(udp->uh_dport));
+		hexdump(buf, 31, 32);
+	}
 
 	if (ntohs(udp->uh_dport) != port)
 		return;
@@ -84,8 +101,10 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 		exit(1);
 	}
 
-	if (ofh)
+	if (ofh) {
+		tspkt_count_output += (len / 188);
 		fwrite(data, 1, len, ofh);
+	}
 }
 
 static void _usage(const char *prog)
@@ -166,7 +185,7 @@ int pcap2ts(int argc, char* argv[])
 		exit(1);
 	}
 
-	printf("Extracting TS from %s:%d\n", addr, port);
+	printf("Extracting TS from udp/ip destination %s:%d to %s\n", addr, port, oname);
 
 	if ((pcap_loop(pcap, -1, (void*)pkt_handler, NULL)) != 0) {
 		fprintf(stderr, "Cannot read from pcap file: %s\n", pcap_geterr(pcap)); 
@@ -176,6 +195,8 @@ int pcap2ts(int argc, char* argv[])
 
 	if (ofh)
 		fclose(ofh);
+
+	printf("Wrote %" PRIu64 " packets.\n", tspkt_count_output);
 
 	return 0;
 }
