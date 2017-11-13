@@ -16,4 +16,4 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#define COPYRIGHT "Copyright LiveTimeNet, Inc. 2017. All Rights Reserved."
+#define COPYRIGHT "Copyright (c) 2017 LiveTimeNet Inc. All Rights Reserved."
