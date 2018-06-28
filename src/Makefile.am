@@ -15,7 +15,7 @@ LDADD += -L../../ltntstools-ffmpeg/root/lib -lavformat -lavutil -lz -lavcodec -l
 LDADD += -lpcap
 
 #ifdef __APPLE__
-LDADD += -liconv
+#LDADD += -liconv
 #endif
 
 if DEBUG
@@ -31,6 +31,9 @@ SRC += dump.c
 SRC += udp_capture.c
 SRC += si_inspector.c
 SRC += pcap2ts.c
+SRC += clock_inspector.c
+SRC += pes.c
+SRC += ts.c
 
 bin_PROGRAMS  = tstools_util
 bin_PROGRAMS += tstools_pat_inspector
@@ -38,6 +41,7 @@ bin_PROGRAMS += tstools_pmt_inspector
 bin_PROGRAMS += tstools_udp_capture
 bin_PROGRAMS += tstools_si_inspector
 bin_PROGRAMS += tstools_pcap2ts
+bin_PROGRAMS += tstools_clock_inspector
 
 tstools_util_SOURCES = $(SRC)
 tstools_pat_inspector_SOURCES = $(SRC)
@@ -45,6 +49,7 @@ tstools_pmt_inspector_SOURCES = $(SRC)
 tstools_udp_capture_SOURCES = $(SRC)
 tstools_si_inspector_SOURCES = $(SRC)
 tstools_pcap2ts_SOURCES = $(SRC)
+tstools_clock_inspector_SOURCES = $(SRC)
 
 libtstools_noinst_includedir = $(includedir)
 
@@ -53,3 +58,5 @@ noinst_HEADERS += version.h
 noinst_HEADERS += pids.h
 noinst_HEADERS += dump.h
 noinst_HEADERS += histogram.h
+noinst_HEADERS += pes.h
+noinst_HEADERS += ts.h
