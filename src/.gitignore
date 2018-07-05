@@ -4,3 +4,4 @@ tstools_udp_capture
 tstools_util
 tstools_si_inspector
 tstools_pcap2ts
+tstools_clock_inspector
