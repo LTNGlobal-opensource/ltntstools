@@ -50,3 +50,14 @@ int ltn_iso13818_scr(uint8_t *pkt, uint64_t *scr)
 	return 0;
 }
 
+int ltn_iso13818_contains_pes_header(uint8_t *pkt, int len)
+{
+	const char pattern[] = { 0x00, 0x00, 0x01 };
+	for (int i = 0; i < len - 4; i++) {
+		if (memcmp(pkt + i, pattern, sizeof(pattern)) == 0)
+			return i;
+	}
+
+	return -1;
+}
+

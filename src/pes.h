@@ -28,12 +28,13 @@ struct ltn_pes_packet_s
 	uint32_t ESCR_flag;
 	uint32_t ES_rate_flag;
 	uint32_t DSM_trick_mode_flag;
+	uint32_t additional_copy_info_flag;
 	uint32_t PES_CRC_flag;
 	uint32_t PES_extension_flag;
 	uint32_t PES_header_data_length;
 
-	uint64_t PTS;
-	uint64_t DTS;
+	int64_t PTS;
+	int64_t DTS;
 };
 
 struct ltn_pes_packet_s *ltn_pes_packet_alloc();
@@ -44,5 +45,10 @@ void ltn_pes_packet_free(struct ltn_pes_packet_s *pkt);
  * or < 0 on error.
  */
 ssize_t ltn_pes_packet_parse(struct ltn_pes_packet_s *pkt, struct klbs_context_s *bs);
+void ltn_pes_packet_dump(struct ltn_pes_packet_s *pkt);
+void ltn_pes_packet_copy(struct ltn_pes_packet_s *dst, struct ltn_pes_packet_s *src);
+
+int ltn_pes_packet_is_audio(struct ltn_pes_packet_s *pes);
+int ltn_pes_packet_is_video(struct ltn_pes_packet_s *pes);
 
 #endif /* PES_H */

@@ -8,6 +8,8 @@
 
 #include "klbitstream_readwriter.h"
 #include "ts.h"
+#include "pes.h"
+#include "hexdump.h"
 
 struct pid_s
 {
@@ -15,16 +17,75 @@ struct pid_s
 	time_t   scr_first_time;
 	uint64_t scr;
 	uint64_t updateCount;
+	uint32_t cc;
+
+	uint64_t pts_count;
+	struct ltn_pes_packet_s pts_last;
+	int64_t pts_diff_ticks;
+
+	uint64_t dts_count;
+	struct ltn_pes_packet_s dts_last;
+	int64_t dts_diff_ticks;
+
+	struct ltn_pes_packet_s pes;
 };
 
 struct tool_context_s
 {
+	int dumpHex;
 	const char *fn;
 	FILE *fh;
 	time_t initial_time;
+	time_t current_stream_time;
 	uint32_t pid;
 	struct pid_s pids[8192];
 };
+
+static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx)
+{
+	struct pid_s *p = &ctx->pids[pid];
+	if (p->pes.PTS_DTS_flags == 2) {
+		ltn_pes_packet_copy(&p->pts_last, &p->pes);
+	} else
+	if (p->pes.PTS_DTS_flags == 3) {
+		ltn_pes_packet_copy(&p->pts_last, &p->pes);
+		ltn_pes_packet_copy(&p->dts_last, &p->pes);
+	}
+
+	struct klbs_context_s pbs, *bs = &pbs;
+	klbs_init(bs);
+	klbs_read_set_buffer(bs, buf, lengthBytes);
+
+	ssize_t len = ltn_pes_packet_parse(&p->pes, bs);
+
+	if (p->pes.PTS_DTS_flags == 2) {
+		p->pts_diff_ticks = p->pes.PTS - p->pts_last.PTS;
+		p->pts_count++;
+	} else
+	if (p->pes.PTS_DTS_flags == 3) {
+		p->pts_diff_ticks = p->pes.PTS - p->pts_last.PTS;
+		p->pts_count++;
+		p->dts_diff_ticks = p->pes.DTS - p->dts_last.DTS;
+		p->dts_count++;
+	}
+
+	if (len > 0) {
+		ltn_pes_packet_dump(&p->pes);
+	}
+
+	if (p->pes.PTS_DTS_flags == 2) {
+		printf("PTS #%09" PRIi64 " -- %04x  diff %7" PRIi64 "(ticks)  %5" PRIi64 "(ms)\n", p->pts_count, pid, p->pts_diff_ticks,
+			PTS_TICKS_TO_MS(p->pts_diff_ticks));
+	}
+	if (p->pes.PTS_DTS_flags == 3) {
+		printf("PTS #%09" PRIi64 " -- %04x  diff %7" PRIi64 "(ticks)  %5" PRIi64 "(ms)\n", p->pts_count, pid, p->pts_diff_ticks,
+			PTS_TICKS_TO_MS(p->pts_diff_ticks));
+		printf("DTS #%09" PRIi64 " -- %04x  diff %7" PRIi64 "(ticks)  %5" PRIi64 "(ms)\n", p->dts_count, pid, p->dts_diff_ticks,
+			PTS_TICKS_TO_MS(p->dts_diff_ticks));
+	}
+
+	return len;
+}
 
 static void usage(const char *progname)
 {
@@ -33,6 +94,7 @@ static void usage(const char *progname)
 	printf("  -i <filename>\n");
 	printf("  -P 0xN <pid>\n");
 	printf("  -T YYYYMMDDHHMMSS [def: current time]\n");
+	printf("  -d Dump every ts packet header in hex to console (3x -d entire packet)\n");
 }
 
 int clock_inspector(int argc, char *argv[])
@@ -43,8 +105,11 @@ int clock_inspector(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-        while ((ch = getopt(argc, argv, "?hi:P:T:")) != -1) {
+        while ((ch = getopt(argc, argv, "?dhi:P:T:")) != -1) {
 		switch (ch) {
+		case 'd':
+			ctx->dumpHex++;
+			break;
 		case 'i':
 			ctx->fn = optarg;
 			break;
@@ -69,7 +134,6 @@ int clock_inspector(int argc, char *argv[])
 				tm.tm_year -= 1900;
 				tm.tm_mon -= 1;
 				ctx->initial_time = mktime(&tm);
-				printf("initial_time = %d\n", ctx->initial_time);
 			}
 			break;
 		default:
@@ -112,8 +176,62 @@ int clock_inspector(int argc, char *argv[])
 
 			uint8_t *p = buf + (i * 188);
 			uint16_t pid = ltn_iso13818_pid(p);
+			int peshdr = ltn_iso13818_payload_unit_start_indicator(p);
+
+			int pesoffset = 0;
+			if (peshdr) {
+				pesoffset = ltn_iso13818_contains_pes_header(p + 4, 188 - 4);
+			}
+
+
+			if (ctx->dumpHex) {
+
+				for (int j = 0; j < 4; j++) {
+					printf("%02x ", *(p + j));
+				}
+				printf("-- %04x %s", pid,
+					peshdr ? "PESHDR" : "      ");
+				printf("\n");
+				if (peshdr && pesoffset >= 0) {
+					printf("            -- ");
+					hexdump(p + 4 + pesoffset, 12, 32);
+				}
+			}
+			if (ctx->dumpHex == 2) {
+				hexdump(p, 32, 32 + 1); /* +1 avoid additional trailing CR */
+			} else
+			if (ctx->dumpHex == 3) {
+				hexdump(p, 188, 32);
+			}
+
+			if (peshdr && pesoffset >= 0 && pid > 0) {
+				processPESHeader(p + 4 + pesoffset, 188 - 4 - pesoffset, pid, ctx);
+				printf("\n");
+			}
+
 			if (ctx->pid && pid != ctx->pid)
 				continue;
+#if 0
+			for (int j = 0; j < 8; j++) {
+				printf("%02x ", *(p + j));
+			}
+			printf("\n");
+#endif
+			uint32_t cc = ltn_iso13818_continuity_counter(p);
+
+			uint32_t afc = ltn_iso13818_adaption_field_control(p);
+			if ((afc == 1) || (afc == 3)) {
+				if (ctx->pids[pid].updateCount > 0) {
+					if (((ctx->pids[pid].cc + 1) & 0x0f) != cc) {
+						char str[64];
+						sprintf(str, "%s", ctime(&ctx->current_stream_time));
+						str[ strlen(str) - 1] = 0;
+						printf("CC Error. PID %04x expected %02x got %02x @ %s\n",
+							pid, (ctx->pids[pid].cc + 1) & 0x0f, cc, str);
+					}
+				}
+			}
+			ctx->pids[pid].cc = cc;
 
 			uint64_t scr;
 			if (ltn_iso13818_scr(p, &scr) < 0)
@@ -139,6 +257,8 @@ int clock_inspector(int argc, char *argv[])
 
 			time_t dt = ctx->pids[pid].scr_first_time;
 			dt += ((scr - ctx->pids[pid].scr_first) / 27000000);
+
+			ctx->current_stream_time = dt;
 
 			char str[64];
 			sprintf(str, "%s", ctime(&dt));

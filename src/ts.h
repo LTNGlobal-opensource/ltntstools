@@ -6,6 +6,9 @@
 #include <string.h>
 #include <stdint.h>
 
+#define SCR_TICKS_TO_MS(t) ((t) / 27000)
+#define PTS_TICKS_TO_MS(t) ((t) / 90)
+
 __inline__ int ltn_iso13818_sync_present(uint8_t *pkt)
 {
 	return *pkt == 0x47;
@@ -48,5 +51,8 @@ __inline__ uint8_t ltn_iso13818_continuity_counter(uint8_t *pkt)
 }
 
 int ltn_iso13818_scr(uint8_t *pkt, uint64_t *scr);
+
+/* -1 if not found, else return byte index into pkt where 0000001 begins. */
+int ltn_iso13818_contains_pes_header(uint8_t *pkt, int byteCount);
 
 #endif /* TS_H */
