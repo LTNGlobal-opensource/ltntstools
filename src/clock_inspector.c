@@ -53,6 +53,7 @@ struct tool_context_s
 	int doPESStatistics;
 	int pts_linenr;
 	int scr_linenr;
+	int ts_linenr;
 
 	uint64_t ts_total_packets;
 };
@@ -187,6 +188,13 @@ static void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_
 	uint32_t cc = ltn_iso13818_continuity_counter(pkt);
 
 	if (ctx->dumpHex) {
+		if (ctx->ts_linenr++ == 0) {
+			printf("+TS Packet         filepos ------------>\n");
+			printf("+TS Packet             Hex           Dec   PID  Packet --------------------------------------------------------------------------------------->\n");
+		}
+		if (ctx->ts_linenr > 24)
+			ctx->ts_linenr = 0;
+
 		printf("TS  #%09" PRIu64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  ",
 			ctx->ts_total_packets,
 			filepos,
