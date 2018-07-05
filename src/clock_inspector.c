@@ -248,10 +248,14 @@ static void usage(const char *progname)
 {
 	printf("A tool to extract/process TS packets, PTS/DTS/PCR clocks from a MPEGTS file.\n");
 	printf("Usage:\n");
-	printf("  -i <filename>\n");
+	printf("  -i <filename.ts>\n");
 	printf("  -T YYYYMMDDHHMMSS [def: current time]\n");
+	printf("     Time is only relevant when running -s SCR mode. The tool will adjust\n");
+	printf("     the initial SCR to match walltime, then any other SCR it reports will\n");
+	printf("     be reported as initial walltime plus SCR difference. Useful when\n");
+	printf("     trying to match TS files to other logging mechanisms based on datetime\n");
 	printf("  -d Dump every ts packet header in hex to console (use additional -d for more detail)\n");
-	printf("  -s Dump SCR/PCR\n");
+	printf("  -s Dump SCR/PCR time, adjusting for -T initial time if necessary\n");
 	printf("  -p Dump PTS/DTS (use additional -p to show PES header on console)\n");
 }
 
