@@ -13,20 +13,28 @@
 
 struct pid_s
 {
+	/* TS packets */
+	uint64_t pkt_count;
+	uint32_t cc;
+	uint64_t cc_errors;
+
+	/* PCR / SCR */
 	uint64_t scr_first;
 	time_t   scr_first_time;
 	uint64_t scr;
-	uint64_t updateCount;
-	uint32_t cc;
+	uint64_t scr_updateCount;
 
+	/* PTS */
 	uint64_t pts_count;
 	struct ltn_pes_packet_s pts_last;
 	int64_t pts_diff_ticks;
 
+	/* DTS */
 	uint64_t dts_count;
 	struct ltn_pes_packet_s dts_last;
 	int64_t dts_diff_ticks;
 
+	/* Working data for PTS / DTS */
 	struct ltn_pes_packet_s pes;
 };
 
@@ -40,6 +48,18 @@ struct tool_context_s
 	uint32_t pid;
 	struct pid_s pids[8192];
 };
+
+static void pidReport(struct tool_context_s *ctx)
+{
+	for (int i = 0; i <= 0x1fff; i++) {
+		if (ctx->pids[i].pkt_count) {
+			printf("pid: 0x%04x pkts: %12" PRIu64 " discontinuities: %12" PRIu64 "\n",
+				i,
+				ctx->pids[i].pkt_count,
+				ctx->pids[i].cc_errors);
+		}
+	}
+}
 
 static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx)
 {
@@ -69,7 +89,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		p->dts_count++;
 	}
 
-	if (len > 0) {
+	if (len > 0 && ctx->dumpHex) {
 		ltn_pes_packet_dump(&p->pes);
 	}
 
@@ -176,6 +196,8 @@ int clock_inspector(int argc, char *argv[])
 
 			uint8_t *p = buf + (i * 188);
 			uint16_t pid = ltn_iso13818_pid(p);
+			ctx->pids[pid].pkt_count++;
+
 			int peshdr = ltn_iso13818_payload_unit_start_indicator(p);
 
 			int pesoffset = 0;
@@ -221,13 +243,18 @@ int clock_inspector(int argc, char *argv[])
 
 			uint32_t afc = ltn_iso13818_adaption_field_control(p);
 			if ((afc == 1) || (afc == 3)) {
-				if (ctx->pids[pid].updateCount > 0) {
+				/* Every pid will be in error the first occurece. Check on second and subsequent pids. */
+				if (ctx->pids[pid].pkt_count > 1) {
 					if (((ctx->pids[pid].cc + 1) & 0x0f) != cc) {
-						char str[64];
-						sprintf(str, "%s", ctime(&ctx->current_stream_time));
-						str[ strlen(str) - 1] = 0;
-						printf("CC Error. PID %04x expected %02x got %02x @ %s\n",
-							pid, (ctx->pids[pid].cc + 1) & 0x0f, cc, str);
+						/* Don't CC check null pid. */
+						if (pid != 0x1fff) {
+							char str[64];
+							sprintf(str, "%s", ctime(&ctx->current_stream_time));
+							str[ strlen(str) - 1] = 0;
+							printf("CC Error. PID %04x expected %02x got %02x @ %s\n",
+								pid, (ctx->pids[pid].cc + 1) & 0x0f, cc, str);
+								ctx->pids[pid].cc_errors++;
+						}
 					}
 				}
 			}
@@ -238,7 +265,7 @@ int clock_inspector(int argc, char *argv[])
 				continue;
 
 			uint64_t scr_diff = 0;
-			if (ctx->pids[pid].updateCount > 0)
+			if (ctx->pids[pid].scr_updateCount > 0)
 				scr_diff = scr - ctx->pids[pid].scr;
 			else {
 				ctx->pids[pid].scr_first = scr;
@@ -248,8 +275,8 @@ int clock_inspector(int argc, char *argv[])
 			ctx->pids[pid].scr = scr;
 
 			if (linenr++ == 0) {
-				printf("+filepos ------------>                   SCR  <--- SCR-DIFF ----->     UPDATE  \n");
-				printf("+    Hex           Dec   PID       27MHz VAL       TICKS        uS      COUNT\n");
+				printf("+SCR Timing        filepos ------------>                   SCR  <--- SCR-DIFF ----->     UPDATE  \n");
+				printf("+SCR Timing            Hex           Dec   PID       27MHz VAL       TICKS        uS      COUNT\n");
 			}
 
 			if (linenr > 24)
@@ -264,19 +291,20 @@ int clock_inspector(int argc, char *argv[])
 			sprintf(str, "%s", ctime(&dt));
 			str[ strlen(str) - 1] = 0;
 
-			ctx->pids[pid].updateCount++;
-			printf("%08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %8" PRIu64 "  %9" PRIu64 "  %s\n",
+			ctx->pids[pid].scr_updateCount++;
+			printf("SCR #%09" PRIu64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s\n",
+				ctx->pids[pid].scr_updateCount,
 				(ftell(ctx->fh) - (188 * rlen)) + (i * 188),
 				(ftell(ctx->fh) - (188 * rlen)) + (i * 188),
 				pid,
 				scr,
 				scr_diff,
 				scr_diff / 27,
-				ctx->pids[pid].updateCount,
 				str);
 			
 		}
 	}
+	pidReport(ctx);
 
 	free(buf);
 	fclose(ctx->fh);
