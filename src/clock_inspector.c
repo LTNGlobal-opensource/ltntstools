@@ -47,21 +47,31 @@ struct tool_context_s
 	time_t current_stream_time;
 	uint32_t pid;
 	struct pid_s pids[8192];
+
+	int doPacketStatistics;
+	int doSCRStatistics;
+	int doPESStatistics;
+	int pts_linenr;
+	int scr_linenr;
+
+	uint64_t ts_total_packets;
 };
 
 static void pidReport(struct tool_context_s *ctx)
 {
+	double total = ctx->ts_total_packets;
 	for (int i = 0; i <= 0x1fff; i++) {
 		if (ctx->pids[i].pkt_count) {
-			printf("pid: 0x%04x pkts: %12" PRIu64 " discontinuities: %12" PRIu64 "\n",
+			printf("pid: 0x%04x pkts: %12" PRIu64 " discontinuities: %12" PRIu64 " using: %7.1f%%\n",
 				i,
 				ctx->pids[i].pkt_count,
-				ctx->pids[i].cc_errors);
+				ctx->pids[i].cc_errors,
+				((double)ctx->pids[i].pkt_count / total) * 100.0);
 		}
 	}
 }
 
-static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx)
+static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx, uint64_t filepos)
 {
 	struct pid_s *p = &ctx->pids[pid];
 	if (p->pes.PTS_DTS_flags == 2) {
@@ -89,22 +99,159 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		p->dts_count++;
 	}
 
-	if (len > 0 && ctx->dumpHex) {
-		ltn_pes_packet_dump(&p->pes);
+	if (ctx->pts_linenr++ == 0) {
+		printf("+PTS/DTS Timing    filepos ------------>               PTS/DTS  <------- DIFF ------>\n");
+		printf("+PTS/DTS Timing        Hex           Dec   PID       90KHz VAL       TICKS         MS\n");
 	}
+	if (ctx->pts_linenr > 24)
+		ctx->pts_linenr = 0;
 
-	if (p->pes.PTS_DTS_flags == 2) {
-		printf("PTS #%09" PRIi64 " -- %04x  diff %7" PRIi64 "(ticks)  %5" PRIi64 "(ms)\n", p->pts_count, pid, p->pts_diff_ticks,
+	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
+		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIu64 " %10" PRIi64 "\n",
+			p->pts_count,
+			filepos,
+			filepos,
+			pid,
+			p->pes.PTS,
+			p->pts_diff_ticks,
 			PTS_TICKS_TO_MS(p->pts_diff_ticks));
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
-		printf("PTS #%09" PRIi64 " -- %04x  diff %7" PRIi64 "(ticks)  %5" PRIi64 "(ms)\n", p->pts_count, pid, p->pts_diff_ticks,
-			PTS_TICKS_TO_MS(p->pts_diff_ticks));
-		printf("DTS #%09" PRIi64 " -- %04x  diff %7" PRIi64 "(ticks)  %5" PRIi64 "(ms)\n", p->dts_count, pid, p->dts_diff_ticks,
+		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIu64 " %10" PRIi64 "\n",
+			p->dts_count,
+			filepos,
+			filepos,
+			pid,
+			p->pes.DTS,
+			p->dts_diff_ticks,
 			PTS_TICKS_TO_MS(p->dts_diff_ticks));
 	}
 
+	if (len > 0 && ctx->doPESStatistics > 1) {
+		ltn_pes_packet_dump(&p->pes, "    ");
+	}
+
 	return len;
+}
+
+static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos)
+{
+	uint16_t pid = ltn_iso13818_pid(pkt);
+
+	if (ctx->pid && pid != ctx->pid)
+		return;
+
+	int peshdr = ltn_iso13818_payload_unit_start_indicator(pkt);
+
+	int pesoffset = 0;
+	if (peshdr) {
+		pesoffset = ltn_iso13818_contains_pes_header(pkt + 4, 188 - 4);
+	}
+
+	if (ctx->dumpHex) {
+
+		for (int j = 0; j < 4; j++) {
+			printf("%02x ", *(pkt + j));
+		}
+		printf("-- %04x %s", pid,
+			peshdr ? "PESHDR" : "      ");
+		printf("\n");
+		if (peshdr && pesoffset >= 0) {
+			printf("            -- ");
+			hexdump(pkt + 4 + pesoffset, 12, 32);
+		}
+	}
+	if (ctx->dumpHex == 2) {
+		hexdump(pkt, 32, 32 + 1); /* +1 avoid additional trailing CR */
+	} else
+	if (ctx->dumpHex == 3) {
+		hexdump(pkt, 188, 32);
+	}
+
+	uint64_t scr;
+	if (ltn_iso13818_scr(pkt, &scr) < 0)
+		return;
+
+	uint64_t scr_diff = 0;
+	if (ctx->pids[pid].scr_updateCount > 0)
+		scr_diff = scr - ctx->pids[pid].scr;
+	else {
+		ctx->pids[pid].scr_first = scr;
+		ctx->pids[pid].scr_first_time = ctx->initial_time;
+	}
+
+	ctx->pids[pid].scr = scr;
+
+	if (ctx->scr_linenr++ == 0) {
+		printf("+SCR Timing        filepos ------------>                   SCR  <--- SCR-DIFF ------>\n");
+		printf("+SCR Timing            Hex           Dec   PID       27MHz VAL       TICKS         uS  Timestamp\n");
+	}
+
+	if (ctx->scr_linenr > 24)
+		ctx->scr_linenr = 0;
+
+	time_t dt = ctx->pids[pid].scr_first_time;
+	dt += ((scr - ctx->pids[pid].scr_first) / 27000000);
+
+	ctx->current_stream_time = dt;
+
+	char str[64];
+	sprintf(str, "%s", ctime(&dt));
+	str[ strlen(str) - 1] = 0;
+
+	ctx->pids[pid].scr_updateCount++;
+	printf("SCR #%09" PRIu64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s\n",
+		ctx->pids[pid].scr_updateCount,
+		filepos,
+		filepos,
+		pid,
+		scr,
+		scr_diff,
+		scr_diff / 27,
+		str);
+			
+}
+
+static void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos)
+{
+	uint16_t pid = ltn_iso13818_pid(pkt);
+	ctx->pids[pid].pkt_count++;
+
+	uint32_t cc = ltn_iso13818_continuity_counter(pkt);
+
+	uint32_t afc = ltn_iso13818_adaption_field_control(pkt);
+	if ((afc == 1) || (afc == 3)) {
+		/* Every pid will be in error the first occurece. Check on second and subsequent pids. */
+		if (ctx->pids[pid].pkt_count > 1) {
+			if (((ctx->pids[pid].cc + 1) & 0x0f) != cc) {
+				/* Don't CC check null pid. */
+				if (pid != 0x1fff) {
+					char str[64];
+					sprintf(str, "%s", ctime(&ctx->current_stream_time));
+					str[ strlen(str) - 1] = 0;
+					printf("!CC Error. PID %04x expected %02x got %02x @ %s\n",
+						pid, (ctx->pids[pid].cc + 1) & 0x0f, cc, str);
+					ctx->pids[pid].cc_errors++;
+				}
+			}
+		}
+	}
+	ctx->pids[pid].cc = cc;
+}
+
+static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos)
+{
+	uint16_t pid = ltn_iso13818_pid(pkt);
+	int peshdr = ltn_iso13818_payload_unit_start_indicator(pkt);
+
+	int pesoffset = 0;
+	if (peshdr) {
+		pesoffset = ltn_iso13818_contains_pes_header(pkt + 4, 188 - 4);
+	}
+
+	if (peshdr && pesoffset >= 0 && pid > 0) {
+		processPESHeader(pkt + 4 + pesoffset, 188 - 4 - pesoffset, pid, ctx, filepos);
+	}
 }
 
 static void usage(const char *progname)
@@ -112,9 +259,10 @@ static void usage(const char *progname)
 	printf("A tool to extract/process PTS/PCR clocks from a MPEGTS file.\n");
 	printf("Usage:\n");
 	printf("  -i <filename>\n");
-	printf("  -P 0xN <pid>\n");
 	printf("  -T YYYYMMDDHHMMSS [def: current time]\n");
 	printf("  -d Dump every ts packet header in hex to console (3x -d entire packet)\n");
+	printf("  -s Analyze SCR/PCR\n");
+	printf("  -p Analyze PTS/DTS\n");
 }
 
 int clock_inspector(int argc, char *argv[])
@@ -124,14 +272,23 @@ int clock_inspector(int argc, char *argv[])
 	struct tool_context_s tctx, *ctx;
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
+	ctx->doPacketStatistics = 1;
+	ctx->doSCRStatistics = 0;
+	ctx->doPESStatistics = 0;
 
-        while ((ch = getopt(argc, argv, "?dhi:P:T:")) != -1) {
+        while ((ch = getopt(argc, argv, "?dhi:spP:T:")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
 			break;
 		case 'i':
 			ctx->fn = optarg;
+			break;
+		case 'p':
+			ctx->doPESStatistics++;
+			break;
+		case 's':
+			ctx->doSCRStatistics = 1;
 			break;
 		case 'P':
 			if (sscanf(optarg, "0x%x", &ctx->pid) != 1) {
@@ -186,7 +343,6 @@ int clock_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
-	int linenr = 0;
 	while (!feof(ctx->fh)) {
 		size_t rlen = fread(buf, 188, max_packets, ctx->fh);
 		if (rlen <= 0)
@@ -194,31 +350,24 @@ int clock_inspector(int argc, char *argv[])
 
 		for (int i = 0; i < rlen; i++) {
 
+			uint64_t filepos = (ftell(ctx->fh) - (188 * rlen)) + (i * 188);
+
+			ctx->ts_total_packets++;
+
 			uint8_t *p = buf + (i * 188);
-			uint16_t pid = ltn_iso13818_pid(p);
-			ctx->pids[pid].pkt_count++;
 
-			int peshdr = ltn_iso13818_payload_unit_start_indicator(p);
-
-			int pesoffset = 0;
-			if (peshdr) {
-				pesoffset = ltn_iso13818_contains_pes_header(p + 4, 188 - 4);
+			if (ctx->doPacketStatistics) {
+				processPacketStats(ctx, p, filepos);
 			}
 
-
-			if (ctx->dumpHex) {
-
-				for (int j = 0; j < 4; j++) {
-					printf("%02x ", *(p + j));
-				}
-				printf("-- %04x %s", pid,
-					peshdr ? "PESHDR" : "      ");
-				printf("\n");
-				if (peshdr && pesoffset >= 0) {
-					printf("            -- ");
-					hexdump(p + 4 + pesoffset, 12, 32);
-				}
+			if (ctx->doSCRStatistics) {
+				processSCRStats(ctx, p, filepos);
 			}
+
+			if (ctx->doPESStatistics) {
+				processPESStats(ctx, p, filepos);
+			}
+
 			if (ctx->dumpHex == 2) {
 				hexdump(p, 32, 32 + 1); /* +1 avoid additional trailing CR */
 			} else
@@ -226,82 +375,6 @@ int clock_inspector(int argc, char *argv[])
 				hexdump(p, 188, 32);
 			}
 
-			if (peshdr && pesoffset >= 0 && pid > 0) {
-				processPESHeader(p + 4 + pesoffset, 188 - 4 - pesoffset, pid, ctx);
-				printf("\n");
-			}
-
-			if (ctx->pid && pid != ctx->pid)
-				continue;
-#if 0
-			for (int j = 0; j < 8; j++) {
-				printf("%02x ", *(p + j));
-			}
-			printf("\n");
-#endif
-			uint32_t cc = ltn_iso13818_continuity_counter(p);
-
-			uint32_t afc = ltn_iso13818_adaption_field_control(p);
-			if ((afc == 1) || (afc == 3)) {
-				/* Every pid will be in error the first occurece. Check on second and subsequent pids. */
-				if (ctx->pids[pid].pkt_count > 1) {
-					if (((ctx->pids[pid].cc + 1) & 0x0f) != cc) {
-						/* Don't CC check null pid. */
-						if (pid != 0x1fff) {
-							char str[64];
-							sprintf(str, "%s", ctime(&ctx->current_stream_time));
-							str[ strlen(str) - 1] = 0;
-							printf("CC Error. PID %04x expected %02x got %02x @ %s\n",
-								pid, (ctx->pids[pid].cc + 1) & 0x0f, cc, str);
-								ctx->pids[pid].cc_errors++;
-						}
-					}
-				}
-			}
-			ctx->pids[pid].cc = cc;
-
-			uint64_t scr;
-			if (ltn_iso13818_scr(p, &scr) < 0)
-				continue;
-
-			uint64_t scr_diff = 0;
-			if (ctx->pids[pid].scr_updateCount > 0)
-				scr_diff = scr - ctx->pids[pid].scr;
-			else {
-				ctx->pids[pid].scr_first = scr;
-				ctx->pids[pid].scr_first_time = ctx->initial_time;
-			}
-
-			ctx->pids[pid].scr = scr;
-
-			if (linenr++ == 0) {
-				printf("+SCR Timing        filepos ------------>                   SCR  <--- SCR-DIFF ----->     UPDATE  \n");
-				printf("+SCR Timing            Hex           Dec   PID       27MHz VAL       TICKS        uS      COUNT\n");
-			}
-
-			if (linenr > 24)
-				linenr = 0;
-
-			time_t dt = ctx->pids[pid].scr_first_time;
-			dt += ((scr - ctx->pids[pid].scr_first) / 27000000);
-
-			ctx->current_stream_time = dt;
-
-			char str[64];
-			sprintf(str, "%s", ctime(&dt));
-			str[ strlen(str) - 1] = 0;
-
-			ctx->pids[pid].scr_updateCount++;
-			printf("SCR #%09" PRIu64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s\n",
-				ctx->pids[pid].scr_updateCount,
-				(ftell(ctx->fh) - (188 * rlen)) + (i * 188),
-				(ftell(ctx->fh) - (188 * rlen)) + (i * 188),
-				pid,
-				scr,
-				scr_diff,
-				scr_diff / 27,
-				str);
-			
 		}
 	}
 	pidReport(ctx);

@@ -45,7 +45,7 @@ void ltn_pes_packet_free(struct ltn_pes_packet_s *pkt);
  * or < 0 on error.
  */
 ssize_t ltn_pes_packet_parse(struct ltn_pes_packet_s *pkt, struct klbs_context_s *bs);
-void ltn_pes_packet_dump(struct ltn_pes_packet_s *pkt);
+void ltn_pes_packet_dump(struct ltn_pes_packet_s *pkt, const char *indent);
 void ltn_pes_packet_copy(struct ltn_pes_packet_s *dst, struct ltn_pes_packet_s *src);
 
 int ltn_pes_packet_is_audio(struct ltn_pes_packet_s *pes);

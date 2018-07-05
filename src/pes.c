@@ -84,11 +84,12 @@ ssize_t ltn_pes_packet_parse(struct ltn_pes_packet_s *pkt, struct klbs_context_s
 	return bits;
 }
 
-void ltn_pes_packet_dump(struct ltn_pes_packet_s *pkt)
+void ltn_pes_packet_dump(struct ltn_pes_packet_s *pkt, const char *indent)
 {
-	const char *i = "     ";
+	char i[32];
+	sprintf(i, "%s    ", indent);
 
-	DISPLAY_U32("", pkt->packet_start_code_prefix);
+	DISPLAY_U32(indent, pkt->packet_start_code_prefix);
 	DISPLAY_U32_SUFFIX(i, pkt->stream_id,
 		ltn_pes_packet_is_video(pkt) ? "[VIDEO]" :
 		ltn_pes_packet_is_audio(pkt) ? "[AUDIO]" : "[OTHER]");
