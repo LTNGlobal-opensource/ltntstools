@@ -338,6 +338,10 @@ int clock_inspector(int argc, char *argv[])
 			}
 
 			if (ctx->doPESStatistics) {
+				/* Big caveat here: We expect the PES header to be contained
+				 * somewhere (anywhere) in this single packet, and we only parse
+				 * enough bytes to extract PTS and DTS.
+				 */
 				processPESStats(ctx, p, filepos);
 			}
 
