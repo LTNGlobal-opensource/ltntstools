@@ -246,7 +246,7 @@ static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 
 static void usage(const char *progname)
 {
-	printf("A tool to extract/process TS packets, PTS/DTS/PCR clocks from a MPEGTS file.\n");
+	printf("A tool to extract PCR/SCR PTS/DTS clocks from all pids in a MPEGTS file.\n");
 	printf("Usage:\n");
 	printf("  -i <filename.ts>\n");
 	printf("  -T YYYYMMDDHHMMSS [def: current time]\n");
