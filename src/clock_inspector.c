@@ -105,7 +105,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		ctx->pts_linenr = 0;
 
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
-		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIu64 " %10" PRIi64 "\n",
+		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 "\n",
 			p->pts_count,
 			filepos,
 			filepos,
@@ -115,7 +115,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			PTS_TICKS_TO_MS(p->pts_diff_ticks));
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
-		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIu64 " %10" PRIi64 "\n",
+		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 "\n",
 			p->dts_count,
 			filepos,
 			filepos,
