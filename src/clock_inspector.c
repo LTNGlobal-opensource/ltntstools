@@ -45,6 +45,7 @@ struct tool_context_s
 	FILE *fh;
 	time_t initial_time;
 	time_t current_stream_time;
+	int64_t maxAllowablePTSDTSDrift;
 //	uint32_t pid;
 	struct pid_s pids[8192];
 
@@ -105,6 +106,18 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		ctx->pts_linenr = 0;
 
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
+
+		if (abs(PTS_TICKS_TO_MS(p->pts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
+			char str[64];
+			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			str[ strlen(str) - 1] = 0;
+			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current clock >= +-%" PRIi64 "ms (is %" PRIi64 " @ %s\n",
+				p->pts_count,
+				ctx->maxAllowablePTSDTSDrift,
+				PTS_TICKS_TO_MS(p->pts_diff_ticks),
+				str);
+		}
+
 		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 "\n",
 			p->pts_count,
 			filepos,
@@ -115,6 +128,17 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			PTS_TICKS_TO_MS(p->pts_diff_ticks));
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
+		if (abs(PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
+			char str[64];
+			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			str[ strlen(str) - 1] = 0;
+			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current clock >= +-%" PRIi64 "ms (is %" PRIi64 " @ %s\n",
+				p->dts_count,
+				ctx->maxAllowablePTSDTSDrift,
+				PTS_TICKS_TO_MS(p->pts_diff_ticks),
+				str);
+		}
+
 		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 "\n",
 			p->dts_count,
 			filepos,
@@ -257,6 +281,7 @@ static void usage(const char *progname)
 	printf("  -d Dump every ts packet header in hex to console (use additional -d for more detail)\n");
 	printf("  -s Dump SCR/PCR time, adjusting for -T initial time if necessary\n");
 	printf("  -p Dump PTS/DTS (use additional -p to show PES header on console)\n");
+	printf("  -D Max allowable PTS/DTS clock drift value in ms. [def: 700]\n");
 }
 
 int clock_inspector(int argc, char *argv[])
@@ -269,8 +294,9 @@ int clock_inspector(int argc, char *argv[])
 	ctx->doPacketStatistics = 1;
 	ctx->doSCRStatistics = 0;
 	ctx->doPESStatistics = 0;
+	ctx->maxAllowablePTSDTSDrift = 700;
 
-        while ((ch = getopt(argc, argv, "?dhi:spT:")) != -1) {
+        while ((ch = getopt(argc, argv, "?dhi:spT:D:")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -283,6 +309,9 @@ int clock_inspector(int argc, char *argv[])
 			break;
 		case 's':
 			ctx->doSCRStatistics = 1;
+			break;
+		case 'D':
+			ctx->maxAllowablePTSDTSDrift = atoi(optarg);
 			break;
 		case 'T':
 			{
