@@ -76,6 +76,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <sys/time.h>
+#include <time.h>
 
 struct ltn_histogram_bucket_s
 {
@@ -135,6 +136,11 @@ static __inline__ struct ltn_histogram_bucket_s *ltn_histogram_bucket(struct ltn
 __inline__ static int ltn_histogram_timeval_to_ms(struct timeval *tv)
 {
         return (tv->tv_sec * 1000) + (tv->tv_usec / 1000);
+}
+
+__inline__ static int ltn_histogram_timeval_to_us(struct timeval *tv)
+{
+        return (tv->tv_sec * 1000000) + tv->tv_usec;
 }
 
 __inline__ static int ltn_histogram_timeval_subtract(struct timeval *result, struct timeval *x, struct timeval *y)
@@ -201,6 +207,8 @@ static __inline__ int ltn_histogram_alloc(struct ltn_histogram_s **handle, const
 	if (!ctx->buckets)
 		return -1;
 
+	ltn_histogram_reset(ctx);
+
 	*handle = ctx;
 	return 0;
 }
@@ -208,6 +216,19 @@ static __inline__ int ltn_histogram_alloc(struct ltn_histogram_s **handle, const
 static __inline__ int ltn_histogram_alloc_video_defaults(struct ltn_histogram_s **handle, const char *name)
 {
 	return ltn_histogram_alloc(handle, name, 0, 16 * 1000);
+}
+
+static __inline__ int ltn_histogram_interval_update_with_value(struct ltn_histogram_s *ctx, uint32_t diffMs)
+{
+	if ((diffMs < ctx->minValMs) || (diffMs > ctx->maxValMs)) {
+		ctx->bucketMissCount++;
+		return -1;
+	}
+
+	struct ltn_histogram_bucket_s *bucket = ltn_histogram_bucket(ctx, diffMs);
+	bucket->count++;
+
+	return diffMs;
 }
 
 static __inline__ int ltn_histogram_interval_update(struct ltn_histogram_s *ctx)
@@ -257,7 +278,7 @@ static __inline__ void ltn_histogram_interval_print(int fd, struct ltn_histogram
 		if (!b->count)
 			continue;
 
-		char timestamp[64];
+		char timestamp[128];
 		sprintf(timestamp, "%s", ctime(&b->lastUpdate.tv_sec));
 		timestamp[strlen(timestamp) - 1] = 0; /* Trim trailing CR */
 

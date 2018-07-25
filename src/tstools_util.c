@@ -12,6 +12,7 @@ extern int si_inspector(int argc, char *argv[]);
 extern int udp_capture(int argc, char *argv[]);
 extern int pcap2ts(int argc, char *argv[]);
 extern int clock_inspector(int argc, char *argv[]);
+extern int pid_drop(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
 
@@ -32,6 +33,7 @@ int main(int argc, char *argv[])
 		{ "tstools_si_inspector",	si_inspector, },
 		{ "tstools_pcap2ts",		pcap2ts, },
 		{ "tstools_clock_inspector",	clock_inspector, },
+		{ "tstools_pid_drop",		pid_drop, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);
