@@ -5,3 +5,4 @@ tstools_util
 tstools_si_inspector
 tstools_pcap2ts
 tstools_clock_inspector
+tstools_pid_drop
