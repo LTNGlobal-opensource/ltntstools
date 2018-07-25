@@ -1,7 +1,10 @@
 /* Extract TS packets form UDP/RTP/MPEG-TS pcap files */
 
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <getopt.h>
 #include <inttypes.h>
 #include <netinet/if_ether.h>
@@ -10,6 +13,8 @@
 #include <arpa/inet.h>
 #include <pcap.h>
 
+#include "histogram.h"
+
 static FILE *ofh = NULL;
 static int count = 0;
 static char *addr = NULL;
@@ -17,6 +22,10 @@ static int port = 0;
 static int verbose = 0;
 static struct sockaddr_in sa;
 static uint64_t tspkt_count_output = 0;
+
+static struct timeval lastPacketTime;
+static uint64_t packetCount = 0;
+static struct ltn_histogram_s *packetIntervals = NULL;
 
 static void hexdump(unsigned char *buf, unsigned int len, int bytesPerRow /* Typically 16 */)
 {
@@ -27,11 +36,29 @@ static void hexdump(unsigned char *buf, unsigned int len, int bytesPerRow /* Typ
 
 static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 {
+	packetCount++;
+
 	struct in_addr s, d;
 
+	struct timeval diff;
+	ltn_histogram_timeval_subtract(&diff, &hdr->ts, &lastPacketTime);
+	int diffus = ltn_histogram_timeval_to_us(&diff);
+
+	ltn_histogram_interval_update_with_value(packetIntervals, diffus / 1000);
+
+	memcpy(&lastPacketTime, &hdr->ts, sizeof(hdr->ts));
+
+	if (packetCount == 1)
+		diffus = 0;
+
+	if (diffus > 100 * 1000000) {
+		printf("!Packet interval > 100ms\n");
+	}
 	if (verbose) {
-		printf("%" PRIu64 ":%" PRIu64 " (%4" PRIu64 ") - ",
-			(uint64_t)hdr->ts.tv_sec, (uint64_t)hdr->ts.tv_usec, (uint64_t)hdr->len);
+		printf("%" PRIu64 ":%" PRIu64 " [%d(us)] (%4" PRIu64 ") - ",
+			(uint64_t)hdr->ts.tv_sec, (uint64_t)hdr->ts.tv_usec,
+			diffus,	
+			(uint64_t)hdr->len);
 	}
 	if (verbose > 1) {
 		hexdump(buf, 32, 32);
@@ -140,6 +167,8 @@ int pcap2ts(int argc, char* argv[])
 	char errbuf[PCAP_ERRBUF_SIZE];
 	char *iname = NULL, *oname = NULL;
 
+	ltn_histogram_alloc_video_defaults(&packetIntervals, "UDP Packet intervals");
+
 	while ((ch = getopt(argc, argv, "?hi:o:a:p:v")) != -1) {
 		switch(ch) {
 		case 'a':
@@ -213,6 +242,9 @@ int pcap2ts(int argc, char* argv[])
 		fclose(ofh);
 
 	printf("Wrote %" PRIu64 " packets.\n", tspkt_count_output);
+
+	ltn_histogram_interval_print(STDOUT_FILENO, packetIntervals, 0);
+	//ltn_histogram_free(packetIntervals);
 
 	return 0;
 }
