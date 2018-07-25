@@ -151,8 +151,11 @@ int pid_drop(int argc, char *argv[])
 				ctx->pidPacketsDropped++;
 			else {
 				if (ctx->doFixups && ctx->pidCCFixups) {
-					*(p + 3) &= 0xf0;
-					*(p + 3) |= ((ctx->pidLastCC + 1) & 0x0f);
+					uint32_t afc = ltn_iso13818_adaption_field_control(p);
+					if ((afc == 1) || (afc == 3)) {
+						*(p + 3) &= 0xf0;
+						*(p + 3) |= ((ctx->pidLastCC + 1) & 0x0f);
+					}
 				}
 				fwrite(p, 1, 188, ctx->ofh);
 				ctx->pidLastCC = ltn_iso13818_continuity_counter(p);
