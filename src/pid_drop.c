@@ -20,11 +20,14 @@ struct tool_context_s
 	FILE *ifh, *ofh;
 
 	unsigned int pid;
+	unsigned int doFixups;
 	uint16_t pidDropping;
+	uint16_t pidCCFixups;
 	uint32_t pidPacketReadCount;
 	uint32_t pidPacketDropCount;
 	uint32_t pidPacketDropPosition;
 	uint32_t pidPacketsDropped;
+	uint8_t pidLastCC;
 
 	uint64_t ts_total_packets;
 };
@@ -36,6 +39,7 @@ static void usage(const char *progname)
 	printf("Usage:\n");
 	printf("  -i <input.ts>\n");
 	printf("  -o <output.ts>\n");
+	printf("  -f enable fixup the CC counters in the headers after dropping [def: disabled]\n");
 	printf("  -P pid 0xNNNN to be removed [def: 0x0]\n");
 	printf("  -p <number>. Drop packets from packet <number> onwards, for -n packets. [def: 0x0]\n");
 	printf("  -n <number>. NUmber of packets to drop on pid -P. [def: 0x0]\n");
@@ -49,8 +53,11 @@ int pid_drop(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-        while ((ch = getopt(argc, argv, "?hi:n:o:p:P:")) != -1) {
+        while ((ch = getopt(argc, argv, "?fhi:n:o:p:P:")) != -1) {
 		switch (ch) {
+		case 'f':
+			ctx->doFixups = 1;
+			break;
 		case 'n':
 			ctx->pidPacketDropCount = atoi(optarg);
 			break;
@@ -107,8 +114,9 @@ int pid_drop(int argc, char *argv[])
 		exit(1);
 	}
 
-	printf("Dropping %d packets on pid 0x%04x starting at packet #%d\n",
-		ctx->pidPacketDropCount, ctx->pid, ctx->pidPacketDropPosition);
+	printf("Dropping %d packets on pid 0x%04x starting at packet #%d, %s correct CC in headers\n",
+		ctx->pidPacketDropCount, ctx->pid, ctx->pidPacketDropPosition,
+		ctx->doFixups ? "will" : "WILL NOT");
 
 	while (!feof(ctx->ifh)) {
 		size_t rlen = fread(buf, 188, max_packets, ctx->ifh);
@@ -136,12 +144,19 @@ int pid_drop(int argc, char *argv[])
 
 			if (ctx->pidPacketsDropped == ctx->pidPacketDropCount) {
 				ctx->pidDropping = 0;
+				ctx->pidCCFixups = 1;
 			}
 
 			if (ctx->pidDropping)
 				ctx->pidPacketsDropped++;
-			else
+			else {
+				if (ctx->doFixups && ctx->pidCCFixups) {
+					*(p + 3) &= 0xf0;
+					*(p + 3) |= ((ctx->pidLastCC + 1) & 0x0f);
+				}
 				fwrite(p, 1, 188, ctx->ofh);
+				ctx->pidLastCC = ltn_iso13818_continuity_counter(p);
+			}
 		}
 	}
 
