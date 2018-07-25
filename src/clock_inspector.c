@@ -111,7 +111,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
-			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current clock >= +-%" PRIi64 "ms (is %" PRIi64 " @ %s\n",
+			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->pts_count,
 				ctx->maxAllowablePTSDTSDrift,
 				PTS_TICKS_TO_MS(p->pts_diff_ticks),
@@ -132,7 +132,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
-			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current clock >= +-%" PRIi64 "ms (is %" PRIi64 " @ %s\n",
+			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->dts_count,
 				ctx->maxAllowablePTSDTSDrift,
 				PTS_TICKS_TO_MS(p->pts_diff_ticks),
