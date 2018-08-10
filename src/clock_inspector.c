@@ -28,11 +28,13 @@ struct pid_s
 	uint64_t pts_count;
 	struct ltn_pes_packet_s pts_last;
 	int64_t pts_diff_ticks;
+	uint64_t pts_last_scr; /* When we captured the last packet, this reflects the SCR at the time. */
 
 	/* DTS */
 	uint64_t dts_count;
 	struct ltn_pes_packet_s dts_last;
 	int64_t dts_diff_ticks;
+	uint64_t dts_last_scr; /* When we captured the last packet, this reflects the SCR at the time. */
 
 	/* Working data for PTS / DTS */
 	struct ltn_pes_packet_s pes;
@@ -89,13 +91,21 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 	ssize_t len = ltn_pes_packet_parse(&p->pes, bs);
 
+	/* Track the difference in SCR lcoks between this PTS header and the prior. */
+	uint64_t pts_scr_diff_ms = 0;
+	uint64_t dts_scr_diff_ms = 0;
+
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 		p->pts_diff_ticks = p->pes.PTS - p->pts_last.PTS;
 		p->pts_count++;
+		pts_scr_diff_ms = (p->scr - p->pts_last_scr) / 27000;
+		p->pts_last_scr = p->scr;
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
 		p->dts_diff_ticks = p->pes.DTS - p->dts_last.DTS;
 		p->dts_count++;
+		dts_scr_diff_ms = (p->scr - p->dts_last_scr) / 27000;
+		p->dts_last_scr = p->scr;
 	}
 
 	if (ctx->pts_linenr++ == 0) {
@@ -111,42 +121,66 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
-			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
+			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current 90KHz clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->pts_count,
 				ctx->maxAllowablePTSDTSDrift,
 				PTS_TICKS_TO_MS(p->pts_diff_ticks),
 				str);
 		}
 
-		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 "\n",
+		if (abs(pts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
+			char str[64];
+			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			str[ strlen(str) - 1] = 0;
+			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current PTS frame measured in SCR ticks >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
+				p->pts_count,
+				ctx->maxAllowablePTSDTSDrift,
+				pts_scr_diff_ms,
+				str);
+		}
+
+		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %5" PRIu64 "\n",
 			p->pts_count,
 			filepos,
 			filepos,
 			pid,
 			p->pes.PTS,
 			p->pts_diff_ticks,
-			PTS_TICKS_TO_MS(p->pts_diff_ticks));
+			PTS_TICKS_TO_MS(p->pts_diff_ticks),
+			pts_scr_diff_ms);
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
 		if (abs(PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
-			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
+			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current 90KHz clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->dts_count,
 				ctx->maxAllowablePTSDTSDrift,
 				PTS_TICKS_TO_MS(p->pts_diff_ticks),
 				str);
 		}
 
-		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 "\n",
+		if (abs(dts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
+			char str[64];
+			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			str[ strlen(str) - 1] = 0;
+			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current DTS frame measured in SCR ticks >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
+				p->dts_count,
+				ctx->maxAllowablePTSDTSDrift,
+				dts_scr_diff_ms,
+				str);
+		}
+
+		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %5" PRIu64 "\n",
 			p->dts_count,
 			filepos,
 			filepos,
 			pid,
 			p->pes.DTS,
 			p->dts_diff_ticks,
-			PTS_TICKS_TO_MS(p->dts_diff_ticks));
+			PTS_TICKS_TO_MS(p->dts_diff_ticks),
+			dts_scr_diff_ms);
 	}
 
 	if (len > 0 && ctx->doPESStatistics > 1) {
