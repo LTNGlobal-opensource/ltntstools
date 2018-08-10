@@ -91,7 +91,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 	ssize_t len = ltn_pes_packet_parse(&p->pes, bs);
 
-	/* Track the difference in SCR lcoks between this PTS header and the prior. */
+	/* Track the difference in SCR clocks between this PTS header and the prior. */
 	uint64_t pts_scr_diff_ms = 0;
 	uint64_t dts_scr_diff_ms = 0;
 
@@ -109,8 +109,8 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	}
 
 	if (ctx->pts_linenr++ == 0) {
-		printf("+PTS/DTS Timing    filepos ------------>               PTS/DTS  <------- DIFF ------>\n");
-		printf("+PTS/DTS Timing        Hex           Dec   PID       90KHz VAL       TICKS         MS\n");
+		printf("+PTS/DTS Timing    filepos ------------>               PTS/DTS  <------- DIFF ------> <---- SCR\n");
+		printf("+PTS/DTS Timing        Hex           Dec   PID       90KHz VAL       TICKS         MS   Diff MS\n");
 	}
 	if (ctx->pts_linenr > 24)
 		ctx->pts_linenr = 0;
@@ -139,7 +139,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %5" PRIu64 "\n",
+		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %9" PRIu64 "\n",
 			p->pts_count,
 			filepos,
 			filepos,
@@ -172,7 +172,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %5" PRIu64 "\n",
+		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %9" PRIu64 "\n",
 			p->dts_count,
 			filepos,
 			filepos,
