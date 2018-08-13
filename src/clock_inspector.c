@@ -10,6 +10,15 @@
 #include "ts.h"
 #include "pes.h"
 #include "hexdump.h"
+#include "xorg-list.h"
+
+struct ordered_clock_item_s {
+	struct xorg_list list;
+
+	uint64_t nr;
+	int64_t clock;
+	uint64_t filepos;
+};
 
 struct pid_s
 {
@@ -38,6 +47,8 @@ struct pid_s
 
 	/* Working data for PTS / DTS */
 	struct ltn_pes_packet_s pes;
+
+	struct xorg_list ordered_pts_list;
 };
 
 struct tool_context_s
@@ -59,7 +70,69 @@ struct tool_context_s
 	int ts_linenr;
 
 	uint64_t ts_total_packets;
+
+	int order_asc_pts_output;
 };
+
+/* Ordered PTS handling */
+static void ordered_clock_init(struct xorg_list *list)
+{
+	xorg_list_init(list);
+}
+
+static void ordered_clock_insert(struct xorg_list *list, struct ordered_clock_item_s *src)
+{
+	struct ordered_clock_item_s *e = calloc(1, sizeof(*e));
+	memcpy(e, src, sizeof(*src));
+
+	if (xorg_list_is_empty(list)) {
+		xorg_list_append(&e->list, list);
+		return;
+	}
+
+	struct ordered_clock_item_s *iterator, *next;
+	xorg_list_for_each_entry_safe(iterator, next, list, list) {
+		if (src->clock < iterator->clock)
+			break;
+	}
+
+	__xorg_list_add(&e->list, iterator->list.prev, &iterator->list);
+}
+
+static void ordered_clock_dump(struct xorg_list *list, unsigned short pid)
+{
+	int64_t last = -1;
+	uint64_t diffTicks = 0;
+
+	int linenr = 0;
+
+	struct ordered_clock_item_s *i, *next;
+	xorg_list_for_each_entry_safe(i, next, list, list) {
+		if (last == -1)
+			diffTicks = 0;
+		else
+			diffTicks = i->clock - last;
+
+		if (linenr++ == 24) {
+			linenr = 0;
+			printf("+PTS/DTS (ordered) filepos ------------>               PTS/DTS  <------- DIFF ------>\n");
+			printf("+PTS/DTS #             Hex           Dec   PID       90KHz VAL       TICKS         MS\n");
+		}
+
+		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 "\n",
+			i->nr,
+			i->filepos,
+			i->filepos,
+			pid,
+			i->clock,
+			diffTicks,
+			diffTicks / 90);
+
+		last = i->clock;
+	}
+}
+
+/* End: Ordered PTS handling */
 
 static void pidReport(struct tool_context_s *ctx)
 {
@@ -139,15 +212,27 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %9" PRIu64 "\n",
-			p->pts_count,
-			filepos,
-			filepos,
-			pid,
-			p->pes.PTS,
-			p->pts_diff_ticks,
-			PTS_TICKS_TO_MS(p->pts_diff_ticks),
-			pts_scr_diff_ms);
+		if (!ctx->order_asc_pts_output) {
+			printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %9" PRIu64 "\n",
+				p->pts_count,
+				filepos,
+				filepos,
+				pid,
+				p->pes.PTS,
+				p->pts_diff_ticks,
+				PTS_TICKS_TO_MS(p->pts_diff_ticks),
+				pts_scr_diff_ms);
+		}
+
+		if (p->pts_count == 1)
+			ordered_clock_init(&p->ordered_pts_list);
+
+		struct ordered_clock_item_s item;
+		item.nr = p->pts_count;
+		item.clock = p->pes.PTS;
+		item.filepos = filepos;
+		ordered_clock_insert(&p->ordered_pts_list, &item);
+
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
 		if (abs(PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
@@ -316,6 +401,8 @@ static void usage(const char *progname)
 	printf("  -s Dump SCR/PCR time, adjusting for -T initial time if necessary\n");
 	printf("  -p Dump PTS/DTS (use additional -p to show PES header on console)\n");
 	printf("  -D Max allowable PTS/DTS clock drift value in ms. [def: 700]\n");
+	printf("  -R Reorder the PTS display output to be in ascending PTS order [def: disabled]\n");
+	printf("     In this case we'll calculate the PTS intervals reliably based on picture frame display order [def: disabled]\n");
 }
 
 int clock_inspector(int argc, char *argv[])
@@ -330,7 +417,7 @@ int clock_inspector(int argc, char *argv[])
 	ctx->doPESStatistics = 0;
 	ctx->maxAllowablePTSDTSDrift = 700;
 
-        while ((ch = getopt(argc, argv, "?dhi:spT:D:")) != -1) {
+        while ((ch = getopt(argc, argv, "?dhi:spT:D:R")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -346,6 +433,9 @@ int clock_inspector(int argc, char *argv[])
 			break;
 		case 'D':
 			ctx->maxAllowablePTSDTSDrift = atoi(optarg);
+			break;
+		case 'R':
+			ctx->order_asc_pts_output = 1;
 			break;
 		case 'T':
 			{
@@ -428,5 +518,13 @@ int clock_inspector(int argc, char *argv[])
 
 	free(buf);
 	fclose(ctx->fh);
+
+	if (ctx->order_asc_pts_output) {
+		for (int i = 0; i <= 0x1fff; i++) {
+			if (ctx->pids[i].pts_count > 0) {
+				ordered_clock_dump(&ctx->pids[i].ordered_pts_list, i);
+			}
+		}
+	}
 	return 0;
 }
