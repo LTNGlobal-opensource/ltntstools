@@ -72,7 +72,11 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 		uint8_t cc = getCC(buf + i);
 		if (isCCInError(buf + i, pid->lastCC)) {
 			if (pid->packetCount > 1 && pidnr != 0x1fff) {
-printf("pid %04x Got %x wanted %x BAD\n", pidnr, cc, (pid->lastCC + 1) & 0x0f);
+				char ts[256];
+				time_t now = time(0);
+				sprintf(ts, "%s", ctime(&now));
+				ts[ strlen(ts) - 1] = 0;
+				printf("%s: CC Error : pid %04x -- Got 0x%x wanted 0x%x\n", ts, pidnr, cc, (pid->lastCC + 1) & 0x0f);
 				pid->ccErrors++;
 			}
 		}
