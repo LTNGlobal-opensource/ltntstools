@@ -14,6 +14,7 @@
 #define DATA_STREAM_ALIGNMENT_DR		    0x06
 #define VIDEO_STREAM_DR		    0xF2
 #define CA_DR			            0x09
+#define SMOOTHING_DR	            0x10
 #define SYSTEM_CLOCK_DR		    0x0B
 #define MAX_BITRATE_DR		    0x0E
 #define STREAM_IDENTIFIER_DR	0x52
@@ -69,6 +70,13 @@ char *tstools_GetTypeName(uint8_t type)
       else
         return "User Private";
     }
+}
+
+static void DumpSmoothingDescriptor(dvbpsi_smoothing_buffer_dr_t *d)
+{
+	printf("Smoothing: leak rate %d, size %d\n",
+		d->i_sb_leak_rate,
+		d->i_sb_size);
 }
 
 static void DumpCADescriptor(dvbpsi_ca_dr_t *p_ca_descriptor)
@@ -192,6 +200,9 @@ void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
       break;
     case CA_DR:
       DumpCADescriptor(dvbpsi_DecodeCADr(p_descriptor));
+      break;
+    case SMOOTHING_DR:
+      DumpSmoothingDescriptor(dvbpsi_DecodeSmoothingBufferDr(p_descriptor));
       break;
     case VIDEO_STREAM_DR:
       DumpVideoStreamDescriptor(dvbpsi_DecodeVStreamDr(p_descriptor));
