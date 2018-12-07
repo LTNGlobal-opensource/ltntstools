@@ -3,6 +3,9 @@
 #ifndef _PIDS_H
 #define _PIDS_H
 
+#include <time.h>
+#include <inttypes.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,29 +26,28 @@ struct pid_statistics_s
 	uint64_t teiErrors;
 
 	uint8_t lastCC;
+
+	/* Maintain a packets per second count, we can convert this into Mb/ps */
+	time_t pps_last_update;
+	uint32_t pps;
+	uint32_t pps_window;
+	double mbps; /* Updated once per second. */
 };
 
 struct stream_statistics_s
 {
 	struct pid_statistics_s pids[MAX_PID];
+	uint64_t packetCount;
+
+	/* Maintain a packets per second count, we can convert this into Mb/ps */
+	time_t pps_last_update;
+	uint32_t pps;
+	uint32_t pps_window;
+	double mbps; /* Updated once per second. */
 };
 
-__inline__ int isCCInError(uint8_t *pkt, uint8_t oldCC)
-{
-	unsigned int adap = getPacketAdaption(pkt);
-	unsigned int cc = getCC(pkt);
-
-	if (((adap == 0) || (adap == 2)) && (oldCC == cc))
-		return 0;
-
-	if (((adap == 1) || (adap == 3)) && (oldCC == cc))
-		return 1;
-
-	if (((oldCC + 1) & 0x0f) == cc)
-		return 0;
-
-	return 1;
-}
+int isCCInError(const uint8_t *pkt, uint8_t oldCC);
+void pid_stats_update(struct stream_statistics_s *stream, const uint8_t *pkts, uint32_t packetCount);
 
 #ifdef __cplusplus
 };

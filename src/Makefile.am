@@ -33,8 +33,10 @@ SRC += si_inspector.c
 SRC += pcap2ts.c
 SRC += clock_inspector.c
 SRC += pes.c
+SRC += pids.c
 SRC += ts.c
 SRC += pid_drop.c
+SRC += nic_monitor.c
 
 bin_PROGRAMS  = tstools_util
 bin_PROGRAMS += tstools_pat_inspector
@@ -44,6 +46,7 @@ bin_PROGRAMS += tstools_si_inspector
 bin_PROGRAMS += tstools_pcap2ts
 bin_PROGRAMS += tstools_clock_inspector
 bin_PROGRAMS += tstools_pid_drop
+bin_PROGRAMS += tstools_nic_monitor
 
 tstools_util_SOURCES = $(SRC)
 tstools_pat_inspector_SOURCES = $(SRC)
@@ -53,6 +56,7 @@ tstools_si_inspector_SOURCES = $(SRC)
 tstools_pcap2ts_SOURCES = $(SRC)
 tstools_clock_inspector_SOURCES = $(SRC)
 tstools_pid_drop_SOURCES = $(SRC)
+tstools_nic_monitor_SOURCES = $(SRC)
 
 libtstools_noinst_includedir = $(includedir)
 
