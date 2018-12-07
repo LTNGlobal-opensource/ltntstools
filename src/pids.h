@@ -38,6 +38,8 @@ struct stream_statistics_s
 {
 	struct pid_statistics_s pids[MAX_PID];
 	uint64_t packetCount;
+	uint64_t teiErrors;
+	uint64_t ccErrors;
 
 	/* Maintain a packets per second count, we can convert this into Mb/ps */
 	time_t pps_last_update;

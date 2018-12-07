@@ -58,12 +58,15 @@ void pid_stats_update(struct stream_statistics_s *stream, const uint8_t *pkts, u
 		if (isCCInError(pkts + offset, pid->lastCC)) {
 			if (pid->packetCount > 1 && pidnr != 0x1fff) {
 				pid->ccErrors++;
+				stream->ccErrors++;
 			}
 		}
 
 		pid->lastCC = cc;
 
-		if (isTEI(pkts + offset))
+		if (isTEI(pkts + offset)) {
 			pid->teiErrors++;
+			stream->teiErrors++;
+		}
 	}
 }
