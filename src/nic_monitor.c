@@ -444,7 +444,7 @@ static void usage(const char *progname)
 	printf("  -h Display command line help.\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("  -M Display an interactive console with stats.\n");
-	printf("  -d <dir> Update file based stats in this target directory, every -n seconds.\n");
+	printf("  -d <dir> Write summary stats per stream in this target directory, every -n seconds.\n");
 	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
 	printf("  -f '<string>' Use a custom pcap filter. [def: '%s']\n", DEFAULT_PCAP_FILTER);
 #if 0
