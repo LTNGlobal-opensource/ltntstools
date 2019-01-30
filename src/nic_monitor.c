@@ -115,12 +115,14 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 
 static void discovered_item_console_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
 {
-	struct in_addr addr;
-	addr.s_addr = di->iphdr.daddr;
-	printf("   PID   PID     PacketCount   CCErrors  TEIErrors @ %6.2f : %s:%d\n",
+	struct in_addr dstaddr, srcaddr;
+	srcaddr.s_addr = di->iphdr.saddr;
+	dstaddr.s_addr = di->iphdr.daddr;
+	printf("   PID   PID     PacketCount   CCErrors  TEIErrors @ %6.2f : %s:%d -> %s:%d\n",
 		di->stats.mbps,
-		inet_ntoa(addr), ntohs(di->udphdr.uh_dport));
-	printf("<---------------------------  --------- ---------- ---Mb/ps------------------------>\n");
+		inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport),
+		inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
+	printf("<---------------------------  --------- ---------- ---Mb/ps------------------------------------------->\n");
 	for (int i = 0; i < MAX_PID; i++) {
 		if (di->stats.pids[i].enabled) {
 			printf("0x%04x (%4d) %14" PRIu64 " %10" PRIu64 " %10" PRIu64 "   %6.2f\n", i, i,
@@ -172,9 +174,12 @@ static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_cha
 		uint8_t *ptr = (uint8_t *)((uint8_t *)udp + sizeof(struct udphdr));
 
 		if (ctx->verbose) {
-			struct in_addr addr;
-			addr.s_addr = ip->daddr;
-			printf("%s:%d : %4d : %02x %02x %02x %02x\n", inet_ntoa(addr), ntohs(udp->uh_dport),
+			struct in_addr dstaddr, srcaddr;
+			srcaddr.s_addr = ip->saddr;
+			dstaddr.s_addr = ip->daddr;
+			printf("%s:%d -> %s:%d : %4d : %02x %02x %02x %02x\n",
+				inet_ntoa(srcaddr), ntohs(udp->uh_sport),
+				inet_ntoa(dstaddr), ntohs(udp->uh_dport),
 				ntohs(udp->uh_ulen),
 				ptr[0], ptr[1], ptr[2], ptr[3]);
 		}
