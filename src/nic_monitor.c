@@ -118,14 +118,17 @@ static void discovered_item_console_summary(struct tool_context_s *ctx, struct d
 	struct in_addr dstaddr, srcaddr;
 	srcaddr.s_addr = di->iphdr.saddr;
 	dstaddr.s_addr = di->iphdr.daddr;
-	printf("   PID   PID     PacketCount   CCErrors  TEIErrors @ %6.2f : %s:%d -> %s:%d\n",
-		di->stats.mbps,
-		inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport),
-		inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
-	printf("<---------------------------  --------- ---------- ---Mb/ps------------------------------------------->\n");
+
+	char stream[128];
+	sprintf(stream, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
+	sprintf(stream + strlen(stream), " -> %s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
+
+	printf("   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s\n",
+		di->stats.mbps, stream);
+	printf("<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------->\n");
 	for (int i = 0; i < MAX_PID; i++) {
 		if (di->stats.pids[i].enabled) {
-			printf("0x%04x (%4d) %14" PRIu64 " %10" PRIu64 " %10" PRIu64 "   %6.2f\n", i, i,
+			printf("0x%04x (%4d) %14" PRIu64 " %12" PRIu64 " %12" PRIu64 "   %6.2f\n", i, i,
 				di->stats.pids[i].packetCount,
 				di->stats.pids[i].ccErrors,
 				di->stats.pids[i].teiErrors,
@@ -228,13 +231,13 @@ static void *ui_thread_func(void *p)
 		char mask[64];
 		sprintf(mask, "%s", inet_ntoa(ip_mask));
 		sprintf(title_c, "NIC: %s (%s/%s)", ctx->ifname, inet_ntoa(ip_net), mask);
-		int blen = 75 - (strlen(title_a) + strlen(title_c));
+		int blen = 82 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
 
 		attron(COLOR_PAIR(1));
 		mvprintw( 0, 0, "%s%s%s", title_a, title_b, title_c);
-		mvprintw( 1, 0, "<--------ADDRESS  PORT  M/BIT <------PACKETS <--TEIErr <---CCErr           ");
+		mvprintw( 1, 0, "<----------------------------------------------- M/BIT <------PACKETS <------CCErr");
 		attroff(COLOR_PAIR(1));
 
 		int streamCount = 1;
@@ -242,10 +245,17 @@ static void *ui_thread_func(void *p)
 		pthread_mutex_lock(&ctx->lock);
 		xorg_list_for_each_entry(di, &ctx->list, list) {
 
-			struct in_addr addr;
-			addr.s_addr = di->iphdr.daddr;
-			mvprintw(streamCount + 2, 0, " %15s %5d %6.2f  %13" PRIu64 " %9" PRIu64 " %9" PRIu64 "",
-				inet_ntoa(addr), ntohs(di->udphdr.uh_dport),
+			struct in_addr dstaddr, srcaddr;
+			srcaddr.s_addr = di->iphdr.saddr;
+			dstaddr.s_addr = di->iphdr.daddr;
+
+                        char srcip[64], dstip[64];
+			sprintf(srcip, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
+			sprintf(dstip, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
+
+			mvprintw(streamCount + 2, 0, " %21s -> %21s %6.2f  %13" PRIu64 " %12" PRIu64 "",
+				srcip,
+				dstip,
 				di->stats.mbps,
 				di->stats.packetCount,
 				di->stats.teiErrors,
@@ -276,7 +286,7 @@ static void *ui_thread_func(void *p)
 		memset(tail_b, '-', sizeof(tail_b));
 		sprintf(tail_a, "TSTOOLS_NIC_MONITOR");
 		sprintf(tail_c, "%s", ctime(&now));
-		blen = 76 - (strlen(tail_a) + strlen(tail_c));
+		blen = 83 - (strlen(tail_a) + strlen(tail_c));
 		memset(tail_b, 0x20, sizeof(tail_b));
 		tail_b[blen] = 0;
 
