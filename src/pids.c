@@ -24,7 +24,13 @@ void pid_stats_update(struct stream_statistics_s *stream, const uint8_t *pkts, u
 	time_t now;
 	time(&now);
 
-	stream->packetCount++;
+	for (int i = 0; i < packetCount; i++) {
+		int offset = i * 188;
+		if (*(pkts + offset) == 0x47)
+			stream->packetCount++;
+		else
+			stream->ccErrors++;
+	}
 
 	if (now != stream->pps_last_update) {
 		stream->pps = stream->pps_window;
@@ -38,6 +44,7 @@ void pid_stats_update(struct stream_statistics_s *stream, const uint8_t *pkts, u
 
 	for (int i = 0; i < packetCount; i++) {
 		int offset = i * 188;
+
 		uint16_t pidnr = getPID(pkts + offset);
 		struct pid_statistics_s *pid = &stream->pids[pidnr];
 

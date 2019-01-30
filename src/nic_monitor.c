@@ -19,6 +19,7 @@
 #include <netinet/udp.h>
 
 #define DEFAULT_TRAILERROW 18
+#define FILE_WRITE_INTERVAL 5
 
 static int gRunning = 0;
 
@@ -46,6 +47,11 @@ struct tool_context_s
 	/* list of discovered addresses and related statistics. */
 	pthread_mutex_t lock;
 	struct xorg_list list;
+
+	/* File based statistics */
+	char *file_prefix;
+	int file_write_interval;
+	time_t file_next_write_time;
 };
 static struct tool_context_s g_ctx = { 0 };
 static struct tool_context_s *ctx = &g_ctx;
@@ -62,6 +68,13 @@ struct discovered_item_s
 
 	/* PID Statistics */
 	struct stream_statistics_s stats;
+
+	/* File output */
+	char filename[128];
+
+	/* UI ASCII labels */
+	char srcaddr[24];
+	char dstaddr[24];
 };
 
 void discovered_item_free(struct discovered_item_s *di)
@@ -78,6 +91,13 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 		memcpy(&di->ethhdr, ethhdr, sizeof(*ethhdr));
 		memcpy(&di->iphdr, iphdr, sizeof(*iphdr));
 		memcpy(&di->udphdr, udphdr, sizeof(*udphdr));
+
+		struct in_addr dstaddr, srcaddr;
+		srcaddr.s_addr = di->iphdr.saddr;
+		dstaddr.s_addr = di->iphdr.daddr;
+
+		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
+		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
 	}
 
 	return di;
@@ -115,13 +135,9 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 
 static void discovered_item_console_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
 {
-	struct in_addr dstaddr, srcaddr;
-	srcaddr.s_addr = di->iphdr.saddr;
-	dstaddr.s_addr = di->iphdr.daddr;
-
 	char stream[128];
-	sprintf(stream, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
-	sprintf(stream + strlen(stream), " -> %s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
+	sprintf(stream, "%s", di->srcaddr);
+	sprintf(stream + strlen(stream), " -> %s", di->dstaddr);
 
 	printf("   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s\n",
 		di->stats.mbps, stream);
@@ -144,6 +160,78 @@ static void discovered_items_console_summary(struct tool_context_s *ctx)
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		discovered_item_console_summary(ctx, e);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+/* For a given item, open a stats file on disk, append the current stats, close it. */
+static void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
+{
+	if (di->filename[0] == 0) {
+		if (ctx->file_prefix)
+			sprintf(di->filename, "%s/", ctx->file_prefix);
+
+		sprintf(di->filename + strlen(di->filename), "%s", di->srcaddr);
+		sprintf(di->filename + strlen(di->filename), "-%s", di->dstaddr);
+	}
+
+	int fd = open(di->filename, O_CREAT | O_RDWR | O_APPEND, 0644);
+	if (fd < 0) {
+		perror("open");
+		return;
+	}
+
+	struct tm tm;
+	time_t now;
+	time(&now);
+	localtime_r(&now, &tm);
+
+	char line[256];
+	char ts[24];
+        sprintf(ts, "%04d%02d%02d-%02d%02d%02d",
+                tm.tm_year + 1900,
+                tm.tm_mon  + 1,
+                tm.tm_mday,
+                tm.tm_hour,
+                tm.tm_min,
+                tm.tm_sec);
+
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 ",src=%s,dst=%s\n",
+		ts,
+		ctx->ifname,
+		di->stats.pps * (188 * 8),
+		di->stats.mbps,
+		di->stats.packetCount,
+		di->stats.ccErrors,
+		di->srcaddr,
+		di->dstaddr);
+
+	write(fd, line, strlen(line));
+
+	close(fd);
+#if 0
+	printf("   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s\n",
+		di->stats.mbps, stream);
+	printf("<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------->\n");
+	for (int i = 0; i < MAX_PID; i++) {
+		if (di->stats.pids[i].enabled) {
+			printf("0x%04x (%4d) %14" PRIu64 " %12" PRIu64 " %12" PRIu64 "   %6.2f\n", i, i,
+				di->stats.pids[i].packetCount,
+				di->stats.pids[i].ccErrors,
+				di->stats.pids[i].teiErrors,
+				di->stats.pids[i].mbps);
+		}
+	}
+#endif
+}
+
+static void discovered_items_file_summary(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		discovered_item_file_summary(ctx, e);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -245,17 +333,9 @@ static void *ui_thread_func(void *p)
 		pthread_mutex_lock(&ctx->lock);
 		xorg_list_for_each_entry(di, &ctx->list, list) {
 
-			struct in_addr dstaddr, srcaddr;
-			srcaddr.s_addr = di->iphdr.saddr;
-			dstaddr.s_addr = di->iphdr.daddr;
-
-                        char srcip[64], dstip[64];
-			sprintf(srcip, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
-			sprintf(dstip, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
-
 			mvprintw(streamCount + 2, 0, " %21s -> %21s %6.2f  %13" PRIu64 " %12" PRIu64 "",
-				srcip,
-				dstip,
+				di->srcaddr,
+				di->dstaddr,
 				di->stats.mbps,
 				di->stats.packetCount,
 				di->stats.teiErrors,
@@ -314,13 +394,25 @@ static void *stats_thread_func(void *p)
 	int processed;
 
 	time_t now;
+	time(&now);
+	if (ctx->file_next_write_time == 0) {
+		ctx->file_next_write_time = now + ctx->file_write_interval;
+	}
+
 	while (!ctx->stats_threadTerminate) {
 		processed = pcap_dispatch(ctx->descr, -1, pcap_callback, NULL);
 		if (processed == 0)
 			usleep(5 * 1000);
 
+		time(&now);
+		if (ctx->file_prefix && ctx->file_next_write_time <= now) {
+			ctx->file_next_write_time = now + ctx->file_write_interval;
+			/* TODO: We're writing small amounts of I/O in the network thread. */
+			/*       Build a writer thread if we have hundreds of discovered streams. */
+			discovered_items_file_summary(ctx);
+		}
+
 		if (ctx->endTime) {
-			time(&now);
 			if (now >= ctx->endTime) {
 				//kill(getpid(), 0);
 				gRunning = 0;
@@ -351,6 +443,8 @@ static void usage(const char *progname)
 	printf("  -h Display command line help.\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("  -M Display an interactive console with stats.\n");
+	printf("  -d <dir> Update file based stats in this target directory, every -n seconds.\n");
+	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
 #if 0
 	printf("  -o <output filename> (optional)\n");
 #endif
@@ -362,9 +456,14 @@ int nic_monitor(int argc, char *argv[])
 
 	pthread_mutex_init(&ctx->lock, NULL);
 	xorg_list_init(&ctx->list);
+	ctx->file_write_interval = FILE_WRITE_INTERVAL;
 
-	while ((ch = getopt(argc, argv, "?hi:t:vM")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:i:t:vMn:")) != -1) {
 		switch (ch) {
+		case 'd':
+			free(ctx->file_prefix);
+			ctx->file_prefix = strdup(optarg);
+			break;
 		case '?':
 		case 'h':
 			usage(argv[0]);
@@ -372,6 +471,11 @@ int nic_monitor(int argc, char *argv[])
 			break;
 		case 'i':
 			ctx->ifname = optarg;
+			break;
+		case 'n':
+			ctx->file_write_interval = atoi(optarg);
+			if (ctx->file_write_interval < 1)
+				ctx->file_write_interval = 1;
 			break;
 		case 't':
 			time(&ctx->endTime);
@@ -464,5 +568,6 @@ int nic_monitor(int argc, char *argv[])
 
 	discovered_items_console_summary(ctx);
 
+	free(ctx->file_prefix);
 	return 0;
 }
