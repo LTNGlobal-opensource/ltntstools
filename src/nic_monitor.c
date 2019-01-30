@@ -20,6 +20,7 @@
 
 #define DEFAULT_TRAILERROW 18
 #define FILE_WRITE_INTERVAL 5
+#define DEFAULT_PCAP_FILTER "udp dst portrange 4000-4999"
 
 static int gRunning = 0;
 
@@ -43,6 +44,7 @@ struct tool_context_s
 	pcap_t* descr;
 	bpf_u_int32 netp;
 	bpf_u_int32 maskp;
+	char *pcap_filter;
 
 	/* list of discovered addresses and related statistics. */
 	pthread_mutex_t lock;
@@ -171,8 +173,7 @@ static void discovered_item_file_summary(struct tool_context_s *ctx, struct disc
 		if (ctx->file_prefix)
 			sprintf(di->filename, "%s/", ctx->file_prefix);
 
-		sprintf(di->filename + strlen(di->filename), "%s", di->srcaddr);
-		sprintf(di->filename + strlen(di->filename), "-%s", di->dstaddr);
+		sprintf(di->filename + strlen(di->filename), "%s", di->dstaddr);
 	}
 
 	int fd = open(di->filename, O_CREAT | O_RDWR | O_APPEND, 0644);
@@ -315,7 +316,7 @@ static void *ui_thread_func(void *p)
 		//printf("   mask: %s\n", inet_ntoa(ip_mask));
 
 		char title_a[160], title_b[160], title_c[160];
-		sprintf(title_a, " ");
+		sprintf(title_a, ctx->pcap_filter);
 		char mask[64];
 		sprintf(mask, "%s", inet_ntoa(ip_mask));
 		sprintf(title_c, "NIC: %s (%s/%s)", ctx->ifname, inet_ntoa(ip_net), mask);
@@ -445,6 +446,7 @@ static void usage(const char *progname)
 	printf("  -M Display an interactive console with stats.\n");
 	printf("  -d <dir> Update file based stats in this target directory, every -n seconds.\n");
 	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
+	printf("  -f '<string>' Use a custom pcap filter. [def: '%s']\n", DEFAULT_PCAP_FILTER);
 #if 0
 	printf("  -o <output filename> (optional)\n");
 #endif
@@ -457,12 +459,16 @@ int nic_monitor(int argc, char *argv[])
 	pthread_mutex_init(&ctx->lock, NULL);
 	xorg_list_init(&ctx->list);
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
+	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
 
-	while ((ch = getopt(argc, argv, "?hd:i:t:vMn:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:F:i:t:vMn:")) != -1) {
 		switch (ch) {
 		case 'd':
 			free(ctx->file_prefix);
 			ctx->file_prefix = strdup(optarg);
+			break;
+		case 'F':
+			ctx->pcap_filter = strdup(optarg);
 			break;
 		case '?':
 		case 'h':
@@ -508,6 +514,7 @@ int nic_monitor(int argc, char *argv[])
 	ip_mask.s_addr = ctx->maskp;
 	printf("network: %s\n", inet_ntoa(ip_net));
 	printf("   mask: %s\n", inet_ntoa(ip_mask));
+	printf(" filter: %s\n", ctx->pcap_filter);
 
 	ctx->descr = pcap_open_live(ctx->ifname, BUFSIZ, 1,-1, ctx->errbuf);
 	if (ctx->descr == NULL) {
@@ -519,7 +526,7 @@ int nic_monitor(int argc, char *argv[])
 	 * we don't need to manually filter in our callback.
 	 */
 	struct bpf_program fp;
-	int ret = pcap_compile(ctx->descr, &fp, "ip", 0, ctx->netp);
+	int ret = pcap_compile(ctx->descr, &fp, ctx->pcap_filter, 0, ctx->netp);
 	if (ret == -1) {
 		fprintf(stderr, "Error, pcap_compile\n");
 		exit(1);
