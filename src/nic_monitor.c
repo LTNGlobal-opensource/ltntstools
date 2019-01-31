@@ -269,9 +269,13 @@ static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_cha
 			struct in_addr dstaddr, srcaddr;
 			srcaddr.s_addr = ip->saddr;
 			dstaddr.s_addr = ip->daddr;
-			printf("%s:%d -> %s:%d : %4d : %02x %02x %02x %02x\n",
-				inet_ntoa(srcaddr), ntohs(udp->uh_sport),
-				inet_ntoa(dstaddr), ntohs(udp->uh_dport),
+
+			char src[24], dst[24];
+			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->uh_sport));
+			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->uh_dport));
+
+			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
+				src, dst,
 				ntohs(udp->uh_ulen),
 				ptr[0], ptr[1], ptr[2], ptr[3]);
 		}
@@ -334,25 +338,14 @@ static void *ui_thread_func(void *p)
 		pthread_mutex_lock(&ctx->lock);
 		xorg_list_for_each_entry(di, &ctx->list, list) {
 
-			mvprintw(streamCount + 2, 0, " %21s -> %21s %6.2f  %13" PRIu64 " %12" PRIu64 "",
+			mvprintw(streamCount + 2, 0, "%21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "",
 				di->srcaddr,
 				di->dstaddr,
 				di->stats.mbps,
 				di->stats.packetCount,
 				di->stats.teiErrors,
 				di->stats.ccErrors);
-#if 0
-			printf("<---------------------------  --------- ---------- ---Mb/ps------------------------>\n");
-			for (int i = 0; i < MAX_PID; i++) {
-				if (di->stats.pids[i].enabled) {
-					printf("0x%04x (%4d) %14" PRIu64 " %10" PRIu64 " %10" PRIu64 "   %6.2f\n", i, i,
-						di->stats.pids[i].packetCount,
-						di->stats.pids[i].ccErrors,
-						di->stats.pids[i].teiErrors,
-						di->stats.pids[i].mbps);
-				}
-			}
-#endif
+
 			streamCount++;
 		}
 		pthread_mutex_unlock(&ctx->lock);
