@@ -52,6 +52,14 @@ int isCCInError(const uint8_t *pkt, uint8_t oldCC);
 void pid_stats_update(struct stream_statistics_s *stream, const uint8_t *pkts, uint32_t packetCount);
 void pid_stats_reset(struct stream_statistics_s *stream);
 
+double   pid_stats_stream_get_mbps(struct stream_statistics_s *stream);
+uint32_t pid_stats_stream_get_pps(struct stream_statistics_s *stream);
+uint32_t pid_stats_stream_get_bps(struct stream_statistics_s *stream);
+
+double   pid_stats_pid_get_mbps(struct stream_statistics_s *stream, uint16_t pidnr);
+uint32_t pid_stats_pid_get_pps(struct stream_statistics_s *stream, uint16_t pidnr);
+uint32_t pid_stats_pid_get_bps(struct stream_statistics_s *stream, uint16_t pidnr);
+
 #ifdef __cplusplus
 };
 #endif

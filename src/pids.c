@@ -95,3 +95,66 @@ void pid_stats_reset(struct stream_statistics_s *stream)
 	}
 }
 
+static void _expire_per_second_stream_stats(struct stream_statistics_s *stream)
+{
+	time_t now;
+	time(&now);
+
+	if (now > stream->pps_last_update + 2) {
+		stream->mbps = 0;
+		stream->pps = 0;
+		stream->pps_window = 0;
+	}
+}
+
+double pid_stats_stream_get_mbps(struct stream_statistics_s *stream)
+{
+	_expire_per_second_stream_stats(stream);
+	return stream->mbps;
+}
+
+uint32_t pid_stats_stream_get_pps(struct stream_statistics_s *stream)
+{
+	_expire_per_second_stream_stats(stream);
+	return stream->pps;
+}
+
+uint32_t pid_stats_stream_get_bps(struct stream_statistics_s *stream)
+{
+	_expire_per_second_stream_stats(stream);
+	return stream->pps * 188 * 8;
+}
+
+static void _expire_per_second_pid_stats(struct pid_statistics_s *pid)
+{
+	time_t now;
+	time(&now);
+
+	if (now > pid->pps_last_update + 2) {
+		pid->mbps = 0;
+		pid->pps = 0;
+		pid->pps_window = 0;
+	}
+}
+
+double pid_stats_pid_get_mbps(struct stream_statistics_s *stream, uint16_t pidnr)
+{
+	struct pid_statistics_s *pid = &stream->pids[pidnr & 0x1fff];
+	_expire_per_second_pid_stats(pid);
+	return pid->mbps;
+}
+
+uint32_t pid_stats_pid_get_pps(struct stream_statistics_s *stream, uint16_t pidnr)
+{
+	struct pid_statistics_s *pid = &stream->pids[pidnr & 0x1fff];
+	_expire_per_second_pid_stats(pid);
+	return pid->pps;
+}
+
+uint32_t pid_stats_pid_get_bps(struct stream_statistics_s *stream, uint16_t pidnr)
+{
+	struct pid_statistics_s *pid = &stream->pids[pidnr & 0x1fff];
+	_expire_per_second_pid_stats(pid);
+	return pid->pps * 188 * 8;
+}
+
