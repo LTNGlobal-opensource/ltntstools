@@ -348,13 +348,18 @@ static void *ui_thread_func(void *p)
 		pthread_mutex_lock(&ctx->lock);
 		xorg_list_for_each_entry(di, &ctx->list, list) {
 
+			if (di->stats.ccErrors)
+				attron(COLOR_PAIR(3));
+
 			mvprintw(streamCount + 2, 0, "%21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "",
 				di->srcaddr,
 				di->dstaddr,
 				pid_stats_stream_get_mbps(&di->stats),
 				di->stats.packetCount,
-				di->stats.teiErrors,
 				di->stats.ccErrors);
+
+			if (di->stats.ccErrors)
+				attroff(COLOR_PAIR(3));
 
 			streamCount++;
 		}
