@@ -77,3 +77,21 @@ void pid_stats_update(struct stream_statistics_s *stream, const uint8_t *pkts, u
 		}
 	}
 }
+
+void pid_stats_reset(struct stream_statistics_s *stream)
+{
+	stream->packetCount = 0;
+	stream->teiErrors = 0;
+	stream->ccErrors = 0;
+	stream->mbps = 0;
+
+	for (int i = 0; i < MAX_PID; i++) {
+		if (!stream->pids[i].enabled)
+			continue;
+		stream->pids[i].packetCount = 0;
+		stream->pids[i].ccErrors = 0;
+		stream->pids[i].teiErrors = 0;
+		stream->pids[i].mbps = 0;
+	}
+}
+

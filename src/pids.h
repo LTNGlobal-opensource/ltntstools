@@ -50,6 +50,7 @@ struct stream_statistics_s
 
 int isCCInError(const uint8_t *pkt, uint8_t oldCC);
 void pid_stats_update(struct stream_statistics_s *stream, const uint8_t *pkts, uint32_t packetCount);
+void pid_stats_reset(struct stream_statistics_s *stream);
 
 #ifdef __cplusplus
 };
