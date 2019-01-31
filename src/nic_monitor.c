@@ -142,7 +142,7 @@ static void discovered_item_console_summary(struct tool_context_s *ctx, struct d
 	sprintf(stream + strlen(stream), " -> %s", di->dstaddr);
 
 	printf("   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s\n",
-		di->stats.mbps, stream);
+		pid_stats_stream_get_mbps(&di->stats), stream);
 	printf("<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------->\n");
 	for (int i = 0; i < MAX_PID; i++) {
 		if (di->stats.pids[i].enabled) {
@@ -150,7 +150,7 @@ static void discovered_item_console_summary(struct tool_context_s *ctx, struct d
 				di->stats.pids[i].packetCount,
 				di->stats.pids[i].ccErrors,
 				di->stats.pids[i].teiErrors,
-				di->stats.pids[i].mbps);
+				pid_stats_pid_get_mbps(&di->stats, i));
 		}
 	}
 }
@@ -200,8 +200,8 @@ static void discovered_item_file_summary(struct tool_context_s *ctx, struct disc
 	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 ",src=%s,dst=%s\n",
 		ts,
 		ctx->ifname,
-		di->stats.pps * (188 * 8),
-		di->stats.mbps,
+		pid_stats_stream_get_bps(&di->stats),
+		pid_stats_stream_get_mbps(&di->stats),
 		di->stats.packetCount,
 		di->stats.ccErrors,
 		di->srcaddr,
@@ -256,7 +256,6 @@ static void _processPackets(struct tool_context_s *ctx,
 
 	pid_stats_update(&di->stats, pkts, pktCount);
 }
-
 
 static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_char *pkt) 
 { 
@@ -352,7 +351,7 @@ static void *ui_thread_func(void *p)
 			mvprintw(streamCount + 2, 0, "%21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "",
 				di->srcaddr,
 				di->dstaddr,
-				di->stats.mbps,
+				pid_stats_stream_get_mbps(&di->stats),
 				di->stats.packetCount,
 				di->stats.teiErrors,
 				di->stats.ccErrors);
