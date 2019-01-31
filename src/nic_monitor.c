@@ -237,6 +237,17 @@ static void discovered_items_file_summary(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 }
 
+static void discovered_items_stats_reset(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		pid_stats_reset(&e->stats);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
 static void _processPackets(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr,
 	const uint8_t *pkts, uint32_t pktCount)
@@ -353,7 +364,7 @@ static void *ui_thread_func(void *p)
 		ctx->trailerRow = streamCount + 3;
 
 		attron(COLOR_PAIR(2));
-		mvprintw(ctx->trailerRow, 0, "q)uit");
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset");
 		attroff(COLOR_PAIR(2));
 
 		char tail_a[160], tail_b[160], tail_c[160];
@@ -548,6 +559,9 @@ int nic_monitor(int argc, char *argv[])
 		char c = getch();
 		if (c == 'q')
 			break;
+		if (c == 'r') {
+			discovered_items_stats_reset(ctx);
+		}
 		usleep(50 * 1000);
 	}
 
