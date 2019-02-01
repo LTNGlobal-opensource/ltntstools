@@ -37,6 +37,7 @@ SRC += pids.c
 SRC += ts.c
 SRC += pid_drop.c
 SRC += nic_monitor.c
+SRC += parsers.c
 
 bin_PROGRAMS  = tstools_util
 bin_PROGRAMS += tstools_pat_inspector
@@ -67,3 +68,4 @@ noinst_HEADERS += dump.h
 noinst_HEADERS += histogram.h
 noinst_HEADERS += pes.h
 noinst_HEADERS += ts.h
+noinst_HEADERS += parsers.h

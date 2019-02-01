@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include "pids.h"
 #include "xorg-list.h"
+#include "parsers.h"
 
 #include <pcap.h>
 #include <arpa/inet.h>
@@ -469,7 +470,7 @@ int nic_monitor(int argc, char *argv[])
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
 	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
 
-	while ((ch = getopt(argc, argv, "?hd:F:i:t:vMn:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:D:F:i:t:vMn:")) != -1) {
 		switch (ch) {
 		case 'd':
 			free(ctx->file_prefix);
@@ -500,6 +501,17 @@ int nic_monitor(int argc, char *argv[])
 			break;
 		case 'M':
 			ctx->monitor = 1;
+			break;
+		case 'D':
+		{
+			struct parser_ippid_s p;
+			if (parsers_ippid_parse(optarg, &p) < 0) {
+				fprintf(stderr, "Unable to parse -D input\n");
+				exit(0);
+			}
+
+			printf("-D %s\n", p.ui_address_ip_pid);
+		}
 			break;
 		default:
 			usage(argv[0]);
