@@ -144,9 +144,10 @@ static void discovered_item_console_summary(struct tool_context_s *ctx, struct d
 	sprintf(stream, "%s", di->srcaddr);
 	sprintf(stream + strlen(stream), " -> %s", di->dstaddr);
 
-	printf("   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s\n",
-		pid_stats_stream_get_mbps(&di->stats), stream);
-	printf("<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------->\n");
+	printf("   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s (%s)\n",
+		pid_stats_stream_get_mbps(&di->stats), stream,
+		di->isRTP ? "RTP" : "UDP");
+	printf("<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------------>\n");
 	for (int i = 0; i < MAX_PID; i++) {
 		if (di->stats.pids[i].enabled) {
 			printf("0x%04x (%4d) %14" PRIu64 " %12" PRIu64 " %12" PRIu64 "   %6.2f\n", i, i,
