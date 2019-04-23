@@ -78,6 +78,8 @@ struct discovered_item_s
 	/* UI ASCII labels */
 	char srcaddr[24];
 	char dstaddr[24];
+
+	int isRTP;
 };
 
 void discovered_item_free(struct discovered_item_s *di)
@@ -251,15 +253,18 @@ static void discovered_items_stats_reset(struct tool_context_s *ctx)
 
 static void _processPackets(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr,
-	const uint8_t *pkts, uint32_t pktCount)
+	const uint8_t *pkts, uint32_t pktCount, int isRTP)
 {
 	struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
+	di->isRTP = isRTP;
 
 	pid_stats_update(&di->stats, pkts, pktCount);
 }
 
 static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_char *pkt) 
 { 
+	int isRTP = 0;
+
 	if (h->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
 		return;
 
@@ -286,19 +291,24 @@ static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_cha
 			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->uh_dport));
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
+				
 				src, dst,
 				ntohs(udp->uh_ulen),
 				ptr[0], ptr[1], ptr[2], ptr[3]);
 		}
 
 		if (ptr[0] != 0x47) {
-			/* We don't currently deal with non-TS payload (RTP) */
+			/* Make a rash assumption that's it's RTP where possible. */
+			if (ptr[12] == 0x47) {
+				ptr += 12;
+				isRTP = 1;
+			}
 		}
 
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
 		int pktCount = ntohs(udp->uh_ulen) / 188;
-		_processPackets(ctx, eth, ip, udp, ptr, pktCount);
+		_processPackets(ctx, eth, ip, udp, ptr, pktCount, isRTP);
 	}
 }
 
@@ -335,13 +345,13 @@ static void *ui_thread_func(void *p)
 		char mask[64];
 		sprintf(mask, "%s", inet_ntoa(ip_mask));
 		sprintf(title_c, "NIC: %s (%s/%s)", ctx->ifname, inet_ntoa(ip_net), mask);
-		int blen = 82 - (strlen(title_a) + strlen(title_c));
+		int blen = 86 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
 
 		attron(COLOR_PAIR(1));
 		mvprintw( 0, 0, "%s%s%s", title_a, title_b, title_c);
-		mvprintw( 1, 0, "<----------------------------------------------- M/BIT <------PACKETS <------CCErr");
+		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <------PACKETS <------CCErr");
 		attroff(COLOR_PAIR(1));
 
 		int streamCount = 1;
@@ -352,7 +362,8 @@ static void *ui_thread_func(void *p)
 			if (di->stats.ccErrors)
 				attron(COLOR_PAIR(3));
 
-			mvprintw(streamCount + 2, 0, "%21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "",
+			mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "",
+				di->isRTP ? "RTP" : "UDP",
 				di->srcaddr,
 				di->dstaddr,
 				pid_stats_stream_get_mbps(&di->stats),
@@ -376,7 +387,7 @@ static void *ui_thread_func(void *p)
 		memset(tail_b, '-', sizeof(tail_b));
 		sprintf(tail_a, "TSTOOLS_NIC_MONITOR");
 		sprintf(tail_c, "%s", ctime(&now));
-		blen = 83 - (strlen(tail_a) + strlen(tail_c));
+		blen = 87 - (strlen(tail_a) + strlen(tail_c));
 		memset(tail_b, 0x20, sizeof(tail_b));
 		tail_b[blen] = 0;
 
