@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018 LiveTimeNet, Inc. All Rights Reserved
+ * Copyright (c) 2017-2019 LiveTimeNet, Inc. All Rights Reserved
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,4 +16,4 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#define COPYRIGHT "Copyright (c) 2017-2018 LiveTimeNet Inc. All Rights Reserved."
+#define COPYRIGHT "Copyright (c) 2017-2019 LiveTimeNet Inc. All Rights Reserved."
