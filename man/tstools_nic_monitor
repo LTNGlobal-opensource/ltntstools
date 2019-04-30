@@ -1,0 +1,112 @@
+.\" Manpage for tstools_nic_monitor.
+.\" Contact stoth@ltnglobal.com to correct errors or typos.
+.TH man 8 "30 Apr 2019" "1.0" "tstools_nic_monitor man page"
+.SH NAME
+tstools_nic_monitor \- Inspect MPEG-TS stream interactively or with stats to disk.
+.SH SYNOPSIS
+tstools_nic_monitor -i <iface>
+  -v Increase level of verbosity.
+  -h Display command line help.
+  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]
+  -M Display an interactive console with stats.
+  -d <dir> Write summary stats per stream in this target directory, every -n seconds.
+  -n <seconds> Interval to update -d file based stats [def: 5]
+  -F '<string>' Use a custom pcap filter. [def: 'udp dst portrange 4000-4999']
+.SH DESCRIPTION
+.B
+Warning: This tool requires super-user privileges.
+Care should be taked if using the -d option.
+
+tstools_nic_monitor detects and monitors RTP-TS or UDP-TS streams from the user
+selected network interface.
+
+Typically used for finding transport stream packet loss and measuring bitrates without needing
+to capture the UDP MPEG-TS and bring it back to a data center for analysis.
+
+Packet loss is show interactively as a counter in the CCError column.
+By default, the tool runs indefinitely. Optionally, run the tool for (-t) seconds.
+
+It finds and detects UDP or RTP MPEG-TS packet using a default pcap filter, then examines
+all of those streams in realtime for bitrate measures, packet loss, per pid or globally per stream.
+The results are presented via a UI interactively (-M), or with additional per-pid details via the
+console upon exit, or optionally by writing these stats to files (-d) for long term testing.
+
+The tools runs indefintely until terminated by the user. In interactive mode (-M) using the 'q' button
+to terminate. In non-interactive mode, use ctrl-c.
+
+.SH OPTIONS
+-i <iface> The physical network interface that will be opened and read from. Eg. eno1
+           No default interface is assumed, user must provide.
+           The pcap interface use used exclusively in READ ONLY mode.
+
+-d <dir> Write all statistics to files in this directory prefix.
+         Filename is auto-generated based on the UDP target ip and port
+         Eg. -d /storage/ltn/logs/stats-my-test--
+                could result in files being creates such as:
+                  /storage/ltn/logs/stats-my-test--234.1.2.45:4010
+                  /storage/ltn/logs/stats-my-test--234.1.2.71:4071
+                  /storage/ltn/logs/stats-my-test--234.1.2.74:4074
+                  /storage/ltn/logs/stats-my-test--234.1.200.80:4280
+
+         File format: datetime,nicname,bps,mbps,tspacketcount,ccerrors,ipsrcaddr,ipdstaadr
+
+         On startup, if enabled, one file per UDP/RTP stream is opened. The
+         statistics are appended to the files every (-n) seconds.
+         The default dir is the working directory.
+
+-F 'string' Define a custom PCAP filter to include or exclude certain packet types.
+   The default packet filter is: 'udp dst portrange 4000-4999'
+   IE. Any UDP packets found on interface (-i) with a destination portrange of 4000 to 4999.
+
+-h Display command line options.
+
+-M Run in interactive mode with a curses based user interface, showing all statistics. (non-default mode)
+
+-n <#seconds> When writing stats to disk (-d), update stats every -N seconds.
+   Default value 5 seconds.
+
+-t <#seconds> Collect #seconds of stats then terminate.
+
+.SH EXAMPLES
+1) tstools_nic_monitor -i eno1 -M
+   Discover any UDP/RTP packets on eno1, show the result indefintely in a running UI.
+   Useful when you need a 'quick glance' to ensure no packetloss occurs at an ingest or egress site.
+
+   The UI looks scans the keyboard for (q)uit and (r)eset counters commands:
+
+   udp dst portrange 4000-4999                      NIC: eno1 (192.168.2.0/255.255.255.0)
+   <--------------------------------------------------- M/BIT <------PACKETS <------CCErr
+
+   UDP    192.168.2.45:43336 ->    234.1.2.45:4045       5.00          49252            0
+   RTP     192.168.2.16:1234 ->    234.1.2.16:4016      12.01        2417191            8
+   UDP     192.168.2.18:5005 ->     234.1.2.5:4005      19.99       51191967          104
+
+   q)uit r)eset
+   TSTOOLS_NIC_MONITOR                                           Tue Apr 30 16:23:02 2019
+
+2) tstools_nic_monitor -i eno1 -t 15
+   The console will be silent, after 15 seconds the tool terminates and shows any discovered streams.
+   One stream was discovered here, perfect to cut/paste the results into a trouble ticker ot email.
+   Terminate the tool with ctrl-c when the test is considered complete.
+
+      : 192.168.2.45:43336 -> 234.1.2.45:4010 (UDP)
+      PID   PID     PacketCount     CCErrors    TEIErrors @   4.99
+   <---------------------------  ----------- ------------ ---Mb/ps------------------>
+   0x0000 (   0)             45            0            0     0.02
+   0x0030 (  48)             45            0            0     0.02
+   0x0031 (  49)          11365            0            0     3.94
+   0x0032 (  50)           1197            0            0     0.43
+   0x1fff (8191)           1544            0            0     0.59
+
+
+3) tstools_nic_monitor -i eno1 -d /storage/ltn/logs/nicname-
+   Collect stream statistics to individual files with a prefix of /storage/ltn/logs/nicname-
+   Run the tool indefintely, record stats to disk every 5 seconds.
+   Terminate the tool with ctrl-c when the test is considered complete.
+
+.SH SEE ALSO
+tstools_si_inspector(8), tstools_clock_inspector(8), tstools_udp_capture(8), tstools_pcap2ts(8)
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+Steven Toth (stoth@ltnglobal.com)
