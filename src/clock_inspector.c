@@ -188,6 +188,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	if (ctx->pts_linenr > 24)
 		ctx->pts_linenr = 0;
 
+	/* Process a PTS if present. */
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 
 		if (abs(PTS_TICKS_TO_MS(p->pts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
@@ -234,6 +235,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		ordered_clock_insert(&p->ordered_pts_list, &item);
 
 	}
+	/* Process a DTS if present. */
 	if (p->pes.PTS_DTS_flags == 3) {
 		if (abs(PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
