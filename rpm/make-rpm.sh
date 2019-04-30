@@ -15,8 +15,10 @@ cat $SPECFILE  | sed "s/^Version.*$/Version:\t${GIT_VERSION}/g" > ~/rpmbuild/SPE
 cat ~/rpmbuild/SPECS/$SPECFILE
 
 mkdir -p ~/rpmbuild/BUILDROOT/$APP-$GIT_VERSION-1.x86_64/usr/local/bin
-
 cp ../src/tstools_util ~/rpmbuild/BUILDROOT/$APP-$GIT_VERSION-1.x86_64/usr/local/bin
+
+mkdir -p ~/rpmbuild/BUILDROOT/$APP-$GIT_VERSION-1.x86_64/usr/local/share/man/man8
+cp ../man/*.8 ~/rpmbuild/BUILDROOT/$APP-$GIT_VERSION-1.x86_64/usr/local/share/man/man8
 
 pushd ~/rpmbuild/BUILDROOT/$APP-$GIT_VERSION-1.x86_64/usr/local/bin
 	for BIN in `./tstools_util | grep ^tstools`
