@@ -53,6 +53,8 @@ to terminate. In non-interactive mode, use ctrl-c.
          On startup, if enabled, one file per UDP/RTP stream is opened. The
          statistics are appended to the files every (-n) seconds.
          The default dir is the working directory.
+         Stats files are owned by the orignal SUDO user, when running in sudo privs.
+         Stats files are given the 644 access attributes.
 
 -F 'string' Define a custom PCAP filter to include or exclude certain packet types.
    The default packet filter is: 'udp dst portrange 4000-4999'
