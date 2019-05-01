@@ -40,3 +40,5 @@ mv ~/rpmbuild/RPMS/x86_64/$APP-$GIT_VERSION-1.x86_64.rpm .
 # We have a dep on libpcap, ensure yum finds the dep and installs it automatically for us.
 # yum --nogpgcheck localinstall ltntstools-v1.0.1-1.x86_64.rpm
 
+# Extract the change log rpm -qp --changelog ~/rpmbuild/RPMS/x86_64/$APP-$GIT_VERSION-1.x86_64.rpm
+
