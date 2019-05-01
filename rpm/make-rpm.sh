@@ -12,8 +12,6 @@ GIT_VERSION=`git describe --abbrev=8 | sed 's!-.*!!g'`
 
 cat $SPECFILE  | sed "s/^Version.*$/Version:\t${GIT_VERSION}/g" > ~/rpmbuild/SPECS/$SPECFILE
 
-cat ~/rpmbuild/SPECS/$SPECFILE
-
 mkdir -p ~/rpmbuild/BUILDROOT/$APP-$GIT_VERSION-1.x86_64/usr/local/bin
 cp ../src/tstools_util ~/rpmbuild/BUILDROOT/$APP-$GIT_VERSION-1.x86_64/usr/local/bin
 
