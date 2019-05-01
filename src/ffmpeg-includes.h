@@ -7,6 +7,6 @@
 #include <libavutil/mem.h>
 #include <libavformat/avformat.h>
 
-#include "../../ltntstools-ffmpeg/libavformat/url.h"
+#include "../../ffmpeg/libavformat/url.h"
 
 #endif /* FFMPEG_INCLUDES_H */
