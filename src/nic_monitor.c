@@ -175,7 +175,7 @@ static void discovered_item_file_summary(struct tool_context_s *ctx, struct disc
 {
 	if (di->filename[0] == 0) {
 		if (ctx->file_prefix)
-			sprintf(di->filename, "%s/", ctx->file_prefix);
+			sprintf(di->filename, "%s", ctx->file_prefix);
 
 		sprintf(di->filename + strlen(di->filename), "%s", di->dstaddr);
 	}
