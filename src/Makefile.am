@@ -40,24 +40,16 @@ SRC += nic_monitor.c
 SRC += parsers.c
 
 bin_PROGRAMS  = tstools_util
-bin_PROGRAMS += tstools_pat_inspector
-bin_PROGRAMS += tstools_pmt_inspector
-bin_PROGRAMS += tstools_udp_capture
-bin_PROGRAMS += tstools_si_inspector
-bin_PROGRAMS += tstools_pcap2ts
-bin_PROGRAMS += tstools_clock_inspector
-bin_PROGRAMS += tstools_pid_drop
-bin_PROGRAMS += tstools_nic_monitor
+LINKBINS  = tstools_pat_inspector
+LINKBINS += tstools_pmt_inspector
+LINKBINS += tstools_udp_capture
+LINKBINS += tstools_si_inspector
+LINKBINS += tstools_pcap2ts
+LINKBINS += tstools_clock_inspector
+LINKBINS += tstools_pid_drop
+LINKBINS += tstools_nic_monitor
 
 tstools_util_SOURCES = $(SRC)
-tstools_pat_inspector_SOURCES = $(SRC)
-tstools_pmt_inspector_SOURCES = $(SRC)
-tstools_udp_capture_SOURCES = $(SRC)
-tstools_si_inspector_SOURCES = $(SRC)
-tstools_pcap2ts_SOURCES = $(SRC)
-tstools_clock_inspector_SOURCES = $(SRC)
-tstools_pid_drop_SOURCES = $(SRC)
-tstools_nic_monitor_SOURCES = $(SRC)
 
 libtstools_noinst_includedir = $(includedir)
 
@@ -69,3 +61,13 @@ noinst_HEADERS += histogram.h
 noinst_HEADERS += pes.h
 noinst_HEADERS += ts.h
 noinst_HEADERS += parsers.h
+
+install-exec-hook:
+	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)
+
+all-local:
+	@$(foreach var,$(LINKBINS),ln -sf tstools_util $(var);)
+
+clean-local:
+	@$(foreach var,$(LINKBINS),rm -f $(var);)
+
