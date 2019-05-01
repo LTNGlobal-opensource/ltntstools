@@ -34,3 +34,13 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Tue Apr 30 2019 Steven Toth <stoth@ltnglobal.com> 
 - Initial RPM release
   A handful of tools to record, inspect and analyze mpeg-ts files/streams.
+
+* Wed May  1 2019 Steven Toth <stoth@ltnglobal.com> 
+- v1.0.2
+  nic_monitor: man page stats files clarification
+  nic_monitor: detect if we're running in sudo then chown stats files ownership accordingly back to the sudo'd uid and gid
+  nic_monitor: on error condition, return a more useful error message.
+  nic_monitor: Bug: -d should represent an absoue path prefix, not a directory.
+  nic_monitor: Avoid compiling the core app many times. Compile onces then link each sub-binary
+  build system: Various cleanups related to absolute paths etc.
+
