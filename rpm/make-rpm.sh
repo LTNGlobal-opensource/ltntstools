@@ -5,7 +5,12 @@ SPECFILE=$APP.spec
 
 rm -rf ~/rpmbuild
 
-sudo yum -y install rpmdevtools rpmlint
+which rpmdev-setuptree >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+	echo "Aborting, please install rpm dev tools with:"
+	echo "     sudo yum -y install rpmdevtools rpmlint"
+	exit 1
+fi
 rpmdev-setuptree
 
 GIT_VERSION=`git describe --abbrev=8 | sed 's!-.*!!g'`
