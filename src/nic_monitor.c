@@ -182,7 +182,7 @@ static void discovered_item_file_summary(struct tool_context_s *ctx, struct disc
 
 	int fd = open(di->filename, O_CREAT | O_RDWR | O_APPEND, 0644);
 	if (fd < 0) {
-		perror("open");
+		fprintf(stderr, "Failed to open %s\n", di->filename);
 		return;
 	}
 
