@@ -186,6 +186,18 @@ static void discovered_item_file_summary(struct tool_context_s *ctx, struct disc
 		return;
 	}
 
+	/* If we're a super user, obtain any SUDO uid and change file ownership to it - if possible. */
+	if (getuid() == 0 && getenv("SUDO_UID") && getenv("SUDO_GID")) {
+		uid_t o_uid = atoi(getenv("SUDO_UID"));
+		gid_t o_gid = atoi(getenv("SUDO_GID"));
+
+		if (fchown(fd, o_uid, o_gid) != 0) {
+			/* Error */
+			fprintf(stderr, "Error changing %s ownership to uid %d gid %d, ignoring\n",
+				di->filename, o_uid, o_gid);
+		}
+	}
+
 	struct tm tm;
 	time_t now;
 	time(&now);
