@@ -31,10 +31,6 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
-* Tue Apr 30 2019 Steven Toth <stoth@ltnglobal.com> 
-- Initial RPM release
-  A handful of tools to record, inspect and analyze mpeg-ts files/streams.
-
 * Wed May  1 2019 Steven Toth <stoth@ltnglobal.com> 
 - v1.0.2
   nic_monitor: man page stats files clarification
@@ -43,4 +39,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   nic_monitor: Bug: -d should represent an absoue path prefix, not a directory.
   nic_monitor: Avoid compiling the core app many times. Compile onces then link each sub-binary
   build system: Various cleanups related to absolute paths etc.
+
+* Tue Apr 30 2019 Steven Toth <stoth@ltnglobal.com> 
+- Initial RPM release
+  A handful of tools to record, inspect and analyze mpeg-ts files/streams.
 
