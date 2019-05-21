@@ -223,7 +223,8 @@ static void usage(const char *progname)
 {
 	printf("A tool to capture ISO13818 TS packet from the UDP network.\n");
 	printf("Usage:\n");
-	printf("  -i <url> Eg: udp://234.1.1.1:5000?ifname=eno1\n");
+	printf("  -i <url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
+	printf("           172.16.0.67 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -o <output filename> (optional)\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
