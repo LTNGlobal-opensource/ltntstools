@@ -19,10 +19,12 @@ static int gRunning = 0;
 
 struct tool_context_s
 {
-	char *iname;
+	char *iname, *oname;
 	int verbose;
 
 	FILE *ofh;
+	int isSegmenting;
+	time_t currentSegmentTime;
 
 	uint64_t bytesWritten;
 	uint64_t bytesWrittenCurrent;
@@ -41,8 +43,53 @@ struct tool_context_s
 	URLContext *puc;
 };
 
+static void generateSegmentName(struct tool_context_s *ctx, char *fn, time_t *when)
+{
+	sprintf(fn, ctx->oname);
+	fn[strlen(fn) - 1] = 0; /* remove trailing @ */
+	struct tm tm;
+	time_t now;
+        
+	if (when)
+		now = *when;
+	else    
+		time(&now);
+                
+	localtime_r(&now, &tm);
+        
+	sprintf(fn + strlen(fn), "%04d%02d%02d-%02d%02d%02d.ts",
+		tm.tm_year + 1900,
+		tm.tm_mon  + 1,
+		tm.tm_mday,
+		tm.tm_hour,
+		tm.tm_min,
+		tm.tm_sec);
+}
+
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
 {
+	time_t now;
+	time(&now);
+
+	if (ctx->isSegmenting && (now >= ctx->currentSegmentTime + 60)) {
+		ctx->currentSegmentTime = 0;
+		if (ctx->ofh) {
+			fclose(ctx->ofh);
+			ctx->ofh = NULL;
+		}
+	}
+
+	if (ctx->isSegmenting && ctx->currentSegmentTime == 0) {
+		ctx->currentSegmentTime = now;
+		char fn[256];
+		generateSegmentName(ctx, &fn[0], &now);
+		ctx->ofh = fopen(fn, "wb");
+		if (!ctx->ofh) {
+			fprintf(stderr, "Problem opening output file %s, aborting.\n", fn);
+			return NULL;
+		}
+	}
+
 	if (ctx->ofh) {
 		size_t wlen = fwrite(buf, 1, byteCount, ctx->ofh);
 
@@ -50,9 +97,6 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 			fprintf(stderr, "Warning: unable to write output\n");
 		}
 	}
-
-	time_t now;
-	time(&now);
 
 	if (now != ctx->bytesWrittenTime) {
 		ctx->bytesWrittenTime = now;
@@ -226,6 +270,9 @@ static void usage(const char *progname)
 	printf("  -i <url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
 	printf("           172.16.0.67 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -o <output filename> (optional)\n");
+	printf("     By default, the tool creates a single file with all packets.\n");
+	printf("     Add -@ to the end of your -o filename (Eg. -o DIR/mystream-@ to segment the packets\n");
+	printf("     into 60 second .ts files, with suffix -YYYYMMDD-HHMMSS.ts. \n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -M Display an interactive console with stats.\n");
@@ -235,7 +282,6 @@ int udp_capture(int argc, char *argv[])
 {
 	int ret = 0;
 	int ch;
-	char *oname = NULL;
 
 	struct tool_context_s tctx, *ctx;
 	ctx = &tctx;
@@ -258,7 +304,7 @@ int udp_capture(int argc, char *argv[])
 			ctx->monitor = 1;
 			break;
 		case 'o':
-			oname = optarg;
+			ctx->oname = optarg;
 			break;
 		default:
 			usage(argv[0]);
@@ -281,12 +327,18 @@ int udp_capture(int argc, char *argv[])
 		goto no_output;
 	}
 
-	if (oname) {
-		ctx->ofh = fopen(oname, "wb");
-		if (!ctx->ofh) {
-			fprintf(stderr, "Problem opening output file, aborting.\n");
-			ret = -1;
-			goto no_output;
+	if (ctx->oname) {
+		if (ctx->oname[strlen(ctx->oname) - 1] == '@') {
+			/* We'll be segmenting the output. */
+			ctx->isSegmenting = 1;
+		} else {
+			/* Single output file. */
+			ctx->ofh = fopen(ctx->oname, "wb");
+			if (!ctx->ofh) {
+				fprintf(stderr, "Problem opening output file, aborting.\n");
+				ret = -1;
+				goto no_output;
+			}
 		}
 	}
 
@@ -335,8 +387,8 @@ int udp_capture(int argc, char *argv[])
 
 	ret = 0;
 
-	if (oname)
-		printf("\nWrote %" PRIu64 " bytes to %s\n", ctx->bytesWritten, oname);
+	if (ctx->oname)
+		printf("\nWrote %" PRIu64 " bytes to %s\n", ctx->bytesWritten, ctx->oname);
 
 	printf("   PID   PID     PacketCount   CCErrors  TEIErrors\n");
 	printf("----------------------------  --------- ----------\n");
