@@ -231,8 +231,8 @@ int si_inspector(int argc, char *argv[])
 		return 1;
 
 	avformat_network_init();
-	URLContext *puc;
-	int ret = ffurl_open(&puc, iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK, NULL, NULL);
+	AVIOContext *puc;
+	int ret = avio_open2(&puc, iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
 		return 1;
@@ -255,7 +255,7 @@ int si_inspector(int argc, char *argv[])
 	uint8_t buf[7 * 188];
 	int ok = 1;
 	while (ok) {
-		int rlen = ffurl_read(puc, &buf[0], sizeof(buf));
+		int rlen = avio_read(puc, &buf[0], sizeof(buf));
 		if (rlen == -EAGAIN) {
 			usleep(2 * 1000);
 			continue;
@@ -268,7 +268,7 @@ int si_inspector(int argc, char *argv[])
 			break;
 		}
 	}
-	ffurl_shutdown(puc, 0);
+	avio_close(puc);
 
 out:
 

@@ -40,7 +40,7 @@ struct tool_context_s
 	/* ffmpeg related */
 	pthread_t ffmpeg_threadId;
 	int ffmpeg_threadTerminate, ffmpeg_threadRunning, ffmpeg_threadTerminated;
-	URLContext *puc;
+	AVIOContext *puc;
 };
 
 static void generateSegmentName(struct tool_context_s *ctx, char *fn, time_t *when)
@@ -155,7 +155,7 @@ static void *thread_packet_rx(void *p)
 	unsigned char buf[7 * 188];
 
 	while (!ctx->ffmpeg_threadTerminate) {
-		int rlen = ffurl_read(ctx->puc, buf, sizeof(buf));
+		int rlen = avio_read(ctx->puc, buf, sizeof(buf));
 		if (ctx->verbose == 2) {
 			printf("source received %d bytes\n", rlen);
 		}
@@ -320,7 +320,7 @@ int udp_capture(int argc, char *argv[])
 
 	avformat_network_init();
 	
-	ret = ffurl_open(&ctx->puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK, NULL, NULL);
+	ret = avio_open2(&ctx->puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
 		ret = -1;
@@ -370,7 +370,7 @@ int udp_capture(int argc, char *argv[])
 
 		usleep(50 * 1000);
 	}
-	ffurl_shutdown(ctx->puc, 0);
+	avio_close(ctx->puc);
 
 	/* Shutdown ffmpeg */
 	ctx->ffmpeg_threadTerminate = 1;
