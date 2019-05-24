@@ -12,6 +12,8 @@
 #include "hexdump.h"
 #include "xorg-list.h"
 
+#define DEFAULT_SCR_PID 0x31
+
 struct ordered_clock_item_s {
 	struct xorg_list list;
 
@@ -72,6 +74,8 @@ struct tool_context_s
 	uint64_t ts_total_packets;
 
 	int order_asc_pts_output;
+
+	int scr_pid;
 };
 
 /* Ordered PTS handling */
@@ -119,14 +123,14 @@ static void ordered_clock_dump(struct xorg_list *list, unsigned short pid)
 			printf("+PTS/DTS #             Hex           Dec   PID       90KHz VAL       TICKS         MS\n");
 		}
 
-		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 "\n",
+		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f\n",
 			i->nr,
 			i->filepos,
 			i->filepos,
 			pid,
 			i->clock,
 			diffTicks,
-			diffTicks / 90);
+			(double)diffTicks / 90);
 
 		last = i->clock;
 	}
@@ -171,6 +175,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 		p->pts_diff_ticks = p->pes.PTS - p->pts_last.PTS;
 		p->pts_count++;
+		//p->scr = ctx->pids[ctx->scr_pid].scr;
 		pts_scr_diff_ms = (p->scr - p->pts_last_scr) / 27000;
 		p->pts_last_scr = p->scr;
 	}
@@ -182,14 +187,19 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	}
 
 	if (ctx->pts_linenr++ == 0) {
-		printf("+PTS/DTS Timing    filepos ------------>               PTS/DTS  <------- DIFF ------> <---- SCR\n");
-		printf("+PTS/DTS Timing        Hex           Dec   PID       90KHz VAL       TICKS         MS   Diff MS\n");
+		printf("+PTS/DTS Timing    filepos ------------>               PTS/DTS  <------- DIFF ------> <---- SCR <--PTS*300\n");
+		printf("+PTS/DTS Timing        Hex           Dec   PID       90KHz VAL       TICKS         MS   Diff MS  minus SCR\n");
 	}
 	if (ctx->pts_linenr > 24)
 		ctx->pts_linenr = 0;
 
 	/* Process a PTS if present. */
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
+
+		/* Calculate the offset between the PTS and the last good SCR, assumed to be on pid DEFAULR_SCR_PID. */
+		int64_t pts_minus_scr_ticks = (p->pes.PTS * 300) - ctx->pids[ctx->scr_pid].scr;
+		double d_pts_minus_scr_ticks = (p->pes.PTS * 300) - ctx->pids[ctx->scr_pid].scr;
+		d_pts_minus_scr_ticks /= 27000;
 
 		if (abs(PTS_TICKS_TO_MS(p->pts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
@@ -214,15 +224,17 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		}
 
 		if (!ctx->order_asc_pts_output) {
-			printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %9" PRIu64 "\n",
+			printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIi64" %10" PRIi64 " -- %9.2f\n",
 				p->pts_count,
 				filepos,
 				filepos,
 				pid,
 				p->pes.PTS,
 				p->pts_diff_ticks,
-				PTS_TICKS_TO_MS(p->pts_diff_ticks),
-				pts_scr_diff_ms);
+				(double)p->pts_diff_ticks / 90,
+				pts_scr_diff_ms,
+				pts_minus_scr_ticks,
+				d_pts_minus_scr_ticks);
 		}
 
 		if (p->pts_count == 1)
@@ -259,14 +271,14 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10" PRIi64 " %9" PRIu64 "\n",
+		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIu64 "\n",
 			p->dts_count,
 			filepos,
 			filepos,
 			pid,
 			p->pes.DTS,
 			p->dts_diff_ticks,
-			PTS_TICKS_TO_MS(p->dts_diff_ticks),
+			(double)p->dts_diff_ticks / 90, // MMM
 			dts_scr_diff_ms);
 	}
 
@@ -401,6 +413,7 @@ static void usage(const char *progname)
 	printf("     trying to match TS files to other logging mechanisms based on datetime\n");
 	printf("  -d Dump every ts packet header in hex to console (use additional -d for more detail)\n");
 	printf("  -s Dump SCR/PCR time, adjusting for -T initial time if necessary\n");
+	printf("  -S <0xpid> Use SCR on this pid. [def: 0x%04x]\n", DEFAULT_SCR_PID);
 	printf("  -p Dump PTS/DTS (use additional -p to show PES header on console)\n");
 	printf("  -D Max allowable PTS/DTS clock drift value in ms. [def: 700]\n");
 	printf("  -R Reorder the PTS display output to be in ascending PTS order [def: disabled]\n");
@@ -418,8 +431,9 @@ int clock_inspector(int argc, char *argv[])
 	ctx->doSCRStatistics = 0;
 	ctx->doPESStatistics = 0;
 	ctx->maxAllowablePTSDTSDrift = 700;
+	ctx->scr_pid = DEFAULT_SCR_PID;
 
-        while ((ch = getopt(argc, argv, "?dhi:spT:D:R")) != -1) {
+        while ((ch = getopt(argc, argv, "?dhi:spT:D:RS:")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -432,6 +446,14 @@ int clock_inspector(int argc, char *argv[])
 			break;
 		case 's':
 			ctx->doSCRStatistics = 1;
+			break;
+		case 'S':
+			if ((sscanf(optarg, "0x%x", &ctx->scr_pid) != 1) || (ctx->scr_pid > 0x1fff)) {
+				usage(argv[0]);
+				exit(1);
+			}
+                        break;
+
 			break;
 		case 'D':
 			ctx->maxAllowablePTSDTSDrift = atoi(optarg);
