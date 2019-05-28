@@ -32,6 +32,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Tue May 28 2019 Steven Toth <stoth@ltnglobal.com> 
+- v1.2.0
+  nic_monitor: Add Inter-Packet-Gap (IPG) measurement. Per TS stream, per-packet latency measurement in ms.
+  nic_monitor: Add Inter-Frame-Gap (IFG) measurement. Per PCAP interface, frame latency measurement in ms.
+
+* Tue May 28 2019 Steven Toth <stoth@ltnglobal.com> 
 - v1.1.0
   core: Fixes to not rely on libavformat private APIs
   clock_inspector: Improve accuracy of MS measurements. Measure ticks from SCR feature added.
