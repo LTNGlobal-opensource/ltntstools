@@ -31,6 +31,13 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
+* Tue May 28 2019 Steven Toth <stoth@ltnglobal.com> 
+- v1.1.0
+  core: Fixes to not rely on libavformat private APIs
+  clock_inspector: Improve accuracy of MS measurements. Measure ticks from SCR feature added.
+  udp_capture: Add ability to segment the output files.
+  udp_capture: Correct a command line usage arg
+
 * Wed May  1 2019 Steven Toth <stoth@ltnglobal.com> 
 - v1.0.2
   nic_monitor: man page stats files clarification
