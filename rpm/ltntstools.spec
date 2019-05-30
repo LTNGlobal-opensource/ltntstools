@@ -31,6 +31,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
+* Thu May 30 2019 Steven Toth <stoth@ltnglobal.com> 
+- v1.3.0
+  udp_capture: Add -t options to stop processing after N seconds.
+
 * Tue May 28 2019 Steven Toth <stoth@ltnglobal.com> 
 - v1.2.0
   nic_monitor: Add Inter-Packet-Gap (IPG) measurement. Per TS stream, per-packet latency measurement in ms.
