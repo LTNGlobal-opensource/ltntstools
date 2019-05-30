@@ -21,6 +21,7 @@ struct tool_context_s
 {
 	char *iname, *oname;
 	int verbose;
+	int stopAfterSeconds;
 
 	FILE *ofh;
 	int isSegmenting;
@@ -36,6 +37,8 @@ struct tool_context_s
 	pthread_t threadId;
 	int trailerRow;
 	int threadTerminate, threadRunning, threadTerminated;
+
+	timer_t timerId;
 
 	/* ffmpeg related */
 	pthread_t ffmpeg_threadId;
@@ -263,6 +266,38 @@ static void signal_handler(int signum)
 	gRunning = 0;
 }
 
+static void timer_thread(union sigval arg)
+{
+	signal_handler(0);
+}
+
+static void terminate_after_seconds(struct tool_context_s *ctx, int seconds)
+{
+	struct sigevent se;
+	se.sigev_notify = SIGEV_THREAD;
+	se.sigev_value.sival_ptr = &ctx->timerId;
+	se.sigev_notify_function = timer_thread;
+	se.sigev_notify_attributes = NULL;
+
+	struct itimerspec ts;
+	ts.it_value.tv_sec = seconds;
+	ts.it_value.tv_nsec = 0;
+	ts.it_interval.tv_sec = 0;
+	ts.it_interval.tv_nsec = 0;
+
+	int ret = timer_create(CLOCK_REALTIME, &se, &ctx->timerId);
+	if (ret < 0) {
+		fprintf(stderr, "Failed to create termination timer.\n");
+		return;
+	}
+
+	ret = timer_settime(ctx->timerId, 0, &ts, 0);
+	if (ret < 0) {
+		fprintf(stderr, "Failed to start termination timer.\n");
+		return;
+	}
+}
+
 static void usage(const char *progname)
 {
 	printf("A tool to capture ISO13818 TS packet from the UDP network.\n");
@@ -276,6 +311,7 @@ static void usage(const char *progname)
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -M Display an interactive console with stats.\n");
+	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 }
 
 int udp_capture(int argc, char *argv[])
@@ -287,7 +323,7 @@ int udp_capture(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-	while ((ch = getopt(argc, argv, "?hi:o:vM")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:o:vMt:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -306,6 +342,9 @@ int udp_capture(int argc, char *argv[])
 		case 'o':
 			ctx->oname = optarg;
 			break;
+		case 't':
+			ctx->stopAfterSeconds = atoi(optarg);
+			break;
 		default:
 			usage(argv[0]);
 			exit(1);
@@ -316,6 +355,10 @@ int udp_capture(int argc, char *argv[])
 		usage(argv[0]);
 		fprintf(stderr, "-i is mandatory.\n");
 		exit(1);
+	}
+
+	if (ctx->stopAfterSeconds) {
+		terminate_after_seconds(ctx, ctx->stopAfterSeconds);
 	}
 
 	avformat_network_init();
