@@ -413,12 +413,13 @@ int udp_capture(int argc, char *argv[])
 
 		usleep(50 * 1000);
 	}
-	avio_close(ctx->puc);
 
 	/* Shutdown ffmpeg */
 	ctx->ffmpeg_threadTerminate = 1;
 	while (!ctx->ffmpeg_threadTerminated)
 		usleep(50 * 1000);
+
+	avio_close(ctx->puc);
 
 	if (ctx->monitor) {
 		ctx->threadTerminate = 1;
