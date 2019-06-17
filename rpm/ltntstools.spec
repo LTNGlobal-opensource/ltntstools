@@ -31,6 +31,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
+* Mon Jun 17 2019 Steven Toth <stoth@ltnglobal.com> 
+- v1.3.1
+  udp_capture: Bugfix - random segfault when using -t on shutdown.
+
 * Thu May 30 2019 Steven Toth <stoth@ltnglobal.com> 
 - v1.3.0
   udp_capture: Add -t options to stop processing after N seconds.
