@@ -38,7 +38,9 @@ struct tool_context_s
 	int trailerRow;
 	int threadTerminate, threadRunning, threadTerminated;
 
+#ifdef __linux__
 	timer_t timerId;
+#endif
 
 	/* ffmpeg related */
 	pthread_t ffmpeg_threadId;
@@ -266,6 +268,7 @@ static void signal_handler(int signum)
 	gRunning = 0;
 }
 
+#ifdef __linux__
 static void timer_thread(union sigval arg)
 {
 	signal_handler(0);
@@ -297,6 +300,7 @@ static void terminate_after_seconds(struct tool_context_s *ctx, int seconds)
 		return;
 	}
 }
+#endif
 
 static void usage(const char *progname)
 {
@@ -311,7 +315,9 @@ static void usage(const char *progname)
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -M Display an interactive console with stats.\n");
+#ifdef __linux__
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
+#endif
 }
 
 int udp_capture(int argc, char *argv[])
@@ -342,9 +348,11 @@ int udp_capture(int argc, char *argv[])
 		case 'o':
 			ctx->oname = optarg;
 			break;
+#ifdef __linux__
 		case 't':
 			ctx->stopAfterSeconds = atoi(optarg);
 			break;
+#endif
 		default:
 			usage(argv[0]);
 			exit(1);
@@ -358,7 +366,9 @@ int udp_capture(int argc, char *argv[])
 	}
 
 	if (ctx->stopAfterSeconds) {
+#ifdef __linux__
 		terminate_after_seconds(ctx, ctx->stopAfterSeconds);
+#endif
 	}
 
 	avformat_network_init();
