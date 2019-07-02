@@ -64,7 +64,13 @@ struct discovered_item_s
 	time_t firstSeen;
 	time_t lastUpdated;
 	struct ether_header ethhdr;
+#ifdef __APPLE__
+#define iphdr ip
+	struct ip iphdr;
+#endif
+#ifdef __linux__
 	struct iphdr iphdr;
+#endif
 	struct udphdr udphdr;
 
 	/* PID Statistics */
@@ -96,8 +102,14 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 		memcpy(&di->udphdr, udphdr, sizeof(*udphdr));
 
 		struct in_addr dstaddr, srcaddr;
+#ifdef __linux__
 		srcaddr.s_addr = di->iphdr.saddr;
 		dstaddr.s_addr = di->iphdr.daddr;
+#endif
+#ifdef __APPLE__
+		srcaddr.s_addr = di->iphdr.ip_src.s_addr;
+		dstaddr.s_addr = di->iphdr.ip_dst.s_addr;
+#endif
 
 		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
 		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
@@ -113,11 +125,19 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		
+
+#ifdef __APPLE__
+		if (e->iphdr.ip_src.s_addr != iphdr->ip_src.s_addr)
+			continue;
+		if (e->iphdr.ip_dst.s_addr != iphdr->ip_dst.s_addr)
+			continue;
+#endif
+#ifdef __linux__
 		if (e->iphdr.saddr != iphdr->saddr)
 			continue;
 		if (e->iphdr.daddr != iphdr->daddr)
 			continue;
+#endif
 		if (e->udphdr.uh_sport != udphdr->uh_sport)
 			continue;
 		if (e->udphdr.uh_dport != udphdr->uh_dport)
@@ -283,19 +303,34 @@ static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_cha
 	if (ntohs(eth->ether_type) == ETHERTYPE_IP) {
 		struct iphdr *ip = (struct iphdr *)((u_char *)eth + sizeof(struct ether_header));
 
+#ifdef __APPLE__
+		if (ip->ip_p != IPPROTO_UDP)
+			return;
+
+		if (!IN_MULTICAST(ntohl(ip->ip_dst.s_addr)))
+			return;
+#endif
+#ifdef __linux__
 		if (ip->protocol != IPPROTO_UDP)
 			return;
 
 		if (!IN_MULTICAST(ntohl(ip->daddr)))
 			return;
+#endif
 
 		struct udphdr *udp = (struct udphdr *)((u_char *)ip + sizeof(struct iphdr));
 		uint8_t *ptr = (uint8_t *)((uint8_t *)udp + sizeof(struct udphdr));
 
 		if (ctx->verbose) {
 			struct in_addr dstaddr, srcaddr;
+#ifdef __APPLE__
+			srcaddr.s_addr = ip->ip_src.s_addr;
+			dstaddr.s_addr = ip->ip_dst.s_addr;
+#endif
+#ifdef __linux__
 			srcaddr.s_addr = ip->saddr;
 			dstaddr.s_addr = ip->daddr;
+#endif
 
 			char src[24], dst[24];
 			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->uh_sport));
