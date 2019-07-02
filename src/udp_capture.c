@@ -48,7 +48,7 @@ struct tool_context_s
 
 static void generateSegmentName(struct tool_context_s *ctx, char *fn, time_t *when)
 {
-	sprintf(fn, ctx->oname);
+	sprintf(fn, "%s", ctx->oname);
 	fn[strlen(fn) - 1] = 0; /* remove trailing @ */
 	struct tm tm;
 	time_t now;
