@@ -38,8 +38,6 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 {
 	packetCount++;
 
-	struct in_addr s, d;
-
 	struct timeval diff;
 	ltn_histogram_timeval_subtract(&diff, &hdr->ts, &lastPacketTime);
 	int diffus = ltn_histogram_timeval_to_us(&diff);
