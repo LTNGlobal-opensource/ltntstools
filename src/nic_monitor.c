@@ -593,7 +593,12 @@ int nic_monitor(int argc, char *argv[])
 	printf("   mask: %s\n", inet_ntoa(ip_mask));
 	printf(" filter: %s\n", ctx->pcap_filter);
 
+#ifdef __linux__
 	ctx->descr = pcap_open_live(ctx->ifname, BUFSIZ, 1,-1, ctx->errbuf);
+#endif
+#ifdef __APPLE__
+	ctx->descr = pcap_open_live(ctx->ifname, 65535, 1, 1, ctx->errbuf);
+#endif
 	if (ctx->descr == NULL) {
 		fprintf(stderr, "Error, %s\n", ctx->errbuf);
 		exit(1);
