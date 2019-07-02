@@ -94,7 +94,7 @@ static void ordered_clock_insert(struct xorg_list *list, struct ordered_clock_it
 		return;
 	}
 
-	struct ordered_clock_item_s *iterator, *next;
+	struct ordered_clock_item_s *iterator = NULL, *next = NULL;
 	xorg_list_for_each_entry_safe(iterator, next, list, list) {
 		if (src->clock < iterator->clock)
 			break;
@@ -110,7 +110,7 @@ static void ordered_clock_dump(struct xorg_list *list, unsigned short pid)
 
 	int linenr = 0;
 
-	struct ordered_clock_item_s *i, *next;
+	struct ordered_clock_item_s *i = NULL, *next = NULL;
 	xorg_list_for_each_entry_safe(i, next, list, list) {
 		if (last == -1)
 			diffTicks = 0;
