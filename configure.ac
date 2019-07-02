@@ -15,6 +15,9 @@ AC_PROG_CC_C99
 AC_PROG_RANLIB
 AC_PROG_LIBTOOL
 
+AM_CONDITIONAL(LINUX, test `uname -s` = "Linux")
+AM_CONDITIONAL(APPLE, test `uname -s` = "Darwin")
+
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netinet/in.h stdint.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h])
 AC_CHECK_HEADERS([pcap.h],
