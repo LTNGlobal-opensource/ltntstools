@@ -352,7 +352,7 @@ static void *ui_thread_func(void *p)
 		//printf("   mask: %s\n", inet_ntoa(ip_mask));
 
 		char title_a[160], title_b[160], title_c[160];
-		sprintf(title_a, ctx->pcap_filter);
+		sprintf(title_a, "%s", ctx->pcap_filter);
 		char mask[64];
 		sprintf(mask, "%s", inet_ntoa(ip_mask));
 		sprintf(title_c, "NIC: %s (%s/%s)", ctx->ifname, inet_ntoa(ip_net), mask);
