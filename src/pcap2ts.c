@@ -108,6 +108,7 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 
 	if (verbose) {
 #if defined(__linux__)
+		struct in_addr s, d;
 		s.s_addr = ip->saddr;
 		d.s_addr = ip->daddr;
 #endif
