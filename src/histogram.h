@@ -283,12 +283,7 @@ static __inline__ void ltn_histogram_interval_print(int fd, struct ltn_histogram
 		timestamp[strlen(timestamp) - 1] = 0; /* Trim trailing CR */
 
 		dprintf(fd,
-#if defined(__APPLE__)
-			"-> %5" PRIu64 " %8" PRIu64 "  %s (%ld.%d)\n",
-#endif
-#if defined(__linux__)
 			"-> %5" PRIu64 " %8" PRIu64 "  %s (%u.%u)\n",
-#endif
 			ctx->minValMs + i,
 			b->count,
 			timestamp,
