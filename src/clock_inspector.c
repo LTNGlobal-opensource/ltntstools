@@ -201,7 +201,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		double d_pts_minus_scr_ticks = (p->pes.PTS * 300) - ctx->pids[ctx->scr_pid].scr;
 		d_pts_minus_scr_ticks /= 27000;
 
-		if (abs(PTS_TICKS_TO_MS(p->pts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
+		if ((PTS_TICKS_TO_MS(p->pts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
@@ -212,7 +212,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		if (abs(pts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
+		if ((pts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
@@ -249,7 +249,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	}
 	/* Process a DTS if present. */
 	if (p->pes.PTS_DTS_flags == 3) {
-		if (abs(PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
+		if ((PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
@@ -260,7 +260,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		if (abs(dts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
+		if ((dts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
