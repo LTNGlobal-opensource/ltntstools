@@ -53,6 +53,9 @@ struct tool_context_s
 	char *file_prefix;
 	int file_write_interval;
 	time_t file_next_write_time;
+
+	/* Detailed file based statistics */
+	char *detailed_file_prefix;
 };
 static struct tool_context_s g_ctx = { 0 };
 static struct tool_context_s *ctx = &g_ctx;
@@ -78,6 +81,7 @@ struct discovered_item_s
 
 	/* File output */
 	char filename[128];
+	char detailed_filename[128];
 
 	/* UI ASCII labels */
 	char srcaddr[24];
@@ -156,19 +160,19 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	return found;
 }
 
-static void discovered_item_console_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
+static void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
 {
 	char stream[128];
 	sprintf(stream, "%s", di->srcaddr);
 	sprintf(stream + strlen(stream), " -> %s", di->dstaddr);
 
-	printf("   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s (%s)\n",
+	dprintf(fd, "   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s (%s)\n",
 		pid_stats_stream_get_mbps(&di->stats), stream,
 		di->isRTP ? "RTP" : "UDP");
-	printf("<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------------>\n");
+	dprintf(fd, "<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------------>\n");
 	for (int i = 0; i < MAX_PID; i++) {
 		if (di->stats.pids[i].enabled) {
-			printf("0x%04x (%4d) %14" PRIu64 " %12" PRIu64 " %12" PRIu64 "   %6.2f\n", i, i,
+			dprintf(fd, "0x%04x (%4d) %14" PRIu64 " %12" PRIu64 " %12" PRIu64 "   %6.2f\n", i, i,
 				di->stats.pids[i].packetCount,
 				di->stats.pids[i].ccErrors,
 				di->stats.pids[i].teiErrors,
@@ -183,9 +187,69 @@ static void discovered_items_console_summary(struct tool_context_s *ctx)
 
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		discovered_item_console_summary(ctx, e);
+		discovered_item_fd_summary(ctx, e, STDOUT_FILENO);
 	}
 	pthread_mutex_unlock(&ctx->lock);
+}
+
+/* For a given item, open a detailed stats file on disk, append the current stats, close it. */
+static void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
+{
+	if (di->detailed_filename[0] == 0) {
+		if (ctx->detailed_file_prefix)
+			sprintf(di->detailed_filename, "%s", ctx->detailed_file_prefix);
+
+		sprintf(di->detailed_filename + strlen(di->detailed_filename), "%s", di->dstaddr);
+	}
+
+	int fd = open(di->detailed_filename, O_CREAT | O_RDWR | O_APPEND, 0644);
+	if (fd < 0) {
+		fprintf(stderr, "Failed to open %s\n", di->detailed_filename);
+		return;
+	}
+
+	/* If we're a super user, obtain any SUDO uid and change file ownership to it - if possible. */
+	if (getuid() == 0 && getenv("SUDO_UID") && getenv("SUDO_GID")) {
+		uid_t o_uid = atoi(getenv("SUDO_UID"));
+		gid_t o_gid = atoi(getenv("SUDO_GID"));
+
+		if (fchown(fd, o_uid, o_gid) != 0) {
+			/* Error */
+			fprintf(stderr, "Error changing %s ownership to uid %d gid %d, ignoring\n",
+				di->detailed_filename, o_uid, o_gid);
+		}
+	}
+
+	struct tm tm;
+	time_t now;
+	time(&now);
+	localtime_r(&now, &tm);
+
+	char line[256];
+	char ts[24];
+        sprintf(ts, "%04d%02d%02d-%02d%02d%02d",
+                tm.tm_year + 1900,
+                tm.tm_mon  + 1,
+                tm.tm_mday,
+                tm.tm_hour,
+                tm.tm_min,
+                tm.tm_sec);
+
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 ",src=%s,dst=%s\n",
+		ts,
+		ctx->ifname,
+		pid_stats_stream_get_bps(&di->stats),
+		pid_stats_stream_get_mbps(&di->stats),
+		di->stats.packetCount,
+		di->stats.ccErrors,
+		di->srcaddr,
+		di->dstaddr);
+
+	write(fd, line, strlen(line));
+
+	discovered_item_fd_summary(ctx, di, fd);
+
+	close(fd);
 }
 
 /* For a given item, open a stats file on disk, append the current stats, close it. */
@@ -196,6 +260,13 @@ static void discovered_item_file_summary(struct tool_context_s *ctx, struct disc
 			sprintf(di->filename, "%s", ctx->file_prefix);
 
 		sprintf(di->filename + strlen(di->filename), "%s", di->dstaddr);
+	}
+
+	if (di->detailed_filename[0] == 0) {
+		if (ctx->detailed_file_prefix)
+			sprintf(di->detailed_filename, "%s", ctx->detailed_file_prefix);
+
+		sprintf(di->detailed_filename + strlen(di->detailed_filename), "%s", di->dstaddr);
 	}
 
 	int fd = open(di->filename, O_CREAT | O_RDWR | O_APPEND, 0644);
@@ -267,6 +338,7 @@ static void discovered_items_file_summary(struct tool_context_s *ctx)
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		discovered_item_file_summary(ctx, e);
+		discovered_item_detailed_file_summary(ctx, e);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -472,7 +544,7 @@ static void *stats_thread_func(void *p)
 			usleep(5 * 1000);
 
 		time(&now);
-		if (ctx->file_prefix && ctx->file_next_write_time <= now) {
+		if ((ctx->file_prefix || ctx->detailed_file_prefix) && ctx->file_next_write_time <= now) {
 			ctx->file_next_write_time = now + ctx->file_write_interval;
 			/* TODO: We're writing small amounts of I/O in the network thread. */
 			/*       Build a writer thread if we have hundreds of discovered streams. */
@@ -511,6 +583,7 @@ static void usage(const char *progname)
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("  -M Display an interactive console with stats.\n");
 	printf("  -d <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
+	printf("  -w <dir> Write detailed pid stats per stream in this target directory prefix, every -n seconds.\n");
 	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
 	printf("  -F '<string>' Use a custom pcap filter. [def: '%s']\n", DEFAULT_PCAP_FILTER);
 #if 0
@@ -527,7 +600,7 @@ int nic_monitor(int argc, char *argv[])
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
 	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
 
-	while ((ch = getopt(argc, argv, "?hd:D:F:i:t:vMn:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:D:F:i:t:vMn:w:")) != -1) {
 		switch (ch) {
 		case 'd':
 			free(ctx->file_prefix);
@@ -569,6 +642,10 @@ int nic_monitor(int argc, char *argv[])
 
 			printf("-D %s\n", p.ui_address_ip_pid);
 		}
+			break;
+		case 'w':
+			free(ctx->detailed_file_prefix);
+			ctx->detailed_file_prefix = strdup(optarg);
 			break;
 		default:
 			usage(argv[0]);
@@ -661,5 +738,6 @@ int nic_monitor(int argc, char *argv[])
 	discovered_items_console_summary(ctx);
 
 	free(ctx->file_prefix);
+	free(ctx->detailed_file_prefix);
 	return 0;
 }

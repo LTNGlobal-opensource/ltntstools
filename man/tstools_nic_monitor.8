@@ -1,6 +1,6 @@
 .\" Manpage for tstools_nic_monitor.
 .\" Contact stoth@ltnglobal.com to correct errors or typos.
-.TH man 8 "30 Apr 2019" "1.0" "tstools_nic_monitor man page"
+.TH man 8 "9 Nov 2019" "1.1" "tstools_nic_monitor man page"
 .SH NAME
 tstools_nic_monitor \- Inspect MPEG-TS stream interactively or with stats to disk.
 .SH SYNOPSIS
@@ -10,6 +10,7 @@ tstools_nic_monitor -i <iface>
   -t <#seconds>. Stop after N seconds [def: 0 - unlimited]
   -M Display an interactive console with stats.
   -d <dir> Write summary stats per stream in this target directory, every -n seconds.
+  -w <dir> Write detailed pid stats per stream in this target directory prefix, every -n seconds.
   -n <seconds> Interval to update -d file based stats [def: 5]
   -F '<string>' Use a custom pcap filter. [def: 'udp dst portrange 4000-4999']
 .SH DESCRIPTION
@@ -49,6 +50,26 @@ to terminate. In non-interactive mode, use ctrl-c.
                   /storage/ltn/logs/stats-my-test--234.1.200.80:4280
 
          File format: datetime,nicname,bps,mbps,tspacketcount,ccerrors,ipsrcaddr,ipdstaadr
+
+         On startup, if enabled, one file per UDP/RTP stream is opened. The
+         statistics are appended to the files every (-n) seconds.
+         The default dir is the working directory.
+         Stats files are owned by the orignal SUDO user, when running in sudo privs.
+         Stats files are given the 644 access attributes.
+
+-w <dir> Write detailed per-pid statistics to files in this directory prefix.
+         The output fileformat is considered undefined, subject to change at any time.
+         This is a superset of the -d mode. Unless you specifically want per-pid stats,
+         use mode -d instead.
+         Filename is auto-generated based on the UDP target ip and port
+         Eg. -d /storage/ltn/logs/detailed-stats--
+                could result in files being creates such as:
+                  /storage/ltn/logs/detailed-stats--234.1.2.45:4010
+                  /storage/ltn/logs/detailed-stats--234.1.2.71:4071
+                  /storage/ltn/logs/detailed-stats--234.1.2.74:4074
+                  /storage/ltn/logs/detailed-stats--234.1.200.80:4280
+
+         File format is intensionally undefined.
 
          On startup, if enabled, one file per UDP/RTP stream is opened. The
          statistics are appended to the files every (-n) seconds.
