@@ -31,6 +31,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
+* Mon Jan  1 2020 Steven Toth <stoth@ltnglobal.com> 
+- v1.5.0
+  tstools_nic_monitor: Added - detect MPEG-TS packets on unicast addresses.
+
 * Sat Nov  9 2019 Steven Toth <stoth@ltnglobal.com> 
 - v1.4.1
   tstools_nic_monitor: Add option -w to create detailed per-pid stats files.

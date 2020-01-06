@@ -378,15 +378,9 @@ static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_cha
 #ifdef __APPLE__
 		if (ip->ip_p != IPPROTO_UDP)
 			return;
-
-		if (!IN_MULTICAST(ntohl(ip->ip_dst.s_addr)))
-			return;
 #endif
 #ifdef __linux__
 		if (ip->protocol != IPPROTO_UDP)
-			return;
-
-		if (!IN_MULTICAST(ntohl(ip->daddr)))
 			return;
 #endif
 

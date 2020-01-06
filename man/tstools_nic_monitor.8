@@ -1,6 +1,6 @@
 .\" Manpage for tstools_nic_monitor.
 .\" Contact stoth@ltnglobal.com to correct errors or typos.
-.TH man 8 "9 Nov 2019" "1.1" "tstools_nic_monitor man page"
+.TH man 8 "6 Jan 2020" "1.2" "tstools_nic_monitor man page"
 .SH NAME
 tstools_nic_monitor \- Inspect MPEG-TS stream interactively or with stats to disk.
 .SH SYNOPSIS
@@ -19,7 +19,7 @@ Warning: This tool requires super-user privileges.
 Care should be taked if using the -d option.
 
 tstools_nic_monitor detects and monitors RTP-TS or UDP-TS streams from the user
-selected network interface.
+selected network interface, multicast or unicast.
 
 Typically used for finding transport stream packet loss and measuring bitrates without needing
 to capture the UDP MPEG-TS and bring it back to a data center for analysis.
