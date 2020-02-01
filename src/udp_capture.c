@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include "pids.h"
 #include "ffmpeg-includes.h"
+#include "kbhit.h"
 
 #define DEFAULT_FIFOSIZE 1048576
 #define DEFAULT_TRAILERROW 18
@@ -406,6 +407,11 @@ int udp_capture(int argc, char *argv[])
 	pthread_create(&ctx->ffmpeg_threadId, 0, thread_packet_rx, ctx);
 
 	while (gRunning) {
+		if (!kbhit()) {
+			continue;
+			usleep(50 * 1000);
+		}
+
 		int ch = getch();
 		if (ch == 'q')
 			break;
@@ -420,8 +426,6 @@ int udp_capture(int argc, char *argv[])
 				pid->enabled = 0;
 			}
 		}
-
-		usleep(50 * 1000);
 	}
 
 	/* Shutdown ffmpeg */
