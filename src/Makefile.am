@@ -47,6 +47,7 @@ SRC += ts.c
 SRC += pid_drop.c
 SRC += nic_monitor.c
 SRC += parsers.c
+SRC += kbhit.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
