@@ -7,9 +7,7 @@
 #include <time.h>
 
 #include "klbitstream_readwriter.h"
-#include "ts.h"
-#include "pes.h"
-#include "hexdump.h"
+#include <libltntstools/ltntstools.h>
 #include "xorg-list.h"
 
 #define DEFAULT_SCR_PID 0x31
@@ -291,10 +289,10 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos)
 {
-	uint16_t pid = ltn_iso13818_pid(pkt);
+	uint16_t pid = ltntstools_pid(pkt);
 
 	uint64_t scr;
-	if (ltn_iso13818_scr(pkt, &scr) < 0)
+	if (ltntstools_scr(pkt, &scr) < 0)
 		return;
 
 	uint64_t scr_diff = 0;
@@ -339,10 +337,10 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 
 static void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos)
 {
-	uint16_t pid = ltn_iso13818_pid(pkt);
+	uint16_t pid = ltntstools_pid(pkt);
 	ctx->pids[pid].pkt_count++;
 
-	uint32_t cc = ltn_iso13818_continuity_counter(pkt);
+	uint32_t cc = ltntstools_continuity_counter(pkt);
 
 	if (ctx->dumpHex) {
 		if (ctx->ts_linenr++ == 0) {
@@ -360,13 +358,13 @@ static void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_
 	}
 
 	if (ctx->dumpHex == 1) {
-		hexdump(pkt, 32, 32 + 1); /* +1 avoid additional trailing CR */
+		ltntstools_hexdump(pkt, 32, 32 + 1); /* +1 avoid additional trailing CR */
 	} else
 	if (ctx->dumpHex == 2) {
-		hexdump(pkt, 188, 32);
+		ltntstools_hexdump(pkt, 188, 32);
 	}
 
-	uint32_t afc = ltn_iso13818_adaption_field_control(pkt);
+	uint32_t afc = ltntstools_adaption_field_control(pkt);
 	if ((afc == 1) || (afc == 3)) {
 		/* Every pid will be in error the first occurece. Check on second and subsequent pids. */
 		if (ctx->pids[pid].pkt_count > 1) {
@@ -388,12 +386,12 @@ static void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_
 
 static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos)
 {
-	uint16_t pid = ltn_iso13818_pid(pkt);
-	int peshdr = ltn_iso13818_payload_unit_start_indicator(pkt);
+	uint16_t pid = ltntstools_pid(pkt);
+	int peshdr = ltntstools_payload_unit_start_indicator(pkt);
 
 	int pesoffset = 0;
 	if (peshdr) {
-		pesoffset = ltn_iso13818_contains_pes_header(pkt + 4, 188 - 4);
+		pesoffset = ltntstools_contains_pes_header(pkt + 4, 188 - 4);
 	}
 
 	if (peshdr && pesoffset >= 0 && pid > 0) {

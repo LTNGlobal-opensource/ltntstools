@@ -7,7 +7,7 @@ AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_O
 	-DKL_USERSPACE -D__STDC_FORMAT_MACROS \
 	-DGIT_VERSION=\"$(GIT_VERSION)\"
 
-LDADD = -lpthread -lz -ldl -lm
+LDADD = -lpthread -lz -ldl -lm -lltntstools
 
 if LINUX
   LDADD += -lrt
@@ -41,9 +41,6 @@ SRC += udp_capture.c
 SRC += si_inspector.c
 SRC += pcap2ts.c
 SRC += clock_inspector.c
-SRC += pes.c
-SRC += pids.c
-SRC += ts.c
 SRC += pid_drop.c
 SRC += nic_monitor.c
 SRC += parsers.c
@@ -63,13 +60,8 @@ tstools_util_SOURCES = $(SRC)
 
 libtstools_noinst_includedir = $(includedir)
 
-noinst_HEADERS  = hexdump.h
-noinst_HEADERS += version.h
-noinst_HEADERS += pids.h
+noinst_HEADERS  = version.h
 noinst_HEADERS += dump.h
-noinst_HEADERS += histogram.h
-noinst_HEADERS += pes.h
-noinst_HEADERS += ts.h
 noinst_HEADERS += parsers.h
 
 install-exec-hook:

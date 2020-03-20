@@ -10,9 +10,8 @@
 #include <string.h>
 #include <assert.h>
 
-#include "hexdump.h"
 #include "dump.h"
-#include "pids.h"
+#include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 
 #define VIDEO_STREAM_DR			0xF2
@@ -137,7 +136,7 @@ void destroyPID(struct ts_pid_s *pid)
 void updateStream(struct ts_stream_s *strm, unsigned char *buf, unsigned int len)
 {
 	for (unsigned int i = 0; i < len; i += 188) {
-		uint16_t i_pid = getPID(buf + i);
+		uint16_t i_pid = ltntstools_pid(buf + i);
 		struct ts_pid_s *pid = findPID(strm, i_pid);
 		if (pid->used) {
 			dvbpsi_packet_push(pid->dvbpsi, buf + i);

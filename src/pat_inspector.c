@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include "dump.h"
-#include "pids.h"
+#include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 
 static int gDumpAll = 0;
@@ -92,7 +92,7 @@ int pat_inspector(int argc, char *argv[])
 		}
 
 		for (int i = 0; i < rlen; i += 188) {
-			uint16_t i_pid = getPID(&buf[i]);
+			uint16_t i_pid = ltntstools_pid(&buf[i]);
 			if (i_pid == 0x0)
 				dvbpsi_packet_push(p_dvbpsi, &buf[i]);
 

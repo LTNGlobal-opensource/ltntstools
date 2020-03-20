@@ -10,9 +10,7 @@
 #include <time.h>
 
 #include "klbitstream_readwriter.h"
-#include "ts.h"
-#include "pes.h"
-#include "hexdump.h"
+#include <libltntstools/ltntstools.h>
 
 struct tool_context_s
 {
@@ -128,7 +126,7 @@ int pid_drop(int argc, char *argv[])
 			uint8_t *p = buf + (i * 188);
 			ctx->ts_total_packets++;
 
-			uint16_t pid = ltn_iso13818_pid(p);
+			uint16_t pid = ltntstools_pid(p);
 			if (ctx->pid != pid) {
 				fwrite(p, 1, 188, ctx->ofh);
 				continue;
@@ -151,14 +149,14 @@ int pid_drop(int argc, char *argv[])
 				ctx->pidPacketsDropped++;
 			else {
 				if (ctx->doFixups && ctx->pidCCFixups) {
-					uint32_t afc = ltn_iso13818_adaption_field_control(p);
+					uint32_t afc = ltntstools_adaption_field_control(p);
 					if ((afc == 1) || (afc == 3)) {
 						*(p + 3) &= 0xf0;
 						*(p + 3) |= ((ctx->pidLastCC + 1) & 0x0f);
 					}
 				}
 				fwrite(p, 1, 188, ctx->ofh);
-				ctx->pidLastCC = ltn_iso13818_continuity_counter(p);
+				ctx->pidLastCC = ltntstools_continuity_counter(p);
 			}
 		}
 	}

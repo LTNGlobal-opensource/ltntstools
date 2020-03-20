@@ -8,7 +8,7 @@
 #include <math.h>
 #include <inttypes.h>
 
-#include "hexdump.h"
+#include <libltntstools/ltntstools.h>
 #include "dump.h"
 
 static int gDumpAll = 0;
