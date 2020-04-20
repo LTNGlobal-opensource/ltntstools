@@ -259,6 +259,8 @@ int si_inspector(int argc, char *argv[])
 			usleep(2 * 1000);
 			continue;
 		}
+		if (rlen < 0)
+			break;
 
 		//printf("Read %d\n", rlen);
 		updateStream(strm, buf, rlen);
