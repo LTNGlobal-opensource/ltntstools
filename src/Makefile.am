@@ -18,9 +18,9 @@ if APPLE
   AM_LDFLAGS += -framework VideoToolbox -framework CoreFoundation -framework CoreVideo -framework CoreMedia
 endif
 
-AM_CFLAGS += -I../../target-root/usr/include
+AM_CFLAGS += -I../../target-root/usr/include -g
 LDADD += -L../../target-root/usr/lib -ldvbpsi
-LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil
+LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2 -llzma
 LDADD += -lpcap
 
 #ifdef __APPLE__
@@ -45,6 +45,7 @@ SRC += pid_drop.c
 SRC += nic_monitor.c
 SRC += parsers.c
 SRC += kbhit.c
+SRC += rtmp_analyzer.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -55,6 +56,7 @@ LINKBINS += tstools_pcap2ts
 LINKBINS += tstools_clock_inspector
 LINKBINS += tstools_pid_drop
 LINKBINS += tstools_nic_monitor
+LINKBINS += tstools_rtmp_analyzer
 
 tstools_util_SOURCES = $(SRC)
 
