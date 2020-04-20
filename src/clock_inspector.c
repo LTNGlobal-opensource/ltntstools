@@ -222,7 +222,15 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		}
 
 		if (!ctx->order_asc_pts_output) {
-			printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIi64" %10" PRIi64 " -- %9.2f\n",
+			printf("PTS #%09" PRIi64
+				" -- %08" PRIx64
+				" %13" PRIu64
+				"  %04x  "
+				"%14" PRIi64
+				"  %10" PRIi64
+				" %10.2f %9" PRIi64
+				" %10" PRIi64
+				" -- %9.2f\n",
 				p->pts_count,
 				filepos,
 				filepos,
