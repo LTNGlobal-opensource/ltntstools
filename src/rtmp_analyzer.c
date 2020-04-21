@@ -90,6 +90,47 @@ static void streams_init()
 	}
 }
 
+int64_t find_audio_to_video_drift_ms(int64_t *driftPTS, int64_t *driftDTS)
+{
+	struct stream_s *vstrm = &g_streams[video_stream_idx];
+	struct stream_s *astrm = &g_streams[audio_stream_idx];
+
+#if 0
+	/* Get the PTS for each stream and calculate the tick offset from each other */
+	int64_t v_ptsDrift = ltntstools_clock_get_drift_ms(&vstrm->streamTimePTS);
+	int64_t a_ptsDrift = ltntstools_clock_get_drift_ms(&astrm->streamTimePTS);
+
+	int64_t va_pts_drift = 0;
+	if (v_ptsDrift < 0 && a_ptsDrift < 0)
+		va_pts_drift = v_ptsDrift - a_ptsDrift;
+	else
+	if (v_ptsDrift >= 0 && a_ptsDrift >= 0)
+		va_pts_drift = v_ptsDrift - a_ptsDrift;
+	else
+		va_pts_drift = v_ptsDrift + a_ptsDrift;
+	
+	/* Get the DTS for each stream and calculate the tick offset from each other */
+	int64_t v_dtsDrift = ltntstools_clock_get_drift_ms(&vstrm->streamTimeDTS);
+	int64_t a_dtsDrift = ltntstools_clock_get_drift_ms(&astrm->streamTimeDTS);
+
+	int64_t va_dts_drift = 0;
+	if (v_dtsDrift < 0 && a_dtsDrift < 0)
+		va_dts_drift = v_dtsDrift - a_dtsDrift;
+	else
+	if (v_ptsDrift >= 0 && a_ptsDrift >= 0)
+		va_dts_drift = v_dtsDrift - a_dtsDrift;
+	else
+		va_dts_drift = v_dtsDrift + a_dtsDrift;
+
+	*driftPTS = va_pts_drift;
+	*driftDTS = va_dts_drift;
+#else
+	*driftPTS = vstrm->lastPTS - astrm->lastPTS;
+	*driftDTS = vstrm->lastDTS - astrm->lastDTS;
+#endif
+	return 0;
+}
+
 #if 0
 static int analyze_frame(AVFrame *frm, int stream_idx)
 {
@@ -132,19 +173,24 @@ static int analyze_packet(struct stream_s *strm, int cached, AVPacket *pkt)
 
 	char id[16];
 	if (pkt->stream_index == video_stream_idx)
-		sprintf(id, "V%02d", pkt->stream_index);
+		sprintf(id, "V   %d", pkt->stream_index);
 	else
-		sprintf(id, "A%02d", pkt->stream_index);
+		sprintf(id, "A   %d", pkt->stream_index);
+
+	char ts[64];
+	time_t now = time(NULL);
+	sprintf(ts, "%s", ctime(&now));
+	ts[ strlen(ts) - 1] = 0;
 
 	if (pager-- == 0) {
 		pager = 32;
-		printf("+Strm - Packet ------------------------------------------------------------- Side -------------------------------------> <-----------(ms)----- Wall/pts  Wall/dts->\n");
-		printf("+  Id     Size           pts/interval           dts/interval      Duration  Items -- Data                                     Mb/ps  Content  drift(ms)  drift(ms)\n");
-		printf("+----------------------------------------------------------------------------------------------------------------------> <-------------------- < 0 = behind wall-->\n");
+		printf("+Strm - Packet -- @ %s"                    " ---------------------------->   Side <------------------------------------> <------------------   Wall/pts   Wall/dts <------------ <-------->\n", ts);
+		printf("+  Id     Size           pts/interval           dts/interval      Duration  Items -- Data                                     Mb/ps  Content  drift(ms)  drift(ms)     aPTS-vPTS  aDTS-vDTS\n");
+		printf("+---------------------------------------------------------------------(ms) <----> <------------------------------------> <--------------(ms)     < 0 = behind wall <--------(ms) <-----(ms)\n");
 	}
 	//printf("pkt.pts %" PRIi64 "\n", pkt->pts);
 	
-	printf("%3s   %8d %13" PRIi64 " %8" PRIi64 " %13" PRIi64 " %8" PRIi64 " %13" PRIi64 "   %4d -- ",
+	printf("%3s %8d %13" PRIi64 " %8" PRIi64 " %13" PRIi64 " %8" PRIi64 " %13" PRIi64 "   %4d -- ",
 		id,
 		pkt->size,
 		pkt->pts,
@@ -159,6 +205,9 @@ static int analyze_packet(struct stream_s *strm, int cached, AVPacket *pkt)
 		len = 12;
 	for (int i = 0; i < len; i++)
 		printf("%02x ", pkt->data[i]);
+	for (int i = len; i < 12; i++)
+		printf("   ")
+;
 	printf(" -- % 6.02f   %6d",
 		ltntstools_throughput_get_mbps(&strm->bitrate_tp),
 		ltntstools_throughput_get_value(&strm->time_tp));
@@ -168,6 +217,13 @@ static int analyze_packet(struct stream_s *strm, int cached, AVPacket *pkt)
 			ptsDrift,
 			dtsDrift);
 	}
+
+	int64_t av_ptsDrift = 0, av_dtsDrift = 0;
+	find_audio_to_video_drift_ms(&av_ptsDrift, &av_dtsDrift);
+
+	printf("     % 9" PRIi64 "  % 9" PRIi64,
+		av_ptsDrift, av_dtsDrift);
+
 	printf("\n");
 
 	return 0;
