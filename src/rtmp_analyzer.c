@@ -216,13 +216,13 @@ static int analyze_packet(struct stream_s *strm, int cached, AVPacket *pkt)
 		printf("  % 9" PRIi64 "  % 9" PRIi64,
 			ptsDrift,
 			dtsDrift);
+
+		int64_t av_ptsDrift = 0, av_dtsDrift = 0;
+		find_audio_to_video_drift_ms(&av_ptsDrift, &av_dtsDrift);
+
+		printf("     % 9" PRIi64 "  % 9" PRIi64,
+			av_ptsDrift, av_dtsDrift);
 	}
-
-	int64_t av_ptsDrift = 0, av_dtsDrift = 0;
-	find_audio_to_video_drift_ms(&av_ptsDrift, &av_dtsDrift);
-
-	printf("     % 9" PRIi64 "  % 9" PRIi64,
-		av_ptsDrift, av_dtsDrift);
 
 	printf("\n");
 
