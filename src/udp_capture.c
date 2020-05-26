@@ -28,9 +28,7 @@ struct tool_context_s
 	int isSegmenting;
 	time_t currentSegmentTime;
 
-	uint64_t bytesWritten;
-	uint64_t bytesWrittenCurrent;
-	time_t bytesWrittenTime;
+	void *hires_throughput;
 
 	struct ltntstools_stream_statistics_s stream;
 
@@ -104,17 +102,11 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 		}
 	}
 
-	if (now != ctx->bytesWrittenTime) {
-		ctx->bytesWrittenTime = now;
-		ctx->bytesWritten = ctx->bytesWrittenCurrent;
-		ctx->bytesWrittenCurrent = 0;
-	}
+	throughput_hires_write_i64(ctx->hires_throughput, 0, byteCount, NULL);
 
 	for (int i = 0; i < byteCount; i += 188) {
 		uint16_t pidnr = ltntstools_pid(buf + i);
 		struct ltntstools_pid_statistics_s *pid = &ctx->stream.pids[pidnr];
-
-		ctx->bytesWrittenCurrent += 188;
 
 		pid->enabled = 1;
 		pid->packetCount++;
@@ -209,7 +201,9 @@ static void *thread_func(void *p)
 
 		char title_a[160], title_b[160], title_c[160];
 		sprintf(title_a, "%s", ctx->iname);
-		sprintf(title_c, "%2.2f Mb/s", ((double)ctx->bytesWritten * 8) / 1000000.0);
+
+		int64_t val = throughput_hires_sumtotal_i64(ctx->hires_throughput, 0, NULL, NULL);
+		sprintf(title_c, "%2.2f Mb/s", ((double)val * 8) / 1000000.0);
 		int blen = 75 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
@@ -396,6 +390,8 @@ int udp_capture(int argc, char *argv[])
 		}
 	}
 
+	/* Preallocate enough throughput measures for approx a 40mbit stream */
+	throughput_hires_alloc(&ctx->hires_throughput, (40 * 1e6) / 8 / 188);
 	signal(SIGINT, signal_handler);
 	gRunning = 1;
 
@@ -446,7 +442,7 @@ int udp_capture(int argc, char *argv[])
 	ret = 0;
 
 	if (ctx->oname)
-		printf("\nWrote %" PRIu64 " bytes to %s\n", ctx->bytesWritten, ctx->oname);
+		printf("\nWrote to %s\n", ctx->oname);
 
 	printf("   PID   PID     PacketCount   CCErrors  TEIErrors\n");
 	printf("----------------------------  --------- ----------\n");
@@ -461,6 +457,8 @@ int udp_capture(int argc, char *argv[])
 
 	if (ctx->ofh)
 		fclose(ctx->ofh);
+
+	throughput_hires_free(ctx->hires_throughput);
 
 no_output:
 	return ret;
