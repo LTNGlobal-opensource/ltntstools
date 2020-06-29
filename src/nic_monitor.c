@@ -21,6 +21,16 @@
 #define FILE_WRITE_INTERVAL 5
 #define DEFAULT_PCAP_FILTER "udp dst portrange 4000-4999"
 
+static int g_buffer_size_default = (2 * 1024 * 1024);
+static int g_snaplen_default =
+#ifdef __linux__
+	BUFSIZ
+#endif
+#ifdef __APPLE__
+	65535
+#endif
+;
+
 static int gRunning = 0;
 
 struct tool_context_s
@@ -44,6 +54,8 @@ struct tool_context_s
 	bpf_u_int32 netp;
 	bpf_u_int32 maskp;
 	char *pcap_filter;
+	int snaplen;
+	int bufferSize;
 
 	/* list of discovered addresses and related statistics. */
 	pthread_mutex_t lock;
@@ -583,6 +595,8 @@ static void usage(const char *progname)
 #if 0
 	printf("  -o <output filename> (optional)\n");
 #endif
+	printf("  -S <number> Packet buffer size [def: %d] (min: 2048)\n", g_snaplen_default);
+	printf("  -B <number> Buffer size [def: %d]\n", g_buffer_size_default);
 }
 
 int nic_monitor(int argc, char *argv[])
@@ -593,9 +607,16 @@ int nic_monitor(int argc, char *argv[])
 	xorg_list_init(&ctx->list);
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
 	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
+	ctx->snaplen = g_snaplen_default;
+	ctx->bufferSize = g_buffer_size_default;
 
-	while ((ch = getopt(argc, argv, "?hd:D:F:i:t:vMn:w:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:F:i:t:vMn:w:S:")) != -1) {
 		switch (ch) {
+		case 'B':
+			ctx->bufferSize = atoi(optarg);
+			if (ctx->bufferSize < (2 * 1048576))
+				ctx->bufferSize = 2 * 1048576;
+			break;
 		case 'd':
 			free(ctx->file_prefix);
 			ctx->file_prefix = strdup(optarg);
@@ -637,6 +658,11 @@ int nic_monitor(int argc, char *argv[])
 			printf("-D %s\n", p.ui_address_ip_pid);
 		}
 			break;
+		case 'S':
+			ctx->snaplen = atoi(optarg);
+			if (ctx->snaplen < 2048)
+				ctx->snaplen = 2048;
+			break;
 		case 'w':
 			free(ctx->detailed_file_prefix);
 			ctx->detailed_file_prefix = strdup(optarg);
@@ -663,17 +689,46 @@ int nic_monitor(int argc, char *argv[])
 	printf("network: %s\n", inet_ntoa(ip_net));
 	printf("   mask: %s\n", inet_ntoa(ip_mask));
 	printf(" filter: %s\n", ctx->pcap_filter);
+	printf("snaplen: %d\n", ctx->snaplen);
+	printf("buffSiz: %d\n", ctx->bufferSize);
 
+#if 1
+	ctx->descr = pcap_create(ctx->ifname, ctx->errbuf);
+#else
 #ifdef __linux__
-	ctx->descr = pcap_open_live(ctx->ifname, BUFSIZ, 1,-1, ctx->errbuf);
+	ctx->descr = pcap_open_live(ctx->ifname, ctx->snaplen, 1,-1, ctx->errbuf);
 #endif
 #ifdef __APPLE__
 	ctx->descr = pcap_open_live(ctx->ifname, 65535, 1, 1, ctx->errbuf);
+#endif
 #endif
 	if (ctx->descr == NULL) {
 		fprintf(stderr, "Error, %s\n", ctx->errbuf);
 		exit(1);
 	}
+
+	pcap_set_snaplen(ctx->descr, ctx->snaplen);
+	pcap_set_promisc(ctx->descr,
+#ifdef __linux__
+		-1
+#endif
+#ifdef __APPLE__
+		1
+#endif
+	);
+
+	if (ctx->bufferSize != -1) {
+		int ret = pcap_set_buffer_size(ctx->descr, ctx->bufferSize);
+		if (ret == PCAP_ERROR_ACTIVATED) {
+			fprintf(stderr, "Unable to set -B buffersize to %d, already activated\n", ctx->bufferSize);
+			exit(0);
+		}
+		if (ret != 0) {
+			fprintf(stderr, "Unable to set -B buffersize to %d\n", ctx->bufferSize);
+			exit(0);
+		}
+	}
+	pcap_activate(ctx->descr);
 
 	/* TODO: We should craft the filter to be udp dst 224.0.0.0/4 and then
 	 * we don't need to manually filter in our callback.
