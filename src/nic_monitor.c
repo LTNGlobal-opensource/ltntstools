@@ -100,6 +100,12 @@ struct discovered_item_s
 	char dstaddr[24];
 
 	int isRTP;
+
+	/* IAT */
+	int iat_lwm_us; /* IAT low watermark (us), measurement of UDP receive interval */
+	int iat_hwm_us; /* IAT high watermark (us), measurement of UDP receive interval */
+	int iat_cur_us; /* IAT current measurement (us) */
+	struct timeval iat_last_frame; /* Timestamp of last UDP frame for this entity. */
 };
 
 void discovered_item_free(struct discovered_item_s *di)
@@ -129,6 +135,10 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 
 		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
 		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
+
+		di->iat_lwm_us = 50000000;
+		di->iat_hwm_us = -1;
+		di->iat_cur_us = 0;
 	}
 
 	return di;
@@ -362,6 +372,9 @@ static void discovered_items_stats_reset(struct tool_context_s *ctx)
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		ltntstools_pid_stats_reset(&e->stats);
+		e->iat_lwm_us = 5000000;
+		e->iat_hwm_us = -1;
+		e->iat_lwm_us = 0;
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -372,6 +385,19 @@ static void _processPackets(struct tool_context_s *ctx,
 {
 	struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
 	di->isRTP = isRTP;
+
+	struct timeval now, diff;
+	gettimeofday(&now, NULL);
+	if (di->iat_last_frame.tv_sec) {
+		ltn_histogram_timeval_subtract(&diff, &now, &di->iat_last_frame);
+		di->iat_cur_us = ltn_histogram_timeval_to_us(&diff);
+
+		if (di->iat_cur_us <= di->iat_lwm_us)
+			di->iat_lwm_us = di->iat_cur_us;
+		if (di->iat_cur_us >= di->iat_hwm_us)
+			di->iat_hwm_us = di->iat_cur_us;
+	}
+	di->iat_last_frame = now;
 
 	ltntstools_pid_stats_update(&di->stats, pkts, pktCount);
 }
@@ -469,13 +495,13 @@ static void *ui_thread_func(void *p)
 		char mask[64];
 		sprintf(mask, "%s", inet_ntoa(ip_mask));
 		sprintf(title_c, "NIC: %s (%s/%s)", ctx->ifname, inet_ntoa(ip_net), mask);
-		int blen = 86 - (strlen(title_a) + strlen(title_c));
+		int blen = 108 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
 
 		attron(COLOR_PAIR(1));
 		mvprintw( 0, 0, "%s%s%s", title_a, title_b, title_c);
-		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <------PACKETS <------CCErr");
+		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <------PACKETS <------CCErr <---IAT-(cur/min/max)");
 		attroff(COLOR_PAIR(1));
 
 		int streamCount = 1;
@@ -486,13 +512,14 @@ static void *ui_thread_func(void *p)
 			if (di->stats.ccErrors)
 				attron(COLOR_PAIR(3));
 
-			mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "",
+			mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
 				di->isRTP ? "RTP" : "UDP",
 				di->srcaddr,
 				di->dstaddr,
 				ltntstools_pid_stats_stream_get_mbps(&di->stats),
 				di->stats.packetCount,
-				di->stats.ccErrors);
+				di->stats.ccErrors,
+				di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
 
 			if (di->stats.ccErrors)
 				attroff(COLOR_PAIR(3));
@@ -511,7 +538,7 @@ static void *ui_thread_func(void *p)
 		memset(tail_b, '-', sizeof(tail_b));
 		sprintf(tail_a, "TSTOOLS_NIC_MONITOR");
 		sprintf(tail_c, "%s", ctime(&now));
-		blen = 87 - (strlen(tail_a) + strlen(tail_c));
+		blen = 109 - (strlen(tail_a) + strlen(tail_c));
 		memset(tail_b, 0x20, sizeof(tail_b));
 		tail_b[blen] = 0;
 
