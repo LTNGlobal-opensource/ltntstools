@@ -31,6 +31,13 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
+* Mon Oct  5 2020 Steven Toth <stoth@ltnglobal.com> 
+- v1.6.0
+  tstools_rtmp_analyzer: Added - tool to detect drifts in stream vs walltime.
+  tstools_nic_monitor: Changes to allow libpcap buffer sizes to be adjusted (packet loss in high b/w streams).
+  tstools_nic_monitor: Change the bitrate calculator to use a truly high-resolution measurement.
+  tstools_udp_capture: Fix an issue with -t where the tool didn't terminate after N seconds.
+
 * Mon Jan  1 2020 Steven Toth <stoth@ltnglobal.com> 
 - v1.5.0
   tstools_nic_monitor: Added - detect MPEG-TS packets on unicast addresses.
