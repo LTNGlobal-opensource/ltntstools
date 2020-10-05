@@ -28,11 +28,12 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_pmt_inspector
 /usr/local/bin/tstools_si_inspector
 /usr/local/bin/tstools_udp_capture
+/usr/local/bin/tstools_rtmp_analyzer
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
 * Mon Oct  5 2020 Steven Toth <stoth@ltnglobal.com> 
-- v1.6.0
+- v1.6.1
   tstools_rtmp_analyzer: Added - tool to detect drifts in stream vs walltime.
   tstools_nic_monitor: Changes to allow libpcap buffer sizes to be adjusted (packet loss in high b/w streams).
   tstools_nic_monitor: Change the bitrate calculator to use a truly high-resolution measurement.
