@@ -629,6 +629,7 @@ static void usage(const char *progname)
 int nic_monitor(int argc, char *argv[])
 {
 	int ch;
+	int ret;
 
 	pthread_mutex_init(&ctx->lock, NULL);
 	xorg_list_init(&ctx->list);
@@ -755,15 +756,22 @@ int nic_monitor(int argc, char *argv[])
 			exit(0);
 		}
 	}
-	pcap_activate(ctx->descr);
+	ret = pcap_activate(ctx->descr);
+	if (ret != 0) {
+		if (ret == PCAP_ERROR_PERM_DENIED) {
+			fprintf(stderr, "Error, permission denied.\n");
+		}
+		fprintf(stderr, "Error, pcap_activate, %s\n", pcap_geterr(ctx->descr));
+		exit(1);
+	}
 
 	/* TODO: We should craft the filter to be udp dst 224.0.0.0/4 and then
 	 * we don't need to manually filter in our callback.
 	 */
 	struct bpf_program fp;
-	int ret = pcap_compile(ctx->descr, &fp, ctx->pcap_filter, 0, ctx->netp);
+	ret = pcap_compile(ctx->descr, &fp, ctx->pcap_filter, 0, ctx->netp);
 	if (ret == -1) {
-		fprintf(stderr, "Error, pcap_compile\n");
+		fprintf(stderr, "Error, pcap_compile, %s\n", pcap_geterr(ctx->descr));
 		exit(1);
 	}
 
