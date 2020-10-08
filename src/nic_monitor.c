@@ -742,16 +742,7 @@ int nic_monitor(int argc, char *argv[])
 	printf("snaplen: %d\n", ctx->snaplen);
 	printf("buffSiz: %d\n", ctx->bufferSize);
 
-#if 1
 	ctx->descr = pcap_create(ctx->ifname, ctx->errbuf);
-#else
-#ifdef __linux__
-	ctx->descr = pcap_open_live(ctx->ifname, ctx->snaplen, 1,-1, ctx->errbuf);
-#endif
-#ifdef __APPLE__
-	ctx->descr = pcap_open_live(ctx->ifname, 65535, 1, 1, ctx->errbuf);
-#endif
-#endif
 	if (ctx->descr == NULL) {
 		fprintf(stderr, "Error, %s\n", ctx->errbuf);
 		exit(1);
