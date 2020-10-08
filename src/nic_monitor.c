@@ -21,6 +21,7 @@
 #define FILE_WRITE_INTERVAL 5
 #define DEFAULT_PCAP_FILTER "udp dst portrange 4000-4999"
 
+/* Reduce this to 4 * 32768 to simulate loss on a NIC with 600Mbps */
 static int g_buffer_size_default = (2 * 1024 * 1024);
 static int g_snaplen_default =
 #ifdef __linux__
