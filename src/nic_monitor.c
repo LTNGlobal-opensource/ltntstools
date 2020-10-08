@@ -761,6 +761,9 @@ int nic_monitor(int argc, char *argv[])
 		if (ret == PCAP_ERROR_PERM_DENIED) {
 			fprintf(stderr, "Error, permission denied.\n");
 		}
+		if (ret == PCAP_ERROR_NO_SUCH_DEVICE) {
+			fprintf(stderr, "Error, network interface '%s' not found.\n", ctx->ifname);
+		}
 		fprintf(stderr, "Error, pcap_activate, %s\n", pcap_geterr(ctx->descr));
 		exit(1);
 	}
