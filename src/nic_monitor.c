@@ -56,6 +56,7 @@ struct tool_context_s
 	char *pcap_filter;
 	int snaplen;
 	int bufferSize;
+	struct pcap_stat pcap_stats; /* network loss and drop statistics */
 
 	/* list of discovered addresses and related statistics. */
 	pthread_mutex_t lock;
@@ -476,6 +477,7 @@ static void *ui_thread_func(void *p)
 	init_pair(1, COLOR_WHITE, COLOR_BLUE);
 	init_pair(2, COLOR_CYAN, COLOR_BLACK);
 	init_pair(3, COLOR_RED, COLOR_BLACK);
+	init_pair(4, COLOR_WHITE, COLOR_RED);
 
 	while (!ctx->ui_threadTerminate) {
 
@@ -494,13 +496,27 @@ static void *ui_thread_func(void *p)
 		sprintf(title_a, "%s", ctx->pcap_filter);
 		char mask[64];
 		sprintf(mask, "%s", inet_ntoa(ip_mask));
-		sprintf(title_c, "NIC: %s (%s/%s)", ctx->ifname, inet_ntoa(ip_net), mask);
+		sprintf(title_c, "NIC: %s (%s/%s) Dropped: %d/%d", ctx->ifname, inet_ntoa(ip_net), mask,
+			ctx->pcap_stats.ps_drop,
+			ctx->pcap_stats.ps_ifdrop);
 		int blen = 108 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
 
-		attron(COLOR_PAIR(1));
+		if (ctx->pcap_stats.ps_drop || ctx->pcap_stats.ps_ifdrop) {
+			attron(COLOR_PAIR(4));
+		} else {
+			attron(COLOR_PAIR(1));
+		}
 		mvprintw( 0, 0, "%s%s%s", title_a, title_b, title_c);
+
+		if (ctx->pcap_stats.ps_drop || ctx->pcap_stats.ps_ifdrop) {
+			attroff(COLOR_PAIR(4));
+		} else {
+			attroff(COLOR_PAIR(1));
+		}
+
+		attron(COLOR_PAIR(1));
 		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <------PACKETS <------CCErr <---IAT-(cur/min/max)");
 		attroff(COLOR_PAIR(1));
 
@@ -572,6 +588,11 @@ static void *stats_thread_func(void *p)
 	}
 
 	while (!ctx->stats_threadTerminate) {
+		/* Collect pcap packet loss stats */
+		if (pcap_stats(ctx->descr, &ctx->pcap_stats) != 0) {
+			/* Error */
+		}
+
 		processed = pcap_dispatch(ctx->descr, -1, pcap_callback, NULL);
 		if (processed == 0)
 			usleep(5 * 1000);
