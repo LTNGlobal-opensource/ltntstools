@@ -32,6 +32,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
+* Thu Oct  8 2020 Steven Toth <stoth@ltnglobal.com> 
+- v1.6.2
+  tstools_nic_monitor: UI changes - show pcap buffer overruns and NIC dropped frames if errors occur.
+
 * Mon Oct  5 2020 Steven Toth <stoth@ltnglobal.com> 
 - v1.6.1
   tstools_rtmp_analyzer: Added - tool to detect drifts in stream vs walltime.
