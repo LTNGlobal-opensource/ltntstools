@@ -163,6 +163,11 @@ static void *ui_thread_func(void *p)
 		xorg_list_for_each_entry(di, &ctx->list, list) {
 
 			if (di->stats.ccErrors)
+				discovered_item_state_set(di, DI_STATE_CC_ERROR);
+			else
+				discovered_item_state_clr(di, DI_STATE_CC_ERROR);
+
+			if (discovered_item_state_get(di, DI_STATE_CC_ERROR))
 				attron(COLOR_PAIR(3));
 
 			mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
@@ -174,7 +179,7 @@ static void *ui_thread_func(void *p)
 				di->stats.ccErrors,
 				di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
 
-			if (di->stats.ccErrors)
+			if (discovered_item_state_get(di, DI_STATE_CC_ERROR))
 				attroff(COLOR_PAIR(3));
 
 			streamCount++;

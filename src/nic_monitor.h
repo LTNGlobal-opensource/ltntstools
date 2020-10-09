@@ -66,6 +66,10 @@ struct discovered_item_s
 {
 	struct xorg_list list;
 
+#define DI_STATE_SELECTED (1 << 0)
+#define DI_STATE_CC_ERROR (1 << 1)
+	unsigned int state;
+
 	time_t firstSeen;
 	time_t lastUpdated;
 	struct ether_header ethhdr;
@@ -113,6 +117,11 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 
 /* For a given item, open a stats file on disk, append the current stats, close it. */
 void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di);
+
+/* Set or clear the state field bitmask */
+void discovered_item_state_set(struct discovered_item_s *di, unsigned int state);
+void discovered_item_state_clr(struct discovered_item_s *di, unsigned int state);
+unsigned int discovered_item_state_get(struct discovered_item_s *di, unsigned int state);
 
 void discovered_items_file_summary(struct tool_context_s *ctx);
 
