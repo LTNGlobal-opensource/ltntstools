@@ -43,6 +43,7 @@ SRC += pcap2ts.c
 SRC += clock_inspector.c
 SRC += pid_drop.c
 SRC += nic_monitor.c
+SRC += nic_monitor_di.c
 SRC += parsers.c
 SRC += kbhit.c
 SRC += rtmp_analyzer.c
