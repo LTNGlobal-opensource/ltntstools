@@ -98,4 +98,24 @@ struct discovered_item_s
 	struct timeval iat_last_frame; /* Timestamp of last UDP frame for this entity. */
 };
 
+void discovered_item_free(struct discovered_item_s *di);
+struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr);
+
+struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
+	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr);
+
+void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int fd);
+
+void discovered_items_console_summary(struct tool_context_s *ctx);
+
+/* For a given item, open a detailed stats file on disk, append the current stats, close it. */
+void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di);
+
+/* For a given item, open a stats file on disk, append the current stats, close it. */
+void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di);
+
+void discovered_items_file_summary(struct tool_context_s *ctx);
+
+void discovered_items_stats_reset(struct tool_context_s *ctx);
+
 #endif /* NIC_MONITOR_H */

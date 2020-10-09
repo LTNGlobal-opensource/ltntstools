@@ -91,7 +91,7 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	return found;
 }
 
-static void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
+void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
 {
 	char stream[128];
 	sprintf(stream, "%s", di->srcaddr);
@@ -112,7 +112,7 @@ static void discovered_item_fd_summary(struct tool_context_s *ctx, struct discov
 	}
 }
 
-static void discovered_items_console_summary(struct tool_context_s *ctx)
+void discovered_items_console_summary(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
 
@@ -124,7 +124,7 @@ static void discovered_items_console_summary(struct tool_context_s *ctx)
 }
 
 /* For a given item, open a detailed stats file on disk, append the current stats, close it. */
-static void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
+void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
 {
 	if (di->detailed_filename[0] == 0) {
 		if (ctx->detailed_file_prefix)
@@ -184,7 +184,7 @@ static void discovered_item_detailed_file_summary(struct tool_context_s *ctx, st
 }
 
 /* For a given item, open a stats file on disk, append the current stats, close it. */
-static void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
+void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
 {
 	if (di->filename[0] == 0) {
 		if (ctx->file_prefix)
@@ -262,7 +262,7 @@ static void discovered_item_file_summary(struct tool_context_s *ctx, struct disc
 #endif
 }
 
-static void discovered_items_file_summary(struct tool_context_s *ctx)
+void discovered_items_file_summary(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
 
@@ -274,7 +274,7 @@ static void discovered_items_file_summary(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 }
 
-static void discovered_items_stats_reset(struct tool_context_s *ctx)
+void discovered_items_stats_reset(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
 
