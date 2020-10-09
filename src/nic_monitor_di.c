@@ -279,11 +279,101 @@ void discovered_item_state_set(struct discovered_item_s *di, unsigned int state)
 
 void discovered_item_state_clr(struct discovered_item_s *di, unsigned int state)
 {
-	di->state &= (~state);
+	di->state &= ~(state);
 }
 
 unsigned int discovered_item_state_get(struct discovered_item_s *di, unsigned int state)
 {
 	return di->state & state;
+}
+
+void discovered_items_select_first(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		discovered_item_state_set(e, DI_STATE_SELECTED);
+		break;
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_next(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	int doSelect = 0;
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED)) {
+			discovered_item_state_clr(e, DI_STATE_SELECTED);
+			doSelect = 1;
+		} else
+		if (doSelect) {
+			discovered_item_state_set(e, DI_STATE_SELECTED);
+			break;
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+
+#if 0
+	if (!doSelect)
+		discovered_items_select_first(ctx);
+#endif
+}
+
+void discovered_items_select_prev(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+	struct discovered_item_s *p = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) && p) {
+			discovered_item_state_clr(e, DI_STATE_SELECTED);
+			discovered_item_state_set(p, DI_STATE_SELECTED);
+			break;
+		}
+		p = e;
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_all(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		discovered_item_state_set(e, DI_STATE_SELECTED);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_none(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		discovered_item_state_clr(e, DI_STATE_SELECTED);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_record_toggle(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_PCAP_RECORDING) || discovered_item_state_get(e, DI_STATE_PCAP_RECORD_START)) {
+			discovered_item_state_set(e, DI_STATE_PCAP_RECORD_STOP);
+		} else {
+			discovered_item_state_set(e, DI_STATE_PCAP_RECORD_START);
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
 }
 

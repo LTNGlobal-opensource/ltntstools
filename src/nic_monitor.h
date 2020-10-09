@@ -66,8 +66,11 @@ struct discovered_item_s
 {
 	struct xorg_list list;
 
-#define DI_STATE_SELECTED (1 << 0)
-#define DI_STATE_CC_ERROR (1 << 1)
+#define DI_STATE_SELECTED		(1 << 0)
+#define DI_STATE_CC_ERROR		(1 << 1)
+#define DI_STATE_PCAP_RECORD_START	(1 << 2)
+#define DI_STATE_PCAP_RECORDING		(1 << 3)
+#define DI_STATE_PCAP_RECORD_STOP	(1 << 4)
 	unsigned int state;
 
 	time_t firstSeen;
@@ -126,5 +129,13 @@ unsigned int discovered_item_state_get(struct discovered_item_s *di, unsigned in
 void discovered_items_file_summary(struct tool_context_s *ctx);
 
 void discovered_items_stats_reset(struct tool_context_s *ctx);
+
+/* Cursor selection */
+void discovered_items_select_first(struct tool_context_s *ctx);
+void discovered_items_select_next(struct tool_context_s *ctx);
+void discovered_items_select_prev(struct tool_context_s *ctx);
+void discovered_items_select_all(struct tool_context_s *ctx);
+void discovered_items_select_none(struct tool_context_s *ctx);
+void discovered_items_select_record_toggle(struct tool_context_s *ctx);
 
 #endif /* NIC_MONITOR_H */
