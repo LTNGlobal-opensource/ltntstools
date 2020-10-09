@@ -65,6 +65,7 @@ libtstools_noinst_includedir = $(includedir)
 noinst_HEADERS  = version.h
 noinst_HEADERS += dump.h
 noinst_HEADERS += parsers.h
+noinst_HEADERS += nic_monitor.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)
