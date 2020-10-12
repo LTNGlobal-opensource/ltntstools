@@ -368,6 +368,9 @@ void discovered_items_select_record_toggle(struct tool_context_s *ctx)
 
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
 		if (discovered_item_state_get(e, DI_STATE_PCAP_RECORDING) || discovered_item_state_get(e, DI_STATE_PCAP_RECORD_START)) {
 			discovered_item_state_set(e, DI_STATE_PCAP_RECORD_STOP);
 		} else {

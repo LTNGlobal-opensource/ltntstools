@@ -45,13 +45,41 @@ static void _processPackets(struct tool_context_s *ctx,
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_START);
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_STOP);
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORDING);
+
+		ltntstools_segmentwriter_free(di->pcapRecorder);
+		di->pcapRecorder = NULL;
 	}
 	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORD_START)) {
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_START);
 		discovered_item_state_set(di, DI_STATE_PCAP_RECORDING);
+
+		char prefix[512];
+		sprintf(prefix, "/tmp/nic_monitor-%s-%s", ctx->ifname, di->dstaddr);
+		int ret = ltntstools_segmentwriter_alloc(&di->pcapRecorder, prefix, ".pcap", 0);
+		if (ret < 0) {
+			fprintf(stderr, "%s() unable to allocate a segment writer\n", __func__);
+			exit(1);
+		}
+
+		struct pcap_file_header hdr;
+		hdr.magic = 0xa1b2c3d4;
+		hdr.version_major = PCAP_VERSION_MAJOR;
+		hdr.version_minor = PCAP_VERSION_MINOR;
+		hdr.thiszone = 0;
+		hdr.sigfigs = 0;
+		hdr.snaplen = 0x400000;
+		hdr.linktype = DLT_EN10MB;
+		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)&hdr, sizeof(hdr));
 	}
 	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING)) {
 		/* Dump the cb_h and cb_pkt payload to disk, via a thread. */
+		/* Make sure the timestamps are 4 bytes long, not the native struct size
+		 * for the running platform.
+		 */
+		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h, 4);
+		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h + 8, 4);
+		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h + 16, sizeof(bpf_u_int32) * 2);
+		ltntstools_segmentwriter_write(di->pcapRecorder, cb_pkt, cb_h->len);
 	}
 }
 
@@ -204,6 +232,17 @@ static void *ui_thread_func(void *p)
 			if (discovered_item_state_get(di, DI_STATE_CC_ERROR))
 				attroff(COLOR_PAIR(3));
 
+			if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING)) {
+				streamCount++;
+
+				char fn[512] = { 0 };
+				int ret = ltntstools_segmentwriter_get_current_filename(di->pcapRecorder, &fn[0], sizeof(fn));
+				if (ret < 0)
+					sprintf(fn, "pending open file");
+
+				mvprintw(streamCount + 2, 0, " Recording to ... %s", fn);
+			}
+
 			streamCount++;
 		}
 		pthread_mutex_unlock(&ctx->lock);
@@ -211,11 +250,7 @@ static void *ui_thread_func(void *p)
 		ctx->trailerRow = streamCount + 3;
 
 		attron(COLOR_PAIR(2));
-#if 1
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset");
-#else
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect");
-#endif
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord");
 		attroff(COLOR_PAIR(2));
 
 		char tail_a[160], tail_b[160], tail_c[160];
@@ -485,7 +520,6 @@ int nic_monitor(int argc, char *argv[])
 		if (c == 'r') {
 			discovered_items_stats_reset(ctx);
 		}
-#if 0
 		if (c == 'D') {
 			discovered_items_select_none(ctx);
 		}
@@ -514,7 +548,7 @@ int nic_monitor(int argc, char *argv[])
 				}
 			}
 		}
-#endif
+
 		usleep(50 * 1000);
 	}
 

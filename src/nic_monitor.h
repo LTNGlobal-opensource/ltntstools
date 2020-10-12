@@ -103,6 +103,9 @@ struct discovered_item_s
 	int iat_hwm_us; /* IAT high watermark (us), measurement of UDP receive interval */
 	int iat_cur_us; /* IAT current measurement (us) */
 	struct timeval iat_last_frame; /* Timestamp of last UDP frame for this entity. */
+
+	/* PCAP recording */
+	void *pcapRecorder;
 };
 
 void discovered_item_free(struct discovered_item_s *di);
