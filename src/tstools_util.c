@@ -15,6 +15,7 @@ extern int clock_inspector(int argc, char *argv[]);
 extern int pid_drop(int argc, char *argv[]);
 extern int nic_monitor(int argc, char *argv[]);
 extern int rtmp_analyzer(int argc, char *argv[]);
+extern int tr101290_analyzer(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
 
@@ -38,6 +39,7 @@ int main(int argc, char *argv[])
 		{ "tstools_pid_drop",		pid_drop, },
 		{ "tstools_nic_monitor",	nic_monitor, },
 		{ "tstools_rtmp_analyzer",	rtmp_analyzer, },
+		{ "tstools_tr101290_analyzer",	tr101290_analyzer, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);
