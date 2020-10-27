@@ -23,6 +23,10 @@ void *cb_notify(void *userContext, struct ltntstools_tr101290_alarm_s *array, in
 	}
 
 	free((struct ltntstools_tr101290_alarm_s *)array);
+
+	/* For fun, collect the entire summary in txt format. */
+	ltntstools_tr101290_summary_report_dprintf(trhdl, 0);
+
 	return NULL;
 }
 
@@ -87,10 +91,7 @@ int tr101290_analyzer(int argc, char *argv[])
 			continue;
 		}
 
-		for (int i = 0; i < rlen; i += 188) {
-			ssize_t s = ltntstools_tr101290_write(trhdl, buf, rlen);
-			//
-		}
+		ssize_t s = ltntstools_tr101290_write(trhdl, buf, rlen / 188);
 	}
 	avio_close(puc);
 

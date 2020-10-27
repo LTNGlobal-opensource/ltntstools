@@ -7,3 +7,7 @@ tstools_pcap2ts
 tstools_clock_inspector
 tstools_pid_drop
 tstools_nic_monitor
+tstools_rtmp_analyzer
+tstools_si_streammodel
+tstools_tr101290_analyzer
+
