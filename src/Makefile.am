@@ -5,7 +5,7 @@ GIT_VERSION := $(shell git describe --abbrev=8 --dirty --always --tags)
 AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_OFFSET_BITS=64 \
 	-D_BSD_SOURCE \
 	-DKL_USERSPACE -D__STDC_FORMAT_MACROS \
-	-DGIT_VERSION=\"$(GIT_VERSION)\"
+	-DGIT_VERSION=\"$(GIT_VERSION)\" -g
 
 LDADD = -lpthread -lz -ldl -lm -lltntstools
 

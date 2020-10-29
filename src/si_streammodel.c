@@ -23,6 +23,7 @@ static void usage(const char *progname)
 	printf("The first PAT and first set of PMTs are displayed, then the program terminates.\n");
 	printf("Usage:\n");
 	printf("  -i <inputfile.ts>\n");
+	printf("  -a don't terminate after the first model is obtained\n");
 	printf("  -v Increase level of verbosity (enable descriptor dumping).\n");
 	printf("  -h Display command line help.\n");
 }
@@ -86,8 +87,16 @@ int si_streammodel(int argc, char *argv[])
 		int complete = 0;
 		ltntstools_streammodel_write(g_sm, &buf[0], rlen / 188, &complete);
 
-		if (complete)
-			break;
+		if (complete) {
+			if (gDumpAll == 0)
+				break;
+
+			struct ltntstools_pat_s *pat = NULL;
+			if (ltntstools_streammodel_query_model(g_sm, &pat) == 0) {
+//				ltntstools_pat_dprintf(pat, 0);
+				ltntstools_pat_free(pat);
+			}
+		}
 
 	}
 	printf("Closing stream\n");
