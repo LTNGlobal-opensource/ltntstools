@@ -137,15 +137,19 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 		return;
 
 	count++;
+	int tsoffset = 0;
 	if (*data != 0x47) {
-		fprintf(stderr, "Error at packet %d\n", count);
-		hexdump(data, len, 16);
-		exit(1);
+		if ((*data != 0x80) && (*(data + 12) != 0x47)) {
+			fprintf(stderr, "Error at packet %d\n", count);
+			hexdump(data, len, 16);
+			exit(1);
+		}
+		tsoffset += 12; /* RTP header */
 	}
 
 	if (ofh) {
 		tspkt_count_output += (len / 188);
-		fwrite(data, 1, len, ofh);
+		fwrite(data + tsoffset, 1, len - tsoffset, ofh);
 	}
 }
 
