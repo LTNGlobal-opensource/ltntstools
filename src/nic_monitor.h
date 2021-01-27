@@ -71,6 +71,7 @@ struct discovered_item_s
 #define DI_STATE_PCAP_RECORD_START	(1 << 2)
 #define DI_STATE_PCAP_RECORDING		(1 << 3)
 #define DI_STATE_PCAP_RECORD_STOP	(1 << 4)
+#define DI_STATE_SHOW_PIDS		(1 << 5)
 	unsigned int state;
 
 	time_t firstSeen;
@@ -140,5 +141,6 @@ void discovered_items_select_prev(struct tool_context_s *ctx);
 void discovered_items_select_all(struct tool_context_s *ctx);
 void discovered_items_select_none(struct tool_context_s *ctx);
 void discovered_items_select_record_toggle(struct tool_context_s *ctx);
+void discovered_items_select_show_pids_toggle(struct tool_context_s *ctx);
 
 #endif /* NIC_MONITOR_H */

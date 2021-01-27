@@ -240,7 +240,25 @@ static void *ui_thread_func(void *p)
 				if (ret < 0)
 					sprintf(fn, "pending open file");
 
-				mvprintw(streamCount + 2, 0, " Recording to ... %s", fn);
+				mvprintw(streamCount + 2, 0, " -> Recording to ... %s", fn);
+			}
+
+			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
+				for (int i = 0; i < MAX_PID; i++) {
+					if (di->stats.pids[i].enabled) {
+						streamCount++;
+						if (i == 0)
+							mvprintw(streamCount + 2, 0, " -> PID Report");
+
+						mvprintw(streamCount + 2, 37, "0x%04x (%4d)  %6.2f %14" PRIu64 " %12" PRIu64 "\n",
+							i,
+							i,
+							ltntstools_pid_stats_pid_get_mbps(&di->stats, i),
+							di->stats.pids[i].packetCount,
+							di->stats.pids[i].ccErrors);
+					}
+				}
+				streamCount++;
 			}
 
 			streamCount++;
@@ -250,7 +268,7 @@ static void *ui_thread_func(void *p)
 		ctx->trailerRow = streamCount + 3;
 
 		attron(COLOR_PAIR(2));
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord");
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids");
 		attroff(COLOR_PAIR(2));
 
 		char tail_a[160], tail_b[160], tail_c[160];
@@ -528,6 +546,9 @@ int nic_monitor(int argc, char *argv[])
 		}
 		if (c == 'R') {
 			discovered_items_select_record_toggle(ctx);
+		}
+		if (c == 'P') {
+			discovered_items_select_show_pids_toggle(ctx);
 		}
 
 		/* Cursor key support */
