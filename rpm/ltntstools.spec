@@ -29,6 +29,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_si_inspector
 /usr/local/bin/tstools_udp_capture
 /usr/local/bin/tstools_rtmp_analyzer
+/usr/local/bin/tstools_si_streammodel
+/usr/local/bin/tstools_tr101290_analyzer
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
