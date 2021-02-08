@@ -21,6 +21,7 @@ TARGET_DIR=~/rpmbuild/BUILDROOT/$APP-$GIT_VERSION-1.x86_64
 
 mkdir -p $TARGET_DIR/usr/local/bin
 cp ../src/tstools_util $TARGET_DIR/usr/local/bin
+strip $TARGET_DIR/usr/local/bin/tstools_util
 
 mkdir -p $TARGET_DIR/usr/local/share/man/man8
 cp ../man/*.8 $TARGET_DIR/usr/local/share/man/man8
