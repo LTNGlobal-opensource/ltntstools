@@ -75,6 +75,9 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 	time_t now;
 	time(&now);
 
+	/* TODO: Convert this to segment writer (which is already threaded),
+	 * the implementation below isn't threaded.
+	 */
 	if (ctx->isSegmenting && (now >= ctx->currentSegmentTime + 60)) {
 		ctx->currentSegmentTime = 0;
 		if (ctx->ofh) {
