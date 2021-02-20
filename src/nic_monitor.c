@@ -52,6 +52,7 @@ static void *ui_thread_func(void *p)
 	init_pair(3, COLOR_RED, COLOR_BLACK);
 	init_pair(4, COLOR_WHITE, COLOR_RED);
 	init_pair(5, COLOR_WHITE, COLOR_GREEN);
+	init_pair(6, COLOR_GREEN, COLOR_BLACK);
 
 	while (!ctx->ui_threadTerminate) {
 
@@ -187,24 +188,37 @@ static void *ui_thread_func(void *p)
 				mvprintw(streamCount + 2, 0, " -> TR101290 Status (NOT YET SUPPORTED)");
 				streamCount++;
 				int p1col = 10;
-				mvprintw(streamCount + 2, p1col, "P1.1  TS SYNC LOSS");
-				mvprintw(streamCount + 3, p1col, "P1.2  SYNC BYTE ERROR");
-				mvprintw(streamCount + 4, p1col, "P1.3  PAT ERROR");
-				mvprintw(streamCount + 5, p1col, "P1.3a PAT ERROR 2");
-				mvprintw(streamCount + 6, p1col, "P1.4  CC ERROR");
-				mvprintw(streamCount + 7, p1col, "P1.5  PMT ERROR");
-				mvprintw(streamCount + 8, p1col, "P1.5a PMT ERROR 2");
-				mvprintw(streamCount + 9, p1col, "P1.6  PID ERROR");
 
-				int p2col = 35;
-				mvprintw(streamCount + 2, p2col, "P2.1  TRANSPORT ERROR");
-				mvprintw(streamCount + 3, p2col, "P2.2  CRC ERROR");
-				mvprintw(streamCount + 4, p2col, "P2.3  PCR ERROR");
-				mvprintw(streamCount + 5, p2col, "P2.3a PCR REPETITION ERROR");
-				mvprintw(streamCount + 6, p2col, "P2.4  PCR ACCURACY ERROR");
-				mvprintw(streamCount + 7, p2col, "P2.5  PTS ERROR");
-				mvprintw(streamCount + 8, p2col, "P2.6  CAT ERROR");
+				/* Everything RED until further notice */
+				attron(COLOR_PAIR(3));
+				mvprintw(streamCount + 2, p1col, "P1.1  BAD [TS SYNC  ]");
+				attroff(COLOR_PAIR(3));
+
+				attron(COLOR_PAIR(6));
+				mvprintw(streamCount + 3, p1col, "P1.2  OK  [SYNC BYTE]");
+				mvprintw(streamCount + 4, p1col, "P1.3  OK  [PAT      ]");
+				mvprintw(streamCount + 5, p1col, "P1.3a OK  [PAT 2    ]");
+				mvprintw(streamCount + 6, p1col, "P1.4  OK  [CC       ]");
+				mvprintw(streamCount + 7, p1col, "P1.5  OK  [PMT      ]");
+				mvprintw(streamCount + 8, p1col, "P1.5a OK  [PMT 2    ]");
+				mvprintw(streamCount + 9, p1col, "P1.6  OK  [PID      ]");
+
+				int p2col = 45;
+				mvprintw(streamCount + 2, p2col, "P2.1  OK  [TRANSPORT     ]");
+				mvprintw(streamCount + 3, p2col, "P2.2  OK  [CRC           ]");
+				mvprintw(streamCount + 4, p2col, "P2.3  OK  [PCR           ]");
+				mvprintw(streamCount + 5, p2col, "P2.3a OK  [PCR REPETITION]");
+				mvprintw(streamCount + 6, p2col, "P2.4  OK  [PCR ACCURACY  ]");
+				mvprintw(streamCount + 7, p2col, "P2.5  OK  [PTS           ]");
+				attroff(COLOR_PAIR(6));
+
+				attron(COLOR_PAIR(3));
+				mvprintw(streamCount + 8, p2col, "P2.6  BAD [CAT           ]");
+				attroff(COLOR_PAIR(3));
+
 				streamCount += 8;
+
+
 			}
 
 			streamCount++;
