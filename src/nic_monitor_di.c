@@ -150,7 +150,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
                 tm.tm_min,
                 tm.tm_sec);
 
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 ",src=%s,dst=%s\n",
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 ",src=%s,dst=%s,dropped=%d/%d\n",
 		ts,
 		ctx->ifname,
 		ltntstools_pid_stats_stream_get_bps(&di->stats),
@@ -158,7 +158,9 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		di->stats.packetCount,
 		di->stats.ccErrors,
 		di->srcaddr,
-		di->dstaddr);
+		di->dstaddr,
+		ctx->pcap_stats.ps_drop,
+		ctx->pcap_stats.ps_ifdrop);
 
 	write(fd, line, strlen(line));
 
@@ -217,7 +219,7 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
                 tm.tm_min,
                 tm.tm_sec);
 
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 ",src=%s,dst=%s\n",
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 ",src=%s,dst=%s,dropped=%d/%d\n",
 		ts,
 		ctx->ifname,
 		ltntstools_pid_stats_stream_get_bps(&di->stats),
@@ -225,7 +227,9 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		di->stats.packetCount,
 		di->stats.ccErrors,
 		di->srcaddr,
-		di->dstaddr);
+		di->dstaddr,
+		ctx->pcap_stats.ps_drop,
+		ctx->pcap_stats.ps_ifdrop);
 
 	write(fd, line, strlen(line));
 
@@ -267,7 +271,6 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 		ltntstools_pid_stats_reset(&e->stats);
 		e->iat_lwm_us = 5000000;
 		e->iat_hwm_us = -1;
-		e->iat_lwm_us = 0;
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -394,6 +397,19 @@ void discovered_items_select_show_pids_toggle(struct tool_context_s *ctx)
 		} else {
 			discovered_item_state_set(e, DI_STATE_SHOW_PIDS);
 		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_free(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *di = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+        while (!xorg_list_is_empty(&ctx->list)) {
+		di = xorg_list_first_entry(&ctx->list, struct discovered_item_s, list);
+		xorg_list_del(&di->list);
+		discovered_item_free(di);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }

@@ -2,7 +2,7 @@
 #include "nic_monitor.h"
 
 /* Reduce this to 4 * 32768 to simulate loss on a NIC with 600Mbps */
-static int g_buffer_size_default = (2 * 1024 * 1024);
+static int g_buffer_size_default = (32 * 1024 * 1024);
 static int g_snaplen_default =
 #ifdef __linux__
 	BUFSIZ
@@ -17,130 +17,19 @@ static int gRunning = 0;
 static struct tool_context_s g_ctx = { 0 };
 static struct tool_context_s *ctx = &g_ctx;
 
-static void _processPackets(struct tool_context_s *ctx,
-	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr,
-	const uint8_t *pkts, uint32_t pktCount, int isRTP,
-	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt)
+#if defined(__linux__)
+extern int pthread_setname_np(pthread_t thread, const char *name);
+#endif
+
+int ltnpthread_setname_np(pthread_t thread, const char *name)
 {
-	struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
-
-	di->isRTP = isRTP;
-
-	struct timeval now, diff;
-	gettimeofday(&now, NULL);
-	if (di->iat_last_frame.tv_sec) {
-		ltn_histogram_timeval_subtract(&diff, &now, &di->iat_last_frame);
-		di->iat_cur_us = ltn_histogram_timeval_to_us(&diff);
-
-		if (di->iat_cur_us <= di->iat_lwm_us)
-			di->iat_lwm_us = di->iat_cur_us;
-		if (di->iat_cur_us >= di->iat_hwm_us)
-			di->iat_hwm_us = di->iat_cur_us;
-	}
-	di->iat_last_frame = now;
-
-	ltntstools_pid_stats_update(&di->stats, pkts, pktCount);
-
-	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORD_STOP)) {
-		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_START);
-		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_STOP);
-		discovered_item_state_clr(di, DI_STATE_PCAP_RECORDING);
-
-		ltntstools_segmentwriter_free(di->pcapRecorder);
-		di->pcapRecorder = NULL;
-	}
-	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORD_START)) {
-		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_START);
-		discovered_item_state_set(di, DI_STATE_PCAP_RECORDING);
-
-		char prefix[512];
-		sprintf(prefix, "/tmp/nic_monitor-%s-%s", ctx->ifname, di->dstaddr);
-		int ret = ltntstools_segmentwriter_alloc(&di->pcapRecorder, prefix, ".pcap", 0);
-		if (ret < 0) {
-			fprintf(stderr, "%s() unable to allocate a segment writer\n", __func__);
-			exit(1);
-		}
-
-		struct pcap_file_header hdr;
-		hdr.magic = 0xa1b2c3d4;
-		hdr.version_major = PCAP_VERSION_MAJOR;
-		hdr.version_minor = PCAP_VERSION_MINOR;
-		hdr.thiszone = 0;
-		hdr.sigfigs = 0;
-		hdr.snaplen = 0x400000;
-		hdr.linktype = DLT_EN10MB;
-		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)&hdr, sizeof(hdr));
-	}
-	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING)) {
-		/* Dump the cb_h and cb_pkt payload to disk, via a thread. */
-		/* Make sure the timestamps are 4 bytes long, not the native struct size
-		 * for the running platform.
-		 */
-		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h, 4);
-		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h + 8, 4);
-		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h + 16, sizeof(bpf_u_int32) * 2);
-		ltntstools_segmentwriter_write(di->pcapRecorder, cb_pkt, cb_h->len);
-	}
-}
-
-static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_char *pkt) 
-{ 
-	int isRTP = 0;
-
-	if (h->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
-		return;
-
-	struct ether_header *eth = (struct ether_header *)pkt;
-	if (ntohs(eth->ether_type) == ETHERTYPE_IP) {
-		struct iphdr *ip = (struct iphdr *)((u_char *)eth + sizeof(struct ether_header));
-
-#ifdef __APPLE__
-		if (ip->ip_p != IPPROTO_UDP)
-			return;
+#if defined(__linux__)
+        return pthread_setname_np(thread, name);
 #endif
-#ifdef __linux__
-		if (ip->protocol != IPPROTO_UDP)
-			return;
+#if defined(__APPLE__)
+        /* We don't support thread naming on OSX, yet. */
+        return 0;
 #endif
-
-		struct udphdr *udp = (struct udphdr *)((u_char *)ip + sizeof(struct iphdr));
-		uint8_t *ptr = (uint8_t *)((uint8_t *)udp + sizeof(struct udphdr));
-
-		if (ctx->verbose) {
-			struct in_addr dstaddr, srcaddr;
-#ifdef __APPLE__
-			srcaddr.s_addr = ip->ip_src.s_addr;
-			dstaddr.s_addr = ip->ip_dst.s_addr;
-#endif
-#ifdef __linux__
-			srcaddr.s_addr = ip->saddr;
-			dstaddr.s_addr = ip->daddr;
-#endif
-
-			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->uh_sport));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->uh_dport));
-
-			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
-				
-				src, dst,
-				ntohs(udp->uh_ulen),
-				ptr[0], ptr[1], ptr[2], ptr[3]);
-		}
-
-		if (ptr[0] != 0x47) {
-			/* Make a rash assumption that's it's RTP where possible. */
-			if (ptr[12] == 0x47) {
-				ptr += 12;
-				isRTP = 1;
-			}
-		}
-
-		/* TS Packet, almost certainly */
-		/* We can safely assume there are len / 188 packets. */
-		int pktCount = ntohs(udp->uh_ulen) / 188;
-		_processPackets(ctx, eth, ip, udp, ptr, pktCount, isRTP, h, pkt);
-	}
 }
 
 static void *ui_thread_func(void *p)
@@ -150,6 +39,10 @@ static void *ui_thread_func(void *p)
 	ctx->ui_threadTerminate = 0;
 	ctx->ui_threadTerminated = 0;
 	ctx->trailerRow = DEFAULT_TRAILERROW;
+	double totalMbps = 0;
+
+	ltnpthread_setname_np(ctx->ui_threadId, "tstools-ui");
+	pthread_detach(pthread_self());
 
 	noecho();
 	curs_set(0);
@@ -162,8 +55,14 @@ static void *ui_thread_func(void *p)
 
 	while (!ctx->ui_threadTerminate) {
 
+		totalMbps = 0;
 		time_t now;
 		time(&now);
+
+		if ((ctx->file_prefix || ctx->detailed_file_prefix) && ctx->file_next_write_time <= now) {
+			ctx->file_next_write_time = now + ctx->file_write_interval;
+			discovered_items_file_summary(ctx);
+		}
 
 		clear();
 
@@ -198,7 +97,7 @@ static void *ui_thread_func(void *p)
 		}
 
 		attron(COLOR_PAIR(1));
-		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <------PACKETS <------CCErr <---IAT-(cur/min/max)");
+		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <------PACKETS <------CCErr <-IAT(uS)------------");
 		attroff(COLOR_PAIR(1));
 
 		int streamCount = 1;
@@ -217,6 +116,7 @@ static void *ui_thread_func(void *p)
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
 				attron(COLOR_PAIR(5));
 
+			totalMbps += ltntstools_pid_stats_stream_get_mbps(&di->stats);
 			mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
 				di->isRTP ? "RTP" : "UDP",
 				di->srcaddr,
@@ -268,12 +168,14 @@ static void *ui_thread_func(void *p)
 		ctx->trailerRow = streamCount + 3;
 
 		attron(COLOR_PAIR(2));
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids");
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids  using: %d free: %d",
+			ctx->rebalance_last_buffers_used,
+			ctx->listpcapFreeDepth);
 		attroff(COLOR_PAIR(2));
 
 		char tail_a[160], tail_b[160], tail_c[160];
 		memset(tail_b, '-', sizeof(tail_b));
-		sprintf(tail_a, "TSTOOLS_NIC_MONITOR");
+		sprintf(tail_a, "TSTOOLS_NIC_MONITOR                                %7.02f", totalMbps);
 		sprintf(tail_c, "%s", ctime(&now));
 		blen = 109 - (strlen(tail_a) + strlen(tail_c));
 		memset(tail_b, 0x20, sizeof(tail_b));
@@ -300,7 +202,8 @@ static void *stats_thread_func(void *p)
 	ctx->stats_threadTerminate = 0;
 	ctx->stats_threadTerminated = 0;
 
-	int processed;
+	ltnpthread_setname_np(ctx->stats_threadId, "tstools-stats");
+	pthread_detach(pthread_self());
 
 	time_t now;
 	time(&now);
@@ -308,23 +211,144 @@ static void *stats_thread_func(void *p)
 		ctx->file_next_write_time = now + ctx->file_write_interval;
 	}
 
+	int workdone = 0;
 	while (!ctx->stats_threadTerminate) {
-		/* Collect pcap packet loss stats */
-		if (pcap_stats(ctx->descr, &ctx->pcap_stats) != 0) {
-			/* Error */
-		}
 
-		processed = pcap_dispatch(ctx->descr, -1, pcap_callback, NULL);
-		if (processed == 0)
-			usleep(5 * 1000);
+		workdone = 0;
+		int count = pcap_queue_service(ctx);
+		if (count)
+			workdone++;
 
+#if 0
 		time(&now);
 		if ((ctx->file_prefix || ctx->detailed_file_prefix) && ctx->file_next_write_time <= now) {
 			ctx->file_next_write_time = now + ctx->file_write_interval;
-			/* TODO: We're writing small amounts of I/O in the network thread. */
-			/*       Build a writer thread if we have hundreds of discovered streams. */
 			discovered_items_file_summary(ctx);
+			workdone++;
 		}
+#endif
+
+		/* We don't want the thread thrashing when we have nothing to process. */
+		if (!workdone)
+			usleep(1 * 1000);
+	}
+	ctx->stats_threadTerminated = 1;
+
+	pthread_exit(NULL);
+	return 0;
+}
+
+static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_char *pkt) 
+{
+	pcap_update_statistics(ctx, h, pkt); /* Update the stream stats realtime to avoid queue jitter */
+	pcap_queue_push(ctx, h, pkt); /* Push the packet onto a deferred queue for late IO processing. */
+}
+
+static void *pcap_thread_func(void *p)
+{
+	struct tool_context_s *ctx = p;
+	ctx->pcap_threadRunning = 1;
+	ctx->pcap_threadTerminate = 0;
+	ctx->pcap_threadTerminated = 0;
+
+	int processed;
+
+	ltnpthread_setname_np(ctx->pcap_threadId, "tstools-pcap");
+	pthread_detach(pthread_self());
+
+	time_t lastStatsCheck = 0;
+
+	ctx->descr = pcap_create(ctx->ifname, ctx->errbuf);
+	if (ctx->descr == NULL) {
+		fprintf(stderr, "Error, %s\n", ctx->errbuf);
+		exit(1);
+	}
+
+	pcap_set_snaplen(ctx->descr, ctx->snaplen);
+	pcap_set_promisc(ctx->descr,
+#ifdef __linux__
+		-1
+#endif
+#ifdef __APPLE__
+		1
+#endif
+	);
+
+	if (ctx->bufferSize != -1) {
+		int ret = pcap_set_buffer_size(ctx->descr, ctx->bufferSize);
+		if (ret == PCAP_ERROR_ACTIVATED) {
+			fprintf(stderr, "Unable to set -B buffersize to %d, already activated\n", ctx->bufferSize);
+			exit(0);
+		}
+		if (ret != 0) {
+			fprintf(stderr, "Unable to set -B buffersize to %d\n", ctx->bufferSize);
+			exit(0);
+		}
+	}
+
+	int ret = pcap_activate(ctx->descr);
+	if (ret != 0) {
+		if (ret == PCAP_ERROR_PERM_DENIED) {
+			fprintf(stderr, "Error, permission denied.\n");
+		}
+		if (ret == PCAP_ERROR_NO_SUCH_DEVICE) {
+			fprintf(stderr, "Error, network interface '%s' not found.\n", ctx->ifname);
+		}
+		fprintf(stderr, "Error, pcap_activate, %s\n", pcap_geterr(ctx->descr));
+		exit(1);
+	}
+
+	/* TODO: We should craft the filter to be udp dst 224.0.0.0/4 and then
+	 * we don't need to manually filter in our callback.
+	 */
+	struct bpf_program fp;
+	ret = pcap_compile(ctx->descr, &fp, ctx->pcap_filter, 0, ctx->netp);
+	if (ret == -1) {
+		fprintf(stderr, "Error, pcap_compile, %s\n", pcap_geterr(ctx->descr));
+		exit(1);
+	}
+
+	ret = pcap_setfilter(ctx->descr, &fp);
+	if (ret == -1) {
+		fprintf(stderr, "Error, pcap_setfilter\n");
+		exit(1);
+	}
+
+	pcap_setnonblock(ctx->descr, 1, ctx->errbuf);
+
+	while (!ctx->pcap_threadTerminate) {
+
+		processed = pcap_dispatch(ctx->descr, -1, pcap_callback, NULL);
+		if (processed == 0) {
+			ctx->pcap_dispatch_miss++;
+			usleep(1 * 1000);
+		}
+
+		time_t now;
+		time(&now);
+
+		/* Querying stats repeatidly is cpu expensive, we only need it 1sec intervals. */
+		if (lastStatsCheck == 0) {
+			/* Collect pcap packet loss stats */
+			if (pcap_stats(ctx->descr, &ctx->pcap_stats_startup) != 0) {
+				/* Error */
+			}
+		}
+
+		if (now != lastStatsCheck) {
+			lastStatsCheck = now;
+			/* Collect pcap packet loss stats */
+			struct pcap_stat tmp;
+			if (pcap_stats(ctx->descr, &tmp) != 0) {
+				/* Error */
+			}
+
+			ctx->pcap_stats.ps_recv = tmp.ps_recv - ctx->pcap_stats_startup.ps_recv;
+			ctx->pcap_stats.ps_drop = tmp.ps_drop - ctx->pcap_stats_startup.ps_drop;
+			ctx->pcap_stats.ps_ifdrop = tmp.ps_ifdrop - ctx->pcap_stats_startup.ps_ifdrop;
+		}
+
+		pcap_queue_rebalance(ctx);
 
 		if (ctx->endTime) {
 			if (now >= ctx->endTime) {
@@ -334,7 +358,7 @@ static void *stats_thread_func(void *p)
 			}
 		}
 	}
-	ctx->stats_threadTerminated = 1;
+	ctx->pcap_threadTerminated = 1;
 
 	pthread_exit(NULL);
 	return 0;
@@ -357,6 +381,7 @@ static void usage(const char *progname)
 	printf("  -h Display command line help.\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("  -M Display an interactive console with stats.\n");
+	printf("  -D <dir> Write any PCAP recordings in this target directory prefix. [def: /tmp]\n");
 	printf("  -d <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
 	printf("  -w <dir> Write detailed pid stats per stream in this target directory prefix, every -n seconds.\n");
 	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
@@ -370,11 +395,29 @@ static void usage(const char *progname)
 
 int nic_monitor(int argc, char *argv[])
 {
+	struct timeval now, then, diff;
+
+	gettimeofday(&then, 0);
+	usleep(1 * 1000);
+	gettimeofday(&now, 0);
+	ltn_histogram_timeval_subtract(&diff, &now, &then);
+	int vms = ltn_histogram_timeval_to_ms(&diff);
+	int vus = ltn_histogram_timeval_to_us(&diff);
+printf("vms %d vus %d\n", vms, vus);
+
+//exit(0);
+
 	int ch;
-	int ret;
 
 	pthread_mutex_init(&ctx->lock, NULL);
 	xorg_list_init(&ctx->list);
+
+	pthread_mutex_init(&ctx->lockpcap, NULL);
+	xorg_list_init(&ctx->listpcapFree);
+	xorg_list_init(&ctx->listpcapUsed);
+
+	pcap_queue_initialize(ctx);
+
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
 	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
 	ctx->snaplen = g_snaplen_default;
@@ -418,6 +461,9 @@ int nic_monitor(int argc, char *argv[])
 			ctx->monitor = 1;
 			break;
 		case 'D':
+			ctx->recordingDir = optarg;
+			break;
+		case 'E':
 		{
 			struct parser_ippid_s p;
 			if (parsers_ippid_parse(optarg, &p) < 0) {
@@ -461,7 +507,7 @@ int nic_monitor(int argc, char *argv[])
 	printf(" filter: %s\n", ctx->pcap_filter);
 	printf("snaplen: %d\n", ctx->snaplen);
 	printf("buffSiz: %d\n", ctx->bufferSize);
-
+#if 0
 	ctx->descr = pcap_create(ctx->ifname, ctx->errbuf);
 	if (ctx->descr == NULL) {
 		fprintf(stderr, "Error, %s\n", ctx->errbuf);
@@ -489,6 +535,7 @@ int nic_monitor(int argc, char *argv[])
 			exit(0);
 		}
 	}
+
 	ret = pcap_activate(ctx->descr);
 	if (ret != 0) {
 		if (ret == PCAP_ERROR_PERM_DENIED) {
@@ -519,8 +566,10 @@ int nic_monitor(int argc, char *argv[])
 
 	pcap_setnonblock(ctx->descr, 1, ctx->errbuf);
 
+#endif
 	gRunning = 1;
 	pthread_create(&ctx->stats_threadId, 0, stats_thread_func, ctx);
+	pthread_create(&ctx->pcap_threadId, 0, pcap_thread_func, ctx);
 
 	if (ctx->monitor) {
 		initscr();
@@ -575,7 +624,10 @@ int nic_monitor(int argc, char *argv[])
 
 	/* Shutdown stats collection */
 	ctx->ui_threadTerminate = 1;
+	ctx->pcap_threadTerminate = 1;
 	ctx->stats_threadTerminate = 1;
+	while (!ctx->pcap_threadTerminated)
+		usleep(50 * 1000);
 	while (!ctx->stats_threadTerminated)
 		usleep(50 * 1000);
 
@@ -589,6 +641,15 @@ int nic_monitor(int argc, char *argv[])
 	}
 
 	discovered_items_console_summary(ctx);
+
+printf("pcap_free_miss %" PRIi64 "\n", ctx->pcap_free_miss);
+printf("pcap_dispatch_miss %" PRIi64 "\n", ctx->pcap_dispatch_miss);
+printf("ctx->listpcapFreeDepth %d\n", ctx->listpcapFreeDepth);
+printf("ctx->listpcapUsedDepth %d\n", ctx->listpcapUsedDepth);
+printf("ctx->rebalance_last_buffers_used %d\n", ctx->rebalance_last_buffers_used);
+
+	pcap_queue_free(ctx);
+	discovered_items_free(ctx);
 
 	free(ctx->file_prefix);
 	free(ctx->detailed_file_prefix);

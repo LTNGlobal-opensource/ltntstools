@@ -27,9 +27,13 @@
 struct tool_context_s
 {
 	char *ifname;
+	char *recordingDir;
 	int verbose;
 	int monitor;
 	time_t endTime;
+
+	pthread_t pcap_threadId;
+	int pcap_threadTerminate, pcap_threadRunning, pcap_threadTerminated;
 
 	pthread_t stats_threadId;
 	int stats_threadTerminate, stats_threadRunning, stats_threadTerminated;
@@ -48,10 +52,26 @@ struct tool_context_s
 	int snaplen;
 	int bufferSize;
 	struct pcap_stat pcap_stats; /* network loss and drop statistics */
+	struct pcap_stat pcap_stats_startup; /* network loss and drop statistics */
+	int64_t pcap_free_miss;
+	int64_t pcap_dispatch_miss;
+
+	/* queue rebalancing */
+	int rebalance_last_buffers_used;
+	time_t rebalance_last_buffer_time;
+	int rebalance_buffers_used;
+	time_t rebalance_queue_time_last;
 
 	/* list of discovered addresses and related statistics. */
 	pthread_mutex_t lock;
 	struct xorg_list list;
+
+	/* All pcap buffers go into a thread and are handled in a non-realtime thread. */
+	pthread_mutex_t lockpcap;
+	struct xorg_list listpcapFree;
+	int listpcapFreeDepth;
+	struct xorg_list listpcapUsed;
+	int listpcapUsedDepth;
 
 	/* File based statistics */
 	char *file_prefix;
@@ -61,6 +81,20 @@ struct tool_context_s
 	/* Detailed file based statistics */
 	char *detailed_file_prefix;
 };
+
+struct pcap_item_s
+{
+	struct xorg_list list;
+	struct pcap_pkthdr *h;
+	u_char *pkt;
+};
+
+void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr *h, const u_char *pkt);
+int pcap_queue_initialize(struct tool_context_s *ctx);
+int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, const u_char *pkt);
+int pcap_queue_service(struct tool_context_s *ctx);
+int pcap_queue_rebalance(struct tool_context_s *ctx);
+void pcap_queue_free(struct tool_context_s *ctx);
 
 struct discovered_item_s
 {
@@ -110,6 +144,7 @@ struct discovered_item_s
 };
 
 void discovered_item_free(struct discovered_item_s *di);
+void discovered_items_free(struct tool_context_s *ctx);
 struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr);
 
 struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
