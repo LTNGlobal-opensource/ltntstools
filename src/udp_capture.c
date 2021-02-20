@@ -24,9 +24,8 @@ struct tool_context_s
 	int verbose;
 	int stopAfterSeconds;
 
-	FILE *ofh;
-	int isSegmenting;
-	time_t currentSegmentTime;
+	/* Segment Writer */
+	void *swctx;
 
 	void *hires_throughput;
 
@@ -47,62 +46,10 @@ struct tool_context_s
 	AVIOContext *puc;
 };
 
-static void generateSegmentName(struct tool_context_s *ctx, char *fn, time_t *when)
-{
-	sprintf(fn, "%s", ctx->oname);
-	fn[strlen(fn) - 1] = 0; /* remove trailing @ */
-	struct tm tm;
-	time_t now;
-        
-	if (when)
-		now = *when;
-	else    
-		time(&now);
-                
-	localtime_r(&now, &tm);
-        
-	sprintf(fn + strlen(fn), "%04d%02d%02d-%02d%02d%02d.ts",
-		tm.tm_year + 1900,
-		tm.tm_mon  + 1,
-		tm.tm_mday,
-		tm.tm_hour,
-		tm.tm_min,
-		tm.tm_sec);
-}
-
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
 {
-	time_t now;
-	time(&now);
-
-	/* TODO: Convert this to segment writer (which is already threaded),
-	 * the implementation below isn't threaded.
-	 */
-	if (ctx->isSegmenting && (now >= ctx->currentSegmentTime + 60)) {
-		ctx->currentSegmentTime = 0;
-		if (ctx->ofh) {
-			fclose(ctx->ofh);
-			ctx->ofh = NULL;
-		}
-	}
-
-	if (ctx->isSegmenting && ctx->currentSegmentTime == 0) {
-		ctx->currentSegmentTime = now;
-		char fn[256];
-		generateSegmentName(ctx, &fn[0], &now);
-		ctx->ofh = fopen(fn, "wb");
-		if (!ctx->ofh) {
-			fprintf(stderr, "Problem opening output file %s, aborting.\n", fn);
-			return NULL;
-		}
-	}
-
-	if (ctx->ofh) {
-		size_t wlen = fwrite(buf, 1, byteCount, ctx->ofh);
-
-		if (wlen != byteCount) {
-			fprintf(stderr, "Warning: unable to write output\n");
-		}
+	if (ctx->swctx) {
+		ltntstools_segmentwriter_write(ctx->swctx, (const uint8_t *)buf, byteCount);
 	}
 
 	throughput_hires_write_i64(ctx->hires_throughput, 0, byteCount, NULL);
@@ -308,8 +255,8 @@ static void usage(const char *progname)
 	printf("           172.16.0.67 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -o <output filename> (optional)\n");
 	printf("     By default, the tool creates a single file with all packets.\n");
-	printf("     Add -@ to the end of your -o filename (Eg. -o DIR/mystream-@ to segment the packets\n");
-	printf("     into 60 second .ts files, with suffix -YYYYMMDD-HHMMSS.ts. \n");
+	printf("     Add @ to the end of your -o filename (Eg. -o DIR/mystream@ to segment the packets\n");
+	printf("     into 60 second .ts files, with suffix DIR/mystream-YYYYMMDD-hhmmss.ts\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -M Display an interactive console with stats.\n");
@@ -322,6 +269,7 @@ int udp_capture(int argc, char *argv[])
 {
 	int ret = 0;
 	int ch;
+	int segmenting = 0;
 
 	struct tool_context_s tctx, *ctx;
 	ctx = &tctx;
@@ -345,6 +293,15 @@ int udp_capture(int argc, char *argv[])
 			break;
 		case 'o':
 			ctx->oname = optarg;
+			if (ctx->oname[strlen(ctx->oname) - 1] == '@') {
+				segmenting = 1;
+				ctx->oname[strlen(ctx->oname) - 1] = 0;
+			}
+			ret = ltntstools_segmentwriter_alloc(&ctx->swctx, ctx->oname, ".ts", segmenting);
+			if (ret < 0) {
+				fprintf(stderr, "%s() unable to allocate a segment writer\n", __func__);
+				exit(1);
+			}
 			break;
 #ifdef __linux__
 		case 't':
@@ -376,21 +333,6 @@ int udp_capture(int argc, char *argv[])
 		fprintf(stderr, "-i syntax error\n");
 		ret = -1;
 		goto no_output;
-	}
-
-	if (ctx->oname) {
-		if (ctx->oname[strlen(ctx->oname) - 1] == '@') {
-			/* We'll be segmenting the output. */
-			ctx->isSegmenting = 1;
-		} else {
-			/* Single output file. */
-			ctx->ofh = fopen(ctx->oname, "wb");
-			if (!ctx->ofh) {
-				fprintf(stderr, "Problem opening output file, aborting.\n");
-				ret = -1;
-				goto no_output;
-			}
-		}
 	}
 
 	/* Preallocate enough throughput measures for approx a 40mbit stream */
@@ -458,8 +400,9 @@ int udp_capture(int argc, char *argv[])
 		}
 	}
 
-	if (ctx->ofh)
-		fclose(ctx->ofh);
+	if (ctx->swctx) {
+		ltntstools_segmentwriter_free(ctx->swctx);
+	}
 
 	throughput_hires_free(ctx->hires_throughput);
 
