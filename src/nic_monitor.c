@@ -161,6 +161,11 @@ static void *ui_thread_func(void *p)
 				streamCount++;
 			}
 
+			if (discovered_item_state_get(di, DI_STATE_SHOW_TR101290)) {
+				streamCount++;
+				mvprintw(streamCount + 2, 0, " -> TR101290 Status (NOT YET SUPPORTED)");
+			}
+
 			streamCount++;
 		}
 		pthread_mutex_unlock(&ctx->lock);
@@ -168,7 +173,7 @@ static void *ui_thread_func(void *p)
 		ctx->trailerRow = streamCount + 3;
 
 		attron(COLOR_PAIR(2));
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids  using: %d free: %d",
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids T)R101290  using: %d free: %d",
 			ctx->rebalance_last_buffers_used,
 			ctx->listpcapFreeDepth);
 		attroff(COLOR_PAIR(2));
@@ -592,6 +597,9 @@ printf("vms %d vus %d\n", vms, vus);
 		}
 		if (c == 'S') {
 			discovered_items_select_all(ctx);
+		}
+		if (c == 'T') {
+			discovered_items_select_show_tr101290_toggle(ctx);
 		}
 		if (c == 'R') {
 			discovered_items_select_record_toggle(ctx);

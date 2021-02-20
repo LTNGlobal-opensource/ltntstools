@@ -401,6 +401,24 @@ void discovered_items_select_show_pids_toggle(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 }
 
+void discovered_items_select_show_tr101290_toggle(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		if (discovered_item_state_get(e, DI_STATE_SHOW_TR101290)) {
+			discovered_item_state_clr(e, DI_STATE_SHOW_TR101290);
+		} else {
+			discovered_item_state_set(e, DI_STATE_SHOW_TR101290);
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
 void discovered_items_free(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *di = NULL;
