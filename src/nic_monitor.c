@@ -162,8 +162,49 @@ static void *ui_thread_func(void *p)
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_TR101290)) {
+#if 0
+        /* Priority 1 */
+        E101290_P1_1__TS_SYNC_LOSS,
+        E101290_P1_2__SYNC_BYTE_ERROR,
+        E101290_P1_3__PAT_ERROR,
+        E101290_P1_3a__PAT_ERROR_2,
+        E101290_P1_4__CONTINUITY_COUNTER_ERROR,
+        E101290_P1_5__PMT_ERROR,
+        E101290_P1_5a__PMT_ERROR_2,
+        E101290_P1_6__PID_ERROR,
+
+        /* Priority 2 */
+        E101290_P2_1__TRANSPORT_ERROR,
+        E101290_P2_2__CRC_ERROR,
+        E101290_P2_3__PCR_ERROR,
+        E101290_P2_3a__PCR_REPETITION_ERROR,
+        E101290_P2_4__PCR_ACCURACY_ERROR,
+        E101290_P2_5__PTS_ERROR,
+        E101290_P2_6__CAT_ERROR,
+
+#endif
 				streamCount++;
 				mvprintw(streamCount + 2, 0, " -> TR101290 Status (NOT YET SUPPORTED)");
+				streamCount++;
+				int p1col = 10;
+				mvprintw(streamCount + 2, p1col, "P1.1  TS SYNC LOSS");
+				mvprintw(streamCount + 3, p1col, "P1.2  SYNC BYTE ERROR");
+				mvprintw(streamCount + 4, p1col, "P1.3  PAT ERROR");
+				mvprintw(streamCount + 5, p1col, "P1.3a PAT ERROR 2");
+				mvprintw(streamCount + 6, p1col, "P1.4  CC ERROR");
+				mvprintw(streamCount + 7, p1col, "P1.5  PMT ERROR");
+				mvprintw(streamCount + 8, p1col, "P1.5a PMT ERROR 2");
+				mvprintw(streamCount + 9, p1col, "P1.6  PID ERROR");
+
+				int p2col = 35;
+				mvprintw(streamCount + 2, p2col, "P2.1  TRANSPORT ERROR");
+				mvprintw(streamCount + 3, p2col, "P2.2  CRC ERROR");
+				mvprintw(streamCount + 4, p2col, "P2.3  PCR ERROR");
+				mvprintw(streamCount + 5, p2col, "P2.3a PCR REPETITION ERROR");
+				mvprintw(streamCount + 6, p2col, "P2.4  PCR ACCURACY ERROR");
+				mvprintw(streamCount + 7, p2col, "P2.5  PTS ERROR");
+				mvprintw(streamCount + 8, p2col, "P2.6  CAT ERROR");
+				streamCount += 8;
 			}
 
 			streamCount++;
