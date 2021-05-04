@@ -349,8 +349,8 @@ int udp_capture(int argc, char *argv[])
 
 	while (gRunning) {
 		if (!kbhit()) {
-			continue;
 			usleep(50 * 1000);
+			continue;
 		}
 
 		int ch = getch();
