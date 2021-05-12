@@ -711,6 +711,9 @@ printf("ctx->listpcapFreeDepth %d\n", ctx->listpcapFreeDepth);
 printf("ctx->listpcapUsedDepth %d\n", ctx->listpcapUsedDepth);
 printf("ctx->rebalance_last_buffers_used %d\n", ctx->rebalance_last_buffers_used);
 
+	printf("pcap nic '%s' stats: dropped: %d/%d\n",
+		ctx->ifname, ctx->pcap_stats.ps_drop, ctx->pcap_stats.ps_ifdrop);
+
 	pcap_queue_free(ctx);
 	discovered_items_free(ctx);
 
