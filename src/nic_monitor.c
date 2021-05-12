@@ -477,18 +477,6 @@ static void usage(const char *progname)
 
 int nic_monitor(int argc, char *argv[])
 {
-	struct timeval now, then, diff;
-
-	gettimeofday(&then, 0);
-	usleep(1 * 1000);
-	gettimeofday(&now, 0);
-	ltn_histogram_timeval_subtract(&diff, &now, &then);
-	int vms = ltn_histogram_timeval_to_ms(&diff);
-	int vus = ltn_histogram_timeval_to_us(&diff);
-printf("vms %d vus %d\n", vms, vus);
-
-//exit(0);
-
 	int ch;
 
 	pthread_mutex_init(&ctx->lock, NULL);
