@@ -43,6 +43,7 @@ static void *ui_thread_func(void *p)
 
 	ltnpthread_setname_np(ctx->ui_threadId, "tstools-ui");
 	pthread_detach(pthread_self());
+	setlocale(LC_NUMERIC, "");
 
 	noecho();
 	curs_set(0);
@@ -65,6 +66,11 @@ static void *ui_thread_func(void *p)
 			discovered_items_file_summary(ctx);
 		}
 
+		if (ctx->freezeDisplay & 1) {
+			usleep(50 * 1000);
+			continue;
+		}
+
 		clear();
 
 		struct in_addr ip_net, ip_mask;
@@ -80,7 +86,7 @@ static void *ui_thread_func(void *p)
 		sprintf(title_c, "NIC: %s (%s/%s) Dropped: %d/%d", ctx->ifname, inet_ntoa(ip_net), mask,
 			ctx->pcap_stats.ps_drop,
 			ctx->pcap_stats.ps_ifdrop);
-		int blen = 108 - (strlen(title_a) + strlen(title_c));
+		int blen = 111 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
 
@@ -98,7 +104,7 @@ static void *ui_thread_func(void *p)
 		}
 
 		attron(COLOR_PAIR(1));
-		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <------PACKETS <------CCErr <-IAT(uS)------------");
+		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <---------PACKETS <------CCErr <-IAT(uS)------------");
 		attroff(COLOR_PAIR(1));
 
 		int streamCount = 1;
@@ -117,8 +123,11 @@ static void *ui_thread_func(void *p)
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
 				attron(COLOR_PAIR(5));
 
+			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
+				attron(COLOR_PAIR(4));
+
 			totalMbps += ltntstools_pid_stats_stream_get_mbps(&di->stats);
-			mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %13" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
+			mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
 				di->isRTP ? "RTP" : "UDP",
 				di->srcaddr,
 				di->dstaddr,
@@ -126,6 +135,9 @@ static void *ui_thread_func(void *p)
 				di->stats.packetCount,
 				di->stats.ccErrors,
 				di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
+
+			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
+				attroff(COLOR_PAIR(4));
 
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
 				attroff(COLOR_PAIR(5));
@@ -229,26 +241,32 @@ static void *ui_thread_func(void *p)
 
 		attron(COLOR_PAIR(2));
 #if 1
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids");
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze");
 #else
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids T)R101290  using: %d free: %d",
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze T)R101290  using: %d free: %d",
 			ctx->rebalance_last_buffers_used,
 			ctx->listpcapFreeDepth);
 #endif
 		attroff(COLOR_PAIR(2));
 
 		char tail_a[160], tail_b[160], tail_c[160];
+		attron(COLOR_PAIR(1));
+
+		char s[64];
+		sprintf(s, "%s", ctime(&now));
+		s[ strlen(s) - 1 ] = 0;
 		memset(tail_b, '-', sizeof(tail_b));
-		sprintf(tail_a, "TSTOOLS_NIC_MONITOR                                %7.02f", totalMbps);
-		sprintf(tail_c, "%s", ctime(&now));
-		blen = 109 - (strlen(tail_a) + strlen(tail_c));
+		sprintf(tail_a, "%s                           %7.02f", s, totalMbps);
+		sprintf(tail_c, "Since: %s", ctime(&ctx->lastResetTime));
+		blen = 112 - (strlen(tail_a) + strlen(tail_c));
 		memset(tail_b, 0x20, sizeof(tail_b));
 		tail_b[blen] = 0;
 
-		attron(COLOR_PAIR(1));
 		mvprintw(ctx->trailerRow + 1, 0, "%s%s%s", tail_a, tail_b, tail_c);
+
 		attroff(COLOR_PAIR(1));
 
+		/* -- */
 		refresh();
 
 		usleep(200 * 1000);
@@ -644,11 +662,16 @@ printf("vms %d vus %d\n", vms, vus);
 	signal(SIGINT, signal_handler);
 	timeout(300);
 
+	time(&ctx->lastResetTime);
 	while (gRunning) {
 		char c = getch();
 		if (c == 'q')
 			break;
+		if (c == 'f') {
+			ctx->freezeDisplay++;
+		}
 		if (c == 'r') {
+			time(&ctx->lastResetTime);
 			discovered_items_stats_reset(ctx);
 		}
 		if (c == 'D') {

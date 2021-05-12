@@ -10,6 +10,7 @@
 #include <curses.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <locale.h>
 #include <libltntstools/ltntstools.h>
 #include "xorg-list.h"
 #include "parsers.h"
@@ -80,6 +81,10 @@ struct tool_context_s
 
 	/* Detailed file based statistics */
 	char *detailed_file_prefix;
+
+	/* Stats reset time */
+	time_t lastResetTime;
+	int freezeDisplay;
 };
 
 struct pcap_item_s
@@ -107,6 +112,7 @@ struct discovered_item_s
 #define DI_STATE_PCAP_RECORD_STOP	(1 << 4)
 #define DI_STATE_SHOW_PIDS		(1 << 5)
 #define DI_STATE_SHOW_TR101290		(1 << 6)
+#define DI_STATE_DST_DUPLICATE		(1 << 7)
 	unsigned int state;
 
 	time_t firstSeen;

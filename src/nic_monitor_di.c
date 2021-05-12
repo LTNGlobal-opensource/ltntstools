@@ -37,6 +37,34 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 	return di;
 }
 
+/* This function is take with the ctx->list held by the caller. */
+static void discovered_item_insert(struct tool_context_s *ctx, struct discovered_item_s *di)
+{
+	struct discovered_item_s *e = NULL;
+
+	/* Maintain a sorted list of objects, based on dst ip address and port. */
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+#ifdef __linux__
+		uint64_t a = (uint64_t)ntohl(e->iphdr.daddr) << 16;
+		a |= (e->udphdr.uh_dport);
+
+		uint64_t b = (uint64_t)ntohl(di->iphdr.daddr) << 16;
+		b |= (di->udphdr.uh_dport);
+#endif
+		if (a < b)
+			continue;
+
+		if (a == b) {
+			discovered_item_state_set(di, DI_STATE_DST_DUPLICATE);
+			discovered_item_state_set(e, DI_STATE_DST_DUPLICATE);
+		}
+		xorg_list_add(&di->list, e->list.prev);
+		return;
+	}
+
+	xorg_list_append(&di->list, &ctx->list);
+}
+
 struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr)
 {
@@ -68,7 +96,7 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 
 	if (!found) {
 		found = discovered_item_alloc(ethhdr, iphdr, udphdr);
-		xorg_list_append(&found->list, &ctx->list);
+		discovered_item_insert(ctx, found);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 
