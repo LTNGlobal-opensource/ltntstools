@@ -51,6 +51,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: TR101290 development feature disabled in the menu.
   general: Strip the binary before we make the package.
   udp_capture: Experimental changes (disabled) for a less CPU intensive UDP receiver.
+  libltntstools: update segment writer to write an arbitrary file header is segmented mode.
 
 * Fri Jan 29 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.7.0
