@@ -18,6 +18,8 @@
 
 static int gRunning = 0;
 
+#define USE_KL_UDP_RECEIVER 0
+
 struct tool_context_s
 {
 	char *iname, *oname;
@@ -43,7 +45,11 @@ struct tool_context_s
 	/* ffmpeg related */
 	pthread_t ffmpeg_threadId;
 	int ffmpeg_threadTerminate, ffmpeg_threadRunning, ffmpeg_threadTerminated;
+#if USE_KL_UDP_RECEIVER
+	struct ltntstools_udp_receiver_s *udprx;
+#else
 	AVIOContext *puc;
+#endif
 };
 
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
@@ -100,9 +106,15 @@ static void *thread_packet_rx(void *p)
 	ctx->ffmpeg_threadTerminate = 0;
 	ctx->ffmpeg_threadTerminated = 0;
 
+	pthread_detach(ctx->ffmpeg_threadId);
+
 	unsigned char buf[7 * 188];
 
 	while (!ctx->ffmpeg_threadTerminate) {
+#if USE_KL_UDP_RECEIVER
+		usleep(50 * 1000);
+		continue;
+#else
 		int rlen = avio_read(ctx->puc, buf, sizeof(buf));
 		if (ctx->verbose == 2) {
 			printf("source received %d bytes\n", rlen);
@@ -121,9 +133,11 @@ static void *thread_packet_rx(void *p)
 		for (int i = 0; i < rlen; i += 188) {
 			packet_cb(ctx, &buf[i], 188);			
 		}
-
+#endif
 	}
 	ctx->ffmpeg_threadTerminated = 1;
+
+	pthread_exit(0);
 	return 0;
 }
 
@@ -134,6 +148,8 @@ static void *thread_func(void *p)
 	ctx->threadTerminate = 0;
 	ctx->threadTerminated = 0;
 	ctx->trailerRow = DEFAULT_TRAILERROW;
+
+	pthread_detach(ctx->threadId);
 
 	noecho();
 	curs_set(0);
@@ -201,7 +217,7 @@ static void *thread_func(void *p)
 
                 refresh();
 
-		usleep(100 * 1000);
+		usleep(25 * 1000);
 	}
 	ctx->threadTerminated = 1;
 
@@ -328,7 +344,19 @@ int udp_capture(int argc, char *argv[])
 
 	avformat_network_init();
 	
+#if USE_KL_UDP_RECEIVER
+	ret = ltntstools_udp_receiver_alloc(&ctx->udprx,
+		DEFAULT_FIFOSIZE,
+		"227.1.20.20",
+		4001,
+		(tsudp_receiver_callback)packet_cb,
+		ctx,
+		0 /* stripRTPHeader */);
+	ret = ltntstools_udp_receiver_join_multicast(ctx->udprx, "eno2");
+
+#else
 	ret = avio_open2(&ctx->puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+#endif
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
 		ret = -1;
@@ -346,6 +374,10 @@ int udp_capture(int argc, char *argv[])
 	}
 
 	pthread_create(&ctx->ffmpeg_threadId, 0, thread_packet_rx, ctx);
+
+#if USE_KL_UDP_RECEIVER
+	ltntstools_udp_receiver_thread_start(ctx->udprx);
+#endif
 
 	while (gRunning) {
 		if (!kbhit()) {
@@ -374,7 +406,11 @@ int udp_capture(int argc, char *argv[])
 	while (!ctx->ffmpeg_threadTerminated)
 		usleep(50 * 1000);
 
+#if USE_KL_UDP_RECEIVER
+	ltntstools_udp_receiver_free(&ctx->udprx);
+#else
 	avio_close(ctx->puc);
+#endif
 
 	if (ctx->monitor) {
 		ctx->threadTerminate = 1;
