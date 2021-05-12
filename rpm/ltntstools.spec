@@ -36,6 +36,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Wed May 12 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.0
+  tstools_nic_monitor: Record option now creates 1m pcap segment files (use mergecap to join recordings)
   tstools_nic_monitor: Cut/paste improvement. Add a 'freeze' UI command. (Stats continue to be counted silently)
   tstools_nic_monitor: Automatically sort the rows by destination ip:port, rather than random/discovery order.
   tstools_nic_monitor: Moved the current time to lower left.

@@ -150,7 +150,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			strcpy(dirprefix, ctx->recordingDir);
 		}	
 		sprintf(prefix, "%s/nic_monitor-%s-%s", dirprefix, ctx->ifname, di->dstaddr);
-		int ret = ltntstools_segmentwriter_alloc(&di->pcapRecorder, prefix, ".pcap", 0);
+		int ret = ltntstools_segmentwriter_alloc(&di->pcapRecorder, prefix, ".pcap", 1);
 		if (ret < 0) {
 			fprintf(stderr, "%s() unable to allocate a segment writer\n", __func__);
 			exit(1);
@@ -164,7 +164,8 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		hdr.sigfigs = 0;
 		hdr.snaplen = 0x400000;
 		hdr.linktype = DLT_EN10MB;
-		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)&hdr, sizeof(hdr));
+
+		ltntstools_segmentwriter_set_header(di->pcapRecorder, (const uint8_t *)&hdr, sizeof(hdr));
 	}
 	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING)) {
 		/* Dump the cb_h and cb_pkt payload to disk, via a thread. */

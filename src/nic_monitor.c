@@ -153,7 +153,7 @@ static void *ui_thread_func(void *p)
 				if (ret < 0)
 					sprintf(fn, "pending open file");
 
-				mvprintw(streamCount + 2, 0, " -> Recording to ... %s", fn);
+				mvprintw(streamCount + 2, 0, " -> Segmented recording to ... %s", fn);
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
