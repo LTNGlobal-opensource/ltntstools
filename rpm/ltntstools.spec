@@ -34,6 +34,23 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
+* Wed May 12 2021 Steven Toth <stoth@ltnglobal.com> 
+- v1.8.0
+  tstools_nic_monitor: Cut/paste improvement. Add a 'freeze' UI command. (Stats continue to be counted silently)
+  tstools_nic_monitor: Automatically sort the rows by destination ip:port, rather than random/discovery order.
+  tstools_nic_monitor: Moved the current time to lower left.
+  tstools_nic_monitor: Put the datetime the tool was started lower right, and update it when a reset occurs.
+  tstools_nic_monitor: Change the format that 'PacketCount' is show to include three digit delimiters.
+  tstools_nic_monitor: Grow the size of each line by a few characters to accomodate longer packet counters.
+  tstools_nic_monitor: Detect duplicate sources sending to the same multicast ip:port and mark as error in UI.
+  tstools_nic_monitor: When the tool exits, show the PCAP driver packet dropped stats in the output.
+  tstools_nic_monitor: Overhaul pcap recording to better handle high I/O on the platform, reworking internal threads.
+  tstools_nic_monitor: Adjusted PCAP buffering again for even higher workloads.
+  tstools_nic_monitor: Convert to using the segment writer for recordings.
+  tstools_nic_monitor: TR101290 development feature disabled in the menu.
+  general: Strip the binary before we make the package.
+  udp_capture: Experimental changes (disabled) for a less CPU intensive UDP receiver.
+
 * Fri Jan 29 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.7.0
   tstools_nic_monitor: Support significantly higher bitrates without packet loss in dropped or CC stats.
