@@ -160,10 +160,15 @@ static void *ui_thread_func(void *p)
 				for (int i = 0; i < MAX_PID; i++) {
 					if (di->stats.pids[i].enabled) {
 						streamCount++;
-						if (i == 0)
+						if (i == 0) {
 							mvprintw(streamCount + 2, 0, " -> PID Report");
+#if 0
+							mvprintw(streamCount + 3, 0,
+								" -> None 1316 pkts  %" PRIi64, di->notMultipleOfSevenError);
+#endif
+						}
 
-						mvprintw(streamCount + 2, 37, "0x%04x (%4d)  %6.2f %14" PRIu64 " %12" PRIu64 "\n",
+						mvprintw(streamCount + 2, 37, "0x%04x (%4d)  %6.2f %'17" PRIu64 " %12" PRIu64 "\n",
 							i,
 							i,
 							ltntstools_pid_stats_pid_get_mbps(&di->stats, i),
