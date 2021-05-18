@@ -148,6 +148,12 @@ struct discovered_item_s
 
 	/* PCAP recording */
 	void *pcapRecorder;
+
+	/* Monitor the UDP packet lengths, increment
+	 * this each time the length is not 188 * 7
+	 */
+	time_t notMultipleOfSevenErrorLastEvent;
+	int64_t notMultipleOfSevenError;
 };
 
 void discovered_item_free(struct discovered_item_s *di);

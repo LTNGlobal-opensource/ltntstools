@@ -132,6 +132,18 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 
 	di->isRTP = isRTP;
 
+	if (isRTP) {
+		if (ntohs(udphdr->uh_ulen) - 8 + 12 != (7 * 188)) {
+        		di->notMultipleOfSevenError++;
+        		time(&di->notMultipleOfSevenErrorLastEvent);
+		}
+	} else {
+		if (ntohs(udphdr->uh_ulen) - 8 != (7 * 188)) {
+        		di->notMultipleOfSevenError++;
+        		time(&di->notMultipleOfSevenErrorLastEvent);
+		}
+	}
+
 	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORD_STOP)) {
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_START);
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_STOP);
