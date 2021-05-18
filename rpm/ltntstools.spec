@@ -34,6 +34,13 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
+* Tue May 18 2021 Steven Toth <stoth@ltnglobal.com> 
+- v1.8.1
+  tstools_nic_monitor: Memory leak while recording.
+  tstools_nic_monitor: One time memory leak when segment_writer (recording) finishes.
+  tstools_nic_monitor: Adjusted UI formatting in PID Report mode (wider Packet Count column).
+  tstools_nic_monitor: PID Report new feature, count and show when UDP packets are not 7 * 188 long.
+
 * Wed May 12 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.0
   tstools_nic_monitor: Record option now creates 1m pcap segment files (use mergecap to join recordings)
