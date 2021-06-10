@@ -153,7 +153,39 @@ static void *ui_thread_func(void *p)
 				if (ret < 0)
 					sprintf(fn, "pending open file");
 
+				double fsusedpct = 100.0 - ltntstools_segmentwriter_get_freespace_pct(di->pcapRecorder);
+				int segcount = ltntstools_segmentwriter_get_segment_count(di->pcapRecorder);
+				double totalsize = ltntstools_segmentwriter_get_recording_size(di->pcapRecorder);
+				totalsize /= 1048576; /* MB */
+				int mb = 1;
+				if (totalsize > 4000) {
+					totalsize /= 1024; /* Convert to GB */
+					mb = 0;
+				}
+
+				time_t startTime = ltntstools_segmentwriter_get_recording_start_time(di->pcapRecorder);
+				char st[64];
+				sprintf(st, "%s", ctime(&startTime));
+				st[ strlen(st) - 1] = 0;
+
 				mvprintw(streamCount + 2, 0, " -> Segmented recording to ... %s", fn);
+				streamCount++;
+
+				double fs_full_warning_level = 80.0;
+				if (fsusedpct > fs_full_warning_level)
+					attron(COLOR_PAIR(3));
+
+				mvprintw(streamCount + 2, 0, "    %d segment%s @ %'.02f%s, %s fs %5.02f%% full, since %s",
+					segcount,
+					segcount == 1 ? "" : "(s)",
+					totalsize,
+					mb == 1 ? "MB" : "GB",
+					dirname(&fn[0]),
+					fsusedpct,
+					st);
+
+				if (fsusedpct > fs_full_warning_level)
+					attroff(COLOR_PAIR(3));
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
