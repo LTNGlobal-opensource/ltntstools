@@ -193,7 +193,18 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h + 8, 4);
 		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h + 16, sizeof(bpf_u_int32) * 2);
 		ltntstools_segmentwriter_write(di->pcapRecorder, cb_pkt, cb_h->len);
+
+		/* Deal with the case where the filesystem is above 90% and we want the recording
+		 * to silently terminate. Abort recording if filesystem has 10% freespace or less.
+		 */
+		double fsfreepct = ltntstools_segmentwriter_get_freespace_pct(di->pcapRecorder);
+		if (fsfreepct >= 0.0) {
+			if (fsfreepct <= 10.0) {
+				discovered_item_state_set(di, DI_STATE_PCAP_RECORD_STOP);
+			}
+		}
 	}
+
 }
 
 /* Called on the UI stream, and writes files to disk, handles recordings etc */
