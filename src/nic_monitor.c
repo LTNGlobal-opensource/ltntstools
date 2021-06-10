@@ -61,11 +61,6 @@ static void *ui_thread_func(void *p)
 		time_t now;
 		time(&now);
 
-		if ((ctx->file_prefix || ctx->detailed_file_prefix) && ctx->file_next_write_time <= now) {
-			ctx->file_next_write_time = now + ctx->file_write_interval;
-			discovered_items_file_summary(ctx);
-		}
-
 		if (ctx->freezeDisplay & 1) {
 			usleep(50 * 1000);
 			continue;
@@ -336,14 +331,12 @@ static void *stats_thread_func(void *p)
 		if (count)
 			workdone++;
 
-#if 0
 		time(&now);
 		if ((ctx->file_prefix || ctx->detailed_file_prefix) && ctx->file_next_write_time <= now) {
 			ctx->file_next_write_time = now + ctx->file_write_interval;
 			discovered_items_file_summary(ctx);
 			workdone++;
 		}
-#endif
 
 		/* We don't want the thread thrashing when we have nothing to process. */
 		if (!workdone)
