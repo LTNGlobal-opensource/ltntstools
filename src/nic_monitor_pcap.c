@@ -162,6 +162,11 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			strcpy(dirprefix, ctx->recordingDir);
 		}	
 		sprintf(prefix, "%s/nic_monitor-%s-%s", dirprefix, ctx->ifname, di->dstaddr);
+
+		/* Cleanup the filename so we don't have :, they mess up handing recordings via scp. */
+		/* Substitute : for . */
+		character_replace(prefix, ':', '.');
+
 		int ret = ltntstools_segmentwriter_alloc(&di->pcapRecorder, prefix, ".pcap", 1);
 		if (ret < 0) {
 			fprintf(stderr, "%s() unable to allocate a segment writer\n", __func__);
