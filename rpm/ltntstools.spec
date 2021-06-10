@@ -34,6 +34,17 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_nic_monitor.8
 
 %changelog
+* Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
+- v1.8.3
+  tstools_nic_monitor: Silently abort recordings if the target filesystem is 90% full.
+
+* Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
+- v1.8.2
+  tstools_nic_monitor: In recorded filenames, replace : with .
+  tstools_nic_monitor: Using update segmentwriter from libltntstools for file creation.
+  tstools_nic_monitor: Render file and segment recording details in the interactive UI.
+  tstools_nic_monitor: Add feature to count packets that are not 7 * 188 in length.
+
 * Tue May 18 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.1
   tstools_nic_monitor: Memory leak while recording.
