@@ -3,6 +3,11 @@
 
 void discovered_item_free(struct discovered_item_s *di)
 {
+	if (di->pcapRecorder) {
+		ltntstools_segmentwriter_free(di->pcapRecorder);
+		di->pcapRecorder = NULL;
+	}
+
 	free(di);
 }
 
