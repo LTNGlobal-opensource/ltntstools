@@ -43,6 +43,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Reduced CPU usage when recording 210mb streams.
   tstools_nic_monitor: Improvements to the error reporting if the user passes and bad network interface name.
   tstools_nic_monitor: Append a ! character to the cc error count in stats files, if the stat changes since the last report.
+  tstools_nic_monitor: Display a yellow warning in the UI if the recorder I/O backlog is unusually high (busy disk).
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.2
