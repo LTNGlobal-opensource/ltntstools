@@ -772,6 +772,8 @@ printf("ctx->rebalance_last_buffers_used %d\n", ctx->rebalance_last_buffers_used
 		ctx->ifname, ctx->pcap_stats.ps_drop, ctx->pcap_stats.ps_ifdrop);
 
 	pcap_queue_free(ctx);
+
+	printf("Flushing the streams and recorders...\n");
 	discovered_items_free(ctx);
 
 	free(ctx->file_prefix);
