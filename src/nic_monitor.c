@@ -405,6 +405,8 @@ static void *pcap_thread_func(void *p)
 			fprintf(stderr, "Error, network interface '%s' not found.\n", ctx->ifname);
 		}
 		fprintf(stderr, "Error, pcap_activate, %s\n", pcap_geterr(ctx->descr));
+		printf("\nAvailable interfaces:\n");
+		networkInterfaceList();
 		exit(1);
 	}
 
@@ -542,6 +544,12 @@ int nic_monitor(int argc, char *argv[])
 			break;
 		case 'i':
 			ctx->ifname = optarg;
+			if (networkInterfaceExists(ctx->ifname) == 0) {
+				fprintf(stderr, "\nNo such network interface '%s', available interfaces:\n", ctx->ifname);
+				networkInterfaceList();
+				printf("\n");
+				exit(1);
+			}
 			break;
 		case 'n':
 			ctx->file_write_interval = atoi(optarg);
