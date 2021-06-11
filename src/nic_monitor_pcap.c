@@ -129,6 +129,11 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt)
 {
 	struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
+	if (!di)
+		return;
+
+	time_t now;
+	time(&now);
 
 	di->isRTP = isRTP;
 
@@ -189,22 +194,43 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		/* Make sure the timestamps are 4 bytes long, not the native struct size
 		 * for the running platform.
 		 */
-		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h, 4);
-		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h + 8, 4);
-		ltntstools_segmentwriter_write(di->pcapRecorder, (const uint8_t *)cb_h + 16, sizeof(bpf_u_int32) * 2);
-		ltntstools_segmentwriter_write(di->pcapRecorder, cb_pkt, cb_h->len);
 
-		/* Deal with the case where the filesystem is above 90% and we want the recording
-		 * to silently terminate. Abort recording if filesystem has 10% freespace or less.
-		 */
-		double fsfreepct = ltntstools_segmentwriter_get_freespace_pct(di->pcapRecorder);
-		if (fsfreepct >= 0.0) {
-			if (fsfreepct <= 10.0) {
-				discovered_item_state_set(di, DI_STATE_PCAP_RECORD_STOP);
+		void *obj = NULL;
+		uint8_t *ptr = NULL;
+		int ret = ltntstools_segmentwriter_object_alloc(di->pcapRecorder, 16 + cb_h->len, &obj, &ptr);
+		if (ret < 0 || !ptr || !obj) {
+			return;
+		}
+
+		uint8_t *dst = ptr;
+		uint8_t *src = (uint8_t *)cb_h;
+
+		memcpy(dst +  0, src +  0, 4);
+		memcpy(dst +  4, src +  8, 4);
+		memcpy(dst +  8, src + 16, 8);
+		memcpy(dst + 16, cb_pkt, cb_h->len);
+
+		ssize_t len = ltntstools_segmentwriter_object_write(di->pcapRecorder, obj);
+		if (len < 0) {
+			/* Now what? */
+			/* Nothing */
+		}
+
+		/* Every 5 seconds */
+		if (di->lastTimeFSFreeSpaceCheck + 5 <= now) {
+			di->lastTimeFSFreeSpaceCheck = now;
+
+			/* Deal with the case where the filesystem is above 90% and we want the recording
+			 * to silently terminate. Abort recording if filesystem has 10% freespace or less.
+			 */
+			double fsfreepct = ltntstools_segmentwriter_get_freespace_pct(di->pcapRecorder);
+			if (fsfreepct >= 0.0) {
+				if (fsfreepct <= 10.0) {
+					discovered_item_state_set(di, DI_STATE_PCAP_RECORD_STOP);
+				}
 			}
 		}
 	}
-
 }
 
 /* Called on the UI stream, and writes files to disk, handles recordings etc */
@@ -368,7 +394,8 @@ int pcap_queue_service(struct tool_context_s *ctx)
 		item = xorg_list_first_entry(&items, struct pcap_item_s, list);
 		xorg_list_del(&item->list);
 
-		pcap_io_process(ctx, item->h, item->pkt); 
+		if (item->h && item->pkt) /* safety */
+			pcap_io_process(ctx, item->h, item->pkt); 
 
 		/* back on the free list */
 		pthread_mutex_lock(&ctx->lockpcap);
