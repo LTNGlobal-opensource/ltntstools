@@ -34,6 +34,7 @@ struct tool_context_s
 	int verbose;
 	int monitor;
 	time_t endTime;
+	int automaticallyRecordStreams;
 
 	pthread_t pcap_threadId;
 	int pcap_threadTerminate, pcap_threadRunning, pcap_threadTerminated;

@@ -102,6 +102,9 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	if (!found) {
 		found = discovered_item_alloc(ethhdr, iphdr, udphdr);
 		discovered_item_insert(ctx, found);
+		if (ctx->automaticallyRecordStreams) {
+			discovered_item_state_set(found, DI_STATE_PCAP_RECORD_START);
+		}
 	}
 	pthread_mutex_unlock(&ctx->lock);
 

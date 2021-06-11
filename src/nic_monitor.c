@@ -503,6 +503,7 @@ static void usage(const char *progname)
 #endif
 	printf("  -S <number> Packet buffer size [def: %d] (min: 2048)\n", g_snaplen_default);
 	printf("  -B <number> Buffer size [def: %d]\n", g_buffer_size_default);
+	printf("  -R Automatically Record all discovered streams\n");
 }
 
 int nic_monitor(int argc, char *argv[])
@@ -523,7 +524,7 @@ int nic_monitor(int argc, char *argv[])
 	ctx->snaplen = g_snaplen_default;
 	ctx->bufferSize = g_buffer_size_default;
 
-	while ((ch = getopt(argc, argv, "?hd:B:D:F:i:t:vMn:w:S:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:F:i:t:vMn:w:RS:")) != -1) {
 		switch (ch) {
 		case 'B':
 			ctx->bufferSize = atoi(optarg);
@@ -588,6 +589,9 @@ int nic_monitor(int argc, char *argv[])
 		case 'w':
 			free(ctx->detailed_file_prefix);
 			ctx->detailed_file_prefix = strdup(optarg);
+			break;
+		case 'R':
+			ctx->automaticallyRecordStreams = 1;
 			break;
 		default:
 			usage(argv[0]);
