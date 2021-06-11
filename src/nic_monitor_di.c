@@ -186,13 +186,14 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
                 tm.tm_min,
                 tm.tm_sec);
 
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 ",src=%s,dst=%s,dropped=%d/%d\n",
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d\n",
 		ts,
 		ctx->ifname,
 		ltntstools_pid_stats_stream_get_bps(&di->stats),
 		ltntstools_pid_stats_stream_get_mbps(&di->stats),
 		di->stats.packetCount,
 		di->stats.ccErrors,
+		di->stats.ccErrors != di->statsToFile.ccErrors ? "!" : "",
 		di->srcaddr,
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
@@ -255,13 +256,14 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
                 tm.tm_min,
                 tm.tm_sec);
 
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 ",src=%s,dst=%s,dropped=%d/%d\n",
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d\n",
 		ts,
 		ctx->ifname,
 		ltntstools_pid_stats_stream_get_bps(&di->stats),
 		ltntstools_pid_stats_stream_get_mbps(&di->stats),
 		di->stats.packetCount,
 		di->stats.ccErrors,
+		di->stats.ccErrors != di->statsToFile.ccErrors ? "!" : "",
 		di->srcaddr,
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
@@ -294,6 +296,13 @@ void discovered_items_file_summary(struct tool_context_s *ctx)
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		discovered_item_file_summary(ctx, e);
 		discovered_item_detailed_file_summary(ctx, e);
+
+		/* Implied memcpy of struct */
+		/* Cache the current stats. When we prepare
+		 * file records, of the CC counts have changed, we
+		 * do something significant in the file records.
+		 */
+		e->statsToFile = e->stats;
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
