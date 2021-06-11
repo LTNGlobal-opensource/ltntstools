@@ -36,7 +36,12 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
+  tstools_nic_monitor: Command line option -R to auto record all streams on startup as PCAPS.
   tstools_nic_monitor: Silently abort recordings if the target filesystem is 90% full.
+  tstools_nic_monitor: bugfix: stats files were not being created unless operator in UI interactive mode.
+  tstools_nic_monitor: Various small leaks and fixes as a result of running valgrind.
+  tstools_nic_monitor: Reduced CPU usage when recording 210mb streams.
+  tstools_nic_monitor: Imrovements to the error reporting if the user passes and bad network interface name.
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.2
