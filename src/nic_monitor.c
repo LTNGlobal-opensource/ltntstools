@@ -728,6 +728,8 @@ int nic_monitor(int argc, char *argv[])
 		usleep(50 * 1000);
 	}
 
+	discovered_items_record_abort(ctx);
+
 	/* Shutdown stats collection */
 	ctx->ui_threadTerminate = 1;
 	ctx->pcap_threadTerminate = 1;

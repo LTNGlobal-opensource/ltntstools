@@ -150,6 +150,7 @@ struct discovered_item_s
 
 	/* PCAP recording */
 	void *pcapRecorder;
+	time_t lastTimeFSFreeSpaceCheck;
 
 	/* Monitor the UDP packet lengths, increment
 	 * this each time the length is not 188 * 7
@@ -183,6 +184,8 @@ unsigned int discovered_item_state_get(struct discovered_item_s *di, unsigned in
 void discovered_items_file_summary(struct tool_context_s *ctx);
 
 void discovered_items_stats_reset(struct tool_context_s *ctx);
+
+void discovered_items_record_abort(struct tool_context_s *ctx);
 
 /* Cursor selection */
 void discovered_items_select_first(struct tool_context_s *ctx);
