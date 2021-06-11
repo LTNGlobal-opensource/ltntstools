@@ -133,6 +133,14 @@ struct discovered_item_s
 	/* PID Statistics */
 	struct ltntstools_stream_statistics_s stats;
 
+	/* Each time we write stats to a file, we cache the last write
+	 * here. When we write the files, if the CC has changed
+	 * between the current stats and the statsToFIle count,
+	 * we make that obvious in the files, for easier operator
+	 * parsing.
+	 */
+	struct ltntstools_stream_statistics_s statsToFile;
+
 	/* File output */
 	char filename[128];
 	char detailed_filename[128];

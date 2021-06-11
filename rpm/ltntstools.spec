@@ -41,7 +41,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: bugfix: stats files were not being created unless operator in UI interactive mode.
   tstools_nic_monitor: Various small leaks and fixes as a result of running valgrind.
   tstools_nic_monitor: Reduced CPU usage when recording 210mb streams.
-  tstools_nic_monitor: Imrovements to the error reporting if the user passes and bad network interface name.
+  tstools_nic_monitor: Improvements to the error reporting if the user passes and bad network interface name.
+  tstools_nic_monitor: Append a ! character to the cc error count in stats files, if the stat changes since the last report.
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.2

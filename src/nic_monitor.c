@@ -53,7 +53,7 @@ static void *ui_thread_func(void *p)
 	init_pair(3, COLOR_RED, COLOR_BLACK);
 	init_pair(4, COLOR_WHITE, COLOR_RED);
 	init_pair(5, COLOR_WHITE, COLOR_GREEN);
-	init_pair(6, COLOR_GREEN, COLOR_BLACK);
+	init_pair(7, COLOR_YELLOW, COLOR_BLACK);
 
 	while (!ctx->ui_threadTerminate) {
 
@@ -141,7 +141,6 @@ static void *ui_thread_func(void *p)
 				attroff(COLOR_PAIR(3));
 
 			if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING)) {
-				streamCount++;
 
 				char fn[512] = { 0 };
 				int ret = ltntstools_segmentwriter_get_current_filename(di->pcapRecorder, &fn[0], sizeof(fn));
@@ -163,13 +162,14 @@ static void *ui_thread_func(void *p)
 				sprintf(st, "%s", ctime(&startTime));
 				st[ strlen(st) - 1] = 0;
 
-				mvprintw(streamCount + 2, 0, " -> Segmented recording to ... %s", fn);
 				streamCount++;
+				mvprintw(streamCount + 2, 0, " -> Segmented recording to ... %s", fn);
 
 				double fs_full_warning_level = 80.0;
 				if (fsusedpct > fs_full_warning_level)
 					attron(COLOR_PAIR(3));
 
+				streamCount++;
 				mvprintw(streamCount + 2, 0, "    %d segment%s @ %'.02f%s, %s fs %5.02f%% full, since %s",
 					segcount,
 					segcount == 1 ? "" : "(s)",
@@ -181,6 +181,14 @@ static void *ui_thread_func(void *p)
 
 				if (fsusedpct > fs_full_warning_level)
 					attroff(COLOR_PAIR(3));
+
+				int qdepth = ltntstools_segmentwriter_get_queue_depth(di->pcapRecorder);
+				if (qdepth > 300 * 1000) {
+					attron(COLOR_PAIR(7));
+					streamCount++;
+					mvprintw(streamCount + 2, 0, "    Recorder I/O is falling behind realtime, %d items waiting", qdepth);
+					attroff(COLOR_PAIR(7));
+				}
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
