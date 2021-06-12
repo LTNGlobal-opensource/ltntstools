@@ -53,7 +53,7 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 		printf("!Packet interval > 100ms\n");
 	}
 	if (verbose) {
-		printf("%" PRIu64 ":%" PRIu64 " [%d(us)] (%4" PRIu64 ") - ",
+		printf("%" PRIu64 ":%" PRIu64 " [%8d(us)] (%4" PRIu64 ") - ",
 			(uint64_t)hdr->ts.tv_sec, (uint64_t)hdr->ts.tv_usec,
 			diffus,	
 			(uint64_t)hdr->len);
