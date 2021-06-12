@@ -1,0 +1,50 @@
+.\" Manpage for tstools_pcapts.
+.\" Contact stoth@ltnglobal.com to correct errors or typos.
+.TH man 8 "12 Jun 2021" "1.3" "tstools_pcapts man page"
+.SH NAME
+tstools_pcapts \- Read PCAP files from disk, extract transport streams and measure packet jitter.
+.SH SYNOPSIS
+tstools_pcapts -i <input.pcap>
+  -o <output.ts>
+  -a <ip address Eg. 234.1.1.1>
+  -p <ip port Eg. 9200>
+  -v increase verbosity level
+.SH DESCRIPTION
+tstools_pcapts reads PCAP recordings and extracts UDP-TS or RTP-TS payload
+and writes this to disk as .ts files.
+
+Typically used for extracting transport streams from tstools_nic_monitor PCAP recordings,
+without needing to run wireshark or back-haul pcaps to a central location.
+
+The tools measures time intervals between adjacent PCAP frames and builds a histogram
+of the ENTIRE stream showing 1ms buckets of jitter between packet arrivals, so this
+is handy to quickly spot check a recording for network jitter.
+
+.SH OPTIONS
+-i <input.pcap> 
+
+-a <ip address Eg. 234.1.1.1>
+
+-p <ip port Eg. 9200>
+
+-h Display command line options.
+
+.SH EXAMPLES
+1) tools_pcap2ts -i /tmp/nic_monitor-eno2-227.1.20.57.4001-20210611-135033.pcap -a 227.1.20.57 -p 4001 -o mpeg.ts
+   Extract the 227.1.20.57:4001 transport packets from the file, write them to a new file named mpeg.ts.
+   Also measure the UDP Packet Intervals and show a histogram representing the ENTIRE pcap, not just the
+   stream 227.1.20.57:4001.
+   Extracting TS from udp/ip destination 227.1.20.57:4001 to (null)
+   Wrote 0 packets.
+   Histogram 'UDP Packet intervals' (ms, count, last update time)
+   ->     0    54894  Wed Dec 31 19:00:00 1969 (0.0)
+   ->     1    23842  Wed Dec 31 19:00:00 1969 (0.0)
+   ->     2        1  Wed Dec 31 19:00:00 1969 (0.0)
+   1 out-of-range bucket misses
+   3 distinct buckets with 78737 total measurements, range: 0 -> 16000 ms
+.SH SEE ALSO
+tstools_si_inspector(8), tstools_clock_inspector(8), tstools_udp_capture(8), tstools_nic_monitor(8)
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+Steven Toth (stoth@ltnglobal.com)
