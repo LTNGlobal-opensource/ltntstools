@@ -208,13 +208,13 @@ int pcap2ts(int argc, char* argv[])
 		exit(1);
 	}
 
-	if (!port) {
+	if (addr && !port) {
 		_usage(argv[0]);
 		fprintf(stderr, "\n *** -p is mandatory ***\n");
 		exit(1);
 	}
 
-	if (!addr) {
+	if (!addr && port) {
 		_usage(argv[0]);
 		fprintf(stderr, "\n *** -a is mandatory ***\n");
 		exit(1);
@@ -233,7 +233,9 @@ int pcap2ts(int argc, char* argv[])
 		exit(1);
 	}
 
-	printf("Extracting TS from udp/ip destination %s:%d to %s\n", addr, port, oname);
+	if (port) {
+		printf("Extracting TS from udp/ip destination %s:%d to %s\n", addr, port, oname);
+	}
 
 	if ((pcap_loop(pcap, -1, (void*)pkt_handler, NULL)) != 0) {
 		fprintf(stderr, "Cannot read from pcap file: %s\n", pcap_geterr(pcap)); 
@@ -244,9 +246,13 @@ int pcap2ts(int argc, char* argv[])
 	if (ofh)
 		fclose(ofh);
 
-	printf("Wrote %" PRIu64 " packets.\n", tspkt_count_output);
+	if (oname) {
+		printf("Wrote %" PRIu64 " packets.\n", tspkt_count_output);
+	}
 
+	printf("\n");
 	ltn_histogram_interval_print(STDOUT_FILENO, packetIntervals, 0);
+	printf("\n");
 	//ltn_histogram_free(packetIntervals);
 
 	return 0;
