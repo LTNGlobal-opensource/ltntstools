@@ -1,6 +1,6 @@
 .\" Manpage for tstools_nic_monitor.
 .\" Contact stoth@ltnglobal.com to correct errors or typos.
-.TH man 8 "6 Jan 2020" "1.2" "tstools_nic_monitor man page"
+.TH man 8 "12 Jun 2021" "1.3" "tstools_nic_monitor man page"
 .SH NAME
 tstools_nic_monitor \- Inspect MPEG-TS stream interactively or with stats to disk.
 .SH SYNOPSIS
@@ -9,20 +9,25 @@ tstools_nic_monitor -i <iface>
   -h Display command line help.
   -t <#seconds>. Stop after N seconds [def: 0 - unlimited]
   -M Display an interactive console with stats.
-  -d <dir> Write summary stats per stream in this target directory, every -n seconds.
+  -D <dir> Write any PCAP recordings in this target directory prefix. [def: /tmp]
+  -d <dir> Write summary stats per stream in this target directory prefix, every -n seconds.
   -w <dir> Write detailed pid stats per stream in this target directory prefix, every -n seconds.
   -n <seconds> Interval to update -d file based stats [def: 5]
   -F '<string>' Use a custom pcap filter. [def: 'udp dst portrange 4000-4999']
+  -S <number> Packet buffer size [def: 8192] (min: 2048)
+  -B <number> Buffer size [def: 33554432]
+  -R Automatically Record all discovered streams
 .SH DESCRIPTION
 .B
 Warning: This tool requires super-user privileges.
-Care should be taked if using the -d option.
+Care should be taked if using the -d, -D and -w options.
 
 tstools_nic_monitor detects and monitors RTP-TS or UDP-TS streams from the user
 selected network interface, multicast or unicast.
 
 Typically used for finding transport stream packet loss and measuring bitrates without needing
-to capture the UDP MPEG-TS and bring it back to a data center for analysis.
+to capture the UDP MPEG-TS and bring it back to a data center for analysis. Also used
+for hepfull 1 minute pcap captures, measuring packet IATs.
 
 Packet loss is show interactively as a counter in the CCError column.
 By default, the tool runs indefinitely. Optionally, run the tool for (-t) seconds.
@@ -30,7 +35,7 @@ By default, the tool runs indefinitely. Optionally, run the tool for (-t) second
 It finds and detects UDP or RTP MPEG-TS packet using a default pcap filter, then examines
 all of those streams in realtime for bitrate measures, packet loss, per pid or globally per stream.
 The results are presented via a UI interactively (-M), or with additional per-pid details via the
-console upon exit, or optionally by writing these stats to files (-d) for long term testing.
+console upon exit, or optionally by writing these stats to files (-d -w) for long term testing.
 
 The tools runs indefintely until terminated by the user. In interactive mode (-M) using the 'q' button
 to terminate. In non-interactive mode, use ctrl-c.
@@ -89,6 +94,12 @@ to terminate. In non-interactive mode, use ctrl-c.
    Default value 5 seconds.
 
 -t <#seconds> Collect #seconds of stats then terminate.
+
+-S <number> Packet buffer size [def: 8192] (min: 2048) (Don't change this unless instructed to do so).
+
+-B <number> Buffer size [def: 33554432] (Don't change this unless instructed to do so).
+
+-R Automatically Record all discovered streams
 
 .SH EXAMPLES
 1) tstools_nic_monitor -i eno1 -M
