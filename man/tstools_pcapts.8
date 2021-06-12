@@ -8,7 +8,7 @@ tstools_pcapts -i <input.pcap>
   -o <output.ts>
   -a <ip address Eg. 234.1.1.1>
   -p <ip port Eg. 9200>
-  -v increase verbosity level
+  -v show per-packet detailed stats
 .SH DESCRIPTION
 tstools_pcapts reads PCAP recordings and extracts UDP-TS or RTP-TS payload
 and writes this to disk as .ts files.
@@ -25,23 +25,54 @@ is handy to quickly spot check a recording for network jitter.
 
 -a <ip address Eg. 234.1.1.1>
 
--p <ip port Eg. 9200>
+-p <ip port Eg. 4001>
 
--h Display command line options.
+-v Show per-packet detailed stats
 
 .SH EXAMPLES
-1) tools_pcap2ts -i /tmp/nic_monitor-eno2-227.1.20.57.4001-20210611-135033.pcap -a 227.1.20.57 -p 4001 -o mpeg.ts
-   Extract the 227.1.20.57:4001 transport packets from the file, write them to a new file named mpeg.ts.
-   Also measure the UDP Packet Intervals and show a histogram representing the ENTIRE pcap, not just the
-   stream 227.1.20.57:4001.
-   Extracting TS from udp/ip destination 227.1.20.57:4001 to (null)
-   Wrote 0 packets.
+1) tstools_pcap2ts -i nic_monitor-eno2-227.1.20.57.4001-20210612-081641.pcap
+
+   Examine the PCAP packet intervals and render in the form of a histogram.
+
+   Copyright (c) 2017-2021 LiveTimeNet Inc. All Rights Reserved.
+   Version: v1.8.2-16-g5df370ef
+
    Histogram 'UDP Packet intervals' (ms, count, last update time)
-   ->     0    54894  Wed Dec 31 19:00:00 1969 (0.0)
-   ->     1    23842  Wed Dec 31 19:00:00 1969 (0.0)
-   ->     2        1  Wed Dec 31 19:00:00 1969 (0.0)
+   ->     0    16035  Wed Dec 31 19:00:00 1969 (0.0)
+   ->     1     7151  Wed Dec 31 19:00:00 1969 (0.0)
    1 out-of-range bucket misses
-   3 distinct buckets with 78737 total measurements, range: 0 -> 16000 ms
+   2 distinct buckets with 23186 total measurements, range: 0 -> 16000 ms
+
+2) tstools_pcap2ts -i nic_monitor-eno2-227.1.20.57.4001-20210612-081641.pcap -a 227.1.20.57 -p 4001 -o mpeg.ts
+
+   Extract the transport packets from address 227.1.20.57:4001, write them to a new file named mpeg.ts.
+   Also measure the UDP Packet Intervals and show a histogram representing the ENTIRE pcap, not just the
+   requested stream. 
+
+   Copyright (c) 2017-2021 LiveTimeNet Inc. All Rights Reserved.
+   Version: v1.8.2-16-g5df370ef
+   Extracting TS from udp/ip destination 227.1.20.57:4001 to mpeg.ts
+   Wrote 162309 packets.
+
+   Histogram 'UDP Packet intervals' (ms, count, last update time)
+   ->     0    16035  Wed Dec 31 19:00:00 1969 (0.0)
+   ->     1     7151  Wed Dec 31 19:00:00 1969 (0.0)
+   1 out-of-range bucket misses
+   2 distinct buckets with 23186 total measurements, range: 0 -> 16000 ms
+
+3) tstools_pcap2ts -i nic_monitor-eno2-227.1.20.57.4001-20210612-081641.pcap -v
+
+   Show a per-packet report including second:ms, delta in time (us) from the last packet, src/dst IP address:port
+   and some initial data from the packet header.
+
+   1623500214:197816 [       2(us)] (1358) - 192.168.20.57:45994 -> 192.168.20.57:4001  = 01 00 5e 01 14 39 5c 77 57 00 d6 2a 08 00 45 b8 05 40 ab fa 40 00 40 11 bc de c0 a8 14 39 e3 
+   1623500214:198146 [     330(us)] (1358) - 192.168.20.57:45994 -> 192.168.20.57:4001  = 01 00 5e 01 14 39 5c 77 57 00 d6 2a 08 00 45 b8 05 40 ab fb 40 00 40 11 bc dd c0 a8 14 39 e3 
+   1623500214:199398 [    1252(us)] (1358) - 192.168.20.57:45994 -> 192.168.20.57:4001  = 01 00 5e 01 14 39 5c 77 57 00 d6 2a 08 00 45 b8 05 40 ab fc 40 00 40 11 bc dc c0 a8 14 39 e3 
+   1623500214:199400 [       2(us)] (1358) - 192.168.20.57:45994 -> 192.168.20.57:4001  = 01 00 5e 01 14 39 5c 77 57 00 d6 2a 08 00 45 b8 05 40 ab fd 40 00 40 11 bc db c0 a8 14 39 e3 
+   1623500214:199738 [     338(us)] (1358) - 192.168.20.57:45994 -> 192.168.20.57:4001  = 01 00 5e 01 14 39 5c 77 57 00 d6 2a 08 00 45 b8 05 40 ab fe 40 00 40 11 bc da c0 a8 14 39 e3 
+   1623500214:200899 [    1161(us)] (1358) - 192.168.20.57:45994 -> 192.168.20.57:4001  = 01 00 5e 01 14 39 5c 77 57 00 d6 2a 08 00 45 b8 05 40 ab ff 40 00 40 11 bc d9 c0 a8 14 39 e3 
+   1623500214:201095 [     196(us)] (1358) - 192.168.20.57:45994 -> 192.168.20.57:4001  = 01 00 5e 01 14 39 5c 77 57 00 d6 2a 08 00 45 b8 05 40 ac 00 40 00 40 11 bc d8 c0 a8 14 39 e3 
+
 .SH SEE ALSO
 tstools_si_inspector(8), tstools_clock_inspector(8), tstools_udp_capture(8), tstools_nic_monitor(8)
 .SH BUGS
