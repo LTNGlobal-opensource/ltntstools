@@ -47,6 +47,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Display a yellow warning in the UI if the recorder I/O backlog is unusually high (busy disk).
   tstools_nic_monitor: Minor man page adjustments
   tstools_pcapts: Tool updates to ease packet interval histogram inspection.
+  tstools_pcapts: Bugfix, showing the wrong IP address in -v mode.
   manpage: Added a man page for tstools_pcapts
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
