@@ -107,20 +107,27 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 	uint32_t len = hdr->len - hdrlen;
 
 	if (verbose) {
+		/* Compensate because inet_ntoa uses global... */
+		/* TODO, fix me for mac. */
+		char dst[32];
 #if defined(__linux__)
 		struct in_addr s, d;
 		s.s_addr = ip->saddr;
 		d.s_addr = ip->daddr;
+		sprintf(dst, "%s", inet_ntoa(d));
+#endif
+#if defined(__APPLE__)
+		sprintf(dst, "%s", inet_ntoa(ip->ip_dst));
 #endif
 
 		printf("%s:%d -> %s:%d  = ",
 #if defined(__APPLE__)
 			inet_ntoa(ip->ip_src), ntohs(udp->uh_sport),
-			inet_ntoa(ip->ip_dst), ntohs(udp->uh_dport));
+			dst, ntohs(udp->uh_dport));
 #endif
 #if defined(__linux__)
 			inet_ntoa(s), ntohs(udp->uh_sport),
-			inet_ntoa(d), ntohs(udp->uh_dport));
+			dst, ntohs(udp->uh_dport));
 #endif
 		hexdump(buf, 31, 32);
 	}
