@@ -172,7 +172,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		/* Substitute : for . */
 		character_replace(prefix, ':', '.');
 
-		int ret = ltntstools_segmentwriter_alloc(&di->pcapRecorder, prefix, ".pcap", 1);
+		int ret = ltntstools_segmentwriter_alloc(&di->pcapRecorder, prefix, ".pcap", ctx->recordWithSegments);
 		if (ret < 0) {
 			fprintf(stderr, "%s() unable to allocate a segment writer\n", __func__);
 			exit(1);

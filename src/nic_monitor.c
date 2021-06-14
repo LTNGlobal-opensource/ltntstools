@@ -163,21 +163,32 @@ static void *ui_thread_func(void *p)
 				st[ strlen(st) - 1] = 0;
 
 				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> Segmented recording to ... %s", fn);
+				mvprintw(streamCount + 2, 0, " -> %s to ... %s",
+					ctx->recordWithSegments ? "Segmented recording" : "Recording",
+					fn);
 
 				double fs_full_warning_level = 80.0;
 				if (fsusedpct > fs_full_warning_level)
 					attron(COLOR_PAIR(3));
 
 				streamCount++;
-				mvprintw(streamCount + 2, 0, "    %d segment%s @ %'.02f%s, %s fs %5.02f%% full, since %s",
-					segcount,
-					segcount == 1 ? "" : "(s)",
-					totalsize,
-					mb == 1 ? "MB" : "GB",
-					dirname(&fn[0]),
-					fsusedpct,
-					st);
+				if (ctx->recordWithSegments) {
+					mvprintw(streamCount + 2, 0, "    %d segment%s @ %'.02f%s, %s fs %5.02f%% full, since %s",
+						segcount,
+						segcount == 1 ? "" : "(s)",
+						totalsize,
+						mb == 1 ? "MB" : "GB",
+						dirname(&fn[0]),
+						fsusedpct,
+						st);
+				} else {
+					mvprintw(streamCount + 2, 0, "    One file @ %'.02f%s, %s fs %5.02f%% full, since %s",
+						totalsize,
+						mb == 1 ? "MB" : "GB",
+						dirname(&fn[0]),
+						fsusedpct,
+						st);
+				}
 
 				if (fsusedpct > fs_full_warning_level)
 					attroff(COLOR_PAIR(3));
@@ -517,6 +528,7 @@ static void usage(const char *progname)
 	printf("  -S <number> Packet buffer size [def: %d] (min: 2048)\n", g_snaplen_default);
 	printf("  -B <number> Buffer size [def: %d]\n", g_buffer_size_default);
 	printf("  -R Automatically Record all discovered streams\n");
+	printf("  -E Record PCAP in a single file, don't segment into 60sec files\n");
 }
 
 int nic_monitor(int argc, char *argv[])
@@ -536,8 +548,9 @@ int nic_monitor(int argc, char *argv[])
 	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
 	ctx->snaplen = g_snaplen_default;
 	ctx->bufferSize = g_buffer_size_default;
+	ctx->recordWithSegments = 1;
 
-	while ((ch = getopt(argc, argv, "?hd:B:D:F:i:t:vMn:w:RS:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:t:vMn:w:RS:")) != -1) {
 		switch (ch) {
 		case 'B':
 			ctx->bufferSize = atoi(optarg);
@@ -584,15 +597,7 @@ int nic_monitor(int argc, char *argv[])
 			ctx->recordingDir = optarg;
 			break;
 		case 'E':
-		{
-			struct parser_ippid_s p;
-			if (parsers_ippid_parse(optarg, &p) < 0) {
-				fprintf(stderr, "Unable to parse -D input\n");
-				exit(0);
-			}
-
-			printf("-D %s\n", p.ui_address_ip_pid);
-		}
+			ctx->recordWithSegments = 0;
 			break;
 		case 'S':
 			ctx->snaplen = atoi(optarg);

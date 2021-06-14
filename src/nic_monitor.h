@@ -35,6 +35,7 @@ struct tool_context_s
 	int monitor;
 	time_t endTime;
 	int automaticallyRecordStreams;
+	int recordWithSegments;
 
 	pthread_t pcap_threadId;
 	int pcap_threadTerminate, pcap_threadRunning, pcap_threadTerminated;
