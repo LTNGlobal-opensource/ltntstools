@@ -48,6 +48,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Minor man page adjustments
   tstools_pcapts: Tool updates to ease packet interval histogram inspection.
   tstools_pcapts: Bugfix, showing the wrong IP address in -v mode.
+  tstools_pcapts: Bugfix, stop and start recordings in UI mode could sometimes lead to partial writes at the end of PCAP file.
   manpage: Added a man page for tstools_pcapts
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
