@@ -246,7 +246,6 @@ int pcap2ts(int argc, char* argv[])
 
 	if ((pcap_loop(pcap, -1, (void*)pkt_handler, NULL)) != 0) {
 		fprintf(stderr, "Cannot read from pcap file: %s\n", pcap_geterr(pcap)); 
-		exit(1);
 	}
 	pcap_close(pcap);
 
