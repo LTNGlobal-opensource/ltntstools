@@ -117,6 +117,7 @@ struct discovered_item_s
 #define DI_STATE_SHOW_PIDS		(1 << 5)
 #define DI_STATE_SHOW_TR101290		(1 << 6)
 #define DI_STATE_DST_DUPLICATE		(1 << 7)
+#define DI_STATE_SHOW_IAT_HISTOGRAM	(1 << 8)
 	unsigned int state;
 
 	time_t firstSeen;
@@ -167,6 +168,9 @@ struct discovered_item_s
 	 */
 	time_t notMultipleOfSevenErrorLastEvent;
 	int64_t notMultipleOfSevenError;
+
+	/* IAT Histogram */
+	struct ltn_histogram_s *packetIntervals;
 };
 
 void discovered_item_free(struct discovered_item_s *di);
@@ -206,5 +210,6 @@ void discovered_items_select_none(struct tool_context_s *ctx);
 void discovered_items_select_record_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_pids_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_tr101290_toggle(struct tool_context_s *ctx);
+void discovered_items_select_show_iats_toggle(struct tool_context_s *ctx);
 
 #endif /* NIC_MONITOR_H */

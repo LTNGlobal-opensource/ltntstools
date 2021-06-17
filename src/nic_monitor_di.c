@@ -8,6 +8,11 @@ void discovered_item_free(struct discovered_item_s *di)
 		di->pcapRecorder = NULL;
 	}
 
+	if (di->packetIntervals) {
+		ltn_histogram_free(di->packetIntervals);
+		di->packetIntervals = NULL;
+	}
+
 	free(di);
 }
 
@@ -37,6 +42,8 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 		di->iat_lwm_us = 50000000;
 		di->iat_hwm_us = -1;
 		di->iat_cur_us = 0;
+
+		ltn_histogram_alloc_video_defaults(&di->packetIntervals, "IAT Intervals");
 	}
 
 	return di;
@@ -130,6 +137,8 @@ void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_it
 				ltntstools_pid_stats_pid_get_mbps(&di->stats, i));
 		}
 	}
+	ltn_histogram_interval_print(fd, di->packetIntervals, 0);
+	dprintf(fd, "\n");
 }
 
 void discovered_items_console_summary(struct tool_context_s *ctx)
@@ -316,6 +325,7 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 		ltntstools_pid_stats_reset(&e->stats);
 		e->iat_lwm_us = 5000000;
 		e->iat_hwm_us = -1;
+		ltn_histogram_reset(e->packetIntervals);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -472,6 +482,24 @@ void discovered_items_select_show_tr101290_toggle(struct tool_context_s *ctx)
 			discovered_item_state_clr(e, DI_STATE_SHOW_TR101290);
 		} else {
 			discovered_item_state_set(e, DI_STATE_SHOW_TR101290);
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_show_iats_toggle(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		if (discovered_item_state_get(e, DI_STATE_SHOW_IAT_HISTOGRAM)) {
+			discovered_item_state_clr(e, DI_STATE_SHOW_IAT_HISTOGRAM);
+		} else {
+			discovered_item_state_set(e, DI_STATE_SHOW_IAT_HISTOGRAM);
 		}
 	}
 	pthread_mutex_unlock(&ctx->lock);

@@ -116,6 +116,9 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 			di->iat_lwm_us = di->iat_cur_us;
 		if (di->iat_cur_us >= di->iat_hwm_us)
 			di->iat_hwm_us = di->iat_cur_us;
+
+		ltn_histogram_interval_update(di->packetIntervals);
+		//ltn_histogram_interval_print(STDOUT_FILENO, di->packetIntervals, 5);
 	}
 	di->iat_last_frame = cb_h->ts;
 

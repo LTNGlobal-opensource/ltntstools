@@ -1,4 +1,7 @@
 
+#include <stdio.h>
+#include "histogram.h"
+
 #include "nic_monitor.h"
 
 /* Reduce this to 4 * 32768 to simulate loss on a NIC with 600Mbps */
@@ -256,11 +259,11 @@ static void *ui_thread_func(void *p)
 				int p1col = 10;
 
 				/* Everything RED until further notice */
-				attron(COLOR_PAIR(3));
+				//attron(COLOR_PAIR(3));
 				mvprintw(streamCount + 2, p1col, "P1.1  BAD [TS SYNC  ]");
-				attroff(COLOR_PAIR(3));
+				//attroff(COLOR_PAIR(3));
 
-				attron(COLOR_PAIR(6));
+				//attron(COLOR_PAIR(6));
 				mvprintw(streamCount + 3, p1col, "P1.2  OK  [SYNC BYTE]");
 				mvprintw(streamCount + 4, p1col, "P1.3  OK  [PAT      ]");
 				mvprintw(streamCount + 5, p1col, "P1.3a OK  [PAT 2    ]");
@@ -276,7 +279,7 @@ static void *ui_thread_func(void *p)
 				mvprintw(streamCount + 5, p2col, "P2.3a OK  [PCR REPETITION]");
 				mvprintw(streamCount + 6, p2col, "P2.4  OK  [PCR ACCURACY  ]");
 				mvprintw(streamCount + 7, p2col, "P2.5  OK  [PTS           ]");
-				attroff(COLOR_PAIR(6));
+				//attroff(COLOR_PAIR(6));
 
 				attron(COLOR_PAIR(3));
 				mvprintw(streamCount + 8, p2col, "P2.6  BAD [CAT           ]");
@@ -284,6 +287,29 @@ static void *ui_thread_func(void *p)
 
 				streamCount += 8;
 
+
+			}
+
+			if (discovered_item_state_get(di, DI_STATE_SHOW_IAT_HISTOGRAM)) {
+				streamCount++;
+				mvprintw(streamCount + 2, 0, " -> ");
+
+				char *s;
+				ltn_histogram_interval_print_buf(&s, di->packetIntervals, 0);
+				if (s) {
+					char *buf = s;
+
+					char *p = strtok(buf, "\n");
+					while (p) {
+						mvprintw(streamCount + 2, 4, "%s", p);
+						p = strtok(NULL, "\n");
+						if (p) {
+							streamCount++;
+						}
+					}
+					free(s);
+					streamCount++;
+				}
 
 			}
 
@@ -295,7 +321,7 @@ static void *ui_thread_func(void *p)
 
 		attron(COLOR_PAIR(2));
 #if 1
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze");
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze I)at");
 #else
 		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze T)R101290  using: %d free: %d",
 			ctx->rebalance_last_buffers_used,
@@ -518,8 +544,8 @@ static void usage(const char *progname)
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("  -M Display an interactive console with stats.\n");
 	printf("  -D <dir> Write any PCAP recordings in this target directory prefix. [def: /tmp]\n");
-	printf("  -d <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
-	printf("  -w <dir> Write detailed pid stats per stream in this target directory prefix, every -n seconds.\n");
+	printf("  -d <dir> Write detailed pid stats per stream in this target directory prefix, every -n seconds.\n");
+	printf("  -w <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
 	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
 	printf("  -F '<string>' Use a custom pcap filter. [def: '%s']\n", DEFAULT_PCAP_FILTER);
 #if 0
@@ -734,6 +760,9 @@ int nic_monitor(int argc, char *argv[])
 		}
 		if (c == 'P') {
 			discovered_items_select_show_pids_toggle(ctx);
+		}
+		if (c == 'I') {
+			discovered_items_select_show_iats_toggle(ctx);
 		}
 
 		/* Cursor key support */
