@@ -37,6 +37,9 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
+  tstools_nic_monitor: Console UI option 'I' to show IAT histograms.
+  tstools_nic_monitor: Show IAT histograms when the app terminates.
+  tstools_nic_monitor: Write IAT histograms to the detailed log files.
   tstools_nic_monitor: Command line option -R to auto record all streams on startup as PCAPS.
   tstools_nic_monitor: Silently abort recordings if the target filesystem is 90% full.
   tstools_nic_monitor: bugfix: stats files were not being created unless operator in UI interactive mode.
