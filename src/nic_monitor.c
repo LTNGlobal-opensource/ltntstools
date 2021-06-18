@@ -553,7 +553,7 @@ static void usage(const char *progname)
 #endif
 	printf("  -S <number> Packet buffer size [def: %d] (min: 2048)\n", g_snaplen_default);
 	printf("  -B <number> Buffer size [def: %d]\n", g_buffer_size_default);
-	printf("  -R Automatically Record all discovered streams\n");
+	printf("  -R Automatically record all discovered streams\n");
 	printf("  -E Record PCAP in a single file, don't segment into 60sec files\n");
 }
 
