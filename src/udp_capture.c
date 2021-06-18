@@ -169,6 +169,7 @@ static void *thread_func(void *p)
 		sprintf(title_a, "%s", ctx->iname);
 
 		int64_t val = throughput_hires_sumtotal_i64(ctx->hires_throughput, 0, NULL, NULL);
+		throughput_hires_expire(ctx->hires_throughput, NULL);
 		sprintf(title_c, "%2.2f Mb/s", ((double)val * 8) / 1000000.0);
 		int blen = 75 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
