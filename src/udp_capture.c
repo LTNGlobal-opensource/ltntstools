@@ -218,7 +218,7 @@ static void *thread_func(void *p)
 
                 refresh();
 
-		usleep(25 * 1000);
+		usleep(250 * 1000);
 	}
 	ctx->threadTerminated = 1;
 
