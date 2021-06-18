@@ -292,7 +292,7 @@ static __inline__ void ltn_histogram_interval_print_buf(char **buf, struct ltn_h
 		timestamp[strlen(timestamp) - 1] = 0; /* Trim trailing CR */
 
 		sprintf(p + strlen(p),
-			"-> %5" PRIu64 " %8" PRIu64 "  %s (%u.%06u)\n",
+			"-> %5" PRIu64 " %'15" PRIu64 "  %s (%u.%06u)\n",
 			ctx->minValMs + i,
 			b->count,
 			timestamp,
@@ -307,7 +307,7 @@ static __inline__ void ltn_histogram_interval_print_buf(char **buf, struct ltn_h
 		sprintf(p + strlen(p), "%" PRIu64 " out-of-range bucket misses\n", ctx->bucketMissCount);
 	}
 
-	sprintf(p + strlen(p), "%" PRIu64 " distinct buckets with %" PRIu64 " total measurements, range: %" PRIu64 " -> %" PRIu64 " ms\n",
+	sprintf(p + strlen(p), "%" PRIu64 " distinct buckets with %'" PRIu64 " total measurements, range: %" PRIu64 " -> %" PRIu64 " ms\n",
 		cnt,
 		measurements,
 		ctx->minValMs, ctx->maxValMs);
@@ -344,7 +344,7 @@ static __inline__ void ltn_histogram_interval_print(int fd, struct ltn_histogram
 		timestamp[strlen(timestamp) - 1] = 0; /* Trim trailing CR */
 
 		dprintf(fd,
-			"-> %5" PRIu64 " %8" PRIu64 "  %s (%u.%06u)\n",
+			"-> %5" PRIu64 " %'15" PRIu64 "  %s (%u.%06u)\n",
 			ctx->minValMs + i,
 			b->count,
 			timestamp,
@@ -359,7 +359,7 @@ static __inline__ void ltn_histogram_interval_print(int fd, struct ltn_histogram
 		dprintf(fd, "%" PRIu64 " out-of-range bucket misses\n", ctx->bucketMissCount);
 	}
 
-	dprintf(fd, "%" PRIu64 " distinct buckets with %" PRIu64 " total measurements, range: %" PRIu64 " -> %" PRIu64 " ms\n",
+	dprintf(fd, "%" PRIu64 " distinct buckets with %'" PRIu64 " total measurements, range: %" PRIu64 " -> %" PRIu64 " ms\n",
 		cnt,
 		measurements,
 		ctx->minValMs, ctx->maxValMs);
