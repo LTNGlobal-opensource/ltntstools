@@ -321,7 +321,7 @@ static void *ui_thread_func(void *p)
 
 		attron(COLOR_PAIR(2));
 #if 1
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze I)at");
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze I)AT");
 #else
 		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze T)R101290  using: %d free: %d",
 			ctx->rebalance_last_buffers_used,
