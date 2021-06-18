@@ -37,6 +37,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
+  tstools_nic_monitor: UI command H to hide a row, U command unhides all hidden rows.
   tstools_nic_monitor: Ensure recorded files are owned by the calling user, not root.
   tstools_nic_monitor: Console UI option 'I' to show IAT histograms.
   tstools_nic_monitor: Show IAT histograms when the app terminates.
