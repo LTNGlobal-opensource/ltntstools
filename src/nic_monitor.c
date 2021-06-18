@@ -121,11 +121,11 @@ static void *ui_thread_func(void *p)
 			if (discovered_item_state_get(di, DI_STATE_CC_ERROR))
 				attron(COLOR_PAIR(3));
 
-			if (discovered_item_state_get(di, DI_STATE_SELECTED))
-				attron(COLOR_PAIR(5));
-
 			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
 				attron(COLOR_PAIR(4));
+
+			if (discovered_item_state_get(di, DI_STATE_SELECTED))
+				attron(COLOR_PAIR(5));
 
 			totalMbps += ltntstools_pid_stats_stream_get_mbps(&di->stats);
 			mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
@@ -137,11 +137,11 @@ static void *ui_thread_func(void *p)
 				di->stats.ccErrors,
 				di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
 
-			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
-				attroff(COLOR_PAIR(4));
-
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
 				attroff(COLOR_PAIR(5));
+
+			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
+				attroff(COLOR_PAIR(4));
 
 			if (discovered_item_state_get(di, DI_STATE_CC_ERROR))
 				attroff(COLOR_PAIR(3));
