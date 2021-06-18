@@ -35,6 +35,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_pcapts.8
 
 %changelog
+* Fri Jun 18 2021 Steven Toth <stoth@ltnglobal.com> 
+- v1.9.0
+  tstools_nic_monitor: add UI support for showing a service information report
+
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
   tstools_udp_capture: Slow down the UI refresh from 25ms to 250ms
