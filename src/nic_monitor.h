@@ -119,6 +119,7 @@ struct discovered_item_s
 #define DI_STATE_DST_DUPLICATE		(1 << 7)
 #define DI_STATE_SHOW_IAT_HISTOGRAM	(1 << 8)
 #define DI_STATE_HIDDEN			(1 << 9)
+#define DI_STATE_SHOW_STREAMMODEL	(1 << 10)
 	unsigned int state;
 
 	time_t firstSeen;
@@ -172,6 +173,9 @@ struct discovered_item_s
 
 	/* IAT Histogram */
 	struct ltn_histogram_s *packetIntervals;
+
+	/* PSIP Tree / Stream Model */
+	void *streamModel;
 };
 
 void discovered_item_free(struct discovered_item_s *di);
@@ -214,5 +218,6 @@ void discovered_items_select_show_tr101290_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_iats_toggle(struct tool_context_s *ctx);
 void discovered_items_select_hide(struct tool_context_s *ctx);
 void discovered_items_unhide_all(struct tool_context_s *ctx);
+void discovered_items_select_show_streammodel_toggle(struct tool_context_s *ctx);
 
 #endif /* NIC_MONITOR_H */

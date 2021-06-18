@@ -13,6 +13,11 @@ void discovered_item_free(struct discovered_item_s *di)
 		di->packetIntervals = NULL;
 	}
 
+	if (di->streamModel) {
+		ltntstools_streammodel_free(di->streamModel);
+		di->streamModel = NULL;
+	}
+
 	free(di);
 }
 
@@ -44,6 +49,11 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 		di->iat_cur_us = 0;
 
 		ltn_histogram_alloc_video_defaults(&di->packetIntervals, "IAT Intervals");
+
+		/* Stream Model */
+		if (ltntstools_streammodel_alloc(&di->streamModel) < 0) {
+			fprintf(stderr, "\nUnable to allocate streammodel object, it's safe to continue.\n\n");
+		}
 	}
 
 	return di;
@@ -543,6 +553,24 @@ void discovered_items_free(struct tool_context_s *ctx)
 		di = xorg_list_first_entry(&ctx->list, struct discovered_item_s, list);
 		xorg_list_del(&di->list);
 		discovered_item_free(di);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_show_streammodel_toggle(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		if (discovered_item_state_get(e, DI_STATE_SHOW_STREAMMODEL)) {
+			discovered_item_state_clr(e, DI_STATE_SHOW_STREAMMODEL);
+		} else {
+			discovered_item_state_set(e, DI_STATE_SHOW_STREAMMODEL);
+		}
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }

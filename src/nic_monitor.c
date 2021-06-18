@@ -316,6 +316,56 @@ static void *ui_thread_func(void *p)
 
 			}
 
+			if (discovered_item_state_get(di, DI_STATE_SHOW_STREAMMODEL)) {
+				streamCount++;
+				mvprintw(streamCount + 2, 0, " -> Service Information Report");
+
+				struct ltntstools_pat_s *m = NULL;
+				if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
+
+					int mpts = ltntstools_streammodel_is_model_mpts(di->streamModel, m);
+
+					mvprintw(streamCount + 2, 31, "%s", mpts ? "MPTS" : "SPTS");
+
+					streamCount++;
+					mvprintw(streamCount + 2, 4, "programs: %d  pat-tsid: 0x%04x  version: %d  CNI: %d",
+						m->program_count,
+						m->transport_stream_id,
+						m->version_number,
+						m->current_next_indicator);
+
+					streamCount++;
+					mvprintw(streamCount + 2, 4, "prog#  PMT_PID  PCR_PID  Streams  ES_PID  TYPE  Description");
+					for (int p = 0; p < m->program_count; p++) {
+						streamCount++;
+						if (m->programs[p].program_number == 0) {
+							mvprintw(streamCount + 2, 1, "   %5d        -        -        -       -     -  Network Information Table",
+								m->programs[p].program_number);
+						} else {
+							mvprintw(streamCount + 2, 1, "   %5d   0x%04x   0x%04x      %3d",
+								m->programs[p].program_number,
+								m->programs[p].program_map_PID,
+								m->programs[p].pmt.PCR_PID,
+								m->programs[p].pmt.stream_count);
+						}
+						for (int s = 0; s < m->programs[p].pmt.stream_count; s++) {
+							if (s > 0)
+								streamCount++;
+							const char *d = ltntstools_GetESPayloadTypeDescription(m->programs[p].pmt.streams[s].stream_type);
+							mvprintw(streamCount + 2, 38, "0x%04x  0x%02x  %.*s%s",
+								m->programs[p].pmt.streams[s].elementary_PID,
+								m->programs[p].pmt.streams[s].stream_type,
+								52,
+								d,
+								strlen(d) >= 52 ? "..." : "");
+						}
+					}
+
+					ltntstools_pat_free(m);
+					streamCount++;
+				}
+			}
+
 			streamCount++;
 		}
 		pthread_mutex_unlock(&ctx->lock);
@@ -324,7 +374,7 @@ static void *ui_thread_func(void *p)
 
 		attron(COLOR_PAIR(2));
 #if 1
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze I)AT");
+		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze I)AT M)odel");
 #else
 		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze T)R101290  using: %d free: %d",
 			ctx->rebalance_last_buffers_used,
@@ -772,6 +822,9 @@ int nic_monitor(int argc, char *argv[])
 		}
 		if (c == 'U') {
 			discovered_items_unhide_all(ctx);
+		}
+		if (c == 'M') {
+			discovered_items_select_show_streammodel_toggle(ctx);
 		}
 
 		/* Cursor key support */
