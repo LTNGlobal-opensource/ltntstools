@@ -110,6 +110,9 @@ static void *ui_thread_func(void *p)
 		pthread_mutex_lock(&ctx->lock);
 		xorg_list_for_each_entry(di, &ctx->list, list) {
 
+			if (discovered_item_state_get(di, DI_STATE_HIDDEN))
+				continue;
+
 			if (di->stats.ccErrors)
 				discovered_item_state_set(di, DI_STATE_CC_ERROR);
 			else
@@ -763,6 +766,12 @@ int nic_monitor(int argc, char *argv[])
 		}
 		if (c == 'I') {
 			discovered_items_select_show_iats_toggle(ctx);
+		}
+		if (c == 'H') {
+			discovered_items_select_hide(ctx);
+		}
+		if (c == 'U') {
+			discovered_items_unhide_all(ctx);
 		}
 
 		/* Cursor key support */
