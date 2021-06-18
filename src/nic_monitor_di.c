@@ -514,6 +514,10 @@ void discovered_items_select_hide(struct tool_context_s *ctx)
 		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
 			continue;
 
+		/* No hiding if recording */
+		if (discovered_item_state_get(e, DI_STATE_PCAP_RECORDING))
+			continue;
+
 		discovered_item_state_set(e, DI_STATE_HIDDEN);
 	}
 	pthread_mutex_unlock(&ctx->lock);
