@@ -37,6 +37,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
+  tstools_udp_capture: Slow down the UI refresh from 25ms to 250ms
+  tstools_udp_capture: Bugfix related to high levels of CPU usage and excessive memory growth
   tstools_nic_monitor: UI command H to hide a row, U command unhides all hidden rows.
   tstools_nic_monitor: Ensure recorded files are owned by the calling user, not root.
   tstools_nic_monitor: Console UI option 'I' to show IAT histograms.
