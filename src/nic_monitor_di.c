@@ -23,7 +23,7 @@ void discovered_item_free(struct discovered_item_s *di)
 
 struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr)
 {
-	struct discovered_item_s *di = malloc(sizeof(*di));
+	struct discovered_item_s *di = calloc(1, sizeof(*di));
 	if (di) {
 		time(&di->firstSeen);
 		di->lastUpdated = di->firstSeen;
