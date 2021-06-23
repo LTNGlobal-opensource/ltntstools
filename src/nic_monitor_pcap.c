@@ -161,8 +161,10 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_STOP);
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORDING);
 
-		ltntstools_segmentwriter_free(di->pcapRecorder);
-		di->pcapRecorder = NULL;
+		if (di->pcapRecorder) {
+			ltntstools_segmentwriter_free(di->pcapRecorder);
+			di->pcapRecorder = NULL;
+		}
 	}
 	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORD_START)) {
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_START);

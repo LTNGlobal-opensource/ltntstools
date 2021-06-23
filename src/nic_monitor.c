@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <sys/resource.h>
 #include "histogram.h"
 
 #include "nic_monitor.h"
@@ -703,6 +704,16 @@ int nic_monitor(int argc, char *argv[])
 	}
 
 	printf("  iface: %s\n", ctx->ifname);
+
+	/* Configure automatic core-dumps */
+	struct rlimit core_limit;
+	core_limit.rlim_cur = RLIM_INFINITY;
+	core_limit.rlim_max = RLIM_INFINITY;
+	if (setrlimit(RLIMIT_CORE, &core_limit) < 0) {
+		fprintf(stderr, "setrlimit: unable to enable automatic core dumps, ignoring.\n");
+	} else {
+		printf("automatic core dumps enabled.\n");
+	}
 
 	pcap_lookupnet(ctx->ifname, &ctx->netp, &ctx->maskp, ctx->errbuf);
 

@@ -51,6 +51,7 @@ SRC += rtmp_analyzer.c
 SRC += tr101290_analyzer.c
 SRC += si_streammodel.c
 SRC += utils.c
+SRC += iat_tester.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -64,6 +65,7 @@ LINKBINS += tstools_nic_monitor
 LINKBINS += tstools_rtmp_analyzer
 LINKBINS += tstools_tr101290_analyzer
 LINKBINS += tstools_si_streammodel
+LINKBINS += tstools_iat_tester
 
 tstools_util_SOURCES = $(SRC)
 
