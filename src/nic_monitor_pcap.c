@@ -117,8 +117,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		if (di->iat_cur_us >= di->iat_hwm_us)
 			di->iat_hwm_us = di->iat_cur_us;
 
-		ltn_histogram_interval_update(di->packetIntervals);
-		//ltn_histogram_interval_print(STDOUT_FILENO, di->packetIntervals, 5);
+		ltn_histogram_interval_update_with_value(di->packetIntervals, di->iat_cur_us / 1000);
 
 		if (di->streamModel) {
 			int complete;
