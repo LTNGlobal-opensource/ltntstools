@@ -18,6 +18,7 @@ extern int rtmp_analyzer(int argc, char *argv[]);
 extern int tr101290_analyzer(int argc, char *argv[]);
 extern int si_streammodel(int argc, char *argv[]);
 extern int iat_tester(int argc, char *argv[]);
+extern int ffmpeg_metadata(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
 
@@ -44,6 +45,7 @@ int main(int argc, char *argv[])
 		{ "tstools_tr101290_analyzer",	tr101290_analyzer, },
 		{ "tstools_si_streammodel",	si_streammodel, },
 		{ "tstools_iat_tester",		iat_tester, },
+		{ "tstools_ffmpeg_metadata",	ffmpeg_metadata, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);
