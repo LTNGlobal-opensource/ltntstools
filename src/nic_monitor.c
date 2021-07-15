@@ -1,7 +1,6 @@
 
 #include <stdio.h>
 #include <sys/resource.h>
-#include "histogram.h"
 
 #include "nic_monitor.h"
 
@@ -337,7 +336,11 @@ static void *ui_thread_func(void *p)
 
 					streamCount++;
 					mvprintw(streamCount + 2, 4, "prog#  PMT_PID  PCR_PID  Streams  ES_PID  TYPE  Description");
+
 					for (int p = 0; p < m->program_count; p++) {
+
+						int has_scte35 = ltntstools_descriptor_list_contains_scte35_cue_registration(&m->programs[p].pmt.descr_list);
+
 						streamCount++;
 						if (m->programs[p].program_number == 0) {
 							mvprintw(streamCount + 2, 1, "   %5d        -        -        -       -     -  Network Information Table",
@@ -360,6 +363,18 @@ static void *ui_thread_func(void *p)
 								d,
 								strlen(d) >= 52 ? "..." : "");
 						}
+						streamCount++;
+						mvprintw(streamCount + 2, 52, "SCTE35 Registration: %s", has_scte35 ? "Yes" : "No");
+
+						unsigned int major, minor, patch;
+						int ret = ltntstools_descriptor_list_contains_ltn_encoder_sw_version(&m->programs[p].pmt.descr_list,
+							&major, &minor, &patch);
+						if (ret == 1) {
+							streamCount++;
+							mvprintw(streamCount + 2, 52, "LTN Encoder S/W: %d.%d.%d", major, minor, patch);
+						}
+						
+
 					}
 
 					ltntstools_pat_free(m);

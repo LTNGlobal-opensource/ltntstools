@@ -14,8 +14,7 @@
 #include <netinet/udp.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-
-#include "histogram.h"
+#include <libltntstools/ltntstools.h>
 
 #define SLEEP_DEFAULT_US 1000
 

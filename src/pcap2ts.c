@@ -12,8 +12,7 @@
 #include <netinet/udp.h>
 #include <arpa/inet.h>
 #include <pcap.h>
-
-#include "histogram.h"
+#include <libltntstools/ltntstools.h>
 
 static FILE *ofh = NULL;
 static int count = 0;

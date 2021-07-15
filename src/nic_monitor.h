@@ -13,6 +13,7 @@
 #include <locale.h>
 #include <libgen.h>
 #include <libltntstools/ltntstools.h>
+#include <libltntstools/histogram.h>
 #include "xorg-list.h"
 #include "parsers.h"
 #include "utils.h"
