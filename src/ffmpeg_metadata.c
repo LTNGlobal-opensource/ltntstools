@@ -37,7 +37,9 @@ int ffmpeg_metadata(int argc, char **argv)
 		exit(1);
 	}
 
+#ifdef __linux__
 	av_register_all();
+#endif
 
 	/* Quiet the ffmpeg stack, we don't care about parsing errors on startup. */
 	av_log_set_level(AV_LOG_QUIET);
@@ -68,7 +70,7 @@ int ffmpeg_metadata(int argc, char **argv)
 	/* in hidden dev mode, manually report some values after the probe is complete,
 	 * developer experimental, not used by default.
 	 */
-	AVInputFormat *ifmt = fmt_ctx->iformat;
+	const AVInputFormat *ifmt = fmt_ctx->iformat;
 
 	printf("  ->input   : %s:\n", ifmt->long_name);
 	printf("  ->metadata: %p:\n", fmt_ctx->metadata);
