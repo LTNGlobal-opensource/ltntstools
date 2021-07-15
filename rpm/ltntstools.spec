@@ -31,13 +31,18 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_rtmp_analyzer
 /usr/local/bin/tstools_si_streammodel
 /usr/local/bin/tstools_tr101290_analyzer
+/usr/local/bin/tstools_ffmpeg_metadata
 /usr/local/share/man/man8/tstools_nic_monitor.8
 /usr/local/share/man/man8/tstools_pcapts.8
+/usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
 * Fri Jun 18 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.9.0
-  tstools_nic_monitor: add UI support for showing a service information report
+  tstools_nic_monitor: Add UI support for showing a service information report
+  tstools_nic_monitor: In the UI, Show SCTE35 stats of the upstream encoder.
+  tstools_nic_monitor: In the UI, Show the LTN Encoder version in the UI if it's detected in the stream.
+  tstools_ffmpeg_metadata: New tool to extract/view metadata from recordings
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
