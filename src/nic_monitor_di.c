@@ -73,6 +73,13 @@ static void discovered_item_insert(struct tool_context_s *ctx, struct discovered
 		uint64_t b = (uint64_t)ntohl(di->iphdr.daddr) << 16;
 		b |= (di->udphdr.uh_dport);
 #endif
+#ifdef __APPLE__
+		uint64_t a = (uint64_t)ntohl(e->iphdr.ip_dst.s_addr) << 16;
+		a |= (e->udphdr.uh_dport);
+
+		uint64_t b = (uint64_t)ntohl(di->iphdr.ip_dst.s_addr) << 16;
+		b |= (di->udphdr.uh_dport);
+#endif
 		if (a < b)
 			continue;
 
