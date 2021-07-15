@@ -1,0 +1,39 @@
+.\" Manpage for tstools_ffmpeg_metadata.
+.\" Contact stoth@ltnglobal.com to correct errors or typos.
+.TH man 8 "15 Jul 2021" "1.0" "tstools_ffmpeg_metadata man page"
+.SH NAME
+tstools_ffmpeg_metadata \- Read PCAP or TS files from disk, report on codecs, bitrates and stream metadata.
+.SH SYNOPSIS
+tstools_ffmpeg_metadata -i <input.pcap | input.ts>
+.SH DESCRIPTION
+tstools_ffmpeg_metadata reads PCAP or TS recordings, extract codec information
+and reports this to the console.
+
+Typically used after making a recording (tstools_nic_monitor) if the operator needs
+to inspect the stream. For example, to check which video codecs are present, inspect bitrates,
+determine which audio codecs are present, their bitrates, sample rates or stereo/mono/other
+channel arrangements.
+
+.SH OPTIONS
+-i <input.pcap | input.ts> 
+
+.SH EXAMPLES
+1) ./tstools_ffmpeg_metadata -i /tmp/nic_monitor-eno2-227.1.20.45.4001-20210714-133559.pcap 
+
+  Copyright (c) 2017-2021 LiveTimeNet Inc. All Rights Reserved.
+  Version: v1.8.3-7-g88e0ae0e-dirty
+
+  Input #0, mpegts, from '/tmp/nic_monitor-eno2-227.1.20.45.4001-20210714-133559.pcap':
+    Duration: 00:00:04.33, start: 11.943322, bitrate: 16181 kb/s
+    Program 1 
+      Stream #0:0[0x31]: Video: h264 (High) ([27][0][0][0] / 0x001B), yuv420p(tv, bt709, progressive),
+                                1920x1080 [SAR 1:1 DAR 16:9], 24 fps, 24 tbr, 90k tbn, 48 tbc
+      Stream #0:1[0x32]: Audio: mp2 ([4][0][0][0] / 0x0004), 48000 Hz, stereo, s16p, 256 kb/s
+      Stream #0:2[0x33]: Data: scte_35
+
+.SH SEE ALSO
+tstools_si_inspector(8), tstools_clock_inspector(8), tstools_udp_capture(8), tstools_nic_monitor(8), tstools_pcapts(8)
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+Steven Toth (stoth@ltnglobal.com)

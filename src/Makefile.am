@@ -52,6 +52,7 @@ SRC += tr101290_analyzer.c
 SRC += si_streammodel.c
 SRC += utils.c
 SRC += iat_tester.c
+SRC += ffmpeg_metadata.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -66,6 +67,7 @@ LINKBINS += tstools_rtmp_analyzer
 LINKBINS += tstools_tr101290_analyzer
 LINKBINS += tstools_si_streammodel
 LINKBINS += tstools_iat_tester
+LINKBINS += tstools_ffmpeg_metadata
 
 tstools_util_SOURCES = $(SRC)
 
