@@ -10,4 +10,5 @@ tstools_nic_monitor
 tstools_rtmp_analyzer
 tstools_si_streammodel
 tstools_tr101290_analyzer
-
+tstools_ffmpeg_metadata
+tstools_iat_tester
