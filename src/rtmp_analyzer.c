@@ -1,3 +1,4 @@
+#ifdef __linux__
 /*
  * Copyright (c) 2012 Stefano Sabatini
  *
@@ -33,6 +34,7 @@
 #include <libavutil/samplefmt.h>
 #include <libavutil/timestamp.h>
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
 #include <libltntstools/ltntstools.h>
 
 static AVFormatContext *fmt_ctx = NULL;
@@ -328,11 +330,11 @@ static int decode_packet(struct stream_s *strm, int *got_frame, int cached)
 }
 
 static int open_codec_context(int *stream_idx,
-                              AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
+                              struct AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
 {
     int ret, stream_index;
     AVStream *st;
-    AVCodec *dec = NULL;
+    const AVCodec *dec = NULL;
     AVDictionary *opts = NULL;
 
     ret = av_find_best_stream(fmt_ctx, type, -1, -1, NULL, 0);
@@ -449,7 +451,9 @@ printf("%" PRIi64 " clkval\n", c.currentTime);
     audio_dst_filename = argv[3];
 
     /* register all formats and codecs */
+#ifdef __linux__
     av_register_all();
+#endif
 
     /* open input file, and allocate format context */
     if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0) {
@@ -602,3 +606,13 @@ end:
 
     return ret < 0;
 }
+#endif
+
+#ifdef __APPLE__
+#include <stdio.h>
+int rtmp_analyzer(int argc, char **argv)
+{
+	fprintf(stderr, "Unsupported\n");
+	return -1;
+}
+#endif
