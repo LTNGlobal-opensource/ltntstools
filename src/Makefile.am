@@ -20,7 +20,7 @@ endif
 
 AM_CFLAGS += -I../../target-root/usr/include -g
 LDADD += -L../../target-root/usr/lib -ldvbpsi
-LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2 -llzma
+LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2
 LDADD += -lpcap
 
 #ifdef __APPLE__
@@ -88,3 +88,7 @@ all-local:
 clean-local:
 	@$(foreach var,$(LINKBINS),rm -f $(var);)
 
+# OSX codesigning notes.
+# codesign --force --deep -s "Developer ID Application: LTN" tstools_util
+# codesign --verify --verbose tstools_util
+# spctl -a -v tstools_util
