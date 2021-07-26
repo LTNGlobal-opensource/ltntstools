@@ -14,7 +14,7 @@
 #include <libklscte35/scte35.h>
 #include "ffmpeg-includes.h"
 
-static int gVerbose = 0;
+static int gVerbose = 1;
 static int gPID = 0;
 static void *g_se = NULL;
 
@@ -22,11 +22,11 @@ static void usage(const char *progname)
 {
 	printf("A tool to display the SCTE35 packets from a file.\n");
 	printf("Usage:\n");
-	printf("    -i <url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n"
-               "             172.16.0.67 is the IP addr where we'll issue a IGMP join\n");
-	printf("  -v Increase level of verbosity (enable descriptor dumping).\n");
+	printf("    -i <url> Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
+               "             192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
-	printf("  -P 0xnnnn PID containing the SCTE35 messages\n");
+	printf("  -P 0xnnnn PID containing the SCTE35 messages.\n");
 }
 
 int scte35_inspector(int argc, char *argv[])
@@ -105,10 +105,14 @@ int scte35_inspector(int argc, char *argv[])
 				time_t now = time(0);
 				printf("SCTE35 message on pid 0x%04x @ %s", gPID, ctime(&now));
 				if (gVerbose > 0) {
-					printf("  -> ");
-					for (int i = 0; i < len; i++)
-						printf("%02x ", dst[i]);
+					for (int i = 1; i <= len; i++) {
+						if (i == 1 || i % 16 == 1)
+							printf("\n  -> ");
+						printf("%02x ", dst[i - 1]);
+					}
 					printf("\n");
+					if (len % 16)
+						printf("\n");
 				}
 
 				struct scte35_splice_info_section_s *s = scte35_splice_info_section_parse(dst, len);

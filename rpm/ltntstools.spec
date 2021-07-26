@@ -32,6 +32,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_si_streammodel
 /usr/local/bin/tstools_tr101290_analyzer
 /usr/local/bin/tstools_ffmpeg_metadata
+/usr/local/bin/tstools_scte35_inspector
 /usr/local/share/man/man8/tstools_nic_monitor.8
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
@@ -46,6 +47,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Add keyboard UI support for switching recordings between PCAP and TS
   tstools_nic_monitor: Add keyboard UI support for switching recordings between segments and single files.
   tstools_nic_monitor: Add keyboard UI support to show state of various runtime options via 'o' key.
+  tstools_scte35_inspector: New tool added to display SCTE35 messages from file or network.
   tstools_ffmpeg_metadata: New tool to extract/view metadata from recordings
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
