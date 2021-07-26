@@ -181,24 +181,31 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		/* Substitute : for . */
 		character_replace(prefix, ':', '.');
 
-		int ret = ltntstools_segmentwriter_alloc(&di->pcapRecorder, prefix, ".pcap", ctx->recordWithSegments);
+		char *suffixNames[2] = { ".pcap", ".ts" };
+		char *suffix = suffixNames[0];
+		if (ctx->recordAsTS) {
+			suffix = suffixNames[1];
+		}
+
+		int ret = ltntstools_segmentwriter_alloc(&di->pcapRecorder, prefix, suffix, ctx->recordWithSegments);
 		if (ret < 0) {
 			fprintf(stderr, "%s() unable to allocate a segment writer\n", __func__);
 			exit(1);
 		}
 
-		struct pcap_file_header hdr;
-		hdr.magic = 0xa1b2c3d4;
-		hdr.version_major = PCAP_VERSION_MAJOR;
-		hdr.version_minor = PCAP_VERSION_MINOR;
-		hdr.thiszone = 0;
-		hdr.sigfigs = 0;
-		hdr.snaplen = 0x400000;
-		hdr.linktype = DLT_EN10MB;
-
-		ltntstools_segmentwriter_set_header(di->pcapRecorder, (const uint8_t *)&hdr, sizeof(hdr));
+		if (!ctx->recordAsTS) {
+			struct pcap_file_header hdr;
+			hdr.magic = 0xa1b2c3d4;
+			hdr.version_major = PCAP_VERSION_MAJOR;
+			hdr.version_minor = PCAP_VERSION_MINOR;
+			hdr.thiszone = 0;
+			hdr.sigfigs = 0;
+			hdr.snaplen = 0x400000;
+			hdr.linktype = DLT_EN10MB;
+			ltntstools_segmentwriter_set_header(di->pcapRecorder, (const uint8_t *)&hdr, sizeof(hdr));
+		}
 	}
-	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING)) {
+	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING) && !ctx->recordAsTS) {
 		/* Dump the cb_h and cb_pkt payload to disk, via a thread. */
 		/* Make sure the timestamps are 4 bytes long, not the native struct size
 		 * for the running platform.
@@ -220,6 +227,29 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		memcpy(dst + 16, cb_pkt, cb_h->len);
 
 		ssize_t len = ltntstools_segmentwriter_object_write(di->pcapRecorder, obj);
+		if (len < 0) {
+			/* Now what? */
+			/* Nothing */
+		}
+
+		/* Every 5 seconds */
+		if (di->lastTimeFSFreeSpaceCheck + 5 <= now) {
+			di->lastTimeFSFreeSpaceCheck = now;
+
+			/* Deal with the case where the filesystem is above 90% and we want the recording
+			 * to silently terminate. Abort recording if filesystem has 10% freespace or less.
+			 */
+			double fsfreepct = ltntstools_segmentwriter_get_freespace_pct(di->pcapRecorder);
+			if (fsfreepct >= 0.0) {
+				if (fsfreepct <= 10.0) {
+					discovered_item_state_set(di, DI_STATE_PCAP_RECORD_STOP);
+				}
+			}
+		}
+	}
+	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING) && ctx->recordAsTS) {
+
+		ssize_t len = ltntstools_segmentwriter_write(di->pcapRecorder, pkts, pktCount * 188);
 		if (len < 0) {
 			/* Now what? */
 			/* Nothing */

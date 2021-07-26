@@ -386,6 +386,16 @@ static void *ui_thread_func(void *p)
 		}
 		pthread_mutex_unlock(&ctx->lock);
 
+		if (ctx->showUIOptions) {
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "@) Record Mode: %s",
+				ctx->recordWithSegments ? "Segments" : "Single File");
+
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "$) Record Format: %s",
+				ctx->recordAsTS ? "MPEG-TS" : "PCAP");
+		}
+
 		ctx->trailerRow = streamCount + 3;
 
 		attron(COLOR_PAIR(2));
@@ -851,6 +861,15 @@ int nic_monitor(int argc, char *argv[])
 		}
 		if (c == 'M') {
 			discovered_items_select_show_streammodel_toggle(ctx);
+		}
+		if (c == '$') {
+			ctx->recordAsTS = (ctx->recordAsTS + 1) & 0x1;
+		}
+		if (c == '@') {
+			ctx->recordWithSegments = (ctx->recordWithSegments + 1) & 0x1;
+		}
+		if (c == 'o') {
+			ctx->showUIOptions = ~ctx->showUIOptions;
 		}
 
 		/* Cursor key support */

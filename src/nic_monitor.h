@@ -37,6 +37,8 @@ struct tool_context_s
 	time_t endTime;
 	int automaticallyRecordStreams;
 	int recordWithSegments;
+	int recordAsTS;
+	int showUIOptions;
 
 	pthread_t pcap_threadId;
 	int pcap_threadTerminate, pcap_threadRunning, pcap_threadTerminated;
