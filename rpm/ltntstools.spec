@@ -43,6 +43,9 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: In the UI, Show SCTE35 stats of the upstream encoder.
   tstools_nic_monitor: In the UI, Show the LTN Encoder version in the UI if it's detected in the stream.
   tstools_nic_monitor: Add support for 'lo' loopback interfaces, and any interface even if BROADCAST is not enabled.
+  tstools_nic_monitor: Add keyboard UI support for switching recordings between PCAP and TS
+  tstools_nic_monitor: Add keyboard UI support for switching recordings between segments and single files.
+  tstools_nic_monitor: Add keyboard UI support to show state of various runtime options via 'o' key.
   tstools_ffmpeg_metadata: New tool to extract/view metadata from recordings
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
