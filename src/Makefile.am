@@ -21,7 +21,8 @@ endif
 AM_CFLAGS += -I../../target-root/usr/include -g
 LDADD += -L../../target-root/usr/lib -ldvbpsi
 LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2
-LDADD += -lpcap
+LDADD += -lpcap -llzma
+LDADD += -lklscte35
 
 #ifdef __APPLE__
 #LDADD += -liconv
@@ -50,6 +51,7 @@ SRC += kbhit.c
 SRC += rtmp_analyzer.c
 SRC += tr101290_analyzer.c
 SRC += si_streammodel.c
+SRC += scte35_inspector.c
 SRC += utils.c
 SRC += iat_tester.c
 SRC += ffmpeg_metadata.c
@@ -68,6 +70,7 @@ LINKBINS += tstools_tr101290_analyzer
 LINKBINS += tstools_si_streammodel
 LINKBINS += tstools_iat_tester
 LINKBINS += tstools_ffmpeg_metadata
+LINKBINS += tstools_scte35_inspector
 
 tstools_util_SOURCES = $(SRC)
 
