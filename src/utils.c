@@ -32,6 +32,23 @@ int networkInterfaceExists(const char *ifname)
 	if (result >= 0) {
 		const struct ifaddrs *cursor = addrs;
 		while (cursor != NULL) {
+#if 0
+			char host[NI_MAXHOST];
+			int r = getnameinfo(cursor->ifa_addr,
+				cursor->ifa_addr->sa_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
+				host, NI_MAXHOST,
+				NULL, 0, NI_NUMERICHOST);
+			printf("name: %s\n", cursor->ifa_name);
+			printf("\t host: %s\n", host);
+			if (cursor->ifa_flags & IFF_BROADCAST)
+				printf("\tflags: IFF_BROADCAST = true\n");
+			else
+				printf("\tflags: IFF_BROADCAST = false\n");
+			if (cursor->ifa_flags & IFF_UP)
+				printf("\tflags: IFF_UP = true\n");
+			else
+				printf("\tflags: IFF_UP = false\n");
+#endif
 			if ((cursor->ifa_flags & IFF_BROADCAST) && (cursor->ifa_flags & IFF_UP) &&
 				(cursor->ifa_addr->sa_family == AF_INET)) {
 
