@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <libgen.h>
+#include <unistd.h>
 #include "version.h"
 
 /* External tool hooks */
@@ -52,14 +53,33 @@ int main(int argc, char *argv[])
 	};
 	char *appname = basename(argv[0]);
 
+	int createLinks = 0;
+	int listapps = 0;
+	if ((argc == 2) && strcmp(argv[1], "--symlinks") == 0) {
+		createLinks = 1;
+	} else
+	if ((argc == 2) && strcmp(argv[1], "--listapps") == 0) {
+		listapps = 1;
+	}
+
 	int i = 0;
 	struct app_s *app = &apps[i++];
 	while (app->name) {
-		if (strcmp(appname, app->name) == 0)
-			return app->func(argc, argv);
+		if (listapps) {
+			printf("%s\n", app->name);
+		} else
+		if (createLinks) {
+			printf("creating link %s\n", app->name);
+			symlink(argv[0], app->name);
+		} else {
+			if (strcmp(appname, app->name) == 0)
+				return app->func(argc, argv);
+		}
 
 		app = &apps[i++];
 	}
+	if (createLinks || listapps)
+		return 0;
 
 	printf("No application called %s, aborting.\n", appname);
 	i = 0;
