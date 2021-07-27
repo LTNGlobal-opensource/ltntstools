@@ -22,8 +22,8 @@ static void usage(const char *progname)
 {
 	printf("A tool to display the SCTE35 packets from a file.\n");
 	printf("Usage:\n");
-	printf("    -i <url> Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
-               "             192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -i <url> Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
+               "           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -P 0xnnnn PID containing the SCTE35 messages.\n");
@@ -60,11 +60,13 @@ int scte35_inspector(int argc, char *argv[])
 	}
 
 	if (gPID == 0) {
+		usage(argv[0]);
 		fprintf(stderr, "\n-P is mandatory.\n\n");
 		exit(1);
 	}
 
 	if (iname == NULL) {
+		usage(argv[0]);
 		fprintf(stderr, "\n-i is mandatory.\n\n");
 		exit(1);
 	}
