@@ -214,13 +214,6 @@ static void *ui_thread_func(void *p)
 						streamCount++;
 						if (i == 0) {
 							mvprintw(streamCount + 2, 0, " -> PID Report");
-
-							if (di->notMultipleOfSevenError)
-								attron(COLOR_PAIR(3));
-							mvprintw(streamCount + 3, 0,
-								" -> None 1316 pkts  %" PRIi64, di->notMultipleOfSevenError);
-							if (di->notMultipleOfSevenError)
-								attroff(COLOR_PAIR(3));
 						}
 
 						mvprintw(streamCount + 2, 37, "0x%04x (%4d)  %6.2f %'17" PRIu64 " %12" PRIu64 "\n",
@@ -232,6 +225,13 @@ static void *ui_thread_func(void *p)
 					}
 				}
 				streamCount++;
+
+				if (di->notMultipleOfSevenError) {
+					attron(COLOR_PAIR(4));
+					mvprintw(streamCount + 2, 37, "Warning: %" PRIi64 " UDP packets that don't contain 7*188 TS packets", di->notMultipleOfSevenError);
+					attroff(COLOR_PAIR(4));
+					streamCount++;
+				}
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_TR101290)) {
