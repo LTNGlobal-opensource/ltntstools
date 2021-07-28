@@ -50,6 +50,7 @@ int networkInterfaceExists(const char *ifname)
 				printf("\tflags: IFF_UP = false\n");
 #endif
 			if (/* (cursor->ifa_flags & IFF_BROADCAST) && */ (cursor->ifa_flags & IFF_UP) &&
+				(cursor->ifa_addr) && 
 				(cursor->ifa_addr->sa_family == AF_INET)) {
 
 				char host[NI_MAXHOST];
@@ -83,6 +84,7 @@ void networkInterfaceList()
 		const struct ifaddrs *cursor = addrs;
 		while (cursor != NULL) {
 			if (/* (cursor->ifa_flags & IFF_BROADCAST) && */ (cursor->ifa_flags & IFF_UP) &&
+				(cursor->ifa_addr) &&
 				(cursor->ifa_addr->sa_family == AF_INET)) {
 
 				char host[NI_MAXHOST];
