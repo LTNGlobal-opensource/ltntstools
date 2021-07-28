@@ -25,6 +25,7 @@ struct tool_context_s
 	char *iname, *oname;
 	int verbose;
 	int stopAfterSeconds;
+	int returnErrorResultOnCC;
 
 	/* Segment Writer */
 	void *swctx;
@@ -280,6 +281,7 @@ static void usage(const char *progname)
 #ifdef __linux__
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 #endif
+	printf("  -E Return (255) -1 result code if any CC errors are detected (harvester)\n");
 }
 
 int udp_capture(int argc, char *argv[])
@@ -292,12 +294,15 @@ int udp_capture(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-	while ((ch = getopt(argc, argv, "?hi:o:vMt:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:o:vEMt:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
 			usage(argv[0]);
 			exit(1);
+			break;
+		case 'E':
+			ctx->returnErrorResultOnCC = 1;
 			break;
 		case 'i':
 			ctx->iname = optarg;
@@ -333,7 +338,7 @@ int udp_capture(int argc, char *argv[])
 
 	if (ctx->iname == NULL) {
 		usage(argv[0]);
-		fprintf(stderr, "-i is mandatory.\n");
+		fprintf(stderr, "\n-i is mandatory.\n\n");
 		exit(1);
 	}
 
@@ -426,6 +431,8 @@ int udp_capture(int argc, char *argv[])
 	if (ctx->oname)
 		printf("\nWrote to %s\n", ctx->oname);
 
+	int64_t errCount = 0;
+
 	printf("   PID   PID     PacketCount   CCErrors  TEIErrors\n");
 	printf("----------------------------  --------- ----------\n");
 	for (int i = 0; i < MAX_PID; i++) {	
@@ -434,6 +441,7 @@ int udp_capture(int argc, char *argv[])
 				ctx->stream.pids[i].packetCount,
 				ctx->stream.pids[i].ccErrors,
 				ctx->stream.pids[i].teiErrors);
+			errCount += ctx->stream.pids[i].ccErrors;
 		}
 	}
 
@@ -442,6 +450,11 @@ int udp_capture(int argc, char *argv[])
 	}
 
 	throughput_hires_free(ctx->hires_throughput);
+
+	if (ctx->returnErrorResultOnCC) {
+		if (errCount)
+			ret = -1;
+	}
 
 no_output:
 	return ret;
