@@ -126,6 +126,11 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 	}
 	di->iat_last_frame = cb_h->ts;
 
+	/* If we're detected the LTN version marker, start feeding the packets into the latency detection probe. */
+	if (di->isLTNEncoder) {
+		ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
+	}
+
 	ltntstools_pid_stats_update(&di->stats, pkts, pktCount);
 }
 

@@ -14,6 +14,7 @@
 #include <libgen.h>
 #include <libltntstools/ltntstools.h>
 #include <libltntstools/histogram.h>
+#include <libltntstools/probes.h>
 #include "xorg-list.h"
 #include "parsers.h"
 #include "utils.h"
@@ -179,6 +180,10 @@ struct discovered_item_s
 
 	/* PSIP Tree / Stream Model */
 	void *streamModel;
+
+	/* Encoder Specifics */
+	int isLTNEncoder;
+	void *LTNLatencyProbe;
 };
 
 void discovered_item_free(struct discovered_item_s *di);

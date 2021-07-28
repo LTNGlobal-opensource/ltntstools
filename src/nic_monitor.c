@@ -370,8 +370,18 @@ static void *ui_thread_func(void *p)
 						int ret = ltntstools_descriptor_list_contains_ltn_encoder_sw_version(&m->programs[p].pmt.descr_list,
 							&major, &minor, &patch);
 						if (ret == 1) {
+							di->isLTNEncoder = 1;
+
 							streamCount++;
-							mvprintw(streamCount + 2, 52, "LTN Encoder S/W: %d.%d.%d", major, minor, patch);
+							mvprintw(streamCount + 2, 52, "LTN Encoder S/W: %d.%d.%d / Latency: ",
+								major, minor, patch);
+
+							int64_t ms = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
+							if (ms >= 0) {
+								mvprintw(streamCount + 2, 86, "%" PRIi64 "ms", ms);
+							} else {
+								mvprintw(streamCount + 2, 86, "n/a");
+							}
 						}
 						
 

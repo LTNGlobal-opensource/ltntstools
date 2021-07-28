@@ -18,6 +18,10 @@ void discovered_item_free(struct discovered_item_s *di)
 		di->streamModel = NULL;
 	}
 
+	if (di->LTNLatencyProbe) {
+		ltntstools_probe_ltnencoder_free(di->LTNLatencyProbe);
+		di->LTNLatencyProbe = NULL;
+	}
 	free(di);
 }
 
@@ -53,6 +57,11 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 		/* Stream Model */
 		if (ltntstools_streammodel_alloc(&di->streamModel) < 0) {
 			fprintf(stderr, "\nUnable to allocate streammodel object, it's safe to continue.\n\n");
+		}
+
+		/* LTN Latency Estimator Probe - we'll only use this if we detect the LTN encoder */
+		if (ltntstools_probe_ltnencoder_alloc(&di->LTNLatencyProbe) < 0) {
+			fprintf(stderr, "\nUnable to allocate ltn encoder latency probe, it's safe to continue.\n\n");
 		}
 	}
 
