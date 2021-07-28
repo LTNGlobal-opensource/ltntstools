@@ -228,7 +228,7 @@ static void *ui_thread_func(void *p)
 
 				if (di->notMultipleOfSevenError) {
 					attron(COLOR_PAIR(4));
-					mvprintw(streamCount + 2, 37, "Warning: %" PRIi64 " UDP packets that don't contain 7*188 TS packets", di->notMultipleOfSevenError);
+					mvprintw(streamCount + 2, 37, "Warning: %" PRIi64 " UDP packets that are less then 1316 bytes long", di->notMultipleOfSevenError);
 					attroff(COLOR_PAIR(4));
 					streamCount++;
 				}
