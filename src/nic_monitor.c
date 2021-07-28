@@ -404,13 +404,42 @@ static void *ui_thread_func(void *p)
 			streamCount++;
 			mvprintw(streamCount + 2, 0, "$) Record Format: %s",
 				ctx->recordAsTS ? "MPEG-TS" : "PCAP");
+
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "f) Freeze UI display (analysis continues)");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "h) Toggle help menu");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "D) Deselect the current stream");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "S) Select all streams for a batch operation");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "H) Hide the selected stream (analysis continues)");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "U) Unhide all hidden streams");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "I) Toggle stream IAT histogram report");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "M) Toggle stream PSIP model report");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "P) Toggle stream PID traffic report");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "r) Reset stats counters and begin new measurement period");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "R) Start/Stop stream recording");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "T) Start/Stop TR101290 analysis (NOT YET SUPPORTED)");
+			streamCount++;
+			mvprintw(streamCount + 2, 0, "cursor keys) Select and navigate the cursor");
+
+			streamCount++;
 		}
 
 		ctx->trailerRow = streamCount + 3;
 
 		attron(COLOR_PAIR(2));
 #if 1
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze I)AT M)odel");
+		mvprintw(ctx->trailerRow, 0, "q)uit h)elp");
 #else
 		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze T)R101290  using: %d free: %d",
 			ctx->rebalance_last_buffers_used,
@@ -878,7 +907,7 @@ int nic_monitor(int argc, char *argv[])
 		if (c == '@') {
 			ctx->recordWithSegments = (ctx->recordWithSegments + 1) & 0x1;
 		}
-		if (c == 'o') {
+		if (c == 'h') {
 			ctx->showUIOptions = ~ctx->showUIOptions;
 		}
 
