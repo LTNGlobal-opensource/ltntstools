@@ -12,3 +12,4 @@ tstools_si_streammodel
 tstools_tr101290_analyzer
 tstools_ffmpeg_metadata
 tstools_iat_tester
+tstools_scte35_inspector
