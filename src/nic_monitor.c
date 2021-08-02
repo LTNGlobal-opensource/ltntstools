@@ -148,6 +148,7 @@ printf("xxxx %f\n", di->stats.mbps);
 					di->stats.packetCount,
 					di->stats.ccErrors,
 					di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
+				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
