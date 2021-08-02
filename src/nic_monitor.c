@@ -274,41 +274,45 @@ printf("xxxx %f\n", di->stats.mbps);
         E101290_P2_6__CAT_ERROR,
 
 #endif
-				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> TR101290 Status (NOT YET SUPPORTED)");
-				streamCount++;
-				int p1col = 10;
+				if (di->payloadType == PAYLOAD_A324_CTP) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for A/324 Studio Transmitter Link CTP streams");
+					streamCount++;
+				} else {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> TR101290 Status (NOT YET SUPPORTED)");
+					streamCount++;
+					int p1col = 10;
 
-				/* Everything RED until further notice */
-				//attron(COLOR_PAIR(3));
-				mvprintw(streamCount + 2, p1col, "P1.1  BAD [TS SYNC  ]");
-				//attroff(COLOR_PAIR(3));
+					/* Everything RED until further notice */
+					//attron(COLOR_PAIR(3));
+					mvprintw(streamCount + 2, p1col, "P1.1  BAD [TS SYNC  ]");
+					//attroff(COLOR_PAIR(3));
 
-				//attron(COLOR_PAIR(6));
-				mvprintw(streamCount + 3, p1col, "P1.2  OK  [SYNC BYTE]");
-				mvprintw(streamCount + 4, p1col, "P1.3  OK  [PAT      ]");
-				mvprintw(streamCount + 5, p1col, "P1.3a OK  [PAT 2    ]");
-				mvprintw(streamCount + 6, p1col, "P1.4  OK  [CC       ]");
-				mvprintw(streamCount + 7, p1col, "P1.5  OK  [PMT      ]");
-				mvprintw(streamCount + 8, p1col, "P1.5a OK  [PMT 2    ]");
-				mvprintw(streamCount + 9, p1col, "P1.6  OK  [PID      ]");
+					//attron(COLOR_PAIR(6));
+					mvprintw(streamCount + 3, p1col, "P1.2  OK  [SYNC BYTE]");
+					mvprintw(streamCount + 4, p1col, "P1.3  OK  [PAT      ]");
+					mvprintw(streamCount + 5, p1col, "P1.3a OK  [PAT 2    ]");
+					mvprintw(streamCount + 6, p1col, "P1.4  OK  [CC       ]");
+					mvprintw(streamCount + 7, p1col, "P1.5  OK  [PMT      ]");
+					mvprintw(streamCount + 8, p1col, "P1.5a OK  [PMT 2    ]");
+					mvprintw(streamCount + 9, p1col, "P1.6  OK  [PID      ]");
 
-				int p2col = 45;
-				mvprintw(streamCount + 2, p2col, "P2.1  OK  [TRANSPORT     ]");
-				mvprintw(streamCount + 3, p2col, "P2.2  OK  [CRC           ]");
-				mvprintw(streamCount + 4, p2col, "P2.3  OK  [PCR           ]");
-				mvprintw(streamCount + 5, p2col, "P2.3a OK  [PCR REPETITION]");
-				mvprintw(streamCount + 6, p2col, "P2.4  OK  [PCR ACCURACY  ]");
-				mvprintw(streamCount + 7, p2col, "P2.5  OK  [PTS           ]");
-				//attroff(COLOR_PAIR(6));
+					int p2col = 45;
+					mvprintw(streamCount + 2, p2col, "P2.1  OK  [TRANSPORT     ]");
+					mvprintw(streamCount + 3, p2col, "P2.2  OK  [CRC           ]");
+					mvprintw(streamCount + 4, p2col, "P2.3  OK  [PCR           ]");
+					mvprintw(streamCount + 5, p2col, "P2.3a OK  [PCR REPETITION]");
+					mvprintw(streamCount + 6, p2col, "P2.4  OK  [PCR ACCURACY  ]");
+					mvprintw(streamCount + 7, p2col, "P2.5  OK  [PTS           ]");
+					//attroff(COLOR_PAIR(6));
 
-				attron(COLOR_PAIR(3));
-				mvprintw(streamCount + 8, p2col, "P2.6  BAD [CAT           ]");
-				attroff(COLOR_PAIR(3));
+					attron(COLOR_PAIR(3));
+					mvprintw(streamCount + 8, p2col, "P2.6  BAD [CAT           ]");
+					attroff(COLOR_PAIR(3));
 
-				streamCount += 8;
-
-
+					streamCount += 8;
+				}
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_IAT_HISTOGRAM)) {
