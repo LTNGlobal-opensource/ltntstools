@@ -101,12 +101,12 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 /* Called on the pcap thread, avoid all blocking. */
 static void _processPackets_Stats(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr,
-	const uint8_t *pkts, uint32_t pktCount, int isRTP,
-	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt)
+	const uint8_t *pkts, uint32_t pktCount, enum payload_type_e payloadType,
+	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt, int lengthBytes)
 {
 	struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
-
-	di->isRTP = isRTP;
+	if (di->payloadType == PAYLOAD_UNDEFINED)
+		di->payloadType = payloadType;
 
 	struct timeval diff;
 	if (di->iat_last_frame.tv_sec) {
@@ -119,7 +119,8 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 
 		ltn_histogram_interval_update_with_value(di->packetIntervals, di->iat_cur_us / 1000);
 
-		if (di->streamModel) {
+		if (di->streamModel &&
+			((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))) {
 			int complete;
 			ltntstools_streammodel_write(di->streamModel, pkts, pktCount, &complete);
 		}
@@ -127,18 +128,25 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 	di->iat_last_frame = cb_h->ts;
 
 	/* If we're detected the LTN version marker, start feeding the packets into the latency detection probe. */
-	if (di->isLTNEncoder) {
-		ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
-	}
+	if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))
+	{
+		ltntstools_pid_stats_update(&di->stats, pkts, pktCount);
 
-	ltntstools_pid_stats_update(&di->stats, pkts, pktCount);
+		if (di->isLTNEncoder) {
+			ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
+		}
+	} else
+	if (di->payloadType == PAYLOAD_A324_CTP)
+	{
+		ltntstools_ctp_stats_update(&di->stats, pkts, lengthBytes);
+	}
 }
 
 /* Called on the stats thread */
 static void _processPackets_IO(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr,
-	const uint8_t *pkts, uint32_t pktCount, int isRTP,
-	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt)
+	const uint8_t *pkts, uint32_t pktCount, enum payload_type_e payloadType,
+	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt, int lengthBytes)
 {
 	struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
 	if (!di)
@@ -147,9 +155,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	time_t now;
 	time(&now);
 
-	di->isRTP = isRTP;
-
-	if (isRTP) {
+	if (di->payloadType == PAYLOAD_RTP_TS) {
 		if (ntohs(udphdr->uh_ulen) - 8 + 12 != (7 * 188)) {
         		di->notMultipleOfSevenError++;
         		time(&di->notMultipleOfSevenErrorLastEvent);
@@ -188,7 +194,16 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 
 		char *suffixNames[2] = { ".pcap", ".ts" };
 		char *suffix = suffixNames[0];
-		if (ctx->recordAsTS) {
+
+		/* A/324 are always recorded as PCAP, regardless. */
+		if (di->payloadType == PAYLOAD_A324_CTP) {
+			di->recordAsTS = 0;
+		} else {
+			/* Other streams, the operator can choose. */
+			di->recordAsTS = ctx->recordAsTS;
+		}
+
+		if (di->recordAsTS) {
 			suffix = suffixNames[1];
 		}
 
@@ -198,7 +213,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			exit(1);
 		}
 
-		if (!ctx->recordAsTS) {
+		if (!di->recordAsTS) {
 			struct pcap_file_header hdr;
 			hdr.magic = 0xa1b2c3d4;
 			hdr.version_major = PCAP_VERSION_MAJOR;
@@ -210,7 +225,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			ltntstools_segmentwriter_set_header(di->pcapRecorder, (const uint8_t *)&hdr, sizeof(hdr));
 		}
 	}
-	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING) && !ctx->recordAsTS) {
+	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING) && !di->recordAsTS) {
 		/* Dump the cb_h and cb_pkt payload to disk, via a thread. */
 		/* Make sure the timestamps are 4 bytes long, not the native struct size
 		 * for the running platform.
@@ -252,7 +267,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			}
 		}
 	}
-	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING) && ctx->recordAsTS) {
+	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING) && di->recordAsTS) {
 
 		ssize_t len = ltntstools_segmentwriter_write(di->pcapRecorder, pkts, pktCount * 188);
 		if (len < 0) {
@@ -279,7 +294,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 
 /* Called on the UI stream, and writes files to disk, handles recordings etc */
 static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr *h, const u_char *pkt) 
-{ 
+{
 	int isRTP = 0;
 
 	if (h->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
@@ -317,10 +332,15 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->uh_dport));
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
-				
 				src, dst,
 				ntohs(udp->uh_ulen),
 				ptr[0], ptr[1], ptr[2], ptr[3]);
+			//if (ntohs(udp->uh_dport) == 4100)
+			{
+				for (int i = 0; i < 40; i++)
+					printf("%02x ", ptr[i]);
+				printf("\n");
+			}
 		}
 
 		/* TODO: Handle RTP with FEC correctly. */
@@ -336,14 +356,15 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
 		int pktCount = ntohs(udp->uh_ulen) / 188;
-		_processPackets_IO(ctx, eth, ip, udp, ptr, pktCount, isRTP, h, pkt);
+		int lengthBytes = ntohs(udp->uh_ulen);
+		_processPackets_IO(ctx, eth, ip, udp, ptr, pktCount, isRTP, h, pkt, lengthBytes);
 	}
 }
 
 /* Called on the pcap thread */
 void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr *h, const u_char *pkt) 
 { 
-	int isRTP = 0;
+	enum payload_type_e payloadType = PAYLOAD_UNDEFINED;
 
 	if (h->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
 		return;
@@ -364,7 +385,7 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		struct udphdr *udp = (struct udphdr *)((u_char *)ip + sizeof(struct iphdr));
 		uint8_t *ptr = (uint8_t *)((uint8_t *)udp + sizeof(struct udphdr));
 
-		if (ctx->verbose) {
+		if (ctx->verbose > 2) {
 			struct in_addr dstaddr, srcaddr;
 #ifdef __APPLE__
 			srcaddr.s_addr = ip->ip_src.s_addr;
@@ -386,20 +407,31 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 				ptr[0], ptr[1], ptr[2], ptr[3]);
 		}
 
+		int lengthBytes = ntohs(udp->uh_ulen);
+
 		/* TODO: Handle RTP with FEC correctly. */
 
+		/* Table 6.1 - Spec A/324:2018 7 Jan 2020 */
+		/* Confirm version == 2 and marker == 97 and protocol == 1 */
+		if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 97)) {
+			payloadType = PAYLOAD_A324_CTP;
+		} else
 		if (ptr[0] != 0x47) {
 			/* Make a rash assumption that's it's RTP where possible. */
 			if (ptr[12] == 0x47) {
 				ptr += 12;
-				isRTP = 1;
+				payloadType = PAYLOAD_RTP_TS;
 			}
+		} else
+		if ((lengthBytes > 189) && (ptr[0] == 0x47) && (ptr[188] == 0x47)) {
+			payloadType = PAYLOAD_UDP_TS;
 		}
 
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
 		int pktCount = ntohs(udp->uh_ulen) / 188;
-		_processPackets_Stats(ctx, eth, ip, udp, ptr, pktCount, isRTP, h, pkt);
+//printf("pt %d\n", payloadType);
+		_processPackets_Stats(ctx, eth, ip, udp, ptr, pktCount, payloadType, h, pkt, lengthBytes);
 	}
 }
 

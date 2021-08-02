@@ -128,14 +128,27 @@ static void *ui_thread_func(void *p)
 				attron(COLOR_PAIR(5));
 
 			totalMbps += ltntstools_pid_stats_stream_get_mbps(&di->stats);
-			mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
-				di->isRTP ? "RTP" : "UDP",
-				di->srcaddr,
-				di->dstaddr,
-				ltntstools_pid_stats_stream_get_mbps(&di->stats),
-				di->stats.packetCount,
-				di->stats.ccErrors,
-				di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
+printf("xxxx %f\n", di->stats.mbps);
+			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
+					payloadTypeDesc(di->payloadType),
+					di->srcaddr,
+					di->dstaddr,
+					ltntstools_pid_stats_stream_get_mbps(&di->stats),
+					di->stats.packetCount,
+					di->stats.ccErrors,
+					di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
+			} else
+			if (di->payloadType == PAYLOAD_A324_CTP) {
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
+					payloadTypeDesc(di->payloadType),
+					di->srcaddr,
+					di->dstaddr,
+					ltntstools_ctp_stats_stream_get_mbps(&di->stats),
+					di->stats.packetCount,
+					di->stats.ccErrors,
+					di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
+			}
 
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
 				attroff(COLOR_PAIR(5));
@@ -209,6 +222,10 @@ static void *ui_thread_func(void *p)
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
+				if (di->payloadType == PAYLOAD_A324_CTP) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> PID Report not available for A/324 Studio Transmitter Link CTP streams");
+				}
 				for (int i = 0; i < MAX_PID; i++) {
 					if (di->stats.pids[i].enabled) {
 						streamCount++;
@@ -226,7 +243,7 @@ static void *ui_thread_func(void *p)
 				}
 				streamCount++;
 
-				if (di->notMultipleOfSevenError) {
+				if (di->notMultipleOfSevenError && (di->payloadType != PAYLOAD_A324_CTP)) {
 					attron(COLOR_PAIR(4));
 					mvprintw(streamCount + 2, 37, "Warning: %" PRIi64 " UDP packets that are less then 1316 bytes long", di->notMultipleOfSevenError);
 					attroff(COLOR_PAIR(4));
@@ -318,7 +335,12 @@ static void *ui_thread_func(void *p)
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_STREAMMODEL)) {
 				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> Service Information Report");
+				if (di->payloadType == PAYLOAD_A324_CTP) {
+					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for A/324 Studio Transmitter Link CTP streams");
+					streamCount++;
+				} else {
+					mvprintw(streamCount + 2, 0, " -> Service Information Report");
+				}
 
 				struct ltntstools_pat_s *m = NULL;
 				if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {

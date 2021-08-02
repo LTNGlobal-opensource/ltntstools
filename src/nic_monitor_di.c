@@ -1,6 +1,21 @@
 
 #include "nic_monitor.h"
 
+static const char *payloadTypes[] = {
+	"???",
+	"UDP",
+	"RTP",
+	"STL",
+};
+
+const char *payloadTypeDesc(enum payload_type_e pt)
+{
+	if (pt >= PAYLOAD_MAX)
+		return payloadTypes[0];
+
+	return payloadTypes[pt];
+}
+
 void discovered_item_free(struct discovered_item_s *di)
 {
 	if (di->pcapRecorder) {
@@ -152,7 +167,7 @@ void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_it
 
 	dprintf(fd, "   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s (%s)\n",
 		ltntstools_pid_stats_stream_get_mbps(&di->stats), stream,
-		di->isRTP ? "RTP" : "UDP");
+		payloadTypeDesc(di->payloadType));
 	dprintf(fd, "<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------------>\n");
 	for (int i = 0; i < MAX_PID; i++) {
 		if (di->stats.pids[i].enabled) {

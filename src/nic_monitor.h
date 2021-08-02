@@ -29,6 +29,14 @@
 #define FILE_WRITE_INTERVAL 5
 #define DEFAULT_PCAP_FILTER "udp dst portrange 4000-4999"
 
+enum payload_type_e {
+	PAYLOAD_UNDEFINED = 0,
+	PAYLOAD_UDP_TS,
+	PAYLOAD_RTP_TS,
+	PAYLOAD_A324_CTP,
+	PAYLOAD_MAX,
+};
+
 struct tool_context_s
 {
 	char *ifname;
@@ -113,6 +121,9 @@ struct discovered_item_s
 {
 	struct xorg_list list;
 
+	enum payload_type_e payloadType;
+	int recordAsTS;
+
 #define DI_STATE_SELECTED		(1 << 0)
 #define DI_STATE_CC_ERROR		(1 << 1)
 #define DI_STATE_PCAP_RECORD_START	(1 << 2)
@@ -157,8 +168,6 @@ struct discovered_item_s
 	char srcaddr[24];
 	char dstaddr[24];
 
-	int isRTP;
-
 	/* IAT */
 	int iat_lwm_us; /* IAT low watermark (us), measurement of UDP receive interval */
 	int iat_hwm_us; /* IAT high watermark (us), measurement of UDP receive interval */
@@ -185,6 +194,8 @@ struct discovered_item_s
 	int isLTNEncoder;
 	void *LTNLatencyProbe;
 };
+
+const char *payloadTypeDesc(enum payload_type_e pt);
 
 void discovered_item_free(struct discovered_item_s *di);
 void discovered_items_free(struct tool_context_s *ctx);

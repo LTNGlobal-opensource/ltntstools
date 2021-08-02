@@ -50,6 +50,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Add LTN Encoder latency reporting to the UI, when it's detected in the stream.
   tstools_nic_monitor: Overhaul the UI menu and add a help page.
   tstools_nic_monitor: Avoid segfault when enumerating network interfaces that don't have an IP address configured.
+  tstools_nic_monitor: Add stream discovery, bitrate reporting and recording for ATSC3.0 A/324 CTP streams.
   tstools_scte35_inspector: New tool added to display SCTE35 messages from file or network.
   tstools_ffmpeg_metadata: New tool to extract/view metadata from recordings
   tstools_udp_capture: Arg -E added to return a non-zero result code if any CC errors are detected.
