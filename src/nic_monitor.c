@@ -149,6 +149,17 @@ printf("xxxx %f\n", di->stats.mbps);
 					di->stats.ccErrors,
 					di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
 				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+			} else
+			if (di->payloadType == PAYLOAD_BYTE_STREAM) {
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12s   %7d / %d / %d",
+					payloadTypeDesc(di->payloadType),
+					di->srcaddr,
+					di->dstaddr,
+					ltntstools_bytestream_stats_stream_get_mbps(&di->stats),
+					di->stats.packetCount,
+					"-",
+					di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
+				totalMbps += ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
@@ -227,6 +238,10 @@ printf("xxxx %f\n", di->stats.mbps);
 					streamCount++;
 					mvprintw(streamCount + 2, 0, " -> PID Report not available for A/324 Studio Transmitter Link CTP streams");
 				}
+				if (di->payloadType == PAYLOAD_BYTE_STREAM) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> PID Report not available for unidentified byte streams");
+				}
 				for (int i = 0; i < MAX_PID; i++) {
 					if (di->stats.pids[i].enabled) {
 						streamCount++;
@@ -277,6 +292,11 @@ printf("xxxx %f\n", di->stats.mbps);
 				if (di->payloadType == PAYLOAD_A324_CTP) {
 					streamCount++;
 					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for A/324 Studio Transmitter Link CTP streams");
+					streamCount++;
+				} else
+				if (di->payloadType == PAYLOAD_BYTE_STREAM) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for unidentified byte streams");
 					streamCount++;
 				} else {
 					streamCount++;
@@ -342,6 +362,10 @@ printf("xxxx %f\n", di->stats.mbps);
 				streamCount++;
 				if (di->payloadType == PAYLOAD_A324_CTP) {
 					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for A/324 Studio Transmitter Link CTP streams");
+					streamCount++;
+				} else
+				if (di->payloadType == PAYLOAD_BYTE_STREAM) {
+					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for unidentified byte streams");
 					streamCount++;
 				} else {
 					mvprintw(streamCount + 2, 0, " -> Service Information Report");

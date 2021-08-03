@@ -6,6 +6,7 @@ static const char *payloadTypes[] = {
 	"UDP",
 	"RTP",
 	"STL",
+	"UNK",
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt)
@@ -236,11 +237,24 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
                 tm.tm_min,
                 tm.tm_sec);
 
+	uint32_t bps = 0;
+	double mbps = 0;
+	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS)) {
+		mbps = ltntstools_pid_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_pid_stats_stream_get_bps(&di->stats);
+	} else
+	if (di->payloadType == PAYLOAD_A324_CTP) {
+		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+	} else {
+		mbps = ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_bytestream_stats_stream_get_bps(&di->stats);
+	}
 	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d\n",
 		ts,
 		ctx->ifname,
-		ltntstools_pid_stats_stream_get_bps(&di->stats),
-		ltntstools_pid_stats_stream_get_mbps(&di->stats),
+		bps,
+		mbps,
 		di->stats.packetCount,
 		di->stats.ccErrors,
 		di->stats.ccErrors != di->statsToFile.ccErrors ? "!" : "",
@@ -306,11 +320,24 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
                 tm.tm_min,
                 tm.tm_sec);
 
+	uint32_t bps = 0;
+	double mbps = 0;
+	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS)) {
+		mbps = ltntstools_pid_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_pid_stats_stream_get_bps(&di->stats);
+	} else
+	if (di->payloadType == PAYLOAD_A324_CTP) {
+		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+	} else {
+		mbps = ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_bytestream_stats_stream_get_bps(&di->stats);
+	}
 	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d\n",
 		ts,
 		ctx->ifname,
-		ltntstools_pid_stats_stream_get_bps(&di->stats),
-		ltntstools_pid_stats_stream_get_mbps(&di->stats),
+		bps,
+		mbps,
 		di->stats.packetCount,
 		di->stats.ccErrors,
 		di->stats.ccErrors != di->statsToFile.ccErrors ? "!" : "",

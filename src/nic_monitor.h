@@ -34,6 +34,7 @@ enum payload_type_e {
 	PAYLOAD_UDP_TS,
 	PAYLOAD_RTP_TS,
 	PAYLOAD_A324_CTP,
+	PAYLOAD_BYTE_STREAM,
 	PAYLOAD_MAX,
 };
 
@@ -193,6 +194,10 @@ struct discovered_item_s
 	/* Encoder Specifics */
 	int isLTNEncoder;
 	void *LTNLatencyProbe;
+
+	/* Payload discovery */
+	int discovery_unidentified;
+	int a324_found;
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);

@@ -98,15 +98,70 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 	return ret;
 }
 
+static enum payload_type_e determinePayloadType(struct discovered_item_s *di, const unsigned char *buf, int lengthBytes)
+{
+#if 0
+printf("%d : ", lengthBytes);
+for (int i = 0; i < 16; i++)
+	printf("%02x ", *(buf + i));
+printf("\n");
+#endif
+	const unsigned char *ptr = buf;
+
+	if (lengthBytes % 188 == 0) {
+		/* Perfect multiple for transport packets */
+		int len = lengthBytes;
+		int offset = 0;
+		if ((len >= (188 * 3)) && (ptr[offset + (188 * 0)] == 0x47) && (ptr[offset + (188 * 1)] == 0x47) && (ptr[offset + (188 * 2)] == 0x47)) {
+			return PAYLOAD_UDP_TS; /* After 3 sync bytes */
+		}
+		if ((len >= (188 * 2)) && (ptr[offset + (188 * 0)] == 0x47) && (ptr[offset + (188 * 1)] == 0x47)) {
+			return PAYLOAD_UDP_TS; /* After 2 sync bytes */
+		}
+		if (len >= (188 * 1) && (ptr[offset + (188 * 0)] == 0x47)) {
+			return PAYLOAD_UDP_TS; /* After 1 sync byte */
+		}
+	}
+
+	if ((lengthBytes > 12) && ((lengthBytes - 12) % 188 == 0)) {
+		/* Perfect multiple for RTP wrapped transport packets */
+		int len = lengthBytes - 12;
+		int offset = 12;
+		if ((len >= (188 * 3)) && (ptr[offset + (188 * 0)] == 0x47) && (ptr[offset + (188 * 1)] == 0x47) && (ptr[offset + (188 * 2)] == 0x47)) {
+			return PAYLOAD_RTP_TS; /* After 3 sync bytes */
+		}
+		if ((len >= (188 * 2)) && (ptr[offset + (188 * 0)] == 0x47) && (ptr[offset + (188 * 1)] == 0x47)) {
+			return PAYLOAD_RTP_TS; /* After 2 sync bytes */
+		}
+		if (len >= (188 * 1) && (ptr[offset + (188 * 0)] == 0x47)) {
+			return PAYLOAD_RTP_TS; /* After 1 sync byte */
+		}
+	}
+
+	/* Table 6.1 - Spec A/324:2018 7 Jan 2020 */
+	/* Confirm version == 2 and marker == 97 and protocol == 1 */
+	if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 97)) {
+		di->a324_found++;
+		if (di->a324_found > 2) {
+			return PAYLOAD_A324_CTP;
+		}
+	} else {
+		di->a324_found = 0;
+	}
+
+	if (di->discovery_unidentified++ > 12)
+		return PAYLOAD_BYTE_STREAM;
+
+	return PAYLOAD_UNDEFINED;
+}
+
 /* Called on the pcap thread, avoid all blocking. */
 static void _processPackets_Stats(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr,
 	const uint8_t *pkts, uint32_t pktCount, enum payload_type_e payloadType,
-	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt, int lengthBytes)
+	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt, int lengthPayloadBytes)
 {
 	struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
-	if (di->payloadType == PAYLOAD_UNDEFINED)
-		di->payloadType = payloadType;
 
 	struct timeval diff;
 	if (di->iat_last_frame.tv_sec) {
@@ -138,7 +193,11 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 	} else
 	if (di->payloadType == PAYLOAD_A324_CTP)
 	{
-		ltntstools_ctp_stats_update(&di->stats, pkts, lengthBytes);
+		ltntstools_ctp_stats_update(&di->stats, pkts, lengthPayloadBytes);
+	} else
+	if (di->payloadType == PAYLOAD_BYTE_STREAM)
+	{
+		ltntstools_bytestream_stats_update(&di->stats, pkts, lengthPayloadBytes);
 	}
 }
 
@@ -195,8 +254,8 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		char *suffixNames[2] = { ".pcap", ".ts" };
 		char *suffix = suffixNames[0];
 
-		/* A/324 are always recorded as PCAP, regardless. */
-		if (di->payloadType == PAYLOAD_A324_CTP) {
+		/* A/324  and generic streams are always recorded as PCAP, regardless. */
+		if ((di->payloadType == PAYLOAD_BYTE_STREAM ) || (di->payloadType == PAYLOAD_A324_CTP)) {
 			di->recordAsTS = 0;
 		} else {
 			/* Other streams, the operator can choose. */
@@ -369,69 +428,66 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 	if (h->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
 		return;
 
-	struct ether_header *eth = (struct ether_header *)pkt;
-	if (ntohs(eth->ether_type) == ETHERTYPE_IP) {
-		struct iphdr *ip = (struct iphdr *)((u_char *)eth + sizeof(struct ether_header));
+	struct ether_header *ethhdr = (struct ether_header *)pkt;
+	if (ntohs(ethhdr->ether_type) == ETHERTYPE_IP) {
+		struct iphdr *iphdr = (struct iphdr *)((u_char *)ethhdr + sizeof(struct ether_header));
 
 #ifdef __APPLE__
-		if (ip->ip_p != IPPROTO_UDP)
+		if (iphdr->ip_p != IPPROTO_UDP)
 			return;
 #endif
 #ifdef __linux__
-		if (ip->protocol != IPPROTO_UDP)
+		if (iphdr->protocol != IPPROTO_UDP)
 			return;
 #endif
 
-		struct udphdr *udp = (struct udphdr *)((u_char *)ip + sizeof(struct iphdr));
-		uint8_t *ptr = (uint8_t *)((uint8_t *)udp + sizeof(struct udphdr));
+		struct udphdr *udphdr = (struct udphdr *)((u_char *)iphdr + sizeof(struct iphdr));
+		uint8_t *ptr = (uint8_t *)((uint8_t *)udphdr + sizeof(struct udphdr));
 
 		if (ctx->verbose > 2) {
 			struct in_addr dstaddr, srcaddr;
 #ifdef __APPLE__
-			srcaddr.s_addr = ip->ip_src.s_addr;
-			dstaddr.s_addr = ip->ip_dst.s_addr;
+			srcaddr.s_addr = iphdr->ip_src.s_addr;
+			dstaddr.s_addr = iphdr->ip_dst.s_addr;
 #endif
 #ifdef __linux__
-			srcaddr.s_addr = ip->saddr;
-			dstaddr.s_addr = ip->daddr;
+			srcaddr.s_addr = iphdr->saddr;
+			dstaddr.s_addr = iphdr->daddr;
 #endif
 
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->uh_sport));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->uh_dport));
+			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
 				
 				src, dst,
-				ntohs(udp->uh_ulen),
+				ntohs(udphdr->uh_ulen),
 				ptr[0], ptr[1], ptr[2], ptr[3]);
 		}
 
-		int lengthBytes = ntohs(udp->uh_ulen);
+		struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
+		if (!di)
+			return;
+
+		int lengthPayloadBytes = ntohs(udphdr->uh_ulen) - sizeof(struct udphdr);
+#if 0
+		/* Mangle incoming stream so we can check our payload detection code */
+		/* Trash anything on port 4011 */
+		if (ntohs(udphdr->uh_dport) == 4011) {
+			ptr += 5;
+			lengthPayloadBytes -= 5;
+		}
+#endif
 
 		/* TODO: Handle RTP with FEC correctly. */
-
-		/* Table 6.1 - Spec A/324:2018 7 Jan 2020 */
-		/* Confirm version == 2 and marker == 97 and protocol == 1 */
-		if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 97)) {
-			payloadType = PAYLOAD_A324_CTP;
-		} else
-		if (ptr[0] != 0x47) {
-			/* Make a rash assumption that's it's RTP where possible. */
-			if (ptr[12] == 0x47) {
-				ptr += 12;
-				payloadType = PAYLOAD_RTP_TS;
-			}
-		} else
-		if ((lengthBytes > 189) && (ptr[0] == 0x47) && (ptr[188] == 0x47)) {
-			payloadType = PAYLOAD_UDP_TS;
-		}
+		if (di->payloadType == PAYLOAD_UNDEFINED)
+			di->payloadType = determinePayloadType(di, ptr, lengthPayloadBytes);
 
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
-		int pktCount = ntohs(udp->uh_ulen) / 188;
-//printf("pt %d\n", payloadType);
-		_processPackets_Stats(ctx, eth, ip, udp, ptr, pktCount, payloadType, h, pkt, lengthBytes);
+		int pktCount = lengthPayloadBytes / 188;
+		_processPackets_Stats(ctx, ethhdr, iphdr, udphdr, ptr, pktCount, payloadType, h, pkt, lengthPayloadBytes);
 	}
 }
 
