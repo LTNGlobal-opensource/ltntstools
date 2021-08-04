@@ -484,6 +484,11 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		if (di->payloadType == PAYLOAD_UNDEFINED)
 			di->payloadType = determinePayloadType(di, ptr, lengthPayloadBytes);
 
+		if (di->payloadType == PAYLOAD_RTP_TS) {
+			lengthPayloadBytes -= 12;
+			ptr += 12;
+		}
+
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
 		int pktCount = lengthPayloadBytes / 188;
