@@ -19,6 +19,7 @@ static int count = 0;
 static char *addr = NULL;
 static int port = 0;
 static int verbose = 0;
+static int doRaw = 0;
 static struct sockaddr_in sa;
 static uint64_t tspkt_count_output = 0;
 
@@ -144,18 +145,25 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 
 	count++;
 	int tsoffset = 0;
-	if (*data != 0x47) {
-		if ((*data != 0x80) && (*(data + 12) != 0x47)) {
-			fprintf(stderr, "Error at packet %d\n", count);
-			hexdump(data, len, 16);
-			exit(1);
+	if (doRaw == 1) {
+		if (ofh) {
+			tspkt_count_output++;
+			fwrite(data, 1, len, ofh);
 		}
-		tsoffset += 12; /* RTP header */
-	}
+	} else {
+		if (*data != 0x47) {
+			if ((*data != 0x80) && (*(data + 12) != 0x47)) {
+				fprintf(stderr, "Error at packet %d\n", count);
+				hexdump(data, len, 16);
+				exit(1);
+			}
+			tsoffset += 12; /* RTP header */
+		}
 
-	if (ofh) {
-		tspkt_count_output += (len / 188);
-		fwrite(data + tsoffset, 1, len - tsoffset, ofh);
+		if (ofh) {
+			tspkt_count_output += (len / 188);
+			fwrite(data + tsoffset, 1, len - tsoffset, ofh);
+		}
 	}
 }
 
@@ -167,6 +175,8 @@ static void _usage(const char *prog)
 	printf("  -a <ip address Eg. 234.1.1.1>\n");
 	printf("  -p <ip port Eg. 9200>\n");
 	printf("  -v increase verbosity level\n");
+	printf("  -r operate in raw mode, just extract the pcap payload without consdieration for TS packets.\n");
+	printf("     Useful for extracting RTP or A/324 streams and preserving headers.\n");
 }
 
 int pcap2ts(int argc, char* argv[])
@@ -178,7 +188,7 @@ int pcap2ts(int argc, char* argv[])
 
 	ltn_histogram_alloc_video_defaults(&packetIntervals, "UDP Packet intervals");
 
-	while ((ch = getopt(argc, argv, "?hi:o:a:p:v")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:o:a:p:vr")) != -1) {
 		switch(ch) {
 		case 'a':
 			addr = optarg;
@@ -199,6 +209,9 @@ int pcap2ts(int argc, char* argv[])
 			break;
 		case 'v':
 			verbose++;
+			break;
+		case 'r':
+			doRaw = 1;
 			break;
 		case 'h':
 		case '?':
