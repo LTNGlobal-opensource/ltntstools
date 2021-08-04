@@ -215,7 +215,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	time(&now);
 
 	if (di->payloadType == PAYLOAD_RTP_TS) {
-		if (ntohs(udphdr->uh_ulen) - 8 + 12 != (7 * 188)) {
+		if (ntohs(udphdr->uh_ulen) - 8 - 12 != (7 * 188)) {
         		di->notMultipleOfSevenError++;
         		time(&di->notMultipleOfSevenErrorLastEvent);
 		}
