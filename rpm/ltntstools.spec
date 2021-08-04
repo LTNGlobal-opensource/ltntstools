@@ -41,21 +41,20 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Fri Jun 18 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.9.0
   tstools_nic_monitor: Add UI support for showing a service information report
-  tstools_nic_monitor: In the UI, Show SCTE35 stats of the upstream encoder.
+  tstools_nic_monitor: In the UI, Show SCTE35 status of the upstream encoder (enabled or not).
   tstools_nic_monitor: In the UI, Show the LTN Encoder version in the UI if it's detected in the stream.
+  tstools_nic_monitor: Overhaul the UI menu and add a help page.
   tstools_nic_monitor: Add support for 'lo' loopback interfaces, and any interface even if BROADCAST is not enabled.
+  tstools_nic_monitor: Avoid segfault when enumerating network interfaces that don't have an IP address configured.
   tstools_nic_monitor: Add keyboard UI support for switching recordings between PCAP and TS
   tstools_nic_monitor: Add keyboard UI support for switching recordings between segments and single files.
-  tstools_nic_monitor: Add keyboard UI support to show state of various runtime options via 'o' key.
   tstools_nic_monitor: Add LTN Encoder latency reporting to the UI, when it's detected in the stream.
-  tstools_nic_monitor: Overhaul the UI menu and add a help page.
-  tstools_nic_monitor: Avoid segfault when enumerating network interfaces that don't have an IP address configured.
   tstools_nic_monitor: Add stream discovery, bitrate reporting and recording for ATSC3.0 A/324 CTP streams.
   tstools_nic_monitor: Don't attempt to parse random data streams as transport and create lots of console noise.
-  tstools_nic_monitor: Add a new stream type "UNK" for stream that don't contain recognizable payload.
+  tstools_nic_monitor: Add a new stream type "UNK" for streams that don't contain recognizable payload.
   tstools_scte35_inspector: New tool added to display SCTE35 messages from file or network.
-  tstools_ffmpeg_metadata: New tool to extract/view metadata from recordings
-  tstools_udp_capture: Arg -E added to return a non-zero result code if any CC errors are detected.
+  tstools_ffmpeg_metadata: New tool to extract/view human meaningful metadata from recordings
+  tstools_udp_capture: Arg -E added to return a non-zero result code if any CC errors are detected. (harvester)
   tstools_pcap2ts: Add raw mode extraction so that RTP and A/324 streams can also be extracted from pcap files.
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
