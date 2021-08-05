@@ -57,6 +57,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_ffmpeg_metadata: New tool to extract/view human meaningful metadata from recordings
   tstools_udp_capture: Arg -E added to return a non-zero result code if any CC errors are detected. (harvester)
   tstools_pcap2ts: Add raw mode extraction so that RTP and A/324 streams can also be extracted from pcap files.
+  tstools_clock_inspector: Massive performance optimization, 17GB stream analyzed in 3 minutes instead of 2hrs.
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3

@@ -92,6 +92,13 @@ static void ordered_clock_insert(struct xorg_list *list, struct ordered_clock_it
 		return;
 	}
 
+	/* Get the last frame, if the timestamp is larger than last, append as an optimize. */
+	struct ordered_clock_item_s *last = xorg_list_last_entry(list, struct ordered_clock_item_s, list);
+	if (last && last->clock <= src->clock) {
+		xorg_list_append(&e->list, list);
+		return;
+	}
+
 	struct ordered_clock_item_s *iterator = NULL, *next = NULL;
 	xorg_list_for_each_entry_safe(iterator, next, list, list) {
 		if (src->clock < iterator->clock)
