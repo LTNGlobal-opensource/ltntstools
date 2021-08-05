@@ -723,7 +723,8 @@ static void usage(const char *progname)
 	printf("  -S <number> Packet buffer size [def: %d] (min: 2048)\n", g_snaplen_default);
 	printf("  -B <number> Buffer size [def: %d]\n", g_buffer_size_default);
 	printf("  -R Automatically record all discovered streams\n");
-	printf("  -E Record PCAP in a single file, don't segment into 60sec files\n");
+	printf("  -E Record in a single file, don't segment into 60sec files\n");
+	printf("  -T Record int a TS format where possible [default is PCAP]\n");
 }
 
 int nic_monitor(int argc, char *argv[])
@@ -745,7 +746,7 @@ int nic_monitor(int argc, char *argv[])
 	ctx->bufferSize = g_buffer_size_default;
 	ctx->recordWithSegments = 1;
 
-	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:t:vMn:w:RS:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:t:vMn:w:RS:T")) != -1) {
 		switch (ch) {
 		case 'B':
 			ctx->bufferSize = atoi(optarg);
@@ -802,6 +803,9 @@ int nic_monitor(int argc, char *argv[])
 		case 'w':
 			free(ctx->detailed_file_prefix);
 			ctx->detailed_file_prefix = strdup(optarg);
+			break;
+		case 'T':
+			ctx->recordAsTS = 1;
 			break;
 		case 'R':
 			ctx->automaticallyRecordStreams = 1;
