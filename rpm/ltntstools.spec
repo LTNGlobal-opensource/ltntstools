@@ -53,6 +53,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Don't attempt to parse random data streams as transport and create lots of console noise.
   tstools_nic_monitor: Add a new stream type "UNK" for streams that don't contain recognizable payload.
   tstools_nic_monitor: Add tool argument to request .TS recordings where possible (vs default being PCAP).
+  tstools_nic_monitor: Bug: with MPTS muxes containing program 0, SCTE Registration is being shown.
   tstools_scte35_inspector: New tool added to display SCTE35 messages from file or network.
   tstools_ffmpeg_metadata: New tool to extract/view human meaningful metadata from recordings
   tstools_udp_capture: Arg -E added to return a non-zero result code if any CC errors are detected. (harvester)

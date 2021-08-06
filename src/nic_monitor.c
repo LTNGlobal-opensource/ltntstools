@@ -414,8 +414,11 @@ printf("xxxx %f\n", di->stats.mbps);
 								d,
 								strlen(d) >= 52 ? "..." : "");
 						}
-						streamCount++;
-						mvprintw(streamCount + 2, 52, "SCTE35 Registration: %s", has_scte35 ? "Yes" : "No");
+
+						if (m->programs[p].pmt.stream_count > 0) {
+							streamCount++;
+							mvprintw(streamCount + 2, 52, "SCTE35 Registration: %s", has_scte35 ? "Yes" : "No");
+						}
 
 						unsigned int major, minor, patch;
 						int ret = ltntstools_descriptor_list_contains_ltn_encoder_sw_version(&m->programs[p].pmt.descr_list,
