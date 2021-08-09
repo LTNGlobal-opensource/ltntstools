@@ -21,6 +21,7 @@ extern int si_streammodel(int argc, char *argv[]);
 extern int iat_tester(int argc, char *argv[]);
 extern int ffmpeg_metadata(int argc, char *argv[]);
 extern int scte35_inspector(int argc, char *argv[]);
+extern int igmp_join(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
 
@@ -49,6 +50,7 @@ int main(int argc, char *argv[])
 		{ "tstools_iat_tester",		iat_tester, },
 		{ "tstools_ffmpeg_metadata",	ffmpeg_metadata, },
 		{ "tstools_scte35_inspector",	scte35_inspector, },
+		{ "tstools_igmp_join",		igmp_join, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);

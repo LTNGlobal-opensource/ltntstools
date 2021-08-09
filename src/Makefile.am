@@ -55,6 +55,7 @@ SRC += scte35_inspector.c
 SRC += utils.c
 SRC += iat_tester.c
 SRC += ffmpeg_metadata.c
+SRC += igmp_join.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -71,6 +72,7 @@ LINKBINS += tstools_si_streammodel
 LINKBINS += tstools_iat_tester
 LINKBINS += tstools_ffmpeg_metadata
 LINKBINS += tstools_scte35_inspector
+LINKBINS += tstools_igmp_join
 
 tstools_util_SOURCES = $(SRC)
 

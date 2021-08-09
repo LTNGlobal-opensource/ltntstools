@@ -33,6 +33,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_tr101290_analyzer
 /usr/local/bin/tstools_ffmpeg_metadata
 /usr/local/bin/tstools_scte35_inspector
+/usr/local/bin/tstools_igmp_join
 /usr/local/share/man/man8/tstools_nic_monitor.8
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
@@ -59,6 +60,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_udp_capture: Arg -E added to return a non-zero result code if any CC errors are detected. (harvester)
   tstools_pcap2ts: Add raw mode extraction so that RTP and A/324 streams can also be extracted from pcap files.
   tstools_clock_inspector: Massive performance optimization, 17GB stream analyzed in 3 minutes instead of 2hrs.
+  tstools_igmp_join: New tool that issues IGMP joins for specific multicast streams on specific NICS.
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
