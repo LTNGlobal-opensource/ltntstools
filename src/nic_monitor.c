@@ -991,6 +991,7 @@ int nic_monitor(int argc, char *argv[])
 					discovered_items_select_first(ctx);
 				} else
 				if (c == 0x44) { /* Left */
+					discovered_items_select_none(ctx);
 				}
 			}
 		}
