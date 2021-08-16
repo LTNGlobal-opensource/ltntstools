@@ -1,6 +1,29 @@
 
 #include "nic_monitor.h"
 
+uint16_t hash_index_cal_hash(uint32_t addr, uint16_t port)
+{
+	 /*
+	  * AB.CD.EF.GH:IJKL
+	  *
+	  * Hash: FGHL
+	  */
+	return ((addr << 4) & 0xfff0) | (port & 0x000f);
+}
+
+static uint16_t _compute_stream_hash(struct iphdr *iphdr, struct udphdr *udphdr)
+{
+	/* Compute the destination hash for faster lookup */
+#ifdef __APPLE__
+	uint32_t dstaddr = ntohl(iphdr->ip_dst.s_addr);
+#endif
+#ifdef __linux__
+	uint32_t dstaddr = ntohl(iphdr->daddr);
+#endif
+	uint16_t dstport = ntohs(udphdr->uh_dport);
+	return hash_index_cal_hash(dstaddr, dstport);
+}
+
 static const char *payloadTypes[] = {
 	"???",
 	"UDP",
@@ -119,40 +142,129 @@ static void discovered_item_insert(struct tool_context_s *ctx, struct discovered
 	xorg_list_append(&di->list, &ctx->list);
 }
 
+/* Before August 2021, di object lookup takes an excessive amount of CPU with large numbers of streams.
+   To investigate this, in a test case, were I had 99 streams all going to ports
+   4001-4099, and I put a static fixed array in play with a fast direct lookup,
+   I saved 50% CPU in the pcap thread and 75% CPU in the stats thread.
+   So, optimization is worthwhile but a more flexible approach was needed.
+
+   Instead:
+   Build a hashing function that makes our streams 'fairly' unique,
+   with room for some overflow hashes.
+   Put this into a static array of 65536 addresses, with pointers to a new
+   struct {
+      // Contains ideally the only DI object associated with the hash
+      // But could contain multiple di objects matching this hash
+      struct discovered_item_s *array[];
+      int arrlen;
+   }
+   when asked to search for a di object.
+   1. compute the hash as a uint16_t hash = X.
+   2. check globalhashtable[ hash ], if not set, create a new object general object.
+   3.  if set, look manually at all the entries in hash entry array, looking for the specific record.
+       if not found, create a new object.
+       if found, optimization achieved.
+
+  The result of this optimzation, in the following configuration:
+   DC60 older hardware with a 10Gb card, playing out 99 x 20Mbps streams
+   With a total output capacity of 2Gb, running tstools on the same
+   system.
+
+   Performance:     NoCache   Cache
+      pcap-thread       65%     33%
+     stats-thread       35%      5%
+*/
+
 struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr)
 {
-	struct discovered_item_s *e = NULL, *found = NULL;
+	struct discovered_item_s *found = NULL;
+
+	/* Compute the src/dst ip/udp address/ports hash for faster lookup */
+	uint16_t hash = _compute_stream_hash(iphdr, udphdr);
+
+	if (ctx->verbose > 2) {
+		char *str = network_stream_ascii(iphdr, udphdr);
+		printf("cache srch on %s\n", str);
+		free(str);
+		if (ctx->verbose > 3) {
+			hash_index_print(ctx->hashIndex, hash);
+		}
+	}
 
 	pthread_mutex_lock(&ctx->lock);
-	xorg_list_for_each_entry(e, &ctx->list, list) {
 
-#ifdef __APPLE__
-		if (e->iphdr.ip_src.s_addr != iphdr->ip_src.s_addr)
-			continue;
-		if (e->iphdr.ip_dst.s_addr != iphdr->ip_dst.s_addr)
-			continue;
-#endif
-#ifdef __linux__
-		if (e->iphdr.saddr != iphdr->saddr)
-			continue;
-		if (e->iphdr.daddr != iphdr->daddr)
-			continue;
-#endif
-		if (e->udphdr.uh_sport != udphdr->uh_sport)
-			continue;
-		if (e->udphdr.uh_dport != udphdr->uh_dport)
-			continue;
-
-		found = e;
-		break;
+	/* With the hash, lookup the di objects in the cachelist. */
+	if (hash_index_get_count(ctx->hashIndex, hash) >= 1) {
+		/* One or more items in the cache for the same hash,
+		 * we have to enum and locate our exact item.
+		 * The hash has reasonable selectivity, but overflows can occur.
+		 */
+		struct discovered_item_s *item = NULL;
+		int enumerator = 0;
+		int ret = 0;
+		while (ret == 0) {
+			ret = hash_index_get_enum(ctx->hashIndex, hash, &enumerator, (void **)&item);
+			if (ret == 0 && item) {
+				/* Do a 100% perfect match on the ip and udp headers */
+				if (network_addr_compare(iphdr, udphdr, &item->iphdr, &item->udphdr) == 1) {
+					/* Found the perfect match in the cache */
+					found = item;
+					break;
+				}
+			}
+		}
 	}
 
 	if (!found) {
+		ctx->cacheMiss++;
+
+		if (ctx->verbose > 3) {
+			char *str = network_stream_ascii(iphdr, udphdr);
+			printf("cache miss on %s\n", str);
+			free(str);
+		}
+
+	} else {
+		ctx->cacheHit++;
+
+		if (ctx->verbose > 3) {
+			char *str = network_stream_ascii(iphdr, udphdr);
+			printf("cache  hit on %s\n", str);
+			free(str);
+		}
+
+	}
+	ctx->cacheHitRatio = 100.0 - (((double)ctx->cacheMiss / (double)ctx->cacheHit) * 100.0);
+
+#if 0
+	/* A refactored older mechanism, look through the entire array
+	 * which gets super expensive as the number of streams increases.
+	 */
+	if (!found) {
+                struct discovered_item_s *e = NULL;
+		/* Enumerate the di array for each input packet.
+		 * It works well for 1-2 dozen streams, but doesn't scale well beyond this.
+		 * We never really want to do this, this can go away.
+		 */
+		xorg_list_for_each_entry(e, &ctx->list, list) {
+			if (network_addr_compare(iphdr, udphdr, &e->iphdr, &e->udphdr) == 1) {
+				found = e;
+				break;
+			}
+		}
+	}
+#endif
+
+	if (!found) {
 		found = discovered_item_alloc(ethhdr, iphdr, udphdr);
-		discovered_item_insert(ctx, found);
-		if (ctx->automaticallyRecordStreams) {
-			discovered_item_state_set(found, DI_STATE_PCAP_RECORD_START);
+		if (found) {
+			discovered_item_insert(ctx, found);
+			hash_index_set(ctx->hashIndex, hash, found);
+
+			if (ctx->automaticallyRecordStreams) {
+				discovered_item_state_set(found, DI_STATE_PCAP_RECORD_START);
+			}
 		}
 	}
 	pthread_mutex_unlock(&ctx->lock);

@@ -19,6 +19,8 @@ int pcap_queue_initialize(struct tool_context_s *ctx)
 		}
 	}
 
+	ctx->hashIndex = hash_index_alloc();
+
 	pthread_mutex_unlock(&ctx->lockpcap);
 	return 0;
 }
@@ -43,6 +45,7 @@ void pcap_queue_free(struct tool_context_s *ctx)
 		free(item->pkt);
 		free(item);
 	}
+	hash_index_free(ctx->hashIndex);
 	pthread_mutex_unlock(&ctx->lockpcap);
 }
 
@@ -159,10 +162,9 @@ printf("\n");
 static void _processPackets_Stats(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr,
 	const uint8_t *pkts, uint32_t pktCount, enum payload_type_e payloadType,
-	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt, int lengthPayloadBytes)
+	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt, int lengthPayloadBytes,
+	struct discovered_item_s *di)
 {
-	struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
-
 	struct timeval diff;
 	if (di->iat_last_frame.tv_sec) {
 		ltn_histogram_timeval_subtract(&diff, (struct timeval *)&cb_h->ts, &di->iat_last_frame);
@@ -492,7 +494,7 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
 		int pktCount = lengthPayloadBytes / 188;
-		_processPackets_Stats(ctx, ethhdr, iphdr, udphdr, ptr, pktCount, payloadType, h, pkt, lengthPayloadBytes);
+		_processPackets_Stats(ctx, ethhdr, iphdr, udphdr, ptr, pktCount, payloadType, h, pkt, lengthPayloadBytes, di);
 	}
 }
 

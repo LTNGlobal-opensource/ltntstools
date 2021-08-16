@@ -1025,6 +1025,7 @@ printf("pcap_dispatch_miss %" PRIi64 "\n", ctx->pcap_dispatch_miss);
 printf("ctx->listpcapFreeDepth %d\n", ctx->listpcapFreeDepth);
 printf("ctx->listpcapUsedDepth %d\n", ctx->listpcapUsedDepth);
 printf("ctx->rebalance_last_buffers_used %d\n", ctx->rebalance_last_buffers_used);
+printf("ctx->cacheHitRatio %.02f%% (%" PRIu64 ", %" PRIu64 ")\n", ctx->cacheHitRatio, ctx->cacheHit, ctx->cacheMiss);
 
 	printf("pcap nic '%s' stats: dropped: %d/%d\n",
 		ctx->ifname, ctx->pcap_stats.ps_drop, ctx->pcap_stats.ps_ifdrop);

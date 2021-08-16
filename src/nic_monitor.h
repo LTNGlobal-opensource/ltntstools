@@ -18,6 +18,7 @@
 #include "xorg-list.h"
 #include "parsers.h"
 #include "utils.h"
+#include "hash_index.h"
 
 #include <pcap.h>
 #include <arpa/inet.h>
@@ -83,6 +84,9 @@ struct tool_context_s
 	/* list of discovered addresses and related statistics. */
 	pthread_mutex_t lock;
 	struct xorg_list list;
+	struct hash_index_s *hashIndex;
+	uint64_t cacheHit, cacheMiss;
+	double cacheHitRatio;
 
 	/* All pcap buffers go into a thread and are handled in a non-realtime thread. */
 	pthread_mutex_t lockpcap;
