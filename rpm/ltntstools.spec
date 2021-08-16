@@ -61,6 +61,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_pcap2ts: Add raw mode extraction so that RTP and A/324 streams can also be extracted from pcap files.
   tstools_clock_inspector: Massive performance optimization, 17GB stream analyzed in 3 minutes instead of 2hrs.
   tstools_igmp_join: New tool that issues IGMP joins for specific multicast streams on specific NICS.
+  tstools_slicer: New tool that index transport files, can extract MPTS/SPTS segments based on PCR time.
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
