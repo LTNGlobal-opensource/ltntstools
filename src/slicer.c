@@ -81,27 +81,27 @@ char *videotime_to_str(struct videotime_s *vt)
 
 struct tool_context_s
 {
-	int verbose;
-	char *ifn;
-	char *ofn;
 	FILE *ifh;
 	struct ltntstools_pcr_position_s *allPCRs;
 	int allPCRLength;
+
+	/* Input args */
+	int verbose;
+	char *ifn;
+	char *ofn;
 	char *opt_e;
 	char *opt_s;
-	int is_mpts;
+	struct videotime_s timeStartStream; /* via -s */
+	struct videotime_s timeEndStream;   /* via -e */
+	/* End: Input args */
 
-	uint16_t pcrPID;
+	int64_t pcrMin, pcrMax, pcrDuration; /* For a given pcrPID, the min and max, pcrs found. */
 
-	int64_t pcrMin, pcrMax, pcrDuration;
-
-	struct videotime_s streamTime;
-
-	struct videotime_s timeStartStream;
-	struct videotime_s timeEndStream;
+	struct videotime_s streamTime; /* Total duration of the entire stream, expressed in h/m/s */
 
 	/* MPTS vs SPTS, stream model queries */
-	void *streamModel;
+	int is_mpts;
+	uint16_t pcrPID; /* Auto-detected PCR pid that we use for filtering PCRs with */
 };
 
 static int indexSave(struct tool_context_s *ctx)
@@ -259,8 +259,8 @@ int indexFastQueryDuration(const char *fname,
 		segs[1].lengthBytes = 16 * 1048576;
 		segs[1].buf = malloc(segs[1].lengthBytes);
 		segs[1].addr = lengthBytes - (16 * 1048576);
-		int ret = fseeko(fh, -(16 * 1048576), SEEK_END);
-		ret = fread(segs[1].buf, 1, segs[1].lengthBytes, fh);
+		fseeko(fh, -(16 * 1048576), SEEK_END);
+		fread(segs[1].buf, 1, segs[1].lengthBytes, fh);
 	}
 	fclose(fh);
 
@@ -323,10 +323,12 @@ int indexFastQueryDuration(const char *fname,
 
 static int _findFirstPCR(struct tool_context_s *ctx)
 {
+	void *streamModel;
+
 	/* Launch the stream model probe, determine whether this stream
 	 * contains multiple PCRs. If it does, pick the first PCR.
 	 */
-	if (ltntstools_streammodel_alloc(&ctx->streamModel) < 0) {
+	if (ltntstools_streammodel_alloc(&streamModel) < 0) {
 		fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
 		exit(1);
 	}
@@ -350,21 +352,21 @@ static int _findFirstPCR(struct tool_context_s *ctx)
 		scanLength -= rlen;
 
 		int complete = 0;
-		ltntstools_streammodel_write(ctx->streamModel, pkts, rlen / 188, &complete);
+		ltntstools_streammodel_write(streamModel, pkts, rlen / 188, &complete);
 		if (complete) {
 			struct ltntstools_pat_s *pat = NULL;
-			if (ltntstools_streammodel_query_model(ctx->streamModel, &pat) == 0) {
+			if (ltntstools_streammodel_query_model(streamModel, &pat) == 0) {
 
 				if (ctx->verbose) {
 					ltntstools_pat_dprintf(pat, 0);
 				}
 
-				if (ltntstools_streammodel_is_model_mpts(ctx->streamModel, pat)) {
+				if (ltntstools_streammodel_is_model_mpts(streamModel, pat)) {
 					ctx->is_mpts = 1;
 				}
 
 				uint16_t pid;
-				if (ltntstools_streammodel_query_first_program_pcr_pid(ctx->streamModel, pat, &pid) == 0) {
+				if (ltntstools_streammodel_query_first_program_pcr_pid(streamModel, pat, &pid) == 0) {
 					ctx->pcrPID = pid;
 					break;
 				}
@@ -377,8 +379,7 @@ static int _findFirstPCR(struct tool_context_s *ctx)
 	free(pkts);
 	fclose(ctx->ifh);
 	ctx->ifh = NULL;
-	ltntstools_streammodel_free(ctx->streamModel);
-	ctx->streamModel = NULL;
+	ltntstools_streammodel_free(streamModel);
 
 	return 0;
 }
