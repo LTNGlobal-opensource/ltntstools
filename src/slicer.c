@@ -299,9 +299,8 @@ int indexFastQueryDuration(const char *fname,
 		}
 	}
 
-	/* First the first and last PCRs for a specific PCR PID */
-
-#if 1
+	/* Find the first and last PCRs for a specific PCR PID */
+#if 0
 	indexDumpEntry(NULL, 0, begin);
 	indexDumpEntry(NULL, 1, end);
 #endif
@@ -321,6 +320,15 @@ int indexFastQueryDuration(const char *fname,
 	return 0; /* Success */
 }
 
+/* Use the tstools streammodel infrastructure to determine the
+ * first valid PCR we've found in either a SPTS or MPTS.
+ * We manually read the file, pass the contents to the stream model
+ * and when it's complete, we'll ask for the entire stream model (pat)
+ * and inspect it (pat).
+ * The only reliance on ctx is because we set a couple of
+ * discovered variables, otherwise this function is intensionally
+ * self contained, so I can be re-purposed easily into any other tools.
+ */
 static int _findFirstPCR(struct tool_context_s *ctx)
 {
 	void *streamModel;
@@ -333,25 +341,28 @@ static int _findFirstPCR(struct tool_context_s *ctx)
 		exit(1);
 	}
 
-	ctx->ifh = fopen(ctx->ifn, "rb");
-	if (!ctx->ifh) {
+	FILE *fh = fopen(ctx->ifn, "rb");
+	if (!fh) {
 		fprintf(stderr, "Unable to open input file '%s'\n", ctx->ifn);
 		exit(1);
 	}
 
+	/* Read up to 16MB of data from a file, in blen chunks,
+	 * feed the stream model and wait for it to complete.
+	 */
+	int complete = 0;
 	int scanLength = 16 * 1048576;
 	int blen = 64 * 188;
 	unsigned char *pkts = malloc(blen);
 	while(scanLength) {
 
-		int rlen = fread(pkts, 64, blen / 64, ctx->ifh);
+		int rlen = fread(pkts, 64, blen / 64, fh);
 		if (rlen <= 0)
 			break;
 
 		/* Run the first 64MB through the model. */
 		scanLength -= rlen;
 
-		int complete = 0;
 		ltntstools_streammodel_write(streamModel, pkts, rlen / 188, &complete);
 		if (complete) {
 			struct ltntstools_pat_s *pat = NULL;
@@ -377,11 +388,13 @@ static int _findFirstPCR(struct tool_context_s *ctx)
 		}
 	}
 	free(pkts);
-	fclose(ctx->ifh);
-	ctx->ifh = NULL;
+	fclose(fh);
 	ltntstools_streammodel_free(streamModel);
 
-	return 0;
+	if (!complete)
+		return -1;
+
+	return 0; /* Success */
 }
 
 static void usage(const char *progname)
