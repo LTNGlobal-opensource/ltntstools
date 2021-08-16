@@ -81,6 +81,7 @@ char *videotime_to_str(struct videotime_s *vt)
 
 struct tool_context_s
 {
+	int verbose;
 	char *ifn;
 	char *ofn;
 	FILE *ifh;
@@ -88,6 +89,9 @@ struct tool_context_s
 	int allPCRLength;
 	char *opt_e;
 	char *opt_s;
+	int is_mpts;
+
+	uint16_t pcrPID;
 
 	int64_t pcrMin, pcrMax, pcrDuration;
 
@@ -95,6 +99,9 @@ struct tool_context_s
 
 	struct videotime_s timeStartStream;
 	struct videotime_s timeEndStream;
+
+	/* MPTS vs SPTS, stream model queries */
+	void *streamModel;
 };
 
 static int indexSave(struct tool_context_s *ctx)
@@ -108,6 +115,26 @@ static int indexSave(struct tool_context_s *ctx)
 	fclose(ofh);
 
 	return 0;
+}
+
+static void indexRefreshContext(struct tool_context_s *ctx)
+{
+	for (int i = 0; i < ctx->allPCRLength; i++) {
+		if ((ctx->allPCRs + i)->pid == ctx->pcrPID) {
+			ctx->pcrMin = (ctx->allPCRs + i)->pcr;
+			break;
+		}
+	}
+	for (int i = ctx->allPCRLength - 1; i >= 0; i--) {
+		if ((ctx->allPCRs + i)->pid == ctx->pcrPID) {
+			ctx->pcrMax = (ctx->allPCRs + i)->pcr;
+			break;
+		}
+	}
+
+	ctx->pcrDuration = ctx->pcrMax - ctx->pcrMin;
+
+	pcr_to_videotime(ctx->pcrDuration, &ctx->streamTime);
 }
 
 static int indexLoad(struct tool_context_s *ctx)
@@ -132,11 +159,7 @@ static int indexLoad(struct tool_context_s *ctx)
 	ctx->allPCRLength = fileLength / sizeof(struct ltntstools_pcr_position_s);
 	fclose(fh);
 
-	ctx->pcrMin = ctx->allPCRs->pcr;
-	ctx->pcrMax = (ctx->allPCRs+ ctx->allPCRLength - 1)->pcr;
-	ctx->pcrDuration = ctx->pcrMax - ctx->pcrMin;
-
-	pcr_to_videotime(ctx->pcrDuration, &ctx->streamTime);
+	indexRefreshContext(ctx);
 
 	char *streamtime = videotime_to_str(&ctx->streamTime);
 
@@ -171,13 +194,17 @@ static void indexDumpEntry(struct tool_context_s *ctx, int id, struct ltntstools
 static void indexDump(struct tool_context_s *ctx)
 {
 	for (int i = 0; i < ctx->allPCRLength; i++) {
-		indexDumpEntry(ctx, i, ctx->allPCRs + i);
+		if (ctx->pcrPID == (ctx->allPCRs + i)->pid) {
+			indexDumpEntry(ctx, i, ctx->allPCRs + i);
+		}
 	}
 }
 
 struct ltntstools_pcr_position_s *indexLookupPCR(struct tool_context_s *ctx, int64_t pcr)
 {
 	for (int i = 0; i < ctx->allPCRLength; i++) {
+		if (ctx->pcrPID != (ctx->allPCRs + i)->pid)
+			continue;
 		if (pcr <= (ctx->allPCRs + i)->pcr)
 			return ctx->allPCRs + i;
 	}
@@ -273,6 +300,68 @@ int indexFastQueryDuration(const char *fname,
 	return 0; /* Success */
 }
 
+static int _findFirstPCR(struct tool_context_s *ctx)
+{
+	/* Launch the stream model probe, determine whether this stream
+	 * contains multiple PCRs. If it does, pick the first PCR.
+	 */
+	if (ltntstools_streammodel_alloc(&ctx->streamModel) < 0) {
+		fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
+		exit(1);
+	}
+
+	ctx->ifh = fopen(ctx->ifn, "rb");
+	if (!ctx->ifh) {
+		fprintf(stderr, "Unable to open input file '%s'\n", ctx->ifn);
+		exit(1);
+	}
+
+	int scanLength = 16 * 1048576;
+	int blen = 64 * 188;
+	unsigned char *pkts = malloc(blen);
+	while(scanLength) {
+
+		int rlen = fread(pkts, 64, blen / 64, ctx->ifh);
+		if (rlen <= 0)
+			break;
+
+		/* Run the first 64MB through the model. */
+		scanLength -= rlen;
+
+		int complete = 0;
+		ltntstools_streammodel_write(ctx->streamModel, pkts, rlen / 188, &complete);
+		if (complete) {
+			struct ltntstools_pat_s *pat = NULL;
+			if (ltntstools_streammodel_query_model(ctx->streamModel, &pat) == 0) {
+
+				if (ctx->verbose) {
+					ltntstools_pat_dprintf(pat, 0);
+				}
+
+				if (ltntstools_streammodel_is_model_mpts(ctx->streamModel, pat)) {
+					ctx->is_mpts = 1;
+				}
+
+				uint16_t pid;
+				if (ltntstools_streammodel_query_first_program_pcr_pid(ctx->streamModel, pat, &pid) == 0) {
+					ctx->pcrPID = pid;
+					break;
+				}
+
+				ltntstools_pat_free(pat);
+			}
+			break;
+		}
+	}
+	free(pkts);
+	fclose(ctx->ifh);
+	ctx->ifh = NULL;
+	ltntstools_streammodel_free(ctx->streamModel);
+	ctx->streamModel = NULL;
+
+	return 0;
+}
+
 static void usage(const char *progname)
 {
 	printf("\nA tool to extract time periods from ISO13818 MPEGTS SPTS or MPTS files.\n");
@@ -280,6 +369,7 @@ static void usage(const char *progname)
 	printf("\nUsage:\n");
 	printf("  -i <input.ts>\n");
 	printf("  -o <output.ts>\n");
+	printf("  -v Increase level of verbosity\n");
 	printf("\nExamples:\n");
 	printf("  # Create a timing index of your recording.ts file, 2hr recording can take 2-3 mins.\n");
 	printf("  # This will create recording.ts.idx.\n");
@@ -299,7 +389,7 @@ int slicer(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-        while ((ch = getopt(argc, argv, "?hi:ls:e:o:q:")) != -1) {
+        while ((ch = getopt(argc, argv, "?hi:ls:e:o:q:v")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -369,6 +459,9 @@ int slicer(int argc, char *argv[])
 			}
 			ctx->opt_s = strdup(optarg);
 			break;
+		case 'v':
+			ctx->verbose++;
+			break;
 		default:
 			usage(argv[0]);
 			exit(1);
@@ -380,6 +473,16 @@ int slicer(int argc, char *argv[])
 		fprintf(stderr, "\n-i is mandatory\n\n");
 		exit(1);
 	}
+
+	if (_findFirstPCR(ctx) < 0) {
+		usage(argv[0]);
+		fprintf(stderr, "\nUnable to query PCR from stream, aborting.\n\n");
+		exit(1);
+	}
+
+	printf("Auto-detected %s, PCR on PID 0x%04x\n",
+		ctx->is_mpts ? "MPTS" : "SPTS",
+		ctx->pcrPID);
 
 	/* Read the index if it exists */
 	int ret = indexLoad(ctx);
@@ -435,13 +538,11 @@ int slicer(int argc, char *argv[])
 		exit(0);
 	}
 
-	{
-	}
-
-	/* Display all SCRs between start and end */
+	/* Default to the smallest and largest PCR in the file */
 	int64_t pcrStart = ctx->pcrMin;
 	int64_t pcrEnd = ctx->pcrMax;
 
+	/* Allow the user to override these the min max pcr defaults */
 	if (ctx->opt_s) {
 		pcrStart = videotime_to_pcr(&ctx->timeStartStream);
 	}
@@ -449,12 +550,15 @@ int slicer(int argc, char *argv[])
 		pcrEnd = videotime_to_pcr(&ctx->timeEndStream);
 	}
 
+	/* Find the PCR objects for these pcr timestamps */
 	struct ltntstools_pcr_position_s *s = indexLookupPCR(ctx, pcrStart);
 	struct ltntstools_pcr_position_s *e = indexLookupPCR(ctx, pcrEnd);
 	indexDumpEntry(ctx, 0, s);
 	indexDumpEntry(ctx, 1, e);
 
+	/* Extract stream and write to output, if the user has indicated with -o */
 	if (ctx->ofn) {
+		/* The the file offsets (pcrobj->offset) to drive start and end cut points. */
 		FILE *ifh = fopen(ctx->ifn, "rb");
 		if (ifh) {
 			FILE *ofh = fopen(ctx->ofn, "wb");
