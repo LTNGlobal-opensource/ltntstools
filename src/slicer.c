@@ -48,7 +48,7 @@ int64_t videotime_to_pcr(struct videotime_s *vt)
 	pcr += vt->mins * 60;
 	pcr += vt->secs;
 	pcr *= 27000000;
-	pcr += vt->msecs * 27000;
+	pcr += (vt->msecs * 27000);
 
 	return pcr;
 }
@@ -216,7 +216,8 @@ int indexFastQueryDuration(const char *fname,
 	struct ltntstools_pcr_position_s *end,
 	int64_t *durationTicks, /* 27 MHz */
 	struct videotime_s *streamTime,
-	int64_t *fileSize)
+	int64_t *fileSize,
+	uint16_t pcrPID)
 {
 	if (!fname || !begin || !end)
 		return -1;
@@ -258,8 +259,8 @@ int indexFastQueryDuration(const char *fname,
 		segs[1].lengthBytes = 16 * 1048576;
 		segs[1].buf = malloc(segs[1].lengthBytes);
 		segs[1].addr = lengthBytes - (16 * 1048576);
-		fseeko(fh, -(16 * 1048576), SEEK_END);
-		fread(segs[1].buf, 1, segs[1].lengthBytes, fh);
+		int ret = fseeko(fh, -(16 * 1048576), SEEK_END);
+		ret = fread(segs[1].buf, 1, segs[1].lengthBytes, fh);
 	}
 	fclose(fh);
 
@@ -268,21 +269,41 @@ int indexFastQueryDuration(const char *fname,
 			int ret = ltntstools_queryPCRs(segs[i].buf, segs[i].lengthBytes,
 				segs[i].addr, &segs[i].arr, &segs[i].arrlen);
 			if (ret == 0) {
-				// indexDumpEntry(NULL, 0, segs[i].arr);
+				//indexDumpEntry(NULL, 0, segs[i].arr);
 			}
 		}
 	}
 
-	memcpy(begin, segs[0].arr, sizeof(struct ltntstools_pcr_position_s));
+	printf("Auto-detected PCR PID 0x%04x\n", pcrPID);
+
+	for (int i = 0; i < segs[0].arrlen; i++) {
+		if ((segs[0].arr + i)->pid == pcrPID) {
+			memcpy(begin, segs[0].arr + i, sizeof(struct ltntstools_pcr_position_s));
+			break;
+		}
+	}
 
 	if (singleRead) {
-		memcpy(end, segs[0].arr + (segs[0].arrlen - 1), sizeof(struct ltntstools_pcr_position_s));
+		for (int i = segs[0].arrlen - 1; i >= 0; i--) {
+			if ((segs[0].arr + i)->pid == pcrPID) {
+				memcpy(end, segs[0].arr + i, sizeof(struct ltntstools_pcr_position_s));
+				break;
+			}
+		}
 	} else {
-		memcpy(end, segs[1].arr + (segs[1].arrlen - 1), sizeof(struct ltntstools_pcr_position_s));
+		for (int i = segs[1].arrlen - 1; i >= 0; i--) {
+			if ((segs[1].arr + i)->pid == pcrPID) {
+				memcpy(end, segs[1].arr + i, sizeof(struct ltntstools_pcr_position_s));
+				break;
+			}
+		}
 	}
-#if 0
+
+	/* First the first and last PCRs for a specific PCR PID */
+
+#if 1
 	indexDumpEntry(NULL, 0, begin);
-	indexDumpEntry(NULL, 0, end);
+	indexDumpEntry(NULL, 1, end);
 #endif
 	for (int i = 0; i < 2; i++) {
 		if (segs[i].buf)
@@ -423,8 +444,15 @@ int slicer(int argc, char *argv[])
 			int64_t durationTicks;
 			int64_t fileLengthBytes;
 
-			int ret = indexFastQueryDuration(optarg, &begin, &end, &durationTicks,
-					&streamTime, &fileLengthBytes);
+			ctx->ifn = strdup(optarg);
+
+			if (_findFirstPCR(ctx) < 0) {
+				fprintf(stderr, "Unable to query program PCR PID, aborting.\n");
+				exit(1);
+			}
+
+			int ret = indexFastQueryDuration(ctx->ifn, &begin, &end, &durationTicks,
+					&streamTime, &fileLengthBytes, ctx->pcrPID);
 			if (ret < 0) {
 				fprintf(stderr, "Unable to query file details\n");
 				exit(1);
