@@ -5,7 +5,8 @@
 #include "nic_monitor.h"
 
 /* Reduce this to 4 * 32768 to simulate loss on a NIC with 600Mbps */
-static int g_buffer_size_default = (32 * 1024 * 1024);
+/* Tuned to 64MB to support 2Gb/ps */
+static int g_buffer_size_default = (64 * 1024 * 1024);
 static int g_snaplen_default =
 #ifdef __linux__
 	BUFSIZ
