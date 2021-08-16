@@ -545,7 +545,10 @@ void discovered_items_select_next(struct tool_context_s *ctx)
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		if (discovered_item_state_get(e, DI_STATE_SELECTED)) {
-			discovered_item_state_clr(e, DI_STATE_SELECTED);
+
+			/* Only clear the current entry, if it's NOT the last entry in the list */
+			if (e->list.next != &ctx->list)
+				discovered_item_state_clr(e, DI_STATE_SELECTED);
 			doSelect = 1;
 		} else
 		if (doSelect) {
