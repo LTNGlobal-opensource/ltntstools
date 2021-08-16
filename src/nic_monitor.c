@@ -44,6 +44,7 @@ static void *ui_thread_func(void *p)
 	ctx->ui_threadTerminated = 0;
 	ctx->trailerRow = DEFAULT_TRAILERROW;
 	double totalMbps = 0;
+	int totalStreams = 0;
 
 	ltnpthread_setname_np(ctx->ui_threadId, "tstools-ui");
 	pthread_detach(pthread_self());
@@ -62,6 +63,7 @@ static void *ui_thread_func(void *p)
 	while (!ctx->ui_threadTerminate) {
 
 		totalMbps = 0;
+		totalStreams = 0;
 		time_t now;
 		time(&now);
 
@@ -129,7 +131,7 @@ static void *ui_thread_func(void *p)
 				attron(COLOR_PAIR(5));
 
 			totalMbps += ltntstools_pid_stats_stream_get_mbps(&di->stats);
-printf("xxxx %f\n", di->stats.mbps);
+			totalStreams++;
 			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
 				mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
 					payloadTypeDesc(di->payloadType),
@@ -509,7 +511,11 @@ printf("xxxx %f\n", di->stats.mbps);
 		sprintf(s, "%s", ctime(&now));
 		s[ strlen(s) - 1 ] = 0;
 		memset(tail_b, '-', sizeof(tail_b));
-		sprintf(tail_a, "%s                           %7.02f", s, totalMbps);
+		if (totalStreams == 1) {
+			sprintf(tail_a, "%s                           %7.02f / %d stream", s, totalMbps, totalStreams);
+		} else {
+			sprintf(tail_a, "%s                           %7.02f / %d streams", s, totalMbps, totalStreams);
+		}
 		sprintf(tail_c, "Since: %s", ctime(&ctx->lastResetTime));
 		blen = 112 - (strlen(tail_a) + strlen(tail_c));
 		memset(tail_b, 0x20, sizeof(tail_b));
