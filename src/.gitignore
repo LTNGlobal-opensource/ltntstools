@@ -14,3 +14,4 @@ tstools_ffmpeg_metadata
 tstools_iat_tester
 tstools_scte35_inspector
 tstools_igmp_join
+tstools_slicer
