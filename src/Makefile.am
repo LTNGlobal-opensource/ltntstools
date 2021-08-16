@@ -57,6 +57,7 @@ SRC += iat_tester.c
 SRC += ffmpeg_metadata.c
 SRC += igmp_join.c
 SRC += slicer.c
+SRC += hash_index.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -85,6 +86,7 @@ noinst_HEADERS += dump.h
 noinst_HEADERS += parsers.h
 noinst_HEADERS += nic_monitor.h
 noinst_HEADERS += utils.h
+noinst_HEADERS += hash_index.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)
