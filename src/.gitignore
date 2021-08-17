@@ -15,3 +15,4 @@ tstools_iat_tester
 tstools_scte35_inspector
 tstools_igmp_join
 tstools_slicer
+tstools_sei_unregistered

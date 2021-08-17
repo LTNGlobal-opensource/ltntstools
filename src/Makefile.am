@@ -58,6 +58,7 @@ SRC += ffmpeg_metadata.c
 SRC += igmp_join.c
 SRC += slicer.c
 SRC += hash_index.c
+SRC += sei_unregistered.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -76,6 +77,7 @@ LINKBINS += tstools_ffmpeg_metadata
 LINKBINS += tstools_scte35_inspector
 LINKBINS += tstools_igmp_join
 LINKBINS += tstools_slicer
+LINKBINS += tstools_sei_unregistered
 
 tstools_util_SOURCES = $(SRC)
 

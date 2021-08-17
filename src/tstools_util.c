@@ -23,6 +23,7 @@ extern int ffmpeg_metadata(int argc, char *argv[]);
 extern int scte35_inspector(int argc, char *argv[]);
 extern int igmp_join(int argc, char *argv[]);
 extern int slicer(int argc, char *argv[]);
+extern int sei_unregistered(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
 
@@ -53,6 +54,7 @@ int main(int argc, char *argv[])
 		{ "tstools_scte35_inspector",	scte35_inspector, },
 		{ "tstools_igmp_join",		igmp_join, },
 		{ "tstools_slicer",		slicer, },
+		{ "tstools_sei_unregistered",	sei_unregistered, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);
