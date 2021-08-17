@@ -90,7 +90,7 @@ int sei_unregistered(int argc, char *argv[])
 	}
 
 	uint32_t offset = 0;
-	int blen = 7 * 188;
+	int blen = 128 * 188;
 	uint8_t *buf = malloc(blen);
 	int ok = 1;
 	while (ok) {
