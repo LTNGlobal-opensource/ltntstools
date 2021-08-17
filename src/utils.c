@@ -2,12 +2,12 @@
 #include "utils.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <sys/socket.h>
 #include <netdb.h>
-
 
 /* In string 'str', find occurences of character src and replace with character dst. */
 /* return the number of substituions occured. */
@@ -114,7 +114,7 @@ int network_addr_compare(
 #ifdef __APPLE__
 	if (src_iphdr->ip_src.s_addr != dst_iphdr->ip_src.s_addr)
 		return 0;
-	if (src-iphdr->iphdr.ip_dst.s_addr != dst_iphdr->ip_dst.s_addr)
+	if (src_iphdr->ip_dst.s_addr != dst_iphdr->ip_dst.s_addr)
 		return 0;
 #endif
 #ifdef __linux__

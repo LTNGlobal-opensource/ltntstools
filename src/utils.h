@@ -8,6 +8,10 @@
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 
+#ifdef __APPLE__
+#define iphdr ip
+#endif
+
 int character_replace(char *str, char src, char dst);
 void networkInterfaceList();
 int  networkInterfaceExists(const char *ifname);
