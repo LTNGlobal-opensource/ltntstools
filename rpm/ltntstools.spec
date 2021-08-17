@@ -70,7 +70,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_slicer: New tool that index transport files, can extract MPTS/SPTS segments based on PCR time.
   tstools_slicer: Added support for MPTS and multiple PCR pids, with auto-detection.
   tstools_sei_unregistered: New tool added, search for SEI UNREGISTERED arrays in video files.
-  tstools_udp_capture: deprecated. Please switch to using nic_monitor and idp_join tools.
+  tstools_udp_capture: deprecated. Please switch to using nic_monitor and igmp_join tools.
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
