@@ -309,6 +309,11 @@ xorg_list_is_empty(struct xorg_list *head)
 	 &pos->member != (head);					\
 	 pos = __container_of(pos->member.next, pos, member))
 
+#define xorg_list_for_each_entry_reverse(pos, head, member)             \
+    for (pos = __container_of((head)->prev, pos, member);               \
+         &pos->member != (head);                                        \
+         pos = __container_of(pos->member.prev, pos, member))
+
 /**
  * Loop through the list, keeping a backup pointer to the element. This
  * macro allows for the deletion of a list element while looping through the
