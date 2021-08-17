@@ -34,6 +34,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_ffmpeg_metadata
 /usr/local/bin/tstools_scte35_inspector
 /usr/local/bin/tstools_igmp_join
+/usr/local/bin/tstools_slicer
+/usr/local/bin/tstools_sei_unregistered
 /usr/local/share/man/man8/tstools_nic_monitor.8
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
@@ -67,6 +69,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_igmp_join: New tool that issues IGMP joins for specific multicast streams on specific NICS.
   tstools_slicer: New tool that index transport files, can extract MPTS/SPTS segments based on PCR time.
   tstools_slicer: Added support for MPTS and multiple PCR pids, with auto-detection.
+  tstools_sei_unregistered: New tool added, searchied for SEI UNREGISTERED arrays in video files.
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
