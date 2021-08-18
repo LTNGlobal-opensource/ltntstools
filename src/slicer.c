@@ -356,7 +356,7 @@ static int _findFirstPCR(struct tool_context_s *ctx)
 	unsigned char *pkts = malloc(blen);
 	while(scanLength) {
 
-		int rlen = fread(pkts, 64, blen / 64, fh);
+		int rlen = fread(pkts, 1, blen, fh);
 		if (rlen <= 0)
 			break;
 
