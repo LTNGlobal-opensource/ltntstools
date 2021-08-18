@@ -425,6 +425,7 @@ static void usage(const char *progname)
 	printf("  -D Max allowable PTS/DTS clock drift value in ms. [def: 700]\n");
 	printf("  -R Reorder the PTS display output to be in ascending PTS order [def: disabled]\n");
 	printf("     In this case we'll calculate the PTS intervals reliably based on picture frame display order [def: disabled]\n");
+	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
 }
 
 int clock_inspector(int argc, char *argv[])
@@ -439,8 +440,9 @@ int clock_inspector(int argc, char *argv[])
 	ctx->doPESStatistics = 0;
 	ctx->maxAllowablePTSDTSDrift = 700;
 	ctx->scr_pid = DEFAULT_SCR_PID;
+	int progressReport = 0;
 
-        while ((ch = getopt(argc, argv, "?dhi:spT:D:RS:")) != -1) {
+        while ((ch = getopt(argc, argv, "?dhi:spT:D:PRS:")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -450,6 +452,9 @@ int clock_inspector(int argc, char *argv[])
 			break;
 		case 'p':
 			ctx->doPESStatistics++;
+			break;
+		case 'P':
+			progressReport = 1;
 			break;
 		case 's':
 			ctx->doSCRStatistics = 1;
@@ -506,6 +511,10 @@ int clock_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
+	fseeko(ctx->fh, 0, SEEK_END);
+	off_t fileLengthBytes = ftello(ctx->fh);
+	fseeko(ctx->fh, 0, SEEK_SET);
+
 	int max_packets = 32;
 	uint8_t *buf = malloc(188 * max_packets);
 	if (!buf) {
@@ -514,6 +523,7 @@ int clock_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
+	uint64_t filepos = 0;
 	while (!feof(ctx->fh)) {
 		size_t rlen = fread(buf, 188, max_packets, ctx->fh);
 		if (rlen <= 0)
@@ -521,7 +531,7 @@ int clock_inspector(int argc, char *argv[])
 
 		for (int i = 0; i < rlen; i++) {
 
-			uint64_t filepos = (ftell(ctx->fh) - (188 * rlen)) + (i * 188);
+			filepos = (ftell(ctx->fh) - (188 * rlen)) + (i * 188);
 
 			uint8_t *p = buf + (i * 188);
 
@@ -544,7 +554,15 @@ int clock_inspector(int argc, char *argv[])
 			ctx->ts_total_packets++;
 
 		}
+		if (progressReport) {
+			fprintf(stderr, "\rprocessing ... %.02f%%",
+				(double)(((double)filepos / (double)fileLengthBytes) * 100.0));
+		}
 	}
+	if (progressReport) {
+		fprintf(stderr, "\ndone\n");
+	}
+
 	pidReport(ctx);
 
 	free(buf);
