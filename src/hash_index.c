@@ -19,7 +19,7 @@ void hash_index_free(struct hash_index_s *p)
 void hash_index_set(struct hash_index_s *p, uint16_t key, void *item)
 {
 	struct hash_index_s *e = p + key;
-	e->arr = realloc(e->arr, e->arrLength + 1);
+	e->arr = realloc(e->arr, (e->arrLength + 1) * sizeof(void *));
 	//*(e->arr + (e->arrLength * sizeof(struct hash_index_s *))) = (void *)item;
 	*(e->arr + e->arrLength) = (void *)item;
 
