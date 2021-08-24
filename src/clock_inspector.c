@@ -165,7 +165,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	klbs_init(bs);
 	klbs_read_set_buffer(bs, buf, lengthBytes);
 
-	ssize_t len = ltn_pes_packet_parse(&p->pes, bs);
+	ssize_t len = ltn_pes_packet_parse(&p->pes, bs, 1 /* SkipDataExtraction */);
 
 	/* Track the difference in SCR clocks between this PTS header and the prior. */
 	uint64_t pts_scr_diff_ms = 0;

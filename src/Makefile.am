@@ -60,6 +60,7 @@ SRC += slicer.c
 SRC += hash_index.c
 SRC += sei_unregistered.c
 SRC += stream_verifier.c
+SRC += pes_inspector.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -80,6 +81,7 @@ LINKBINS += tstools_igmp_join
 LINKBINS += tstools_slicer
 LINKBINS += tstools_sei_unregistered
 LINKBINS += tstools_stream_verifier
+LINKBINS += tstools_pes_inspector
 
 tstools_util_SOURCES = $(SRC)
 

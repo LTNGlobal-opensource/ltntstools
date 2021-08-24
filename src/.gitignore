@@ -17,3 +17,4 @@ tstools_igmp_join
 tstools_slicer
 tstools_sei_unregistered
 tstools_stream_verifier
+tstools_pes_inspector
