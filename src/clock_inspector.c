@@ -305,9 +305,9 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 		return;
 
 	uint64_t scr_diff = 0;
-	if (ctx->pids[pid].scr_updateCount > 0)
-		scr_diff = scr - ctx->pids[pid].scr;
-	else {
+	if (ctx->pids[pid].scr_updateCount > 0) {
+		scr_diff = ltntstools_scr_diff(ctx->pids[pid].scr, scr);
+	} else {
 		ctx->pids[pid].scr_first = scr;
 		ctx->pids[pid].scr_first_time = ctx->initial_time;
 	}
@@ -323,7 +323,7 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 		ctx->scr_linenr = 0;
 
 	time_t dt = ctx->pids[pid].scr_first_time;
-	dt += ((scr - ctx->pids[pid].scr_first) / 27000000);
+	dt += (ltntstools_scr_diff(ctx->pids[pid].scr_first, scr) / 27000000);
 
 	ctx->current_stream_time = dt;
 
