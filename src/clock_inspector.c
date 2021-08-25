@@ -82,6 +82,7 @@ static void ordered_clock_init(struct xorg_list *list)
 	xorg_list_init(list);
 }
 
+/* The clock is a PTS 90KHz counter */
 static void ordered_clock_insert(struct xorg_list *list, struct ordered_clock_item_s *src)
 {
 	struct ordered_clock_item_s *e = calloc(1, sizeof(*e));
@@ -111,10 +112,11 @@ static void ordered_clock_dump(struct xorg_list *list, unsigned short pid)
 
 	struct ordered_clock_item_s *i = NULL, *next = NULL;
 	xorg_list_for_each_entry_safe(i, next, list, list) {
-		if (last == -1)
+		if (last == -1) {
 			diffTicks = 0;
-		else
-			diffTicks = i->clock - last;
+		} else {
+			diffTicks = ltntstools_pts_diff(last, i->clock);
+		}
 
 		if (linenr++ == 24) {
 			linenr = 0;
@@ -172,16 +174,16 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	uint64_t dts_scr_diff_ms = 0;
 
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
-		p->pts_diff_ticks = p->pes.PTS - p->pts_last.PTS;
+		p->pts_diff_ticks = ltntstools_pts_diff(p->pts_last.PTS, p->pes.PTS);
 		p->pts_count++;
 		//p->scr = ctx->pids[ctx->scr_pid].scr;
-		pts_scr_diff_ms = (p->scr - p->pts_last_scr) / 27000;
+		pts_scr_diff_ms = ltntstools_scr_diff(p->pts_last_scr, p->scr) / 27000;
 		p->pts_last_scr = p->scr;
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
-		p->dts_diff_ticks = p->pes.DTS - p->dts_last.DTS;
+		p->dts_diff_ticks = ltntstools_pts_diff(p->pts_last.DTS, p->pes.DTS);
 		p->dts_count++;
-		dts_scr_diff_ms = (p->scr - p->dts_last_scr) / 27000;
+		dts_scr_diff_ms = ltntstools_scr_diff(p->dts_last_scr, p->scr) / 27000;
 		p->dts_last_scr = p->scr;
 	}
 
@@ -196,8 +198,8 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 
 		/* Calculate the offset between the PTS and the last good SCR, assumed to be on pid DEFAULR_SCR_PID. */
-		int64_t pts_minus_scr_ticks = (p->pes.PTS * 300) - ctx->pids[ctx->scr_pid].scr;
-		double d_pts_minus_scr_ticks = (p->pes.PTS * 300) - ctx->pids[ctx->scr_pid].scr;
+		int64_t pts_minus_scr_ticks = ltntstools_scr_diff(ctx->pids[ctx->scr_pid].scr, p->pes.PTS * 300);
+		double d_pts_minus_scr_ticks = ltntstools_scr_diff(ctx->pids[ctx->scr_pid].scr, p->pes.PTS * 300);
 		d_pts_minus_scr_ticks /= 27000;
 
 		if ((PTS_TICKS_TO_MS(p->pts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
@@ -523,6 +525,7 @@ int clock_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
+	/* TODO: Replace this with avio so we can support streams. */
 	uint64_t filepos = 0;
 	while (!feof(ctx->fh)) {
 		size_t rlen = fread(buf, 188, max_packets, ctx->fh);
