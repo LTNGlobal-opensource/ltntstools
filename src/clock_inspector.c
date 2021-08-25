@@ -5,10 +5,12 @@
 #include <string.h>
 #include <getopt.h>
 #include <time.h>
+#include <signal.h>
 
 #include "klbitstream_readwriter.h"
 #include <libltntstools/ltntstools.h>
 #include "xorg-list.h"
+#include "ffmpeg-includes.h"
 
 #define DEFAULT_SCR_PID 0x31
 
@@ -54,8 +56,7 @@ struct pid_s
 struct tool_context_s
 {
 	int dumpHex;
-	const char *fn;
-	FILE *fh;
+	const char *iname;
 	time_t initial_time;
 	time_t current_stream_time;
 	int64_t maxAllowablePTSDTSDrift;
@@ -75,6 +76,12 @@ struct tool_context_s
 
 	int scr_pid;
 };
+
+static int gRunning = 1;
+static void signal_handler(int signum)
+{
+	gRunning = 0;
+}
 
 /* Ordered PTS handling */
 static void ordered_clock_init(struct xorg_list *list)
@@ -450,7 +457,7 @@ int clock_inspector(int argc, char *argv[])
 			ctx->dumpHex++;
 			break;
 		case 'i':
-			ctx->fn = optarg;
+			ctx->iname = optarg;
 			break;
 		case 'p':
 			ctx->doPESStatistics++;
@@ -501,42 +508,48 @@ int clock_inspector(int argc, char *argv[])
 		time(&ctx->initial_time);
 	}
 
-	if (ctx->fn == 0) {
+	if (ctx->iname == 0) {
 		fprintf(stderr, "-i is mandatory\n");
 		exit(1);
 	}
 
-	/* File is assumed to have properly aligned packets. */
-	ctx->fh = fopen(ctx->fn, "rb");
-	if (!ctx->fh) {
-		fprintf(stderr, "Unable to open file '%s'\n", ctx->fn);
-		exit(1);
-	}
-
-	fseeko(ctx->fh, 0, SEEK_END);
-	off_t fileLengthBytes = ftello(ctx->fh);
-	fseeko(ctx->fh, 0, SEEK_SET);
-
-	int max_packets = 32;
-	uint8_t *buf = malloc(188 * max_packets);
+	int blen = 188 * 1024;
+	uint8_t *buf = malloc(blen);
 	if (!buf) {
-		fclose(ctx->fh);
 		fprintf(stderr, "Unable to allocate buffer\n");
 		exit(1);
 	}
 
 	/* TODO: Replace this with avio so we can support streams. */
+	avformat_network_init();
+	AVIOContext *puc;
+	int ret = avio_open2(&puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "-i syntax error\n");
+		return 1;
+	}
+
+	signal(SIGINT, signal_handler);
+
 	uint64_t filepos = 0;
-	while (!feof(ctx->fh)) {
-		size_t rlen = fread(buf, 188, max_packets, ctx->fh);
-		if (rlen <= 0)
+	uint64_t fileLengthBytes = 0;
+	uint64_t streamPosition = 0;
+	while (gRunning) {
+		int rlen = avio_read(puc, buf, blen);
+		if (rlen == -EAGAIN) {
+			usleep(1 * 1000);
+			continue;
+		}
+		if (rlen < 0)
 			break;
 
-		for (int i = 0; i < rlen; i++) {
+		streamPosition += rlen;
 
-			filepos = (ftell(ctx->fh) - (188 * rlen)) + (i * 188);
+		for (int i = 0; i < rlen; i += 188) {
 
-			uint8_t *p = buf + (i * 188);
+			filepos = (streamPosition - rlen) + i;
+
+			uint8_t *p = (buf + i);
 
 			if (ctx->doPacketStatistics) {
 				processPacketStats(ctx, p, filepos);
@@ -561,15 +574,18 @@ int clock_inspector(int argc, char *argv[])
 			fprintf(stderr, "\rprocessing ... %.02f%%",
 				(double)(((double)filepos / (double)fileLengthBytes) * 100.0));
 		}
+
 	}
+	avio_close(puc);
+
 	if (progressReport) {
 		fprintf(stderr, "\ndone\n");
 	}
 
+	printf("\n");
 	pidReport(ctx);
 
 	free(buf);
-	fclose(ctx->fh);
 
 	if (ctx->order_asc_pts_output) {
 		for (int i = 0; i <= 0x1fff; i++) {
