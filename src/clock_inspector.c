@@ -419,9 +419,10 @@ static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 
 static void usage(const char *progname)
 {
-	printf("A tool to extract PCR/SCR PTS/DTS clocks from all pids in a MPEGTS file.\n");
+	printf("A tool to extract PCR/SCR PTS/DTS clocks from all pids in a MPEGTS file, or stream.\n");
 	printf("Usage:\n");
-	printf("  -i <filename.ts>\n");
+	printf("  -i <url> Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
+		"           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -T YYYYMMDDHHMMSS [def: current time]\n");
 	printf("     Time is only relevant when running -s SCR mode. The tool will adjust\n");
 	printf("     the initial SCR to match walltime, then any other SCR it reports will\n");
