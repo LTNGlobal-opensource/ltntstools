@@ -205,11 +205,13 @@ static void indexDumpEntry(struct tool_context_s *ctx, int id, struct ltntstools
 
 static void indexDump(struct tool_context_s *ctx)
 {
+	printf("Index is %d entries, for pid 0x%04x:\n", ctx->allPCRLength, ctx->pcrPID);
 	for (int i = 0; i < ctx->allPCRLength; i++) {
 		if (ctx->pcrPID == (ctx->allPCRs + i)->pid) {
 			indexDumpEntry(ctx, i, ctx->allPCRs + i);
 		}
 	}
+	printf("End of Index\n");
 }
 
 struct ltntstools_pcr_position_s *indexLookupPCR(struct tool_context_s *ctx, int64_t pcr)
@@ -220,6 +222,19 @@ struct ltntstools_pcr_position_s *indexLookupPCR(struct tool_context_s *ctx, int
 		if (ctx->pcrPID != (ctx->allPCRs + i)->pid)
 			continue;
 		if (pcr <= (ctx->allPCRs + i)->pcr)
+			return ctx->allPCRs + i;
+	}
+	return NULL;
+}
+
+struct ltntstools_pcr_position_s *indexLookupPCRReverse(struct tool_context_s *ctx, int64_t pcr)
+{
+	/* TODO: If multiple PCRs for the same time exist in the index, what do we do? */
+	/* The following is broken if the first PCR is larger than the last PCR (pcr wrap) */
+	for (int i = ctx->allPCRLength - 1; i >= 0; i--) {
+		if (ctx->pcrPID != (ctx->allPCRs + i)->pid)
+			continue;
+		if (pcr >= (ctx->allPCRs + i)->pcr)
 			return ctx->allPCRs + i;
 	}
 	return NULL;
@@ -456,6 +471,11 @@ int slicer(int argc, char *argv[])
 			break;
 		case 'l':
 			{
+			if (_findFirstPCR(ctx) < 0) {
+				fprintf(stderr, "Unable to query program PCR PID, aborting.\n");
+				exit(1);
+			}
+
 			int ret = indexLoad(ctx);
 			if (ret < 0) {
 			}
@@ -610,7 +630,7 @@ int slicer(int argc, char *argv[])
 
 	/* Find the PCR objects for these pcr timestamps */
 	struct ltntstools_pcr_position_s *s = indexLookupPCR(ctx, pcrStart);
-	struct ltntstools_pcr_position_s *e = indexLookupPCR(ctx, pcrEnd);
+	struct ltntstools_pcr_position_s *e = indexLookupPCRReverse(ctx, pcrEnd);
 	indexDumpEntry(ctx, 0, s);
 	indexDumpEntry(ctx, 1, e);
 
