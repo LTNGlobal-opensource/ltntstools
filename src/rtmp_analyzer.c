@@ -127,8 +127,8 @@ int64_t find_audio_to_video_drift_ms(int64_t *driftPTS, int64_t *driftDTS)
 	*driftPTS = va_pts_drift;
 	*driftDTS = va_dts_drift;
 #else
-	*driftPTS = vstrm->lastPTS - astrm->lastPTS;
-	*driftDTS = vstrm->lastDTS - astrm->lastDTS;
+	*driftPTS = ltntstools_pts_diff(astrm->lastPTS, vstrm->lastPTS);
+	*driftDTS = ltntstools_pts_diff(astrm->lastDTS, vstrm->lastDTS);
 #endif
 	return 0;
 }
