@@ -95,7 +95,8 @@ struct tool_context_s
 	struct videotime_s timeEndStream;   /* via -e */
 	/* End: Input args */
 
-	int64_t pcrMin, pcrMax, pcrDuration; /* For a given pcrPID, the min and max, pcrs found. */
+	/* First, last PCR's found in the file, and pcrDuration if first > last */
+	int64_t pcrFirst, pcrLast, pcrDuration;
 
 	struct videotime_s streamTime; /* Total duration of the entire stream, expressed in h/m/s */
 
@@ -121,18 +122,22 @@ static void indexRefreshContext(struct tool_context_s *ctx)
 {
 	for (int i = 0; i < ctx->allPCRLength; i++) {
 		if ((ctx->allPCRs + i)->pid == ctx->pcrPID) {
-			ctx->pcrMin = (ctx->allPCRs + i)->pcr;
+			ctx->pcrFirst = (ctx->allPCRs + i)->pcr;
 			break;
 		}
 	}
 	for (int i = ctx->allPCRLength - 1; i >= 0; i--) {
 		if ((ctx->allPCRs + i)->pid == ctx->pcrPID) {
-			ctx->pcrMax = (ctx->allPCRs + i)->pcr;
+			ctx->pcrLast = (ctx->allPCRs + i)->pcr;
 			break;
 		}
 	}
 
-	ctx->pcrDuration = ctx->pcrMax - ctx->pcrMin;
+	if (ctx->pcrLast > ctx->pcrFirst) {
+		ctx->pcrDuration = ctx->pcrLast - ctx->pcrFirst;
+	} else {
+		ctx->pcrDuration = 0;
+	}
 
 	pcr_to_videotime(ctx->pcrDuration, &ctx->streamTime);
 }
@@ -163,12 +168,19 @@ static int indexLoad(struct tool_context_s *ctx)
 
 	char *streamtime = videotime_to_str(&ctx->streamTime);
 
-	printf("PCRs from: %" PRIi64 " to %" PRIi64 ", duration %" PRIi64 ", %s\n",
-		ctx->pcrMin,
-		ctx->pcrMax,
-		ctx->pcrDuration,
-		streamtime
-		);
+	if (ctx->pcrLast > ctx->pcrFirst) {
+		printf("PCRs from: %" PRIi64 " to %" PRIi64 ", duration %" PRIi64 ", %s\n",
+			ctx->pcrFirst,
+			ctx->pcrLast,
+			ctx->pcrDuration,
+			streamtime
+			);
+	} else {
+		printf("PCRs from: %" PRIi64 " to %" PRIi64 "\n",
+			ctx->pcrFirst,
+			ctx->pcrLast
+			);
+	}
 
 	free(streamtime);
 
@@ -202,6 +214,8 @@ static void indexDump(struct tool_context_s *ctx)
 
 struct ltntstools_pcr_position_s *indexLookupPCR(struct tool_context_s *ctx, int64_t pcr)
 {
+	/* TODO: If multiple PCRs for the same time exist in the index, what do we do? */
+	/* The following is broken if the first PCR is larger than the last PCR (pcr wrap) */
 	for (int i = 0; i < ctx->allPCRLength; i++) {
 		if (ctx->pcrPID != (ctx->allPCRs + i)->pid)
 			continue;
@@ -583,8 +597,8 @@ int slicer(int argc, char *argv[])
 	}
 
 	/* Default to the smallest and largest PCR in the file */
-	int64_t pcrStart = ctx->pcrMin;
-	int64_t pcrEnd = ctx->pcrMax;
+	int64_t pcrStart = ctx->pcrFirst;
+	int64_t pcrEnd = ctx->pcrLast;
 
 	/* Allow the user to override these the min max pcr defaults */
 	if (ctx->opt_s) {
