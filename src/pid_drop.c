@@ -40,7 +40,7 @@ static void usage(const char *progname)
 	printf("  -f enable fixup the CC counters in the headers after dropping [def: disabled]\n");
 	printf("  -P pid 0xNNNN to be removed [def: 0x0]\n");
 	printf("  -p <number>. Drop packets from packet <number> onwards, for -n packets. [def: 0x0]\n");
-	printf("  -n <number>. NUmber of packets to drop on pid -P. [def: 0x0]\n");
+	printf("  -n <number>. Number of packets to drop on pid -P. [def: 0x0]\n");
 }
 
 int pid_drop(int argc, char *argv[])
