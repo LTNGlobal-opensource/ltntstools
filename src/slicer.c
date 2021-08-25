@@ -484,7 +484,9 @@ int slicer(int argc, char *argv[])
 			printf("file: %s\n", optarg);
 			printf("      from %s\n", bstr);
 			printf("        to %s\n", estr);
-			printf("  duration %s\n", dstr);
+			if (end.pcr > begin.pcr) {
+				printf("  duration %s\n", dstr);
+			}
 			printf("\n");
 
 			free(bstr);
