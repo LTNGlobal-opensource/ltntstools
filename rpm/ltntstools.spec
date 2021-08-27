@@ -75,6 +75,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_udp_capture: deprecated. Please switch to using nic_monitor and igmp_join tools.
   tstools_stream_verifier: New tool. Used to generate playout streams with counters, and verify them.
   tstools_pes_inspector: New tool to extract PES objects from transport streams.
+  tstools_clock_inspector: Added support for live UDP streams.
 
 * Thu Jun 10 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.8.3
