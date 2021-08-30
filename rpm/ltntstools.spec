@@ -63,6 +63,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Indicate the number of input streams in the UI.
   tstools_nic_monitor: Optimize performance for 100x20Mbps (2Gb/ps), increase thread performance significantly.
   tstools_nic_monitor: bugfix related to disappearing cursor at the bottom of the UI list.
+  tstools_nic_monitor: Detect and support limited monitoring of SMPTE2110 video, audio and anc streams.
   tstools_scte35_inspector: New tool added to display SCTE35 messages from file or network.
   tstools_ffmpeg_metadata: New tool to extract/view human meaningful metadata from recordings
   tstools_udp_capture: Arg -E added to return a non-zero result code if any CC errors are detected. (harvester)
