@@ -30,6 +30,9 @@ static const char *payloadTypes[] = {
 	"RTP",
 	"STL",
 	"UNK",
+	"21V",
+	"21A",
+	"21D",
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt)
@@ -355,6 +358,14 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		mbps = ltntstools_pid_stats_stream_get_mbps(&di->stats);
 		bps = ltntstools_pid_stats_stream_get_bps(&di->stats);
 	} else
+	if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
+		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+	} else
+	if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
+		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+	} else
 	if (di->payloadType == PAYLOAD_A324_CTP) {
 		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
 		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
@@ -439,6 +450,14 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		bps = ltntstools_pid_stats_stream_get_bps(&di->stats);
 	} else
 	if (di->payloadType == PAYLOAD_A324_CTP) {
+		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+	} else
+	if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
+		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+	} else
+	if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
 		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
 		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
 	} else {

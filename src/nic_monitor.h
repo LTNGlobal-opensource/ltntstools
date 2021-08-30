@@ -36,6 +36,9 @@ enum payload_type_e {
 	PAYLOAD_RTP_TS,
 	PAYLOAD_A324_CTP,
 	PAYLOAD_BYTE_STREAM,
+	PAYLOAD_SMPTE2110_20_VIDEO,
+	PAYLOAD_SMPTE2110_30_AUDIO,
+	PAYLOAD_SMPTE2110_40_ANC,
 	PAYLOAD_MAX,
 };
 
@@ -202,6 +205,9 @@ struct discovered_item_s
 	/* Payload discovery */
 	int discovery_unidentified;
 	int a324_found;
+	int smpte2110_video_found;
+	int smpte2110_audio_found;
+	int smpte2110_anc_found;
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);

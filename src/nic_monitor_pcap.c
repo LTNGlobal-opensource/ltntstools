@@ -103,7 +103,7 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 
 static enum payload_type_e determinePayloadType(struct discovered_item_s *di, const unsigned char *buf, int lengthBytes)
 {
-#if 0
+#if 1
 printf("%d : ", lengthBytes);
 for (int i = 0; i < 16; i++)
 	printf("%02x ", *(buf + i));
@@ -147,6 +147,27 @@ printf("\n");
 		di->a324_found++;
 		if (di->a324_found > 2) {
 			return PAYLOAD_A324_CTP;
+		}
+	} else 
+	if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 96)) {
+		/* This isn't particularly robust, tighten this up */
+		di->smpte2110_video_found++;
+		if (di->smpte2110_video_found > 4) {
+			return PAYLOAD_SMPTE2110_20_VIDEO;
+		}
+	} else 
+	if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 98)) {
+		/* This isn't particularly robust, tighten this up */
+		di->smpte2110_audio_found++;
+		if (di->smpte2110_audio_found > 4) {
+			return PAYLOAD_SMPTE2110_30_AUDIO;
+		}
+	} else 
+	if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 100)) {
+		/* This isn't particularly robust, tighten this up */
+		di->smpte2110_anc_found++;
+		if (di->smpte2110_anc_found > 4) {
+			return PAYLOAD_SMPTE2110_40_ANC;
 		}
 	} else {
 		di->a324_found = 0;
@@ -194,6 +215,18 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		}
 	} else
 	if (di->payloadType == PAYLOAD_A324_CTP)
+	{
+		ltntstools_ctp_stats_update(&di->stats, pkts, lengthPayloadBytes);
+	} else
+	if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO)
+	{
+		ltntstools_ctp_stats_update(&di->stats, pkts, lengthPayloadBytes);
+	} else
+	if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO)
+	{
+		ltntstools_ctp_stats_update(&di->stats, pkts, lengthPayloadBytes);
+	} else
+	if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC)
 	{
 		ltntstools_ctp_stats_update(&di->stats, pkts, lengthPayloadBytes);
 	} else
@@ -257,7 +290,10 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		char *suffix = suffixNames[0];
 
 		/* A/324  and generic streams are always recorded as PCAP, regardless. */
-		if ((di->payloadType == PAYLOAD_BYTE_STREAM ) || (di->payloadType == PAYLOAD_A324_CTP)) {
+		if ((di->payloadType == PAYLOAD_BYTE_STREAM ) || (di->payloadType == PAYLOAD_A324_CTP) ||
+			(di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) ||
+			(di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) ||
+			(di->payloadType == PAYLOAD_SMPTE2110_40_ANC)) {
 			di->recordAsTS = 0;
 		} else {
 			/* Other streams, the operator can choose. */

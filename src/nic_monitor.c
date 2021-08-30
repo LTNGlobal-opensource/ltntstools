@@ -133,7 +133,7 @@ static void *ui_thread_func(void *p)
 			totalMbps += ltntstools_pid_stats_stream_get_mbps(&di->stats);
 			totalStreams++;
 			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
@@ -143,7 +143,20 @@ static void *ui_thread_func(void *p)
 					di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
 			} else
 			if (di->payloadType == PAYLOAD_A324_CTP) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
+					payloadTypeDesc(di->payloadType),
+					di->srcaddr,
+					di->dstaddr,
+					ltntstools_ctp_stats_stream_get_mbps(&di->stats),
+					di->stats.packetCount,
+					di->stats.ccErrors,
+					di->iat_cur_us, di->iat_lwm_us, di->iat_hwm_us);
+				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+			} else
+			if ((di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) ||
+				(di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) ||
+				(di->payloadType == PAYLOAD_SMPTE2110_40_ANC)) {
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %7d / %d / %d",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
@@ -154,7 +167,7 @@ static void *ui_thread_func(void *p)
 				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
 			} else
 			if (di->payloadType == PAYLOAD_BYTE_STREAM) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s  %6.2f  %'16" PRIu64 " %12s   %7d / %d / %d",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %7d / %d / %d",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
@@ -237,6 +250,18 @@ static void *ui_thread_func(void *p)
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
+				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> PID Report not available for SMPTE2110-20 Video streams");
+				}
+				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> PID Report not available for SMPTE2110-30 Audio streams");
+				}
+				if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> PID Report not available for SMPTE2110-40 Ancillary Data streams");
+				}
 				if (di->payloadType == PAYLOAD_A324_CTP) {
 					streamCount++;
 					mvprintw(streamCount + 2, 0, " -> PID Report not available for A/324 Studio Transmitter Link CTP streams");
@@ -252,7 +277,7 @@ static void *ui_thread_func(void *p)
 							mvprintw(streamCount + 2, 0, " -> PID Report");
 						}
 
-						mvprintw(streamCount + 2, 37, "0x%04x (%4d)  %6.2f %'17" PRIu64 " %12" PRIu64 "\n",
+						mvprintw(streamCount + 2, 37, "0x%04x (%4d) %7.2f %'17" PRIu64 " %12" PRIu64 "\n",
 							i,
 							i,
 							ltntstools_pid_stats_pid_get_mbps(&di->stats, i),
@@ -262,7 +287,10 @@ static void *ui_thread_func(void *p)
 				}
 				streamCount++;
 
-				if (di->notMultipleOfSevenError && (di->payloadType != PAYLOAD_A324_CTP)) {
+				if (di->notMultipleOfSevenError && (di->payloadType != PAYLOAD_A324_CTP) &&
+					(di->payloadType != PAYLOAD_SMPTE2110_20_VIDEO) &&
+					(di->payloadType != PAYLOAD_SMPTE2110_30_AUDIO) &&
+					(di->payloadType != PAYLOAD_SMPTE2110_40_ANC)) {
 					attron(COLOR_PAIR(4));
 					mvprintw(streamCount + 2, 37, "Warning: %" PRIi64 " UDP packets that are less then 1316 bytes long", di->notMultipleOfSevenError);
 					attroff(COLOR_PAIR(4));
@@ -292,6 +320,21 @@ static void *ui_thread_func(void *p)
         E101290_P2_6__CAT_ERROR,
 
 #endif
+				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SMPTE2110-20 Video streams");
+					streamCount++;
+				} else
+				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SMPTE2110-30 Audio streams");
+					streamCount++;
+				} else
+				if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SMPTE2110-40 Ancillary Data streams");
+					streamCount++;
+				} else
 				if (di->payloadType == PAYLOAD_A324_CTP) {
 					streamCount++;
 					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for A/324 Studio Transmitter Link CTP streams");
@@ -363,6 +406,18 @@ static void *ui_thread_func(void *p)
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_STREAMMODEL)) {
 				streamCount++;
+				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
+					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SMPTE2110-20 Video streams");
+					streamCount++;
+				} else
+				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
+					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SMPTE2110-30 Audio streams");
+					streamCount++;
+				} else
+				if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC) {
+					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SMPTE2110-40 Ancillary Data streams");
+					streamCount++;
+				} else
 				if (di->payloadType == PAYLOAD_A324_CTP) {
 					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for A/324 Studio Transmitter Link CTP streams");
 					streamCount++;
