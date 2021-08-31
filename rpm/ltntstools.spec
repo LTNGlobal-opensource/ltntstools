@@ -38,12 +38,13 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_sei_unregistered
 /usr/local/bin/tstools_stream_verifier
 /usr/local/bin/tstools_pes_inspector
+/usr/local/bin/tstools_iat_tester
 /usr/local/share/man/man8/tstools_nic_monitor.8
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Fri Jun 18 2021 Steven Toth <stoth@ltnglobal.com> 
+* Tue Aug 31 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.9.0
   tstools_nic_monitor: Add UI support for showing a service information report
   tstools_nic_monitor: In the UI, Show SCTE35 status of the upstream encoder (enabled or not).
