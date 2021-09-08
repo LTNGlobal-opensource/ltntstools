@@ -103,7 +103,7 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 
 static enum payload_type_e determinePayloadType(struct discovered_item_s *di, const unsigned char *buf, int lengthBytes)
 {
-#if 1
+#if 0
 printf("%d : ", lengthBytes);
 for (int i = 0; i < 16; i++)
 	printf("%02x ", *(buf + i));
