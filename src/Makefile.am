@@ -7,7 +7,7 @@ AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_O
 	-DKL_USERSPACE -D__STDC_FORMAT_MACROS \
 	-DGIT_VERSION=\"$(GIT_VERSION)\" -g
 
-LDADD = -lpthread -lz -ldl -lm -lltntstools
+LDADD = -lpthread -lz -lm -lltntstools
 
 if LINUX
   LDADD += -lrt
@@ -22,7 +22,7 @@ AM_CFLAGS += -I../../target-root/usr/include -g
 LDADD += -L../../target-root/usr/lib -ldvbpsi
 LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2
 LDADD += -lpcap -llzma
-LDADD += -lklscte35
+LDADD += -lklscte35 -ldl
 
 #ifdef __APPLE__
 #LDADD += -liconv
