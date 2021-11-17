@@ -644,7 +644,7 @@ void discovered_items_select_record_toggle(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 }
 
-void discovered_items_record_abort(struct tool_context_s *ctx)
+void discovered_items_abort(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
 
@@ -652,6 +652,9 @@ void discovered_items_record_abort(struct tool_context_s *ctx)
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		if (discovered_item_state_get(e, DI_STATE_PCAP_RECORDING) || discovered_item_state_get(e, DI_STATE_PCAP_RECORD_START)) {
 			discovered_item_state_set(e, DI_STATE_PCAP_RECORD_STOP);
+		}
+		if (discovered_item_state_get(e, DI_STATE_STREAM_FORWARDING) || discovered_item_state_get(e, DI_STATE_STREAM_FORWARD_START)) {
+			discovered_item_state_set(e, DI_STATE_STREAM_FORWARD_STOP);
 		}
 	}
 	pthread_mutex_unlock(&ctx->lock);
@@ -771,3 +774,40 @@ void discovered_items_select_show_streammodel_toggle(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 }
 
+void discovered_items_select_show_processes_toggle(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		if (discovered_item_state_get(e, DI_STATE_SHOW_PROCESSES)) {
+			discovered_item_state_clr(e, DI_STATE_SHOW_PROCESSES);
+		} else {
+			discovered_item_state_set(e, DI_STATE_SHOW_PROCESSES);
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_forward_toggle(struct tool_context_s *ctx, int slotNr)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		if (discovered_item_state_get(e, DI_STATE_STREAM_FORWARDING) || discovered_item_state_get(e, DI_STATE_STREAM_FORWARD_START)) {
+			discovered_item_state_set(e, DI_STATE_STREAM_FORWARD_STOP);
+			e->forwardSlotNr = 0;
+		} else {
+			e->forwardSlotNr = slotNr;
+			discovered_item_state_set(e, DI_STATE_STREAM_FORWARD_START);
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}

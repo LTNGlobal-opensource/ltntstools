@@ -19,6 +19,7 @@
 #include "parsers.h"
 #include "utils.h"
 #include "hash_index.h"
+#include "ffmpeg-includes.h"
 
 #include <pcap.h>
 #include <arpa/inet.h>
@@ -109,6 +110,10 @@ struct tool_context_s
 	/* Stats reset time */
 	time_t lastResetTime;
 	int freezeDisplay;
+
+	/* UDP Socket stats */
+	void *procNetUDPContext;
+	int showForwardOptions;
 };
 
 struct pcap_item_s
@@ -132,17 +137,21 @@ struct discovered_item_s
 	enum payload_type_e payloadType;
 	int recordAsTS;
 
-#define DI_STATE_SELECTED		(1 << 0)
-#define DI_STATE_CC_ERROR		(1 << 1)
-#define DI_STATE_PCAP_RECORD_START	(1 << 2)
-#define DI_STATE_PCAP_RECORDING		(1 << 3)
-#define DI_STATE_PCAP_RECORD_STOP	(1 << 4)
-#define DI_STATE_SHOW_PIDS		(1 << 5)
-#define DI_STATE_SHOW_TR101290		(1 << 6)
-#define DI_STATE_DST_DUPLICATE		(1 << 7)
-#define DI_STATE_SHOW_IAT_HISTOGRAM	(1 << 8)
-#define DI_STATE_HIDDEN			(1 << 9)
-#define DI_STATE_SHOW_STREAMMODEL	(1 << 10)
+#define DI_STATE_SELECTED				(1 << 0)
+#define DI_STATE_CC_ERROR				(1 << 1)
+#define DI_STATE_PCAP_RECORD_START		(1 << 2)
+#define DI_STATE_PCAP_RECORDING			(1 << 3)
+#define DI_STATE_PCAP_RECORD_STOP		(1 << 4)
+#define DI_STATE_SHOW_PIDS				(1 << 5)
+#define DI_STATE_SHOW_TR101290			(1 << 6)
+#define DI_STATE_DST_DUPLICATE			(1 << 7)
+#define DI_STATE_SHOW_IAT_HISTOGRAM		(1 << 8)
+#define DI_STATE_HIDDEN					(1 << 9)
+#define DI_STATE_SHOW_STREAMMODEL		(1 << 10)
+#define DI_STATE_SHOW_PROCESSES			(1 << 11)
+#define DI_STATE_STREAM_FORWARD_START	(1 << 12)
+#define DI_STATE_STREAM_FORWARDING		(1 << 13)
+#define DI_STATE_STREAM_FORWARD_STOP	(1 << 14)
 	unsigned int state;
 
 	time_t firstSeen;
@@ -208,6 +217,11 @@ struct discovered_item_s
 	int smpte2110_video_found;
 	int smpte2110_audio_found;
 	int smpte2110_anc_found;
+
+	/* Stream Forwarding */
+	int forwardSlotNr; /* 7/8/9 else stream is not forwarding. */
+	AVIOContext *forwardAVIO;
+	char forwardURL[64];
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);
@@ -238,7 +252,7 @@ void discovered_items_file_summary(struct tool_context_s *ctx);
 
 void discovered_items_stats_reset(struct tool_context_s *ctx);
 
-void discovered_items_record_abort(struct tool_context_s *ctx);
+void discovered_items_abort(struct tool_context_s *ctx);
 
 /* Cursor selection */
 void discovered_items_select_first(struct tool_context_s *ctx);
@@ -249,9 +263,11 @@ void discovered_items_select_none(struct tool_context_s *ctx);
 void discovered_items_select_record_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_pids_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_tr101290_toggle(struct tool_context_s *ctx);
+void discovered_items_select_show_processes_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_iats_toggle(struct tool_context_s *ctx);
 void discovered_items_select_hide(struct tool_context_s *ctx);
 void discovered_items_unhide_all(struct tool_context_s *ctx);
 void discovered_items_select_show_streammodel_toggle(struct tool_context_s *ctx);
+void discovered_items_select_forward_toggle(struct tool_context_s *ctx, int slotNr);
 
 #endif /* NIC_MONITOR_H */

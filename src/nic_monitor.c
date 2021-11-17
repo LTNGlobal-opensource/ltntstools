@@ -45,6 +45,8 @@ static void *ui_thread_func(void *p)
 	ctx->trailerRow = DEFAULT_TRAILERROW;
 	double totalMbps = 0;
 	int totalStreams = 0;
+	struct ltntstools_proc_net_udp_item_s *items = NULL;
+	int itemCount = 0;
 
 	ltnpthread_setname_np(ctx->ui_threadId, "tstools-ui");
 	pthread_detach(pthread_self());
@@ -186,6 +188,12 @@ static void *ui_thread_func(void *p)
 
 			if (discovered_item_state_get(di, DI_STATE_CC_ERROR))
 				attroff(COLOR_PAIR(3));
+
+			if (discovered_item_state_get(di, DI_STATE_STREAM_FORWARDING)) {
+				streamCount++;
+				mvprintw(streamCount + 2, 0, " -> Forwarding stream to %s", di->forwardURL);
+				streamCount++;
+			}
 
 			if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING)) {
 
@@ -403,6 +411,53 @@ static void *ui_thread_func(void *p)
 				}
 
 			}
+			if (discovered_item_state_get(di, DI_STATE_SHOW_PROCESSES)) {
+				streamCount++;
+				mvprintw(streamCount + 2, 0, " -> Socket / Process Report");
+
+				static time_t lastReport;
+
+				if (lastReport + 2 < now) {
+					lastReport = now;
+
+					if (items) {
+						ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);
+						items = NULL;
+					}
+					ltntstools_proc_net_udp_item_query(ctx->procNetUDPContext, &items, &itemCount);
+				}
+
+				if (itemCount) {
+					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS", itemCount);
+					streamCount++;
+				} else {
+					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS   (discovery mode)", itemCount);
+					streamCount++;
+				}
+
+				if (items && itemCount) {
+					for (int i = 0; i < itemCount; i++) {
+						struct ltntstools_proc_net_udp_item_s *e = &items[i];
+
+						// TODO: String compare is slow. Convert to uint32_t for a fast match.
+						if (strcmp(e->locaddr, di->dstaddr) == 0) {
+							if (e->drops)
+								attron(COLOR_PAIR(4));
+
+							mvprintw(streamCount + 2, 50, "%8" PRIu64 "  %16s    %9" PRIu64,
+								e->pidList[0].pid,
+								e->pidList[0].comm,
+								e->drops);
+
+							if (e->drops)
+								attroff(COLOR_PAIR(4));
+							streamCount++;
+						}
+					}
+					
+					//ltntstools_proc_net_udp_item_dprintf(ctx->procNetUDPContext, 0, items, itemCount);
+				}
+			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_STREAMMODEL)) {
 				streamCount++;
@@ -524,40 +579,33 @@ static void *ui_thread_func(void *p)
 			streamCount++;
 			mvprintw(streamCount + 2, 0, "D) Deselect the current stream");
 			streamCount++;
+			mvprintw(streamCount + 2, 0, "F) Forward stream to a new multicast endpoint");
+			streamCount++;
 			mvprintw(streamCount + 2, 0, "S) Select all streams for a batch operation");
 			streamCount++;
 			mvprintw(streamCount + 2, 0, "H) Hide the selected stream (analysis continues)");
-			streamCount++;
 			mvprintw(streamCount + 2, 0, "U) Unhide all hidden streams");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "I) Toggle stream IAT histogram report");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "M) Toggle stream PSIP model report");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "P) Toggle stream PID traffic report");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "r) Reset stats counters and begin new measurement period");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "R) Start/Stop stream recording");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "T) Start/Stop TR101290 analysis (NOT YET SUPPORTED)");
+			mvprintw(streamCount + 2 - 7, 53, "I) Toggle stream IAT histogram report");
+			mvprintw(streamCount + 2 - 6, 53, "M) Toggle stream PSIP model report");
+			mvprintw(streamCount + 2 - 5, 53, "P) Toggle stream PID traffic report");
+			mvprintw(streamCount + 2 - 4, 53, "r) Reset stats counters and begin new measurement period");
+			mvprintw(streamCount + 2 - 3, 53, "R) Start/Stop stream recording");
+			mvprintw(streamCount + 2 - 2, 53, "s) Toggle process/socket report");
+			mvprintw(streamCount + 2 - 1, 53, "T) Start/Stop TR101290 analysis (NOT YET SUPPORTED)");
 			streamCount++;
 			mvprintw(streamCount + 2, 0, "cursor keys) Select and navigate the cursor");
 
 			streamCount++;
 		}
 
-		ctx->trailerRow = streamCount + 3;
-
 		attron(COLOR_PAIR(2));
-#if 1
+		ctx->trailerRow = streamCount + 3;
+		if (ctx->showForwardOptions) {
+			mvprintw(ctx->trailerRow, 12, "-- 7) 227.1.240.7:4001 8) 227.1.240.8:4001 9) 227.1.240.9:4001");
+		}
 		mvprintw(ctx->trailerRow, 0, "q)uit h)elp");
-#else
-		mvprintw(ctx->trailerRow, 0, "q)uit r)eset D)eselect S)elect R)ecord P)ids f)reeze T)R101290  using: %d free: %d",
-			ctx->rebalance_last_buffers_used,
-			ctx->listpcapFreeDepth);
-#endif
 		attroff(COLOR_PAIR(2));
+
 
 		char tail_a[160], tail_b[160], tail_c[160];
 		attron(COLOR_PAIR(1));
@@ -585,6 +633,12 @@ static void *ui_thread_func(void *p)
 
 		usleep(200 * 1000);
 	}
+
+	if (items) {
+		ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);
+		items = NULL;
+	}
+
 	ctx->ui_threadTerminated = 1;
 
 	pthread_exit(NULL);
@@ -790,6 +844,7 @@ static void usage(const char *progname)
 	printf("  -R Automatically record all discovered streams\n");
 	printf("  -E Record in a single file, don't segment into 60sec files\n");
 	printf("  -T Record int a TS format where possible [default is PCAP]\n");
+	printf("  -1 Test the scheduling quanta for 1ms sleeps\n");
 }
 
 int nic_monitor(int argc, char *argv[])
@@ -909,69 +964,13 @@ int nic_monitor(int argc, char *argv[])
 	printf(" filter: %s\n", ctx->pcap_filter);
 	printf("snaplen: %d\n", ctx->snaplen);
 	printf("buffSiz: %d\n", ctx->bufferSize);
-#if 0
-	ctx->descr = pcap_create(ctx->ifname, ctx->errbuf);
-	if (ctx->descr == NULL) {
-		fprintf(stderr, "Error, %s\n", ctx->errbuf);
-		exit(1);
-	}
 
-	pcap_set_snaplen(ctx->descr, ctx->snaplen);
-	pcap_set_promisc(ctx->descr,
-#ifdef __linux__
-		-1
-#endif
-#ifdef __APPLE__
-		1
-#endif
-	);
-
-	if (ctx->bufferSize != -1) {
-		int ret = pcap_set_buffer_size(ctx->descr, ctx->bufferSize);
-		if (ret == PCAP_ERROR_ACTIVATED) {
-			fprintf(stderr, "Unable to set -B buffersize to %d, already activated\n", ctx->bufferSize);
-			exit(0);
-		}
-		if (ret != 0) {
-			fprintf(stderr, "Unable to set -B buffersize to %d\n", ctx->bufferSize);
-			exit(0);
-		}
-	}
-
-	ret = pcap_activate(ctx->descr);
-	if (ret != 0) {
-		if (ret == PCAP_ERROR_PERM_DENIED) {
-			fprintf(stderr, "Error, permission denied.\n");
-		}
-		if (ret == PCAP_ERROR_NO_SUCH_DEVICE) {
-			fprintf(stderr, "Error, network interface '%s' not found.\n", ctx->ifname);
-		}
-		fprintf(stderr, "Error, pcap_activate, %s\n", pcap_geterr(ctx->descr));
-		exit(1);
-	}
-
-	/* TODO: We should craft the filter to be udp dst 224.0.0.0/4 and then
-	 * we don't need to manually filter in our callback.
-	 */
-	struct bpf_program fp;
-	ret = pcap_compile(ctx->descr, &fp, ctx->pcap_filter, 0, ctx->netp);
-	if (ret == -1) {
-		fprintf(stderr, "Error, pcap_compile, %s\n", pcap_geterr(ctx->descr));
-		exit(1);
-	}
-
-	ret = pcap_setfilter(ctx->descr, &fp);
-	if (ret == -1) {
-		fprintf(stderr, "Error, pcap_setfilter\n");
-		exit(1);
-	}
-
-	pcap_setnonblock(ctx->descr, 1, ctx->errbuf);
-
-#endif
 	gRunning = 1;
 	pthread_create(&ctx->stats_threadId, 0, stats_thread_func, ctx);
 	pthread_create(&ctx->pcap_threadId, 0, pcap_thread_func, ctx);
+
+	/* Framework to track the /proc/net/udp socket buffers stats - primarily for loss */
+	ltntstools_proc_net_udp_alloc(&ctx->procNetUDPContext);
 
 	if (ctx->monitor) {
 		initscr();
@@ -985,6 +984,33 @@ int nic_monitor(int argc, char *argv[])
 	time(&ctx->lastResetTime);
 	while (gRunning) {
 		char c = getch();
+		if (c == 'F') {
+			ctx->showForwardOptions = 1;
+			while (gRunning) {
+				char c = getch();
+				if (c == '7') {
+					/* Forward to location slot 7 */
+					discovered_items_select_forward_toggle(ctx, 7);
+					break;
+				} else
+				if (c == '8') {
+					discovered_items_select_forward_toggle(ctx, 8);
+					break;
+				} else
+				if (c == '9') {
+					discovered_items_select_forward_toggle(ctx, 9);
+					break;
+				} else
+				if (c == 'q') {
+					break;
+				} else {
+					usleep(50 * 1000);
+					continue;
+				}
+			}
+			ctx->showForwardOptions = 0;
+		}
+
 		if (c == 'q')
 			break;
 		if (c == 'f') {
@@ -1005,6 +1031,9 @@ int nic_monitor(int argc, char *argv[])
 		}
 		if (c == 'R') {
 			discovered_items_select_record_toggle(ctx);
+		}
+		if (c == 's') {
+			discovered_items_select_show_processes_toggle(ctx);
 		}
 		if (c == 'P') {
 			discovered_items_select_show_pids_toggle(ctx);
@@ -1054,7 +1083,7 @@ int nic_monitor(int argc, char *argv[])
 		usleep(50 * 1000);
 	}
 
-	discovered_items_record_abort(ctx);
+	discovered_items_abort(ctx);
 
 	/* Shutdown stats collection */
 	ctx->ui_threadTerminate = 1;
@@ -1075,6 +1104,19 @@ int nic_monitor(int argc, char *argv[])
 	}
 
 	discovered_items_console_summary(ctx);
+
+	struct ltntstools_proc_net_udp_item_s *items;
+	int itemCount;
+	if (ltntstools_proc_net_udp_item_query(ctx->procNetUDPContext, &items, &itemCount) == 0) {
+		printf("System wide UDP socket buffers\n");
+		printf("-------------------------------------------------------------------------------------------->\n");
+		ltntstools_proc_net_udp_item_dprintf(ctx->procNetUDPContext, 0, items, itemCount);
+		printf("\n");
+
+		ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);
+	}
+
+	ltntstools_proc_net_udp_free(ctx->procNetUDPContext);
 
 printf("pcap_free_miss %" PRIi64 "\n", ctx->pcap_free_miss);
 printf("pcap_dispatch_miss %" PRIi64 "\n", ctx->pcap_dispatch_miss);

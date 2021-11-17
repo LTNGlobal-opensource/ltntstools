@@ -261,6 +261,33 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		}
 	}
 
+	/* Packet Forwarding */
+	if (discovered_item_state_get(di, DI_STATE_STREAM_FORWARD_STOP)) {
+		discovered_item_state_clr(di, DI_STATE_STREAM_FORWARD_START);
+		discovered_item_state_clr(di, DI_STATE_STREAM_FORWARD_STOP);
+		discovered_item_state_clr(di, DI_STATE_STREAM_FORWARDING);
+
+		/* Free any resources */
+		avio_close(di->forwardAVIO);
+	}
+	if (discovered_item_state_get(di, DI_STATE_STREAM_FORWARD_START)) {
+		discovered_item_state_clr(di, DI_STATE_STREAM_FORWARD_START);
+		discovered_item_state_set(di, DI_STATE_STREAM_FORWARDING);
+
+		/* Allocate any resources */
+		sprintf(di->forwardURL, "udp://227.1.240.%d:4001?pkt_size=1316&ttl=3", di->forwardSlotNr);
+		int ret = avio_open2(&di->forwardAVIO, di->forwardURL,
+			AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+		if (ret < 0) {
+		}
+	}
+	if (discovered_item_state_get(di, DI_STATE_STREAM_FORWARDING)) {
+		/* Do actual forwarding. */
+		avio_write(di->forwardAVIO, pkts, pktCount * 188);
+	}
+	/* End: Packet Forwarding */
+
+	/* Recording */
 	if (discovered_item_state_get(di, DI_STATE_PCAP_RECORD_STOP)) {
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_START);
 		discovered_item_state_clr(di, DI_STATE_PCAP_RECORD_STOP);

@@ -10,11 +10,11 @@
 /* Inputs are expected to be address in MSB */
 extern uint16_t hash_index_cal_hash(uint32_t addr, uint16_t port);
 
-/* We need hashing mechansim that lets us quickly lookup
+/* (nic_monitor)
+ * We need a hashing mechanism that lets us quickly lookup
  * entries in the context list of discovered_items,
  * which is significantly faster when we have 100+
  * streams to monitor.
- *
  *
  * We take a destination ip address (unicast or multicast)
  * and its port, the hash transformation looksing like this,

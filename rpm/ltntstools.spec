@@ -39,11 +39,21 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_stream_verifier
 /usr/local/bin/tstools_pes_inspector
 /usr/local/bin/tstools_iat_tester
+/usr/local/bin/tstools_bitrate_smoother
 /usr/local/share/man/man8/tstools_nic_monitor.8
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
+* Wed Nov 17 2021 Steven Toth <stoth@ltnglobal.com> 
+- v1.10.0
+  tstools_nic_monitor: Bug: debug bytes appeared on screen during probe phase in UI mode.
+  tstools_nic_monitor: Feature - Limited ability to forward an incoming stream to one of three multicast destinations.
+  tstools_nic_monitor: Feature - Display processes associated with a UDP stream, and show their socket buffer stats (IPv4 only)
+  tstools_nic_monitor: New tool. CBR Bitrate smoother added (NOT CERTIFIED YET, NOT FOR GENERAL USE).
+  tstools_nic_monitor: Improvements to support multiple PMTs on a single PID, in model report mode.
+  tstools_scte35_inspector: Segfault when processing multipacket SCTE35 table sections.
+  
 * Tue Aug 31 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.9.0
   tstools_nic_monitor: Add UI support for showing a service information report

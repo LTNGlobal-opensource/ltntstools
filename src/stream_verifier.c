@@ -1,3 +1,5 @@
+/* Copyright LiveTimeNet, Inc. 2017. All Rights Reserved. */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdint.h>

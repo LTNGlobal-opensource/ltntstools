@@ -26,6 +26,7 @@ extern int slicer(int argc, char *argv[]);
 extern int sei_unregistered(int argc, char *argv[]);
 extern int stream_verifier(int argc, char *argv[]);
 extern int pes_inspector(int argc, char *argv[]);
+extern int bitrate_smoother(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
 
@@ -37,9 +38,6 @@ int main(int argc, char *argv[])
 		char *name;
 		func_ptr func;
 	} apps[] = {
-#if 0
-		{ "tstools_util",		demo_main, },
-#endif
 		{ "tstools_pat_inspector",	pat_inspector, },
 		{ "tstools_pmt_inspector",	pmt_inspector, },
 		{ "tstools_udp_capture",	udp_capture, },
@@ -59,6 +57,7 @@ int main(int argc, char *argv[])
 		{ "tstools_sei_unregistered",	sei_unregistered, },
 		{ "tstools_stream_verifier",	stream_verifier, },
 		{ "tstools_pes_inspector",	pes_inspector, },
+		{ "tstools_bitrate_smoother",	bitrate_smoother, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);
