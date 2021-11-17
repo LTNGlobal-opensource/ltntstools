@@ -100,7 +100,7 @@ int scte35_inspector(int argc, char *argv[])
 		ltntstools_sectionextractor_write(g_se, &buf[0], rlen / 188, &complete);
 
 		if (complete) {
-			unsigned char dst[256];
+			unsigned char dst[1024];
 			int len = ltntstools_sectionextractor_query(g_se, &dst[0], sizeof(dst));
 			if (len > 0) {
 				printf("<-- Trigger %d --------------------------------------------------->\n", ++msgs);
