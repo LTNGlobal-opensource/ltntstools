@@ -3,6 +3,12 @@
 #include <libavformat/avformat.h>
 #include <libavutil/dict.h>
 
+struct tools_ctx_s
+{
+	char *iname;
+	int verbose;
+};
+
 static void usage()
 {
 	printf("\nA tool to read video/audio metadata from a file.\n");
@@ -13,17 +19,16 @@ static void usage()
 
 int ffmpeg_metadata(int argc, char **argv)
 {
-	char *iname = NULL;
-	int verbose = 0;
+	struct tools_ctx_s lctx = { 0 }, *ctx = &lctx;
 
 	int ch;
 	while ((ch = getopt(argc, argv, "?hi:v")) != -1) {
 		switch(ch) {
 		case 'i':
-			iname = strdup(optarg);
+			ctx->iname = strdup(optarg);
 			break;
 		case 'v':
-			verbose++;
+			ctx->verbose++;
 			break;
 		default:
 			usage();
@@ -31,7 +36,7 @@ int ffmpeg_metadata(int argc, char **argv)
 		}
 	}
 
-	if (iname == NULL) {
+	if (ctx->iname == NULL) {
 		usage();
 		fprintf(stderr, "\n-i is mandatory, aborting\n\n");
 		exit(1);
@@ -46,8 +51,8 @@ int ffmpeg_metadata(int argc, char **argv)
 
 	int ret;
 	AVFormatContext *fmt_ctx = NULL;
-	if ((ret = avformat_open_input(&fmt_ctx, iname, NULL, NULL))) {
-		fprintf(stderr, "\nUnable to open input '%s', aborting.\n\n", iname);
+	if ((ret = avformat_open_input(&fmt_ctx, ctx->iname, NULL, NULL))) {
+		fprintf(stderr, "\nUnable to open input '%s', aborting.\n\n", ctx->iname);
 		return ret;
 	}
 
@@ -61,10 +66,10 @@ int ffmpeg_metadata(int argc, char **argv)
 	/* Turn up verbosity, we want ffmpeg dump to report to console. */
 	av_log_set_level(AV_LOG_INFO);
 	printf("\n");
-	av_dump_format(fmt_ctx, 0, iname, 0);
+	av_dump_format(fmt_ctx, 0, ctx->iname, 0);
 	printf("\n");
 
-	if (!verbose)
+	if (!ctx->verbose)
 		return 0; /* Yes, we leak, that's ok. */
 
 	/* in hidden dev mode, manually report some values after the probe is complete,
