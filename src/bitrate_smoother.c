@@ -1,8 +1,8 @@
 /* Copyright LiveTimeNet, Inc. 2021. All Rights Reserved. */
 
 /*
- tstools_bitrate_smoother -i udp://127.0.0.1:4001?fifo_size=70000000 \
-                          -o udp://127.0.0.1:4002?fifo_size=70000000 -b 20000000 -P 0x500
+ tstools_bitrate_smoother -i udp://127.0.0.1:4001?buffer_size=250000 \
+                          -o udp://127.0.0.1:4002?pkt_size=1316 -b 20000000 -P 0x500
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,6 +97,7 @@ static void *smoother_cb(void *userContext, unsigned char *buf, int byteCount)
 
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
 {
+return NULL;
 	for (int i = 0; i < byteCount; i += 188) {
 		uint16_t pidnr = ltntstools_pid(buf + i);
 		struct ltntstools_pid_statistics_s *pid = &ctx->i_stream.pids[pidnr];
@@ -153,19 +154,18 @@ static void *thread_packet_rx(void *p)
 			printf("source received %d bytes\n", rlen);
 		}
 		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
-			usleep(2 * 1000);
+			usleep(1 * 1000);
 			continue;
 		} else
 		if (rlen < 0) {
-			usleep(2 * 1000);
+			usleep(1 * 1000);
 			gRunning = 0;
 			/* General Error or end of stream. */
 			continue;
 		}
 
-		for (int i = 0; i < rlen; i += 188) {
-			packet_cb(ctx, &buf[i], 188);			
-		}
+		if (rlen > 0) 
+			packet_cb(ctx, &buf[0], rlen);
 
 		smoother_pcr_write(ctx->smoother, buf, sizeof(buf), NULL);
 	}
