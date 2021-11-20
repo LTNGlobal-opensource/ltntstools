@@ -97,7 +97,6 @@ static void *smoother_cb(void *userContext, unsigned char *buf, int byteCount)
 
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
 {
-return NULL;
 	for (int i = 0; i < byteCount; i += 188) {
 		uint16_t pidnr = ltntstools_pid(buf + i);
 		struct ltntstools_pid_statistics_s *pid = &ctx->i_stream.pids[pidnr];
