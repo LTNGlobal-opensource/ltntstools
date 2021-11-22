@@ -48,6 +48,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Mon Nov 22 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.11.0
   tstools_nic_monitor: Fix unwanted behavior. Prevent -w . or -d . from creating hidden stats files
+  tstools_nielsen_inspector: Detect Nielsen codes in UDP / Compressed audio stream. (Stereo only - for now).
 
 * Wed Nov 17 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.10.0
