@@ -1,7 +1,3 @@
-// ./tstools_ffmpeg_metadata -i 'udp://227.1.20.80:4001?buffer_size=16384000&fifo_size=8192000&overrun_nonfatal=1' -N
-// sudo sysctl -w net.core.rmem_default=16384000
-// sudo sysctl -w net.core.rmem_max=16384000
-
 #include <stdio.h>
 #include <getopt.h>
 #include <pthread.h>
