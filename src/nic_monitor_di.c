@@ -313,8 +313,13 @@ void discovered_items_console_summary(struct tool_context_s *ctx)
 void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
 {
 	if (di->detailed_filename[0] == 0) {
-		if (ctx->detailed_file_prefix)
-			sprintf(di->detailed_filename, "%s", ctx->detailed_file_prefix);
+		if (ctx->detailed_file_prefix) {
+			if (strlen(ctx->detailed_file_prefix) == 1 && ctx->detailed_file_prefix[0] == '.') {
+				sprintf(di->detailed_filename, "%s/", ctx->detailed_file_prefix);
+			} else {
+				sprintf(di->detailed_filename, "%s", ctx->detailed_file_prefix);
+			}
+		}
 
 		sprintf(di->detailed_filename + strlen(di->detailed_filename), "%s", di->dstaddr);
 	}
@@ -397,17 +402,15 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
 {
 	if (di->filename[0] == 0) {
-		if (ctx->file_prefix)
-			sprintf(di->filename, "%s", ctx->file_prefix);
+		if (ctx->file_prefix) {
+			if (strlen(ctx->file_prefix) == 1 && ctx->file_prefix[0] == '.') {
+				sprintf(di->filename, "%s/", ctx->file_prefix);
+			} else {
+				sprintf(di->filename, "%s", ctx->file_prefix);
+			}
+		}
 
 		sprintf(di->filename + strlen(di->filename), "%s", di->dstaddr);
-	}
-
-	if (di->detailed_filename[0] == 0) {
-		if (ctx->detailed_file_prefix)
-			sprintf(di->detailed_filename, "%s", ctx->detailed_file_prefix);
-
-		sprintf(di->detailed_filename + strlen(di->detailed_filename), "%s", di->dstaddr);
 	}
 
 	int fd = open(di->filename, O_CREAT | O_RDWR | O_APPEND, 0644);
