@@ -147,7 +147,7 @@ int _nielsen_inspector(int argc, char **argv)
 
 			if (ctx->nielsenDetection) {
 				/* make a note of which audio pids we want to monitor and their codec types */
-				ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, 0xC0, codec->codec_id);
+				ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, 0xC0, codec->codec_id, 1 /* Enable Nielsen */);
 				if (ret != 0) {
 					fprintf(stderr, "Unable to add stream to decoder\n");
 				}
