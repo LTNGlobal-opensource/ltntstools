@@ -54,7 +54,7 @@ SRC += si_streammodel.c
 SRC += scte35_inspector.c
 SRC += utils.c
 SRC += iat_tester.c
-SRC += ffmpeg_metadata.c
+SRC += ffmpeg_metadata.cpp
 SRC += igmp_join.c
 SRC += slicer.c
 SRC += hash_index.c
@@ -62,6 +62,7 @@ SRC += sei_unregistered.c
 SRC += stream_verifier.c
 SRC += pes_inspector.c
 SRC += bitrate_smoother.c
+SRC += nielsen_inspector.cpp
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -84,6 +85,7 @@ LINKBINS += tstools_sei_unregistered
 LINKBINS += tstools_stream_verifier
 LINKBINS += tstools_pes_inspector
 LINKBINS += tstools_bitrate_smoother
+LINKBINS += tstools_nielsen_inspector
 
 tstools_util_SOURCES = $(SRC)
 

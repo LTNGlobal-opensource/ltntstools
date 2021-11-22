@@ -27,6 +27,7 @@ extern int sei_unregistered(int argc, char *argv[]);
 extern int stream_verifier(int argc, char *argv[]);
 extern int pes_inspector(int argc, char *argv[]);
 extern int bitrate_smoother(int argc, char *argv[]);
+extern int nielsen_inspector(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
 
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
 		{ "tstools_stream_verifier",	stream_verifier, },
 		{ "tstools_pes_inspector",	pes_inspector, },
 		{ "tstools_bitrate_smoother",	bitrate_smoother, },
+		{ "tstools_nielsen_inspector",	nielsen_inspector, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);

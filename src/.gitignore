@@ -19,3 +19,4 @@ tstools_sei_unregistered
 tstools_stream_verifier
 tstools_pes_inspector
 tstools_bitrate_smoother
+tstools_nielsen_inspector
