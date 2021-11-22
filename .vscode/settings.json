@@ -49,6 +49,7 @@
         "**/src/tstools_si_streammodel": true,
         "**/src/tstools_clock_inspector": true,
         "**/src/tstools_bitrate_smoother": true,
+        "**/src/tstools_nielsen_inspector": true,
     },
     "files.associations": {
         "__functional_base": "c",
@@ -68,6 +69,7 @@
         "pmt_inspector.c": "cpp",
         "pat_inspector.c": "cpp",
         "dump.c": "cpp",
-        "si_inspector.c": "cpp"
+        "si_inspector.c": "cpp",
+        "nielsen_inspector.c": "cpp"
     }
 }
