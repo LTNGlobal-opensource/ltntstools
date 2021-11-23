@@ -146,8 +146,21 @@ int _nielsen_inspector(int argc, char **argv)
 			printf("%8" PRIi64, codec->bit_rate / 1000);
 
 			if (ctx->nielsenDetection) {
+				uint8_t streamID;
+				switch (codec->codec_id) {
+				case AV_CODEC_ID_AC3:
+					streamID = 0xBD;
+					break;
+				case AV_CODEC_ID_MP2:
+					streamID = 0xC0;
+					break;
+				default:
+				case AV_CODEC_ID_AAC:
+					streamID = 0xBD;
+					break;
+				}
 				/* make a note of which audio pids we want to monitor and their codec types */
-				ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, 0xC0, codec->codec_id, 1 /* Enable Nielsen */);
+				ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, streamID, codec->codec_id, codec->format, 1 /* Enable Nielsen */);
 				if (ret != 0) {
 					fprintf(stderr, "Unable to add stream to decoder\n");
 				}
