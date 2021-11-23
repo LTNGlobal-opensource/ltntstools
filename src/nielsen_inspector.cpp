@@ -168,12 +168,12 @@ int _nielsen_inspector(int argc, char **argv)
 
 		}
 		printf("\n");
-
+#if 0
 		AVDictionaryEntry *tag = NULL;
 		while ((tag = av_dict_get(s->metadata, "", tag, AV_DICT_IGNORE_SUFFIX))) {
 			printf("%s=%s\n", tag->key, tag->value);
 		}
-
+#endif
 	}
 	printf("\n");
 
