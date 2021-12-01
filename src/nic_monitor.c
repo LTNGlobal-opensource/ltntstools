@@ -428,10 +428,10 @@ static void *ui_thread_func(void *p)
 				}
 
 				if (itemCount) {
-					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS", itemCount);
+					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS");
 					streamCount++;
 				} else {
-					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS   (discovery mode)", itemCount);
+					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS   (discovery mode)");
 					streamCount++;
 				}
 
