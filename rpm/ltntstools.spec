@@ -45,12 +45,12 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Mon Nov 22 2021 Steven Toth <stoth@ltnglobal.com> 
+* Wed Dec  1 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.11.0
   tstools_nic_monitor: Fix unwanted behavior. Prevent -w . or -d . from creating hidden stats files
   tstools_nic_monitor: Bug. socket/report view didn't show bindings to 0.0.0.0:port processes
-  tstools_nic_monitor: Disabled Feature. Reports stats via http/JSON to remote servers, or UDP, internal dev usage.
-  tstools_nielsen_inspector: Feature. Detect Nielsen codes in UDP / Compressed audio stream. (Stereo only - for now).
+  tstools_nic_monitor: Feature (disabled). Report PSIP/stats via http/JSON to remote push servers, or UDP, internal dev usage.
+  tstools_nielsen_inspector: Feature. Detect Nielsen codes in UDP / Compressed audio stream. (Stereo only MP1/L2- for now).
 
 * Wed Nov 17 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.10.0
