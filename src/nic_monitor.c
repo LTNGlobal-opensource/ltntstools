@@ -440,7 +440,10 @@ static void *ui_thread_func(void *p)
 						struct ltntstools_proc_net_udp_item_s *e = &items[i];
 
 						// TODO: String compare is slow. Convert to uint32_t for a fast match.
-						if (strcmp(e->locaddr, di->dstaddr) == 0) {
+						//if (((strcmp(e->locaddr, di->dstaddr) == 0) || ((e->local_addr.sin_addr.s_addr == INADDR_ANY) && di->dstport == 4001))) {
+						if (((e->local_addr.sin_addr.s_addr == INADDR_ANY) && (e->local_addr.sin_port == di->dstport)) ||
+							(strcmp(e->locaddr, di->dstaddr) == 0))
+						{
 							if (e->drops)
 								attron(COLOR_PAIR(4));
 

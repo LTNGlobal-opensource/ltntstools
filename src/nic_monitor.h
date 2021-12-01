@@ -184,6 +184,7 @@ struct discovered_item_s
 	/* UI ASCII labels */
 	char srcaddr[24];
 	char dstaddr[24];
+	uint32_t dstport;
 
 	/* IAT */
 	int iat_lwm_us; /* IAT low watermark (us), measurement of UDP receive interval */
