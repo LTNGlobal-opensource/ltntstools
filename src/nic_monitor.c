@@ -256,6 +256,12 @@ static void *ui_thread_func(void *p)
 					attroff(COLOR_PAIR(7));
 				}
 			}
+#if PROBE_REPORTER
+			if (discovered_item_state_get(di, DI_STATE_JSON_PROBE_ACTIVE)) {
+				streamCount++;
+				mvprintw(streamCount + 2, 0, " -> JSON Probe Active");
+			}
+#endif
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
 				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
@@ -647,6 +653,78 @@ static void *ui_thread_func(void *p)
 	return 0;
 }
 
+#if PROBE_REPORTER
+static void *json_thread_func(void *p)
+{
+	struct tool_context_s *ctx = p;
+	ctx->json_threadRunning = 1;
+	ctx->json_threadTerminate = 0;
+	ctx->json_threadTerminated = 0;
+
+	ltnpthread_setname_np(ctx->json_threadId, "tstools-json");
+	pthread_detach(pthread_self());
+
+	time_t now;
+	time(&now);
+	if (ctx->json_next_write_time == 0) {
+		ctx->json_next_write_time = now + ctx->json_write_interval;
+	}
+
+	int json_post_interval = 1; /* Seconds */
+	time_t json_next_post_time = 0;
+
+	int workdone = 0;
+	while (!ctx->json_threadTerminate) {
+
+		workdone = 0;
+
+		time(&now);
+		if (json_next_post_time <= now) {
+			json_next_post_time = now + json_post_interval;
+
+			/* Look at the queue, take everything off it, issue http post reqs. */
+			int failed = 0;
+			struct json_item_s *item = json_queue_peek(ctx);
+			while (item) {
+#if 1
+				if (json_item_post_http(ctx, item) == 0) {
+#else
+				if (json_item_post_socket(ctx, item) == 0) {
+#endif
+					/* Success, remove the item from the list */
+					item = json_queue_pop(ctx);
+					json_item_free(ctx, item);
+					item = NULL;
+
+					failed = 0;
+				} else {
+					usleep(250 * 1000); /* Natural rate limit if the post fails */
+					failed += 250;
+				}
+				workdone++;
+
+				if (failed >= 2000) {
+					/* Back off for 30 seconds before we try again. */
+					json_next_post_time = now + 30;
+					break;
+				}
+
+				/* Success, take this of the queue and destroy it */
+				item = json_queue_peek(ctx);
+			}
+		}
+
+		/* We don't want the thread thrashing when we have nothing to process. */
+		if (!workdone)
+			usleep(50 * 1000);
+	}
+	ctx->json_threadTerminated = 1;
+
+	pthread_exit(NULL);
+	return 0;
+}
+#endif
+
 static void *stats_thread_func(void *p)
 {
 	struct tool_context_s *ctx = p;
@@ -677,6 +755,14 @@ static void *stats_thread_func(void *p)
 			discovered_items_file_summary(ctx);
 			workdone++;
 		}
+
+#if PROBE_REPORTER
+		if (ctx->json_next_write_time <= now) {
+			ctx->json_next_write_time = now + ctx->json_write_interval;
+			discovered_items_json_summary(ctx);
+			workdone++;
+		}
+#endif
 
 		/* We don't want the thread thrashing when we have nothing to process. */
 		if (!workdone)
@@ -838,6 +924,9 @@ static void usage(const char *progname)
 	printf("  -w <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
 	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
 	printf("  -F '<string>' Use a custom pcap filter. [def: '%s']\n", DEFAULT_PCAP_FILTER);
+#if PROBE_REPORTER
+	printf("  -J Automatically send JSON reports for all discovered streams [def: disabled]\n");
+#endif
 #if 0
 	printf("  -o <output filename> (optional)\n");
 #endif
@@ -860,15 +949,27 @@ int nic_monitor(int argc, char *argv[])
 	xorg_list_init(&ctx->listpcapFree);
 	xorg_list_init(&ctx->listpcapUsed);
 
-	pcap_queue_initialize(ctx);
+#if PROBE_REPORTER
+	pthread_mutex_init(&ctx->lockJSONPost, NULL);
+	xorg_list_init(&ctx->listJSONPost);
+	ctx->jsonSocket = -1;
+#endif
 
+	pcap_queue_initialize(ctx);
+#if PROBE_REPORTER
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
+	ctx->json_write_interval = JSON_WRITE_INTERVAL;
+#endif
 	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
 	ctx->snaplen = g_snaplen_default;
 	ctx->bufferSize = g_buffer_size_default;
 	ctx->recordWithSegments = 1;
 
+#if PROBE_REPORTER
+	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:Jt:vMn:w:RS:T")) != -1) {
+#else
 	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:t:vMn:w:RS:T")) != -1) {
+#endif
 		switch (ch) {
 		case 'B':
 			ctx->bufferSize = atoi(optarg);
@@ -917,6 +1018,11 @@ int nic_monitor(int argc, char *argv[])
 		case 'E':
 			ctx->recordWithSegments = 0;
 			break;
+#if PROBE_REPORTER
+		case 'J':
+			ctx->automaticallyJSONProbeStreams = 1;
+			break;
+#endif
 		case 'S':
 			ctx->snaplen = atoi(optarg);
 			if (ctx->snaplen < 2048)
@@ -970,6 +1076,9 @@ int nic_monitor(int argc, char *argv[])
 	gRunning = 1;
 	pthread_create(&ctx->stats_threadId, 0, stats_thread_func, ctx);
 	pthread_create(&ctx->pcap_threadId, 0, pcap_thread_func, ctx);
+#if PROBE_REPORTER
+	pthread_create(&ctx->json_threadId, 0, json_thread_func, ctx);
+#endif
 
 	/* Framework to track the /proc/net/udp socket buffers stats - primarily for loss */
 	ltntstools_proc_net_udp_alloc(&ctx->procNetUDPContext);
@@ -1043,6 +1152,11 @@ int nic_monitor(int argc, char *argv[])
 		if (c == 'I') {
 			discovered_items_select_show_iats_toggle(ctx);
 		}
+#if PROBE_REPORTER
+		if (c == 'J') {
+			discovered_items_select_json_probe_toggle(ctx);
+		}
+#endif
 		if (c == 'H') {
 			discovered_items_select_hide(ctx);
 		}
@@ -1091,10 +1205,17 @@ int nic_monitor(int argc, char *argv[])
 	ctx->ui_threadTerminate = 1;
 	ctx->pcap_threadTerminate = 1;
 	ctx->stats_threadTerminate = 1;
+#if PROBE_REPORTER
+	ctx->json_threadTerminate = 1;
+#endif
 	while (!ctx->pcap_threadTerminated)
 		usleep(50 * 1000);
 	while (!ctx->stats_threadTerminated)
 		usleep(50 * 1000);
+#if PROBE_REPORTER
+	while (!ctx->json_threadTerminated)
+		usleep(50 * 1000);
+#endif
 
 	/* Shutdown ui */
 	if (ctx->monitor) {

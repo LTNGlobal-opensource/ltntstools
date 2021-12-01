@@ -23,6 +23,8 @@ LDADD += -L../../target-root/usr/lib -ldvbpsi
 LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2
 LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
+#LDADD += -ljson-c
+#LDADD += -lcurl
 
 #ifdef __APPLE__
 #LDADD += -liconv
@@ -47,6 +49,7 @@ SRC += pid_drop.c
 SRC += nic_monitor.c
 SRC += nic_monitor_di.c
 SRC += nic_monitor_pcap.c
+SRC += nic_monitor_json.c
 SRC += parsers.c
 SRC += kbhit.c
 SRC += rtmp_analyzer.c

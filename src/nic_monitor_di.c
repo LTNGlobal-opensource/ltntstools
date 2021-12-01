@@ -89,6 +89,7 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 
 		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
 		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
+		di->dstport = ntohs(di->udphdr.uh_dport);
 
 		di->iat_lwm_us = 50000000;
 		di->iat_hwm_us = -1;
@@ -268,12 +269,185 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 			if (ctx->automaticallyRecordStreams) {
 				discovered_item_state_set(found, DI_STATE_PCAP_RECORD_START);
 			}
+#if PROBE_REPORTER
+			if (ctx->automaticallyJSONProbeStreams) {
+				discovered_item_state_set(found, DI_STATE_JSON_PROBE_ACTIVE);
+			}
+#endif
 		}
 	}
 	pthread_mutex_unlock(&ctx->lock);
 
 	return found;
 }
+
+#if PROBE_REPORTER
+
+/* See prometheus integration:
+ *  https://github.com/prometheus-community/json_exporter
+ */
+
+/* Collect a json summary per stream, serialize the findout string output
+ * into a content and puth this on a thread queue for something else to push to a remote server.
+ * We don't want a bogus http push to block processing, so a backlog could build up,
+ * be mindful of this.
+ */
+void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
+{
+	/* TODO, looks for leaks and make sure we're releaseing objects here. */
+
+	json_object *root = json_object_new_object();
+
+	/* Feed */
+	json_object *feed = json_object_new_object();
+
+	char ts[64];
+	libltntstools_getTimestamp(&ts[0], sizeof(ts), NULL);
+	json_object *fts = json_object_new_string(ts);
+
+	char hostname[64];
+	gethostname(&hostname[0], sizeof(hostname));
+	json_object *fhost = json_object_new_string(hostname);
+
+	json_object *fsrc = json_object_new_string(di->srcaddr);
+	json_object *fdst = json_object_new_string(di->dstaddr);
+	json_object *fmbps = json_object_new_double(ltntstools_pid_stats_stream_get_mbps(&di->stats));
+	json_object *ftype = json_object_new_string(payloadTypeDesc(di->payloadType));
+	json_object *fccerr = json_object_new_int64(di->stats.ccErrors);
+	json_object *fpkts = json_object_new_int64(di->stats.packetCount);
+	json_object *fpsdrop = json_object_new_int64(ctx->pcap_stats.ps_drop);
+	json_object *fifdrop = json_object_new_int64(ctx->pcap_stats.ps_ifdrop);
+
+	json_object_object_add(feed, "host", fhost);
+	json_object_object_add(feed, "timestamp", fts);
+	json_object_object_add(feed, "type", ftype);
+	json_object_object_add(feed, "src", fsrc);
+	json_object_object_add(feed, "dst", fdst);
+
+	/* Feed statistics */
+	json_object *feedstats = json_object_new_object();
+	json_object_object_add(feedstats, "mbps", fmbps);
+	json_object_object_add(feedstats, "ccerrors", fccerr);
+	json_object_object_add(feedstats, "packetcount", fpkts);
+	json_object_object_add(feedstats, "pcap_ifdrop", fifdrop);
+	json_object_object_add(feedstats, "pcap_psdrop", fpsdrop);
+	json_object_object_add(feed, "stats", feedstats);
+
+	/* Services */
+	json_object *services = json_object_new_array();
+
+	struct ltntstools_pat_s *m = NULL;
+	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
+		for (int p = 0; p < m->program_count; p++) {
+			if (m->programs[p].program_number == 0)
+				continue; /* Skip the NIT pid */
+
+			json_object *item = json_object_new_object();
+			json_object *nr = json_object_new_int64(m->programs[p].program_number);
+			
+			char pidstr[64];
+			sprintf(pidstr, "0x%04x", m->programs[p].program_map_PID);
+			json_object *pmtpid = json_object_new_string(pidstr);
+
+			sprintf(pidstr, "0x%04x", m->programs[p].pmt.PCR_PID);
+			json_object *pcrpid = json_object_new_string(pidstr);
+
+			json_object *escount = json_object_new_int64(m->programs[p].pmt.stream_count);
+								
+			json_object_object_add(item, "program", nr);
+			json_object_object_add(item, "pmtpid", pmtpid);
+			json_object_object_add(item, "pcrpid", pcrpid);
+			json_object_object_add(item, "escount", escount);
+
+			json_object *streams = json_object_new_array();
+
+			for (int s = 0; s < m->programs[p].pmt.stream_count; s++) {
+				const char *d = ltntstools_GetESPayloadTypeDescription(m->programs[p].pmt.streams[s].stream_type);
+
+				json_object *item = json_object_new_object();
+
+				char pidstr[64];
+				sprintf(pidstr, "0x%04x", m->programs[p].pmt.streams[s].elementary_PID);
+				json_object *espid = json_object_new_string(pidstr);
+
+				sprintf(pidstr, "0x%02x", m->programs[p].pmt.streams[s].stream_type);
+				json_object *estype = json_object_new_string(pidstr);
+				json_object *esdesc = json_object_new_string(d);
+
+				json_object_object_add(item, "pid", espid);
+				json_object_object_add(item, "type", estype);
+				json_object_object_add(item, "desc", esdesc);
+
+				json_object_array_add(streams, item);
+
+			}
+			json_object_object_add(item, "streams", streams);
+			json_object_array_add(services, item);
+
+		}
+		json_object_object_add(feed, "services", services);
+	}
+
+	/* Pids */
+	json_object *array = json_object_new_array();
+
+	for (int i = 0; i < MAX_PID; i++) {
+		if (di->stats.pids[i].enabled == 0)
+			continue;
+
+		char pidstr[64];
+		sprintf(pidstr, "0x%04x", i);
+		json_object *pid = json_object_new_string(pidstr);
+		json_object *pc = json_object_new_int64(di->stats.pids[i].packetCount);
+		json_object *cc = json_object_new_int64(di->stats.pids[i].ccErrors);
+		json_object *mbps = json_object_new_double(ltntstools_pid_stats_pid_get_mbps(&di->stats, i));
+
+		json_object *item = json_object_new_object();
+		json_object_object_add(item, "pid", pid);
+		json_object_object_add(item, "packetcount", pc);
+		json_object_object_add(item, "ccerrors", cc);
+		json_object_object_add(item, "mbps", mbps);
+		json_object_array_add(array, item);
+	}
+
+	json_object_object_add(feed, "pids", array);
+	json_object_object_add(root, "feed", feed);
+
+#if 0
+	printf("json:\n'%s'\n",
+		json_object_to_json_string_ext(root, JSON_C_TO_STRING_PRETTY));
+#endif
+
+	/* Push the final output to a queue, it will be serviced for output later.
+	 * Max size of allowable message is 64k
+	 */
+	struct json_item_s *qi = json_item_alloc(ctx, 65536);
+	if (qi) {
+		/* double crlf, keep the cheap base64encoder happy. */
+		sprintf((char *)qi->buf, "%s\n\n", json_object_to_json_string_ext(root, JSON_C_TO_STRING_PRETTY));
+		qi->lengthBytes = strlen((char *)qi->buf);	
+		json_queue_push(ctx, qi);
+	}
+}
+
+/* Write all the stream statistics to a remote server.
+ * use a seperate background thread to make this happen,
+ * so we don't block the stats thread in the event of
+ * a network / remote server outage.
+ */
+void discovered_items_json_summary(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_JSON_PROBE_ACTIVE) == 0)
+			continue;
+		discovered_item_json_summary(ctx, e);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+#endif
 
 void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
 {
@@ -305,6 +479,9 @@ void discovered_items_console_summary(struct tool_context_s *ctx)
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		discovered_item_fd_summary(ctx, e, STDOUT_FILENO);
+#if PROBE_REPORTER
+		discovered_item_json_summary(ctx, e);
+#endif
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -814,3 +991,23 @@ void discovered_items_select_forward_toggle(struct tool_context_s *ctx, int slot
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
+
+#if PROBE_REPORTER
+void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		if (discovered_item_state_get(e, DI_STATE_JSON_PROBE_ACTIVE)) {
+			discovered_item_state_clr(e, DI_STATE_JSON_PROBE_ACTIVE);
+		} else {
+			discovered_item_state_set(e, DI_STATE_JSON_PROBE_ACTIVE);
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+#endif
