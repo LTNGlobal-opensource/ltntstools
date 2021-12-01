@@ -38,6 +38,7 @@ SRC  = tstools_util.c
 SRC += pat_inspector.c
 SRC += pmt_inspector.c
 SRC += dump.c
+SRC += base64.c
 SRC += udp_capture.c
 SRC += si_inspector.c
 SRC += pcap2ts.c
