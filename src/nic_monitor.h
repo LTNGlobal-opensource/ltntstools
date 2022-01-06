@@ -75,6 +75,7 @@ struct tool_context_s
 	pthread_t ui_threadId;
 	int ui_threadTerminate, ui_threadRunning, ui_threadTerminated;
 	int trailerRow;
+	pthread_mutex_t ui_threadLock;
 
 #if PROBE_REPORTER
 	pthread_t json_threadId;

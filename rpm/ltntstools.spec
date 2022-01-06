@@ -46,6 +46,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
+* Thu Jan  6 2022 Steven Toth <stoth@ltnglobal.com> 
+- v1.11.1
+  tstools_nic_monitor: Bug. Intermittent segfault when resizing window (mostly seen in IAT report mode).
+
 * Wed Dec  1 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.11.0
   tstools_nic_monitor: Fix unwanted behavior. Prevent -w . or -d . from creating hidden stats files

@@ -36,6 +36,19 @@ int ltnpthread_setname_np(pthread_t thread, const char *name)
 #endif
 }
 
+/* Seeing some crashes inside getch, five leves deep related to dorefresh
+ * in ncurses. Make sure we don't call getch without ensuring
+ * the ui thread isn't refreshing the display.
+ */
+static char ui_syncronized_getch(struct tool_context_s *ctx)
+{
+	pthread_mutex_lock(&ctx->ui_threadLock);
+	char c = getch();
+	pthread_mutex_unlock(&ctx->ui_threadLock);
+
+	return c;
+}
+
 static void *ui_thread_func(void *p)
 {
 	struct tool_context_s *ctx = p;
@@ -73,6 +86,8 @@ static void *ui_thread_func(void *p)
 			usleep(50 * 1000);
 			continue;
 		}
+
+		pthread_mutex_lock(&ctx->ui_threadLock);
 
 		clear();
 
@@ -638,6 +653,7 @@ static void *ui_thread_func(void *p)
 
 		/* -- */
 		refresh();
+		pthread_mutex_unlock(&ctx->ui_threadLock);
 
 		usleep(200 * 1000);
 	}
@@ -945,6 +961,7 @@ int nic_monitor(int argc, char *argv[])
 	pthread_mutex_init(&ctx->lock, NULL);
 	xorg_list_init(&ctx->list);
 
+	pthread_mutex_init(&ctx->ui_threadLock, NULL);
 	pthread_mutex_init(&ctx->lockpcap, NULL);
 	xorg_list_init(&ctx->listpcapFree);
 	xorg_list_init(&ctx->listpcapUsed);
@@ -1094,11 +1111,11 @@ int nic_monitor(int argc, char *argv[])
 
 	time(&ctx->lastResetTime);
 	while (gRunning) {
-		char c = getch();
+		char c = ui_syncronized_getch(ctx);
 		if (c == 'F') {
 			ctx->showForwardOptions = 1;
 			while (gRunning) {
-				char c = getch();
+				char c = ui_syncronized_getch(ctx);
 				if (c == '7') {
 					/* Forward to location slot 7 */
 					discovered_items_select_forward_toggle(ctx, 7);
@@ -1178,9 +1195,9 @@ int nic_monitor(int argc, char *argv[])
 
 		/* Cursor key support */
 		if (c == 0x1b) {
-			c = getch();
+			c = ui_syncronized_getch(ctx);
 			if (c == 0x5b) {
-				c = getch();
+				c = ui_syncronized_getch(ctx);
 				if (c == 0x41) { /* Up */
 					discovered_items_select_prev(ctx);
 				} else
