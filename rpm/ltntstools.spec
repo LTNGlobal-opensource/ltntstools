@@ -49,6 +49,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Thu Jan  6 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.11.1
   tstools_nic_monitor: Bug. Intermittent segfault when resizing window (mostly seen in IAT report mode).
+  tstools_iat_tester: Add option to randomize packet intervals between 0us and an upper boundary.
 
 * Wed Dec  1 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.11.0

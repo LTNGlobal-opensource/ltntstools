@@ -25,6 +25,7 @@ struct tool_ctx_s
 	int ipport;
 	int sleep_us;
 	int verbose;
+	int randomizeSleeps;
 	struct sockaddr_in sa;
 
 	/* */
@@ -38,6 +39,7 @@ static void _usage(const char *prog)
 	printf("  -a <ip address Eg. 234.1.1.1:1234>\n");
 	printf("  -p <ip port Eg. 4001>\n");
 	printf("  -v increase verbosity level\n");
+	printf("  -r randomize intervals between 0 up to -i [def: disabled]\n");
 }
 
 int iat_tester(int argc, char* argv[])
@@ -61,6 +63,9 @@ int iat_tester(int argc, char* argv[])
 			break;
 		case 'v':
 			ctx->verbose++;
+			break;
+		case 'r':
+			ctx->randomizeSleeps = 1;
 			break;
 		case 'h':
 		case '?':
@@ -110,7 +115,12 @@ int iat_tester(int argc, char* argv[])
 
 	while (1) {
 		sendto(ctx->skt, buf, sizeof(buf), 0, (struct sockaddr *)&ctx->sa, sizeof(ctx->sa));
-		usleep(ctx->sleep_us);
+		if (ctx->randomizeSleeps) {
+			// Default seed, I don't care
+			usleep(rand() % ctx->sleep_us);
+		} else {
+			usleep(ctx->sleep_us);
+		}
 	}
 
 	printf("\n");
