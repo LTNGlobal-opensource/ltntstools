@@ -461,9 +461,10 @@ void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discov
 	dprintf(fd, "<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------------>\n");
 	for (int i = 0; i < MAX_PID; i++) {
 		if (di->stats.pids[i].enabled) {
-			dprintf(fd, "0x%04x (%4d) %14" PRIu64 " %12" PRIu64 " %12" PRIu64 "   %6.2f\n", i, i,
+			dprintf(fd, "0x%04x (%4d) %14" PRIu64 " %12" PRIu64 "%s%12" PRIu64 "   %6.2f\n", i, i,
 				di->stats.pids[i].packetCount,
 				di->stats.pids[i].ccErrors,
+				di->stats.pids[i].ccErrors != di->statsToFile.pids[i].ccErrors ? "!" : " ",
 				di->stats.pids[i].teiErrors,
 				ltntstools_pid_stats_pid_get_mbps(&di->stats, i));
 		}
