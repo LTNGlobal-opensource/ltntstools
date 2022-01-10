@@ -660,20 +660,6 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 	write(fd, line, strlen(line));
 
 	close(fd);
-#if 0
-	printf("   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s\n",
-		di->stats.mbps, stream);
-	printf("<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------->\n");
-	for (int i = 0; i < MAX_PID; i++) {
-		if (di->stats.pids[i].enabled) {
-			printf("0x%04x (%4d) %14" PRIu64 " %12" PRIu64 " %12" PRIu64 "   %6.2f\n", i, i,
-				di->stats.pids[i].packetCount,
-				di->stats.pids[i].ccErrors,
-				di->stats.pids[i].teiErrors,
-				di->stats.pids[i].mbps);
-		}
-	}
-#endif
 }
 
 void discovered_items_file_summary(struct tool_context_s *ctx)
