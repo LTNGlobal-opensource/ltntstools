@@ -133,6 +133,16 @@ static void *ui_thread_func(void *p)
 			if (discovered_item_state_get(di, DI_STATE_HIDDEN))
 				continue;
 
+			time_t now;
+			time(&now);
+
+			/* Deal with cases were output bitrate on a udp stream is low low, that we're unable to
+			 * detect its stream type.
+			 */
+			if (di->firstSeen + 2 <= now && di->payloadType == PAYLOAD_UNDEFINED) {
+				di->payloadType = PAYLOAD_BYTE_STREAM;
+			}
+
 			if (di->stats.ccErrors)
 				discovered_item_state_set(di, DI_STATE_CC_ERROR);
 			else

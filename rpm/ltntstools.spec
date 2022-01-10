@@ -52,6 +52,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Bug. -w -d console help confusing, correct the description.
   tstools_nic_monitor: Bug. From 1.11, causes file reports to grow rapidly and uncontrolled. Fixed.
   tstools_nic_monitor: Bug. Improvements to -w -d reports so they're fully seperate reports now.
+  tstools_nic_monitor: Bug. Fix black rows in the UI if UDP streams are low bitrate or difficult to detect.
   tstools_nic_monitor: Feature. Add a '@Report Begins at <timestamp>' on summary and detailed stats reports, on startup.
   tstools_nic_monitor: Feature. Socket process drop stats now reset to zero, along with other stats, during 'r'
   tstools_nic_monitor: Feature. Add ! indicator in detailed reports per pid, if the value has changed.
