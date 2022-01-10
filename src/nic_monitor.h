@@ -134,6 +134,7 @@ struct tool_context_s
 
 	/* Detailed file based statistics */
 	char *detailed_file_prefix;
+	time_t detailed_file_prefix_next_write_time;
 
 	/* Stats reset time */
 	time_t lastResetTime;
@@ -227,7 +228,8 @@ struct discovered_item_s
 	 * we make that obvious in the files, for easier operator
 	 * parsing.
 	 */
-	struct ltntstools_stream_statistics_s statsToFile;
+	struct ltntstools_stream_statistics_s statsToFileSummary;
+	struct ltntstools_stream_statistics_s statsToFileDetailed;
 
 	/* File output */
 	char filename[128];
@@ -306,6 +308,7 @@ void discovered_item_state_clr(struct discovered_item_s *di, unsigned int state)
 unsigned int discovered_item_state_get(struct discovered_item_s *di, unsigned int state);
 
 void discovered_items_file_summary(struct tool_context_s *ctx);
+void discovered_items_file_detailed(struct tool_context_s *ctx);
 #if PROBE_REPORTER
 void discovered_items_json_summary(struct tool_context_s *ctx);
 #endif

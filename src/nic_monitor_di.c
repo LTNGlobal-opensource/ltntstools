@@ -464,7 +464,7 @@ void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discov
 			dprintf(fd, "0x%04x (%4d) %14" PRIu64 " %12" PRIu64 "%s%12" PRIu64 "   %6.2f\n", i, i,
 				di->stats.pids[i].packetCount,
 				di->stats.pids[i].ccErrors,
-				di->stats.pids[i].ccErrors != di->statsToFile.pids[i].ccErrors ? "!" : " ",
+				di->stats.pids[i].ccErrors != di->statsToFileSummary.pids[i].ccErrors ? "!" : " ",
 				di->stats.pids[i].teiErrors,
 				ltntstools_pid_stats_pid_get_mbps(&di->stats, i));
 		}
@@ -563,7 +563,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		mbps,
 		di->stats.packetCount,
 		di->stats.ccErrors,
-		di->stats.ccErrors != di->statsToFile.ccErrors ? "!" : "",
+		di->stats.ccErrors != di->statsToFileDetailed.ccErrors ? "!" : "",
 		di->srcaddr,
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
@@ -653,7 +653,7 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		mbps,
 		di->stats.packetCount,
 		di->stats.ccErrors,
-		di->stats.ccErrors != di->statsToFile.ccErrors ? "!" : "",
+		di->stats.ccErrors != di->statsToFileSummary.ccErrors ? "!" : "",
 		di->srcaddr,
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
@@ -664,10 +664,7 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 	close(fd);
 }
 
-/* Create two kinds of files.
- * A summary file, one record per line.
- * A detailed file, many lines per report, including full pid stats.
- */
+/* Create a file with a one line per second summary of overall stream stats. */
 void discovered_items_file_summary(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
@@ -675,6 +672,24 @@ void discovered_items_file_summary(struct tool_context_s *ctx)
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		discovered_item_file_summary(ctx, e);
+
+		/* Implied memcpy of struct */
+		/* Cache the current stats. When we prepare
+		 * file records, of the CC counts have changed, we
+		 * do something significant in the file records.
+		 */
+		e->statsToFileSummary = e->stats;
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+/* Create a file with multiple line per second summary, overall stream stats plus detailed PID/Histogram stats */
+void discovered_items_file_detailed(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
 		discovered_item_detailed_file_summary(ctx, e);
 
 		/* Implied memcpy of struct */
@@ -682,7 +697,7 @@ void discovered_items_file_summary(struct tool_context_s *ctx)
 		 * file records, of the CC counts have changed, we
 		 * do something significant in the file records.
 		 */
-		e->statsToFile = e->stats;
+		e->statsToFileDetailed = e->stats;
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
