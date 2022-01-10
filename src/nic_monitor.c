@@ -436,10 +436,8 @@ static void *ui_thread_func(void *p)
 				streamCount++;
 				mvprintw(streamCount + 2, 0, " -> Socket / Process Report");
 
-				static time_t lastReport;
-
-				if (lastReport + 2 < now) {
-					lastReport = now;
+				if (ctx->lastSocketReport + 2 < now) {
+					ctx->lastSocketReport = now;
 
 					if (items) {
 						ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);
@@ -1160,6 +1158,7 @@ int nic_monitor(int argc, char *argv[])
 			time(&ctx->lastResetTime);
 			discovered_items_stats_reset(ctx);
 			ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
+			ctx->lastSocketReport = 0;
 		}
 		if (c == 'D') {
 			discovered_items_select_none(ctx);

@@ -143,6 +143,7 @@ struct tool_context_s
 	/* UDP Socket stats */
 	void *procNetUDPContext;
 	int showForwardOptions;
+	time_t lastSocketReport;
 };
 
 #if PROBE_REPORTER
