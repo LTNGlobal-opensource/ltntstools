@@ -488,7 +488,7 @@ void discovered_items_console_summary(struct tool_context_s *ctx)
 }
 
 /* For a given item, open a detailed stats file on disk, append the current stats, close it. */
-void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
+void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int write_banner)
 {
 	if (di->detailed_filename[0] == 0) {
 		if (ctx->detailed_file_prefix) {
@@ -535,6 +535,11 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
                 tm.tm_min,
                 tm.tm_sec);
 
+	if (write_banner) {
+		sprintf(line, "@Report begins %s\n", ts);
+		write(fd, line, strlen(line));
+	}
+
 	uint32_t bps = 0;
 	double mbps = 0;
 	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS)) {
@@ -578,7 +583,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 }
 
 /* For a given item, open a stats file on disk, append the current stats, close it. */
-void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di)
+void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int write_banner)
 {
 	if (di->filename[0] == 0) {
 		if (ctx->file_prefix) {
@@ -625,6 +630,11 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
                 tm.tm_min,
                 tm.tm_sec);
 
+	if (write_banner) {
+		sprintf(line, "@Report begins %s\n", ts);
+		write(fd, line, strlen(line));
+	}
+
 	uint32_t bps = 0;
 	double mbps = 0;
 	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS)) {
@@ -665,13 +675,13 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 }
 
 /* Create a file with a one line per second summary of overall stream stats. */
-void discovered_items_file_summary(struct tool_context_s *ctx)
+void discovered_items_file_summary(struct tool_context_s *ctx, int write_banner)
 {
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		discovered_item_file_summary(ctx, e);
+		discovered_item_file_summary(ctx, e, write_banner);
 
 		/* Implied memcpy of struct */
 		/* Cache the current stats. When we prepare
@@ -684,13 +694,13 @@ void discovered_items_file_summary(struct tool_context_s *ctx)
 }
 
 /* Create a file with multiple line per second summary, overall stream stats plus detailed PID/Histogram stats */
-void discovered_items_file_detailed(struct tool_context_s *ctx)
+void discovered_items_file_detailed(struct tool_context_s *ctx, int write_banner)
 {
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		discovered_item_detailed_file_summary(ctx, e);
+		discovered_item_detailed_file_summary(ctx, e, write_banner);
 
 		/* Implied memcpy of struct */
 		/* Cache the current stats. When we prepare

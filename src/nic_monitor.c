@@ -747,6 +747,7 @@ static void *stats_thread_func(void *p)
 	ctx->stats_threadRunning = 1;
 	ctx->stats_threadTerminate = 0;
 	ctx->stats_threadTerminated = 0;
+	int write_file_banner[2] = { 1, 1 };
 
 	ltnpthread_setname_np(ctx->stats_threadId, "tstools-stats");
 	pthread_detach(pthread_self());
@@ -771,12 +772,14 @@ static void *stats_thread_func(void *p)
 		time(&now);
 		if (ctx->file_prefix && ctx->file_prefix_next_write_time <= now) {
 			ctx->file_prefix_next_write_time = now + ctx->file_write_interval;
-			discovered_items_file_summary(ctx);
+			discovered_items_file_summary(ctx, write_file_banner[0]);
+			write_file_banner[0] = 0;
 			workdone++;
 		}
 		if (ctx->detailed_file_prefix && ctx->detailed_file_prefix_next_write_time <= now) {
 			ctx->detailed_file_prefix_next_write_time = now + ctx->file_write_interval;
-			discovered_items_file_detailed(ctx);
+			discovered_items_file_detailed(ctx, write_file_banner[1]);
+			write_file_banner[1] = 0;
 			workdone++;
 		}
 

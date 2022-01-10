@@ -297,18 +297,18 @@ void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_it
 void discovered_items_console_summary(struct tool_context_s *ctx);
 
 /* For a given item, open a detailed stats file on disk, append the current stats, close it. */
-void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di);
+void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int write_banner);
 
 /* For a given item, open a stats file on disk, append the current stats, close it. */
-void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di);
+void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int write_banner);
 
 /* Set or clear the state field bitmask */
 void discovered_item_state_set(struct discovered_item_s *di, unsigned int state);
 void discovered_item_state_clr(struct discovered_item_s *di, unsigned int state);
 unsigned int discovered_item_state_get(struct discovered_item_s *di, unsigned int state);
 
-void discovered_items_file_summary(struct tool_context_s *ctx);
-void discovered_items_file_detailed(struct tool_context_s *ctx);
+void discovered_items_file_summary(struct tool_context_s *ctx, int write_banner);
+void discovered_items_file_detailed(struct tool_context_s *ctx, int write_banner);
 #if PROBE_REPORTER
 void discovered_items_json_summary(struct tool_context_s *ctx);
 #endif
