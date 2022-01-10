@@ -56,7 +56,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Feature. Socket process drop stats now reset to zero, along with other stats, during 'r'
   tstools_nic_monitor: Feature. Add ! indicator in detailed reports per pid, if the value has changed.
   tstools_iat_tester: Add option to randomize packet intervals between 0us and an upper boundary.
-  tstools_bitrate_smoother: Add command line example to the console help.
+  tstools_bitrate_smoother: Add command line example to the console help. (Not production ready)
 
 * Wed Dec  1 2021 Steven Toth <stoth@ltnglobal.com> 
 - v1.11.0
