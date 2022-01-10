@@ -49,11 +49,12 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Mon Jan 10 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.12.0
   tstools_nic_monitor: Bug. Intermittent segfault when resizing window (mostly seen in IAT report mode).
-  tstools_nic_monitor: Feature. Add ! indicator in detailed reports per pid, if the value has changed.
   tstools_nic_monitor: Bug. -w -d console help confusing, correct the description.
-  tstools_nic_monitor: Bug in 1.11, causes file reports to grow rapidly and uncontrolled. Fixed.
-  tstools_nic_monitor: Bugfixes related to -d -w reporting, improvements so they're stand alone reports now.
-  tstools_nic_monitor: Add a '@Report Begins at <timestamp>' on summary and detailed stats reports, on startup.
+  tstools_nic_monitor: Bug. From 1.11, causes file reports to grow rapidly and uncontrolled. Fixed.
+  tstools_nic_monitor: Bug. Improvements to -w -d reports so they're fully seperate reports now.
+  tstools_nic_monitor: Feature. Add a '@Report Begins at <timestamp>' on summary and detailed stats reports, on startup.
+  tstools_nic_monitor: Feature. Socket process drop stats now reset to zero, along with other stats, during 'r'
+  tstools_nic_monitor: Feature. Add ! indicator in detailed reports per pid, if the value has changed.
   tstools_iat_tester: Add option to randomize packet intervals between 0us and an upper boundary.
   tstools_bitrate_smoother: Add command line example to the console help.
 
