@@ -124,7 +124,7 @@ struct tool_context_s
 	/* File based statistics */
 	char *file_prefix;
 	int file_write_interval;
-	time_t file_next_write_time;
+	time_t file_prefix_next_write_time;
 
 #if PROBE_REPORTER
 	/* Json probe writes */

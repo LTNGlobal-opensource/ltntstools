@@ -753,8 +753,8 @@ static void *stats_thread_func(void *p)
 
 	time_t now;
 	time(&now);
-	if (ctx->file_next_write_time == 0) {
-		ctx->file_next_write_time = now + ctx->file_write_interval;
+	if (ctx->file_prefix_next_write_time == 0) {
+		ctx->file_prefix_next_write_time = now + ctx->file_write_interval;
 	}
 
 	int workdone = 0;
@@ -766,8 +766,8 @@ static void *stats_thread_func(void *p)
 			workdone++;
 
 		time(&now);
-		if ((ctx->file_prefix || ctx->detailed_file_prefix) && ctx->file_next_write_time <= now) {
-			ctx->file_next_write_time = now + ctx->file_write_interval;
+		if ((ctx->file_prefix || ctx->detailed_file_prefix) && ctx->file_prefix_next_write_time <= now) {
+			ctx->file_prefix_next_write_time = now + ctx->file_write_interval;
 			discovered_items_file_summary(ctx);
 			workdone++;
 		}
