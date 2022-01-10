@@ -449,7 +449,7 @@ void discovered_items_json_summary(struct tool_context_s *ctx)
 }
 #endif
 
-void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
+void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
 {
 	char stream[128];
 	sprintf(stream, "%s", di->srcaddr);
@@ -478,7 +478,7 @@ void discovered_items_console_summary(struct tool_context_s *ctx)
 
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		discovered_item_fd_summary(ctx, e, STDOUT_FILENO);
+		discovered_item_fd_per_pid_report(ctx, e, STDOUT_FILENO);
 #if PROBE_REPORTER
 		discovered_item_json_summary(ctx, e);
 #endif
@@ -570,7 +570,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 
 	write(fd, line, strlen(line));
 
-	discovered_item_fd_summary(ctx, di, fd);
+	discovered_item_fd_per_pid_report(ctx, di, fd);
 
 	close(fd);
 }
