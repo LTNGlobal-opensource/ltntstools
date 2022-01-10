@@ -973,8 +973,8 @@ int nic_monitor(int argc, char *argv[])
 #endif
 
 	pcap_queue_initialize(ctx);
-#if PROBE_REPORTER
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
+#if PROBE_REPORTER
 	ctx->json_write_interval = JSON_WRITE_INTERVAL;
 #endif
 	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
