@@ -570,6 +570,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 
 	write(fd, line, strlen(line));
 
+	/* Write out the entire PID state. */
 	discovered_item_fd_per_pid_report(ctx, di, fd);
 
 	close(fd);
@@ -662,6 +663,10 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 	close(fd);
 }
 
+/* Create two kinds of files.
+ * A summary file, one record per line.
+ * A detailed file, many lines per report, including full pid stats.
+ */
 void discovered_items_file_summary(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
