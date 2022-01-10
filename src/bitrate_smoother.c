@@ -218,7 +218,7 @@ static void usage(const char *progname)
 	printf("A tool to smooth input n*bps CBR bitrate to an output UDP stream.\n");
 	printf("Usage:\n");
 	printf("  -i <url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
-	printf("           172.16.0.67 is the IP addr where we'll issue a IGMP join\n");
+	printf("           172.16.0.67 is the IP addr where we'll issue an IGMP join\n");
 	printf("  -o <url> Eg: udp://234.1.1.1:4560\n");
 	printf("  -P 0xnnnn PID containing the PCR\n");
 	printf("  -v Increase level of verbosity.\n");
