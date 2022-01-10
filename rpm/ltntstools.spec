@@ -53,6 +53,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: -w -d console help confusing, correct the description.
   tstools_nic_monitor: Bug in 1.11, causes file reports to grow rapidly and uncontrolled. Fixed.
   tstools_nic_monitor: Bugfixes related to -d -w reporting, improvements so they're stand along reports now.
+  tstools_nic_monitor: Add a '@Report Begins at <timestamp>' on summary and detailed stats reports, on startup.
   tstools_iat_tester: Add option to randomize packet intervals between 0us and an upper boundary.
   tstools_bitrate_smoother: Add command line example to the console help.
 
