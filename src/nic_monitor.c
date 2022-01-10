@@ -936,8 +936,8 @@ static void usage(const char *progname)
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("  -M Display an interactive console with stats.\n");
 	printf("  -D <dir> Write any PCAP recordings in this target directory prefix. [def: /tmp]\n");
-	printf("  -d <dir> Write detailed pid stats per stream in this target directory prefix, every -n seconds.\n");
-	printf("  -w <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
+	printf("  -d <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
+	printf("  -w <dir> Write detailed per pid stats per stream in this target directory prefix, every -n seconds.\n");
 	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
 	printf("  -F '<string>' Use a custom pcap filter. [def: '%s']\n", DEFAULT_PCAP_FILTER);
 #if PROBE_REPORTER
