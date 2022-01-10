@@ -449,7 +449,7 @@ static void *ui_thread_func(void *p)
 				}
 
 				if (itemCount) {
-					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS");
+					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS    TOTAL");
 					streamCount++;
 				} else {
 					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS   (discovery mode)");
@@ -464,15 +464,16 @@ static void *ui_thread_func(void *p)
 						if (((e->local_addr.sin_addr.s_addr == INADDR_ANY) && (e->local_addr.sin_port == di->dstport)) ||
 							(strcmp(e->locaddr, di->dstaddr) == 0))
 						{
-							if (e->drops)
+							if (e->drops_delta)
 								attron(COLOR_PAIR(4));
 
-							mvprintw(streamCount + 2, 50, "%8" PRIu64 "  %16s    %9" PRIu64,
+							mvprintw(streamCount + 2, 50, "%8" PRIu64 "  %16s    %9" PRIu64 "%9" PRIu64,
 								e->pidList[0].pid,
 								e->pidList[0].comm,
+								e->drops_delta,
 								e->drops);
 
-							if (e->drops)
+							if (e->drops_delta)
 								attroff(COLOR_PAIR(4));
 							streamCount++;
 						}
@@ -1158,6 +1159,7 @@ int nic_monitor(int argc, char *argv[])
 		if (c == 'r') {
 			time(&ctx->lastResetTime);
 			discovered_items_stats_reset(ctx);
+			ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
 		}
 		if (c == 'D') {
 			discovered_items_select_none(ctx);
