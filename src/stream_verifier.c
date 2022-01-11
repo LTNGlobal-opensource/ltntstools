@@ -53,20 +53,69 @@ struct tool_context_s
 	int bps;
 
 	AVIOContext *puc;
+	AVIOContext *o_puc;
+
+	void *smoother;
+
+	unsigned char sendBuffer[7 * 188];
+	int sendIndex;
+	int minSendBytes;
 };
+
+static void *callback_smoother(void *userContext, unsigned char *buf, int byteCount)
+{
+	struct tool_context_s *ctx = userContext;
+
+	avio_write(ctx->o_puc, buf, byteCount);
+
+	return NULL;
+}
+
+/* Group TS packets into multiples of N, typically 7 * 188 */
+/* TODO: Push all of this into the libtstools library so I don't have to keep re-implementing it. */
+static void output_write(struct tool_context_s *ctx, const unsigned char *buf, unsigned int byteCount)
+{
+	if (ctx->minSendBytes == 0) {
+		smoother_pcr_write(ctx->smoother, buf, byteCount, NULL);
+	} else {
+		int len = byteCount;
+		int offset = 0;
+		int cplen;
+		while (len > 0) {
+			if (len > (ctx->minSendBytes - ctx->sendIndex)) {
+				cplen = ctx->minSendBytes - ctx->sendIndex;
+			} else {
+				cplen = len;
+			}
+			memcpy(ctx->sendBuffer + ctx->sendIndex, buf + offset, cplen);
+			ctx->sendIndex += cplen;
+			offset += cplen;
+			len -= cplen;
+
+			if (ctx->sendIndex == ctx->minSendBytes) {
+				smoother_pcr_write(ctx->smoother, ctx->sendBuffer, ctx->minSendBytes, NULL);
+				ctx->sendIndex = 0;
+			}
+		}
+	}
+}
 
 static void usage(const char *progname)
 {
 	printf("\nA tool to create SPTS streams containing counters, PCRs, PAT and PMT.\n");
 	printf("Outputfile can be pushed through any ISO13818 workflow for more intricate loss detection.\n");
 	printf("The workflow output can then be routed back into the verifier to check for any bit errors.\n");
+	printf("\nOut to file is useful if you want to validate loss-less third-party playout.\n");
 	printf("\nUsage:\n");
-	printf("  -o <output.ts>\n");
+	printf("  -o <output.ts> | <udp://url>\n");
 	printf("  -i <url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
 	printf("           172.16.0.67 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -v Increase level of verbosity\n");
 	printf("  -b <bps> output bitrate [def: %d]\n", DEFAULT_BPS);
 	printf("  -d <#seconds> length of output file to create [def: %d]\n", DEFAULT_TOTAL_SECONDS);
+	printf("\n    Examples:\n");
+	printf("      ./tstools_stream_verifier -o udp://227.1.20.45:4700 -b 20000000 -d 3600\n");
+	printf("      ./tstools_stream_verifier -i udp://227.1.20.45:4700\n");
 }
 
 int stream_verifier(int argc, char *argv[])
@@ -84,6 +133,7 @@ int stream_verifier(int argc, char *argv[])
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->totalSeconds = DEFAULT_TOTAL_SECONDS;
 	ctx->bps = DEFAULT_BPS;
+	ctx->minSendBytes = 1316;
 
         while ((ch = getopt(argc, argv, "?hi:b:d:o:v")) != -1) {
 		switch (ch) {
@@ -133,7 +183,60 @@ int stream_verifier(int argc, char *argv[])
 		printf("pcrPeriodMs   %d\n", pcrPeriodMs);
 	}
 
-	if (ctx->ofn) {
+	avformat_network_init();
+
+	if (ctx->ofn && strncasecmp(ctx->ofn, "udp:", 4) == 0) {
+		int ret = smoother_pcr_alloc(&ctx->smoother, ctx, (smoother_pcr_output_callback)callback_smoother, 15000, ctx->minSendBytes, 0x31, 20 * 1000000);
+
+		ret = avio_open2(&ctx->o_puc, ctx->ofn, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+		if (ret < 0) {
+			fprintf(stderr, "-o syntax error\n");
+			ret = -1;
+			goto no_output;
+		}
+
+		uint64_t counter = 0; 
+		uint64_t pcr = 0;
+		uint8_t pcrcc = 0, countercc = 0, patcc = 0, pmtcc = 0;
+		uint8_t pkt[188];
+
+		int t = ctx->totalSeconds;
+
+		while (t-- > 0) {
+			int x = pcrsPerSecond;
+			while (x-- > 0) {
+
+				int ret = ltntstools_generatePCROnlyPacket(pkt, sizeof(pkt), 0x31, &pcrcc, pcr);
+				if (ret < 0)
+					break;
+
+				output_write(ctx, pkt, sizeof(pkt));
+
+				pcr += (pcrPeriodMs * 27000);
+
+				pat[3] = (pat[3] & 0xf0) | (patcc++ & 0x0f);
+				output_write(ctx, pat, sizeof(pat));
+
+				pmt[3] = (pmt[3] & 0xf0) | (pmtcc++ & 0x0f);
+				output_write(ctx, pmt, sizeof(pmt));
+
+				int i = 0;
+				while (i++ < packetsPerPCR) {
+					ret  = ltntstools_generatePacketWith64bCounter(pkt, sizeof(pkt), 0x32,
+						&countercc, counter++);
+					if (ret < 0)
+						break;
+
+					output_write(ctx, pkt, sizeof(pkt));
+				}
+			}
+			usleep(900 * 1000);				
+		}
+		avio_close(ctx->o_puc);
+no_output:
+		smoother_pcr_free(ctx->smoother);
+	} else if (ctx->ofn) {
+		/* Assume file output */
 		FILE *ofh = fopen(ctx->ofn, "wb");
 		if (ofh) {
 			uint64_t counter = 0; 
