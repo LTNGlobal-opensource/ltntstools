@@ -211,6 +211,10 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		ltntstools_pid_stats_update(&di->stats, pkts, pktCount);
 
 		if (di->isLTNEncoder) {
+			/* TODO: This will find the first timestamp in a MPTS and it will be rendered as an identical
+			 * measurement for every service in the mux. This would be factually wrong. The right approach
+			 * is to have a sense of 'which video pid' the latency is associated with, and render that.
+			 */
 			ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
 		}
 	} else
