@@ -417,6 +417,29 @@ static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	}
 }
 
+static int validateClockMath()
+{
+	/* Setup a PCR */
+	struct ltntstools_clock_s pcrclk;
+
+	ltntstools_clock_initialize(&pcrclk);
+	ltntstools_clock_establish_timebase(&pcrclk, 27 * 1e6);
+
+	int i = 1;
+	while (1) {
+		if (ltntstools_clock_is_established_wallclock(&pcrclk) == 0) {
+			ltntstools_clock_establish_wallclock(&pcrclk, 1 * 27000000);
+		}
+		sleep(1);
+		i++;
+		ltntstools_clock_set_ticks(&pcrclk, (i * (27 * 1e6)) + 2000);
+		int64_t us = ltntstools_clock_get_drift_us(&pcrclk);
+		printf("drift us: %" PRIi64 "\n", us);
+	}
+
+	return 0;
+}
+
 static void usage(const char *progname)
 {
 	printf("A tool to extract PCR/SCR PTS/DTS clocks from all pids in a MPEGTS file, or stream.\n");
@@ -452,7 +475,7 @@ int clock_inspector(int argc, char *argv[])
 	ctx->scr_pid = DEFAULT_SCR_PID;
 	int progressReport = 0;
 
-        while ((ch = getopt(argc, argv, "?dhi:spT:D:PRS:")) != -1) {
+        while ((ch = getopt(argc, argv, "?dhi:spT:D:PRS:X")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -499,6 +522,8 @@ int clock_inspector(int argc, char *argv[])
 				ctx->initial_time = mktime(&tm);
 			}
 			break;
+		case 'X':
+			return validateClockMath();
 		default:
 			usage(argv[0]);
 			exit(1);
