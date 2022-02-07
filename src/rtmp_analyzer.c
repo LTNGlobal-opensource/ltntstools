@@ -86,8 +86,11 @@ static void streams_init()
 		ltntstools_throughput_reset(&strm->bitrate_tp);
 		ltntstools_throughput_reset(&strm->time_tp);
 
-		ltntstools_clock_reset(&strm->streamTimePTS, 1000);
-		ltntstools_clock_reset(&strm->streamTimeDTS, 1000);
+		ltntstools_clock_initialize(&strm->streamTimePTS);
+		ltntstools_clock_establish_timebase(&strm->streamTimePTS, 1000);
+
+		ltntstools_clock_initialize(&strm->streamTimeDTS);
+		ltntstools_clock_establish_timebase(&strm->streamTimeDTS, 1000);
 
 	}
 }

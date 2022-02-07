@@ -519,6 +519,11 @@ static void *ui_thread_func(void *p)
 				struct ltntstools_pat_s *m = NULL;
 				if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
 
+					/* Now that we have a working stream model, look PCR for each stream
+					 * and establish a clock analyzer through the stats infrastructure.
+					 * We'll do this during the program pid enumeration below.
+					 */
+
 					int mpts = ltntstools_streammodel_is_model_mpts(di->streamModel, m);
 
 					mvprintw(streamCount + 2, 31, "%s", mpts ? "MPTS" : "SPTS");
@@ -547,6 +552,9 @@ static void *ui_thread_func(void *p)
 								m->programs[p].program_map_PID,
 								m->programs[p].pmt.PCR_PID,
 								m->programs[p].pmt.stream_count);
+
+							/* Poke the stats model and let it know we should be receiving PCRs on this pid. */
+							ltntstools_pid_stats_pid_set_contains_pcr(&di->stats, m->programs[p].pmt.PCR_PID);
 						}
 						for (int s = 0; s < m->programs[p].pmt.stream_count; s++) {
 							if (s > 0)
@@ -582,9 +590,18 @@ static void *ui_thread_func(void *p)
 								mvprintw(streamCount + 2, 86, "n/a");
 							}
 						}
-						
 
-					}
+						if (0) {
+							streamCount++;
+							mvprintw(streamCount + 2, 52, "PCR Drift (us): %7" PRIi64 ", %" PRIi64 " %" PRIi64 " %" PRIi64,
+								di->stats.pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us,
+								di->stats.pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us_lwm,
+								di->stats.pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us_hwm,
+								di->stats.pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us_max
+								);
+						}
+
+					} /* For each program */
 
 					ltntstools_pat_free(m);
 					streamCount++;
