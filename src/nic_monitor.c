@@ -1257,6 +1257,8 @@ int nic_monitor(int argc, char *argv[])
 
 	discovered_items_abort(ctx);
 
+	time_t periodEnds = time(NULL);
+
 	/* Shutdown stats collection */
 	ctx->ui_threadTerminate = 1;
 	ctx->pcap_threadTerminate = 1;
@@ -1281,6 +1283,19 @@ int nic_monitor(int argc, char *argv[])
 		}
 		endwin();
 	}
+
+	/* Prepare stats window messages for later print. */
+	char ts_b[64];
+	sprintf(&ts_b[0], ctime(&ctx->lastResetTime));
+	ts_b[ strlen(ts_b) - 1] = 0;
+
+	char ts_e[64];
+	sprintf(&ts_e[0], ctime(&periodEnds));
+	ts_e[ strlen(ts_e) - 1] = 0;
+
+	time_t d = periodEnds - ctx->lastResetTime;
+	struct tm diff = { 0 };
+	gmtime_r(&d, &diff);
 
 	discovered_items_console_summary(ctx);
 
@@ -1311,6 +1326,10 @@ printf("ctx->cacheHitRatio %.02f%% (%" PRIu64 ", %" PRIu64 ")\n", ctx->cacheHitR
 
 	printf("Flushing the streams and recorders...\n");
 	discovered_items_free(ctx);
+
+	printf("\nStats window:\n");
+	printf("  from %s -> %s\n", ts_b, ts_e);
+	printf("  duration %02d:%02d:%02d (HH:MM:SS)\n\n", diff.tm_hour, diff.tm_min, diff.tm_sec);
 
 	free(ctx->file_prefix);
 	free(ctx->detailed_file_prefix);
