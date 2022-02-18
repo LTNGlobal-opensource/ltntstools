@@ -50,6 +50,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 - v1.13.0
   tstools_stream_verifier: Feature. Modify -o option to support and output URL for live streaming.
   tstools_nic_monitor: Feature. On the console report, display the start/end time for the stats period.
+  tstools_nic_monitor: Known issue. Multiple LTN encoders in MPTS mode, UI reports identical latencies.
 
 * Mon Jan 10 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.12.0
