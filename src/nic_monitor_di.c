@@ -298,13 +298,17 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 {
 	/* TODO, looks for leaks and make sure we're releaseing objects here. */
 
-	json_object *root = json_object_new_object();
-
 	/* Feed */
 	json_object *feed = json_object_new_object();
 
 	char ts[64];
+#if 0
 	libltntstools_getTimestamp(&ts[0], sizeof(ts), NULL);
+#else
+	time_t now = time(NULL);
+	strftime(ts, sizeof(ts), "%F %T.000", localtime(&now));
+#endif
+
 	json_object *fts = json_object_new_string(ts);
 
 	char hostname[64];
@@ -413,11 +417,10 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	}
 
 	json_object_object_add(feed, "pids", array);
-	json_object_object_add(root, "feed", feed);
 
 #if 0
 	printf("json:\n'%s'\n",
-		json_object_to_json_string_ext(root, JSON_C_TO_STRING_PRETTY));
+		json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PRETTY));
 #endif
 
 	/* Push the final output to a queue, it will be serviced for output later.
@@ -426,7 +429,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	struct json_item_s *qi = json_item_alloc(ctx, 65536);
 	if (qi) {
 		/* double crlf, keep the cheap base64encoder happy. */
-		sprintf((char *)qi->buf, "%s\n\n", json_object_to_json_string_ext(root, JSON_C_TO_STRING_PRETTY));
+		sprintf((char *)qi->buf, "%s\n\n", json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PRETTY));
 		qi->lengthBytes = strlen((char *)qi->buf);	
 		json_queue_push(ctx, qi);
 	}
