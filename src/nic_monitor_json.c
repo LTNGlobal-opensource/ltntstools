@@ -22,9 +22,9 @@ int json_initialize(struct tool_context_s *ctx)
 	memset(&ctx->jsonSin, 0, sizeof(ctx->jsonSin));
 
 	ctx->jsonSin.sin_family = AF_INET;
-    ctx->jsonSin.sin_port = htons(5008);
-    ctx->jsonSin.sin_addr.s_addr = inet_addr("127.0.0.1");
-    ctx->jsonSin.sin_addr.s_addr = INADDR_ANY;
+	ctx->jsonSin.sin_port = htons(5008);
+	ctx->jsonSin.sin_addr.s_addr = inet_addr("127.0.0.1");
+	ctx->jsonSin.sin_addr.s_addr = INADDR_ANY;
 
 	/* Non-blocking required */
 	int fl = fcntl(ctx->jsonSocket, F_GETFL, 0);
@@ -94,11 +94,13 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 {
 	int ret = -1;
 
-	printf("posting json:\n%s\n", item->buf);
-
-	size_t input_size = item->lengthBytes;
-    char * encoded_data = base64_encode((const unsigned char *)item->buf, input_size, &input_size);
 #if 0
+	printf("posting json:\n%s\n", item->buf);
+#endif
+
+#if 0
+	size_t input_size = item->lengthBytes;
+	char * encoded_data = base64_encode((const unsigned char *)item->buf, input_size, &input_size);
 	printf("base64 = %s\n", encoded_data);
 #endif
 
@@ -108,9 +110,18 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	if (!curl)
 		return ret;
 
-	curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1/probewriter.php");
-//	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoded_data);
+	struct curl_slist *headers = NULL;
+	headers = curl_slist_append(headers, "Accept: application/json");
+	headers = curl_slist_append(headers, "Content-Type: application/json");
+	headers = curl_slist_append(headers, "charset: utf-8");
+
+	curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:6502/hook");
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, item->buf);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, item->lengthBytes);
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcrp/0.1");
+//	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
 	CURLcode res = curl_easy_perform(curl);
 	if (res != CURLE_OK) {
@@ -119,6 +130,7 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	} else {
 		ret = 0; /* Success */
 	}
+	curl_slist_free_all(headers);
 	curl_global_cleanup();
 
 	return ret;	
@@ -169,4 +181,3 @@ int json_queue_push(struct tool_context_s *ctx, struct json_item_s *item)
 }
 
 #endif
-
