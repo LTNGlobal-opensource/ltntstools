@@ -1126,6 +1126,10 @@ int nic_monitor(int argc, char *argv[])
 	printf(" filter: %s\n", ctx->pcap_filter);
 	printf("snaplen: %d\n", ctx->snaplen);
 	printf("buffSiz: %d\n", ctx->bufferSize);
+	printf("file write interval: %d\n", ctx->file_write_interval);
+#if PROBE_REPORTER
+	printf("json write interval: %d\n", JSON_WRITE_INTERVAL);
+#endif
 
 	gRunning = 1;
 	pthread_create(&ctx->stats_threadId, 0, stats_thread_func, ctx);
