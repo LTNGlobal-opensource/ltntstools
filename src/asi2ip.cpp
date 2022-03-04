@@ -16,6 +16,7 @@
 #include "../../sdk-dektec/LinuxSDK/DTAPI/Include/DTAPI.h"
 
 #define DEFAULT_PORT 1
+#define DEFAULT_CARD_MODEL 2172
 
 DtDevice      gdev;
 DtInpChannel  ginput;
@@ -25,6 +26,8 @@ static int gRunning = 0;
 struct tool_ctx_s
 {
 	int verbose;
+	int cardModel;
+	int cardFifoSize;
 
 	char *oname;
 
@@ -46,15 +49,17 @@ static void signal_handler(int signum)
 
 static int configureDektec(struct tool_ctx_s *ctx)
 {
-	DTAPI_RESULT dr = gdev.AttachToType(2172, 0);
+	printf("Opening DekTec DTA%d port#%d\n", ctx->cardModel, ctx->iport);
+
+	DTAPI_RESULT dr = gdev.AttachToType(ctx->cardModel, 0);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to attach to ASI device, aborting.\n");
+		fprintf(stderr, "Unable to attach to ASI device.\n");
 		return -1;
 	}
 
 	dr = ginput.AttachToPort(&gdev, ctx->iport);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to attach to port %d, aborting.\n", ctx->iport);
+		fprintf(stderr, "Unable to attach to port %d.\n", ctx->iport);
 		return -1;
 	}
 
@@ -62,25 +67,26 @@ static int configureDektec(struct tool_ctx_s *ctx)
 
 	dr = ginput.SetRxControl(DTAPI_RXCTRL_IDLE);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to set idle, aborting.\n");
+		fprintf(stderr, "Unable to set idle.\n");
 		return -1;
 	}
 
     dr = ginput.ClearFifo();
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to clear fifo, aborting.\n");
+		fprintf(stderr, "Unable to clear fifo.\n");
 		return -1;
 	}
 
     dr = ginput.ClearFlags(0xFFFFFFFF);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to clear flags, aborting.\n");
+		fprintf(stderr, "Unable to clear flags.\n");
 		return -1;
 	}
 
 	int maxfifo;
 	ginput.GetMaxFifoSize(maxfifo);
 	printf("MaxFifoSize: %d\n", maxfifo);
+	ctx->cardFifoSize = maxfifo;
 
 #if 0
 	/* The DTA2172 FIFO isn't cnfigurable. */
@@ -93,20 +99,20 @@ static int configureDektec(struct tool_ctx_s *ctx)
 #endif
 
 	printf("\n");
-	printf("Expected Latency @   5.00 mbps: %6.02f ms\n", (maxfifo * 8) / (5 * 1e6));
-	printf("Expected Latency @  20.00 mbps: %6.02f ms\n", (maxfifo * 8) / (20 * 1e6));
-	printf("Expected Latency @ 210.00 mbps: %6.02f ms\n", (maxfifo * 8) / (210 * 1e6));
+	printf("Expected Latency @   5.00 mbps: %6.02f ms\n", (ctx->cardFifoSize * 8) / (5 * 1e6));
+	printf("Expected Latency @  20.00 mbps: %6.02f ms\n", (ctx->cardFifoSize * 8) / (20 * 1e6));
+	printf("Expected Latency @ 210.00 mbps: %6.02f ms\n", (ctx->cardFifoSize * 8) / (210 * 1e6));
 	printf("\n");
 
 	dr = ginput.SetIoConfig(DTAPI_IOCONFIG_IOSTD, DTAPI_IOCONFIG_ASI, -1);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to enable ASI rx mode, aborting.\n");
+		fprintf(stderr, "Unable to enable ASI rx mode.\n");
 		return -1;
 	}
 
 	dr = ginput.PolarityControl(ctx->polarity);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to set polarity, aborting.\n");
+		fprintf(stderr, "Unable to set polarity.\n");
 		return -1;
 	}
 
@@ -118,7 +124,7 @@ static int configureDektec(struct tool_ctx_s *ctx)
 	int AsiInv;		
 	dr = ginput.GetStatus(PacketSize, NumInv, ClkDet, AsiLock, RateOk, AsiInv);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to query status, aborting.\n");
+		fprintf(stderr, "Unable to query status.\n");
 		return -1;
 	}
 
@@ -127,7 +133,7 @@ static int configureDektec(struct tool_ctx_s *ctx)
 
 	dr = ginput.SetRxControl(DTAPI_RXCTRL_RCV);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to set rx mode, aborting.\n");
+		fprintf(stderr, "Unable to set rx mode.\n");
 		return -1;
 	}
 
@@ -158,6 +164,7 @@ static void usage(const char *progname)
 	printf("Receive MPEG-TS from a DekTec ASI card and output to IP\n");
 	printf("Usage:\n");
 	printf("  -h Display command line help.\n");
+	printf("  -m dektec card model#                  [def: %d]\n", DEFAULT_CARD_MODEL);
 	printf("  -i dektec asi port#                    [def: %d]\n", DEFAULT_PORT);
 	printf("  -o <url>   Eg: udp://227.1.20.91:4091\n");
 	printf("  -P 0|2|3   AUTO | Normal | Inverted    [def: 0]\n");
@@ -176,8 +183,9 @@ static int _asi2ip(int argc, char *argv[])
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->iport = DEFAULT_PORT;
 	ctx->polarity = DTAPI_POLARITY_AUTO;
+	ctx->cardModel = DEFAULT_CARD_MODEL;
 
-	while ((ch = getopt(argc, argv, "?hvi:o:P:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hvi:m:o:P:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -192,6 +200,9 @@ static int _asi2ip(int argc, char *argv[])
 			break;
 		case 'v':
 			ctx->verbose++;
+			break;
+		case 'm':
+			ctx->cardModel = atoi(optarg);
 			break;
 		case 'P':
 			ctx->polarity = atoi(optarg);
@@ -266,7 +277,7 @@ static int _asi2ip(int argc, char *argv[])
 			 * bitrate of the stream and hence the overall latency.
 			 */
 			double mbps = ltntstools_throughput_get_mbps(&ctx->throughput);
-			double ms = ((8 * 1048576) * 8) / (mbps * 1e6);
+			double ms = ((ctx->cardFifoSize) * 8) / (mbps * 1e6);
 			libltntstools_getTimestamp(&ts[0], sizeof(ts), NULL);
             fprintf(stdout, "%s: %6.02f Mb/ps @ %6.02f ms\n", ts, mbps, ms);
 		}
