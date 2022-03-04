@@ -52,6 +52,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Feature. On the console report, display the start/end time for the stats period.
   tstools_nic_monitor: Known issue. Multiple LTN encoders in MPTS mode, UI reports identical latencies.
   tstools_nic_monitor: Output to console file write interval (and json) interval settings on startup.
+  tstools_asi2ip: New tool. Receive MPEGTS via ASI from Dektec 2172 input port, transmit to IP.
 
 * Mon Jan 10 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.12.0

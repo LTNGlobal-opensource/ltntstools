@@ -50,6 +50,7 @@
         "**/src/tstools_clock_inspector": true,
         "**/src/tstools_bitrate_smoother": true,
         "**/src/tstools_nielsen_inspector": true,
+        "**/src/tstools_asi2ip": true,
     },
     "files.associations": {
         "__functional_base": "c",

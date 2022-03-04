@@ -23,8 +23,8 @@ LDADD += -L../../target-root/usr/lib -ldvbpsi
 LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2
 LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
-#LDADD += -ljson-c
-#LDADD += -lcurl
+LDADD += -ljson-c -lcurl
+LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
 
 #ifdef __APPLE__
 #LDADD += -liconv
@@ -67,6 +67,7 @@ SRC += stream_verifier.c
 SRC += pes_inspector.c
 SRC += bitrate_smoother.c
 SRC += nielsen_inspector.cpp
+SRC += asi2ip.cpp
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -90,6 +91,7 @@ LINKBINS += tstools_stream_verifier
 LINKBINS += tstools_pes_inspector
 LINKBINS += tstools_bitrate_smoother
 LINKBINS += tstools_nielsen_inspector
+LINKBINS += tstools_asi2ip
 
 tstools_util_SOURCES = $(SRC)
 
