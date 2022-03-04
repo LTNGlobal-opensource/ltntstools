@@ -220,7 +220,7 @@ static int _asi2ip(int argc, char *argv[])
 
 	ret = configureDektec(ctx);
 	if (ret < 0) {
-		fprintf(stderr, "Unable to initialize dektex hardware, aborting.\n");
+		fprintf(stderr, "Unable to initialize hardware, aborting.\n");
 		exit(1);
 	}
 
