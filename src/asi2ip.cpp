@@ -48,13 +48,13 @@ static int configureDektec(struct tool_ctx_s *ctx)
 {
 	DTAPI_RESULT dr = gdev.AttachToType(2172, 0);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to attached to ASI device, aborting.\n");
+		fprintf(stderr, "Unable to attach to ASI device, aborting.\n");
 		return -1;
 	}
 
 	dr = ginput.AttachToPort(&gdev, ctx->iport);
 	if (dr != DTAPI_OK) {
-		fprintf(stderr, "Unable to attached to port, aborting.\n");
+		fprintf(stderr, "Unable to attach to port %d, aborting.\n", ctx->iport);
 		return -1;
 	}
 
@@ -83,7 +83,7 @@ static int configureDektec(struct tool_ctx_s *ctx)
 	printf("MaxFifoSize: %d\n", maxfifo);
 
 #if 0
-	/* The 2172 FIFO isn't cnfigurable. */
+	/* The DTA2172 FIFO isn't cnfigurable. */
 	dr = ginput.SetFifoSize(1 * 1048576);
 	if (dr != DTAPI_OK) {
 		fprintf(stderr, "Unable to set fifosize, ignoring.\n");
@@ -262,7 +262,7 @@ static int _asi2ip(int argc, char *argv[])
 		if (now != lastReport) {
 			lastReport = now;
 
-			/* The dektec fifo on the STA2172 is fixed at 8MB. Calculate the
+			/* The dektec fifo on the DTA2172 is fixed at 8MB. Calculate the
 			 * bitrate of the stream and hence the overall latency.
 			 */
 			double mbps = ltntstools_throughput_get_mbps(&ctx->throughput);
