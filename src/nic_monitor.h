@@ -278,6 +278,9 @@ struct discovered_item_s
 	int forwardSlotNr; /* 7/8/9 else stream is not forwarding. */
 	AVIOContext *forwardAVIO;
 	char forwardURL[64];
+
+	/* H264 specific statistics */
+	void *h264_slices; /* We count each different kind of slice that we see */
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);

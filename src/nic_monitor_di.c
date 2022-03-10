@@ -45,6 +45,9 @@ const char *payloadTypeDesc(enum payload_type_e pt)
 
 void discovered_item_free(struct discovered_item_s *di)
 {
+	if (di->h264_slices) {
+		h264_slice_counter_free(di->h264_slices);
+	}
 	if (di->pcapRecorder) {
 		ltntstools_segmentwriter_free(di->pcapRecorder);
 		di->pcapRecorder = NULL;
@@ -108,6 +111,11 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 		if (ltntstools_probe_ltnencoder_alloc(&di->LTNLatencyProbe) < 0) {
 			fprintf(stderr, "\nUnable to allocate ltn encoder latency probe, it's safe to continue.\n\n");
 		}
+
+#if 0
+/* Keeping this disabled for the time being. */
+		di->h264_slices = h264_slice_counter_alloc(0x31);
+#endif
 	}
 
 	return di;

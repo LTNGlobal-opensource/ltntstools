@@ -418,6 +418,17 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			}
 		}
 	}
+
+#if MEDIA_MONITOR
+	media_write(pkts, pktCount);
+#endif
+
+	if (di->h264_slices) {
+		h264_slice_counter_write(di->h264_slices, pkts, pktCount);
+
+		// We need to decide how to render these, and when.
+		h264_slice_counter_dprintf(di->h264_slices, 0, 0);
+	}
 }
 
 /* Called on the UI stream, and writes files to disk, handles recordings etc */
