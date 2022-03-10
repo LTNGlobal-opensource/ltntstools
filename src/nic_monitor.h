@@ -27,6 +27,11 @@
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 
+#define MEDIA_MONITOR 0
+#if MEDIA_MONITOR
+#include "media.h"
+#endif
+
 #define PROBE_REPORTER 0
 #if PROBE_REPORTER
 #include <json-c/json.h>

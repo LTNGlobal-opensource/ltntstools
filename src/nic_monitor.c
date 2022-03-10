@@ -1003,6 +1003,10 @@ int nic_monitor(int argc, char *argv[])
 	xorg_list_init(&ctx->listpcapFree);
 	xorg_list_init(&ctx->listpcapUsed);
 
+#if MEDIA_MONITOR
+	media_init();
+#endif
+
 #if PROBE_REPORTER
 	pthread_mutex_init(&ctx->lockJSONPost, NULL);
 	xorg_list_init(&ctx->listJSONPost);

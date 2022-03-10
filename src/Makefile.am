@@ -25,6 +25,7 @@ LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
 LDADD += -ljson-c -lcurl
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
+LDADD += -lmediainfo
 
 #ifdef __APPLE__
 #LDADD += -liconv
@@ -68,6 +69,7 @@ SRC += pes_inspector.c
 SRC += bitrate_smoother.c
 SRC += nielsen_inspector.cpp
 SRC += asi2ip.cpp
+SRC += media.cpp
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
