@@ -566,6 +566,42 @@ static void *ui_thread_func(void *p)
 								52,
 								d,
 								strlen(d) >= 52 ? "..." : "");
+
+							if (m->programs[p].pmt.streams[s].stream_type  == 0x1b /* H.264 */) {
+
+								int slicesEnabled = 0;
+								struct h264_slice_counter_results_s slices;
+
+								pthread_mutex_lock(&di->h264_sliceLock);
+								if (di->h264_slices) {
+									if (h264_slice_counter_get_pid(di->h264_slices) == m->programs[p].pmt.streams[s].elementary_PID) {
+										slicesEnabled = 1;
+										h264_slice_counter_query(di->h264_slices, &slices);
+									} else {
+										/* Set the pid to match this stream and we'll catch the stats the next time around. */
+										h264_slice_counter_reset_pid(di->h264_slices, m->programs[p].pmt.streams[s].elementary_PID);
+									}
+								}
+								pthread_mutex_unlock(&di->h264_sliceLock);
+
+								pthread_mutex_lock(&di->h264_metadataLock);
+								if (di->h264_metadata_parser) {
+									pthread_mutex_unlock(&di->h264_metadataLock);
+									mvprintw(streamCount + 2, 64, "- %s", di->h264_video_colorspace);
+									streamCount++;
+									mvprintw(streamCount + 2, 54, "%s", di->h264_video_format);
+								} else {
+									pthread_mutex_unlock(&di->h264_metadataLock);
+								}
+
+								if (slicesEnabled) {
+									streamCount++;
+									mvprintw(streamCount + 2, 54, "I: %'" PRIu64 " B: %'" PRIu64 " P: %'" PRIu64 " : %s...",
+										slices.i, slices.b, slices.p,
+										slices.sliceHistory);
+								}
+
+							}
 						}
 
 						if (m->programs[p].pmt.stream_count > 0) {

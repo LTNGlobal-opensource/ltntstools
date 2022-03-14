@@ -423,12 +423,30 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	media_write(pkts, pktCount);
 #endif
 
+	pthread_mutex_lock(&di->h264_sliceLock);
 	if (di->h264_slices) {
 		h264_slice_counter_write(di->h264_slices, pkts, pktCount);
 
 		// We need to decide how to render these, and when.
-		h264_slice_counter_dprintf(di->h264_slices, 0, 0);
+		//h264_slice_counter_dprintf(di->h264_slices, 0, 0);
 	}
+	pthread_mutex_unlock(&di->h264_sliceLock);
+
+	pthread_mutex_lock(&di->h264_metadataLock);
+	if (di->h264_metadata_parser) {
+		int complete;
+		ltntstools_h264_codec_metadata_write(di->h264_metadata_parser, pkts, pktCount, &complete);
+
+		if (complete) {
+			struct h264_codec_metadata_results_s r;
+			if (ltntstools_h264_codec_metadata_query(di->h264_metadata_parser, &r) == 0) {
+				strcpy(&di->h264_video_colorspace[0], &r.sps.video_colorspace_ascii[0]);
+				strcpy(&di->h264_video_format[0], &r.sps.video_format_ascii[0]);
+			}
+		}
+	}
+	pthread_mutex_unlock(&di->h264_metadataLock);
+
 }
 
 /* Called on the UI stream, and writes files to disk, handles recordings etc */

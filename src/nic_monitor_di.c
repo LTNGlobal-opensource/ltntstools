@@ -45,8 +45,15 @@ const char *payloadTypeDesc(enum payload_type_e pt)
 
 void discovered_item_free(struct discovered_item_s *di)
 {
+	if (di->h264_metadata_parser) {
+		pthread_mutex_lock(&di->h264_metadataLock);
+		h264_slice_counter_free(di->h264_metadata_parser);
+		/* Intensional permanent. */
+	}
 	if (di->h264_slices) {
+		pthread_mutex_lock(&di->h264_sliceLock);
 		h264_slice_counter_free(di->h264_slices);
+		/* Intensional permanent. */
 	}
 	if (di->pcapRecorder) {
 		ltntstools_segmentwriter_free(di->pcapRecorder);
@@ -112,9 +119,17 @@ struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, str
 			fprintf(stderr, "\nUnable to allocate ltn encoder latency probe, it's safe to continue.\n\n");
 		}
 
+		pthread_mutex_init(&di->h264_sliceLock, NULL);
 #if 0
-/* Keeping this disabled for the time being. */
-		di->h264_slices = h264_slice_counter_alloc(0x31);
+		/* Keeping this disabled for the time being. */
+		di->h264_slices = h264_slice_counter_alloc(0x31); /* 0x2000 by default, count all slices across all video pids. */
+#endif
+
+		pthread_mutex_init(&di->h264_metadataLock, NULL);
+#if 0
+		if (ltntstools_h264_codec_metadata_alloc(&di->h264_metadata_parser, 0x31, 0xe0) < 0) {
+			fprintf(stderr, "\nUnable to allocate h264 metadata parser, it's safe to continue.\n\n");
+		}
 #endif
 	}
 
@@ -486,6 +501,33 @@ void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discov
 	dprintf(fd, "\n");
 }
 
+void discovered_item_fd_per_h264_slice_report(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
+{
+	int slicesEnabled = 0;
+	uint16_t pid;
+	struct h264_slice_counter_results_s slices;
+
+	pthread_mutex_lock(&di->h264_sliceLock);
+	if (di->h264_slices) {
+		slicesEnabled = 1;
+		h264_slice_counter_query(di->h264_slices, &slices);
+		pid = h264_slice_counter_get_pid(di->h264_slices);
+	}
+	pthread_mutex_unlock(&di->h264_sliceLock);
+
+	if (slicesEnabled) {
+		dprintf(fd, "H264 frame types/counts for PID 0x%04x - I: %'" PRIu64 " B: %'" PRIu64 " P: %'" PRIu64 " : %s...\n",
+			pid,
+			slices.i, slices.b, slices.p,
+			slices.sliceHistory);
+		if (pid == 0x2000) {
+			dprintf(fd, "-> Summary represents all pids in the MPTS (PID 0x2000)\n");
+		}
+	}
+
+	dprintf(fd, "\n");
+}
+
 void discovered_items_console_summary(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
@@ -493,6 +535,7 @@ void discovered_items_console_summary(struct tool_context_s *ctx)
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		discovered_item_fd_per_pid_report(ctx, e, STDOUT_FILENO);
+		discovered_item_fd_per_h264_slice_report(ctx, e, STDOUT_FILENO);
 #if PROBE_REPORTER
 		discovered_item_json_summary(ctx, e);
 #endif
@@ -735,6 +778,13 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 		e->iat_lwm_us = 5000000;
 		e->iat_hwm_us = -1;
 		ltn_histogram_reset(e->packetIntervals);
+
+		pthread_mutex_lock(&e->h264_sliceLock);
+		if (e->h264_slices) {
+			h264_slice_counter_reset(e->h264_slices);
+		}
+		pthread_mutex_unlock(&e->h264_sliceLock);
+
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -1041,3 +1091,4 @@ void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 }
 #endif
+

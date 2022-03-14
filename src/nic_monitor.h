@@ -285,7 +285,13 @@ struct discovered_item_s
 	char forwardURL[64];
 
 	/* H264 specific statistics */
+	pthread_mutex_t h264_sliceLock;
 	void *h264_slices; /* We count each different kind of slice that we see */
+
+	pthread_mutex_t h264_metadataLock;
+	void *h264_metadata_parser;
+	char h264_video_colorspace[64];
+	char h264_video_format[64];
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);
