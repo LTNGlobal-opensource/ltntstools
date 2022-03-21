@@ -14,9 +14,12 @@
 #include <libklscte35/scte35.h>
 #include "ffmpeg-includes.h"
 
-static int gVerbose = 1;
-static int gPID = 0;
-static void *g_se = NULL;
+struct tool_ctx_s
+{
+	int   verbose;
+	int   PID;
+	void *se;
+};
 
 static void usage(const char *progname)
 {
@@ -31,6 +34,10 @@ static void usage(const char *progname)
 
 int scte35_inspector(int argc, char *argv[])
 {
+	struct tool_ctx_s s_ctx = { 0 };
+	struct tool_ctx_s *ctx = &s_ctx;
+	ctx->verbose = 1;
+
 	int ch;
 	char *iname = NULL;
 
@@ -45,13 +52,13 @@ int scte35_inspector(int argc, char *argv[])
 			iname = optarg;
 			break;
 		case 'P':
-			if ((sscanf(optarg, "0x%x", &gPID) != 1) || (gPID > 0x1fff)) {
+			if ((sscanf(optarg, "0x%x", &ctx->PID) != 1) || (ctx->PID > 0x1fff)) {
 				usage(argv[0]);
 				exit(1);
 			}
 			break;
 		case 'v':
-			gVerbose = 1;
+			ctx->verbose = 1;
 			break;
 		default:
 			usage(argv[0]);
@@ -59,7 +66,7 @@ int scte35_inspector(int argc, char *argv[])
 		}
 	}
 
-	if (gPID == 0) {
+	if (ctx->PID == 0) {
 		usage(argv[0]);
 		fprintf(stderr, "\n-P is mandatory.\n\n");
 		exit(1);
@@ -71,7 +78,7 @@ int scte35_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (ltntstools_sectionextractor_alloc(&g_se, gPID, 0xFC /* SCTE35 Table ID */) < 0) {
+	if (ltntstools_sectionextractor_alloc(&ctx->se, ctx->PID, 0xFC /* SCTE35 Table ID */) < 0) {
 		fprintf(stderr, "\nUnable to allocate sectionextractor object.\n\n");
 		exit(1);
 	}
@@ -97,16 +104,16 @@ int scte35_inspector(int argc, char *argv[])
 			break;
 
 		int complete = 0;
-		ltntstools_sectionextractor_write(g_se, &buf[0], rlen / 188, &complete);
+		ltntstools_sectionextractor_write(ctx->se, &buf[0], rlen / 188, &complete);
 
 		if (complete) {
 			unsigned char dst[1024];
-			int len = ltntstools_sectionextractor_query(g_se, &dst[0], sizeof(dst));
+			int len = ltntstools_sectionextractor_query(ctx->se, &dst[0], sizeof(dst));
 			if (len > 0) {
 				printf("<-- Trigger %d --------------------------------------------------->\n", ++msgs);
 				time_t now = time(0);
-				printf("SCTE35 message on pid 0x%04x @ %s", gPID, ctime(&now));
-				if (gVerbose > 0) {
+				printf("SCTE35 message on pid 0x%04x @ %s", ctx->PID, ctime(&now));
+				if (ctx->verbose > 0) {
 					for (int i = 1; i <= len; i++) {
 						if (i == 1 || i % 16 == 1)
 							printf("\n  -> ");
@@ -130,7 +137,7 @@ int scte35_inspector(int argc, char *argv[])
 	}
 	avio_close(puc);
 
-	ltntstools_sectionextractor_free(g_se);
+	ltntstools_sectionextractor_free(ctx->se);
 
 	return 0;
 }
