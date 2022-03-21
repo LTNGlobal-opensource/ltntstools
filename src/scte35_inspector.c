@@ -193,6 +193,7 @@ int scte35_inspector(int argc, char *argv[])
 					scte35_splice_info_section_print(s);
 					scte35_splice_info_section_free(s);
 					printf("\n");
+					fflush(0);
 				}
 			}
 		}
