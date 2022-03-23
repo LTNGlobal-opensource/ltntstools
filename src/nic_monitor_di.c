@@ -45,6 +45,8 @@ const char *payloadTypeDesc(enum payload_type_e pt)
 
 void discovered_item_free(struct discovered_item_s *di)
 {
+	nic_monitor_tr101290_free(di);
+
 	if (di->h264_metadata_parser) {
 		pthread_mutex_lock(&di->h264_metadataLock);
 		h264_slice_counter_free(di->h264_metadata_parser);
@@ -131,6 +133,19 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 #if 0
 		if (ltntstools_h264_codec_metadata_alloc(&di->h264_metadata_parser, 0x31, 0xe0) < 0) {
 			fprintf(stderr, "\nUnable to allocate h264 metadata parser, it's safe to continue.\n\n");
+		}
+#endif
+
+		pthread_mutex_init(&di->h265_metadataLock, NULL);
+#if 0
+		if (ltntstools_h265_codec_metadata_alloc(&di->h265_metadata_parser, 0x31, 0xe0) < 0) {
+			fprintf(stderr, "\nUnable to allocate h265 metadata parser, it's safe to continue.\n\n");
+		}
+#endif
+
+#if 0
+		if (nic_monitor_tr101290_alloc(di) < 0) {
+			fprintf(stderr, "\nUnable to allocate tr101290 analyzer, it's safe to continue.\n\n");
 		}
 #endif
 	}

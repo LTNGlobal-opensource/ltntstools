@@ -385,38 +385,14 @@ static void *ui_thread_func(void *p)
 					streamCount++;
 				} else {
 					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> TR101290 Status (NOT YET SUPPORTED)");
+					mvprintw(streamCount + 2, 0, " -> TR101290 Status (WORK IN PROGRESS)");
 					streamCount++;
 					int p1col = 10;
-
-					/* Everything RED until further notice */
-					//attron(COLOR_PAIR(3));
-					mvprintw(streamCount + 2, p1col, "P1.1  BAD [TS SYNC  ]");
-					//attroff(COLOR_PAIR(3));
-
-					//attron(COLOR_PAIR(6));
-					mvprintw(streamCount + 3, p1col, "P1.2  OK  [SYNC BYTE]");
-					mvprintw(streamCount + 4, p1col, "P1.3  OK  [PAT      ]");
-					mvprintw(streamCount + 5, p1col, "P1.3a OK  [PAT 2    ]");
-					mvprintw(streamCount + 6, p1col, "P1.4  OK  [CC       ]");
-					mvprintw(streamCount + 7, p1col, "P1.5  OK  [PMT      ]");
-					mvprintw(streamCount + 8, p1col, "P1.5a OK  [PMT 2    ]");
-					mvprintw(streamCount + 9, p1col, "P1.6  OK  [PID      ]");
-
 					int p2col = 45;
-					mvprintw(streamCount + 2, p2col, "P2.1  OK  [TRANSPORT     ]");
-					mvprintw(streamCount + 3, p2col, "P2.2  OK  [CRC           ]");
-					mvprintw(streamCount + 4, p2col, "P2.3  OK  [PCR           ]");
-					mvprintw(streamCount + 5, p2col, "P2.3a OK  [PCR REPETITION]");
-					mvprintw(streamCount + 6, p2col, "P2.4  OK  [PCR ACCURACY  ]");
-					mvprintw(streamCount + 7, p2col, "P2.5  OK  [PTS           ]");
-					//attroff(COLOR_PAIR(6));
+					//int p3col = 75;
 
-					attron(COLOR_PAIR(3));
-					mvprintw(streamCount + 8, p2col, "P2.6  BAD [CAT           ]");
-					attroff(COLOR_PAIR(3));
+					nic_monitor_tr101290_draw_ui(di, &streamCount, p1col, p2col);
 
-					streamCount += 8;
 				}
 			}
 

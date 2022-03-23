@@ -364,4 +364,12 @@ void discovered_items_select_forward_toggle(struct tool_context_s *ctx, int slot
 void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx);
 #endif
 
+/* TR101290 */
+int     nic_monitor_tr101290_alloc(struct discovered_item_s *di);
+ssize_t nic_monitor_tr101290_write(struct discovered_item_s *di, const uint8_t *pkts, size_t packetCount);
+void    nic_monitor_tr101290_free(struct discovered_item_s *di);
+
+/* Exclusively called from the ncurses domain */
+void    nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *streamCount, int p1col, int p2col);
+
 #endif /* NIC_MONITOR_H */

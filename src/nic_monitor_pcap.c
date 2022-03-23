@@ -423,6 +423,10 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	media_write(pkts, pktCount);
 #endif
 
+	if (di->trHandle) {
+		nic_monitor_tr101290_write(di, pkts, pktCount);
+	}
+
 	pthread_mutex_lock(&di->h264_sliceLock);
 	if (di->h264_slices) {
 		h264_slice_counter_write(di->h264_slices, pkts, pktCount);
