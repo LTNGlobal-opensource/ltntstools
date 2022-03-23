@@ -51,6 +51,7 @@ SRC += nic_monitor.c
 SRC += nic_monitor_di.c
 SRC += nic_monitor_pcap.c
 SRC += nic_monitor_json.c
+SRC += nic_monitor_tr101290.c
 SRC += parsers.c
 SRC += kbhit.c
 SRC += rtmp_analyzer.c
