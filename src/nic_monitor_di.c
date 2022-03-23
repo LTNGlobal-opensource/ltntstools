@@ -77,10 +77,12 @@ void discovered_item_free(struct discovered_item_s *di)
 	free(di);
 }
 
-struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr)
+struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr)
 {
 	struct discovered_item_s *di = calloc(1, sizeof(*di));
 	if (di) {
+		di->ctx = ctx;
+
 		time(&di->firstSeen);
 		di->lastUpdated = di->firstSeen;
 		memcpy(&di->ethhdr, ethhdr, sizeof(*ethhdr));
@@ -286,7 +288,7 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 #endif
 
 	if (!found) {
-		found = discovered_item_alloc(ethhdr, iphdr, udphdr);
+		found = discovered_item_alloc(ctx, ethhdr, iphdr, udphdr);
 		if (found) {
 			discovered_item_insert(ctx, found);
 			hash_index_set(ctx->hashIndex, hash, found);

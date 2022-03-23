@@ -190,6 +190,8 @@ struct discovered_item_s
 {
 	struct xorg_list list;
 
+	struct tool_context_s *ctx;
+
 	enum payload_type_e payloadType;
 	int recordAsTS;
 
@@ -292,13 +294,25 @@ struct discovered_item_s
 	void *h264_metadata_parser;
 	char h264_video_colorspace[64];
 	char h264_video_format[64];
+
+	/* H265/HEVC specific statistics */
+	pthread_mutex_t h265_metadataLock;
+	void *h265_metadata_parser;
+	char h265_video_colorspace[64];
+	char h265_video_format[64];
+
+	/* TR101290 */
+	void *trHandle;
+	pthread_mutex_t trLock;
+	int trCount;
+	struct ltntstools_tr101290_alarm_s *trArray;
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);
 
 void discovered_item_free(struct discovered_item_s *di);
 void discovered_items_free(struct tool_context_s *ctx);
-struct discovered_item_s *discovered_item_alloc(struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr);
+struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr);
 
 struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr);
