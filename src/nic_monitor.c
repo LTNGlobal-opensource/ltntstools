@@ -577,7 +577,22 @@ static void *ui_thread_func(void *p)
 										slices.sliceHistory);
 								}
 
-							}
+							} /* If H264 */
+
+							if (m->programs[p].pmt.streams[s].stream_type  == 0x24 /* H.265 */) {
+
+								pthread_mutex_lock(&di->h265_metadataLock);
+								if (di->h265_metadata_parser) {
+									pthread_mutex_unlock(&di->h265_metadataLock);
+									mvprintw(streamCount + 2, 63, "- %s", di->h265_video_colorspace);
+									streamCount++;
+									mvprintw(streamCount + 2, 54, "%s", di->h265_video_format);
+								} else {
+									pthread_mutex_unlock(&di->h265_metadataLock);
+								}
+
+							} /* If H.265 / HEVC */
+
 						}
 
 						if (m->programs[p].pmt.stream_count > 0) {

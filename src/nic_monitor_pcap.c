@@ -451,6 +451,20 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	}
 	pthread_mutex_unlock(&di->h264_metadataLock);
 
+	pthread_mutex_lock(&di->h265_metadataLock);
+	if (di->h265_metadata_parser) {
+		int complete;
+		ltntstools_h265_codec_metadata_write(di->h265_metadata_parser, pkts, pktCount, &complete);
+
+		if (complete) {
+			struct h265_codec_metadata_results_s r;
+			if (ltntstools_h265_codec_metadata_query(di->h265_metadata_parser, &r) == 0) {
+				strcpy(&di->h265_video_colorspace[0], &r.video_colorspace_ascii[0]);
+				strcpy(&di->h265_video_format[0], &r.video_format_ascii[0]);
+			}
+		}
+	}
+	pthread_mutex_unlock(&di->h265_metadataLock);
 }
 
 /* Called on the UI stream, and writes files to disk, handles recordings etc */
