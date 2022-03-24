@@ -159,9 +159,15 @@ int scte35_inspector(int argc, char *argv[])
 		}
 
 		int complete = 0;
-		ltntstools_sectionextractor_write(ctx->se, &buf[0], rlen / 188, &complete);
+		int crcValid = 0;
+		ltntstools_sectionextractor_write(ctx->se, &buf[0], rlen / 188, &complete, &crcValid);
 
-		if (complete) {
+		if (complete && crcValid == 0) { 
+				printf("<-- Trigger %d --------------------------------------------------->\n", ++msgs);
+				time_t now = time(0);
+				printf("SCTE35 message with invalid CRC (skipped), on pid 0x%04x @ %s", ctx->PID, ctime(&now));
+		} else
+		if (complete && crcValid) {
 			unsigned char dst[1024];
 			int len = ltntstools_sectionextractor_query(ctx->se, &dst[0], sizeof(dst));
 			if (len > 0) {
