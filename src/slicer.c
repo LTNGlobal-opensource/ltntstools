@@ -365,7 +365,7 @@ static int _findFirstPCR(struct tool_context_s *ctx)
 	/* Launch the stream model probe, determine whether this stream
 	 * contains multiple PCRs. If it does, pick the first PCR.
 	 */
-	if (ltntstools_streammodel_alloc(&streamModel) < 0) {
+	if (ltntstools_streammodel_alloc(&streamModel, NULL) < 0) {
 		fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
 		exit(1);
 	}

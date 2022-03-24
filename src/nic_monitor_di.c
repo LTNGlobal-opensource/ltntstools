@@ -114,7 +114,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		ltntstools_pid_stats_reset(&di->stats);
 
 		/* Stream Model */
-		if (ltntstools_streammodel_alloc(&di->streamModel) < 0) {
+		if (ltntstools_streammodel_alloc(&di->streamModel, di) < 0) {
 			fprintf(stderr, "\nUnable to allocate streammodel object, it's safe to continue.\n\n");
 		}
 

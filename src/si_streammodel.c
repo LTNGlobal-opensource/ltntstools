@@ -60,7 +60,7 @@ int si_streammodel(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (ltntstools_streammodel_alloc(&g_sm) < 0) {
+	if (ltntstools_streammodel_alloc(&g_sm, NULL) < 0) {
 		fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
 		exit(1);
 	}
