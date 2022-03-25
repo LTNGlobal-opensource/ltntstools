@@ -92,6 +92,7 @@ int tr101290_analyzer(int argc, char *argv[])
 		}
 
 		ssize_t s = ltntstools_tr101290_write(trhdl, buf, rlen / 188);
+		if (s) { }
 	}
 	avio_close(puc);
 
