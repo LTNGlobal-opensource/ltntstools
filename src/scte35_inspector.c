@@ -148,7 +148,7 @@ int scte35_inspector(int argc, char *argv[])
 	while (ok) {
 		int rlen = avio_read(puc, &buf[0], sizeof(buf));
 		if (rlen == -EAGAIN) {
-			usleep(2 * 1000);
+			usleep(200 * 1000);
 			continue;
 		}
 		if (rlen < 0)

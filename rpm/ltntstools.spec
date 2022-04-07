@@ -58,6 +58,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_asi2ip: New tool. Receive MPEGTS via ASI from Dektec 2172 input port, transmit to IP.
   tstools_scte35_inspector: Feature. Track the related video stream, extract and display PTS.
   tstools_scte35_inspector: Don't parse corrupted sections. (potential crash)
+  tstools_scte35_inspector: Slow down calls to avio for better citizen performance.
 
 * Mon Jan 10 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.12.0
