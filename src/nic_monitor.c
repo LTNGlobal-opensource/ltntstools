@@ -338,27 +338,6 @@ static void *ui_thread_func(void *p)
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_TR101290)) {
-#if 0
-        /* Priority 1 */
-        E101290_P1_1__TS_SYNC_LOSS,
-        E101290_P1_2__SYNC_BYTE_ERROR,
-        E101290_P1_3__PAT_ERROR,
-        E101290_P1_3a__PAT_ERROR_2,
-        E101290_P1_4__CONTINUITY_COUNTER_ERROR,
-        E101290_P1_5__PMT_ERROR,
-        E101290_P1_5a__PMT_ERROR_2,
-        E101290_P1_6__PID_ERROR,
-
-        /* Priority 2 */
-        E101290_P2_1__TRANSPORT_ERROR,
-        E101290_P2_2__CRC_ERROR,
-        E101290_P2_3__PCR_ERROR,
-        E101290_P2_3a__PCR_REPETITION_ERROR,
-        E101290_P2_4__PCR_ACCURACY_ERROR,
-        E101290_P2_5__PTS_ERROR,
-        E101290_P2_6__CAT_ERROR,
-
-#endif
 				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
 					streamCount++;
 					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SMPTE2110-20 Video streams");
