@@ -843,6 +843,8 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 		}
 		pthread_mutex_unlock(&e->h264_sliceLock);
 
+		nic_monitor_tr101290_reset(e);
+
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }

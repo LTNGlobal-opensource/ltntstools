@@ -19,7 +19,7 @@ static void *tr101290_cb(void *userContext, struct ltntstools_tr101290_alarm_s *
 	pthread_mutex_unlock(&di->trLock);
 
 	for (int i = 0; i < count; i++) {
-		struct ltntstools_tr101290_alarm_s *ae = &array[i];
+		//struct ltntstools_tr101290_alarm_s *ae = &array[i];
 		//ltntstools_tr101290_event_dprintf(0, ae);
 	}
 
@@ -69,6 +69,11 @@ int nic_monitor_tr101290_alloc(struct discovered_item_s *di)
 	}
 
 	return ret;
+}
+
+void nic_monitor_tr101290_reset(struct discovered_item_s *di)
+{
+	ltntstools_tr101290_reset_alarms(di->trHandle);
 }
 
 ssize_t nic_monitor_tr101290_write(struct discovered_item_s *di, const uint8_t *pkts, size_t packetCount)
@@ -135,16 +140,16 @@ void nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *sc, int p1c
 			mvprintw(streamCount + 9, col, "P1.6  %s [PID      ] %s", sl, item->arg);
 			break;
 		case E101290_P2_1__TRANSPORT_ERROR:
-			mvprintw(streamCount + 2, col, "P2.1  %s [TRANSPORT     ]", sl);
+			mvprintw(streamCount + 2, col, "P2.1  %s [TRANSPORT TEI ]", sl);
 			break;
 		case E101290_P2_2__CRC_ERROR:
-			mvprintw(streamCount + 3, col, "P2.2  %s [CRC           ]", sl);
+			mvprintw(streamCount + 3, col, "P2.2  %s [CRC           ] %s", sl, item->arg);
 			break;
 		case E101290_P2_3__PCR_ERROR:
-			mvprintw(streamCount + 4, col, "P2.3  %s [PCR           ]", sl);
+			mvprintw(streamCount + 4, col, "P2.3  %s [PCR           ] %s", sl, item->arg);
 			break;
 		case E101290_P2_3a__PCR_REPETITION_ERROR:
-			mvprintw(streamCount + 5, col, "P2.3a %s [PCR REPETITION]", sl);
+			mvprintw(streamCount + 5, col, "P2.3a %s [PCR REPETITION] %s", sl, item->arg);
 			break;
 		case E101290_P2_4__PCR_ACCURACY_ERROR:
 			mvprintw(streamCount + 6, col, "P2.4  %s [PCR ACCURACY  ]", sl);
