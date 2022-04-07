@@ -792,6 +792,26 @@ static void *json_thread_func(void *p)
 	pthread_exit(NULL);
 	return 0;
 }
+
+static void *kafka_thread_func(void *p)
+{
+	struct tool_context_s *ctx = p;
+	ctx->kafka_threadRunning = 1;
+	ctx->kafka_threadTerminate = 0;
+	ctx->kafka_threadTerminated = 0;
+
+	ltnpthread_setname_np(ctx->kafka_threadId, "tstools-kafka");
+	pthread_detach(pthread_self());
+
+	while (!ctx->kafka_threadTerminate) {
+		discovered_items_kafka_summary(ctx);
+		usleep(500 * 1000);
+	}
+	ctx->kafka_threadTerminated = 1;
+
+	pthread_exit(NULL);
+	return 0;
+}
 #endif
 
 static void *stats_thread_func(void *p)
@@ -1167,6 +1187,7 @@ int nic_monitor(int argc, char *argv[])
 	pthread_create(&ctx->pcap_threadId, 0, pcap_thread_func, ctx);
 #if PROBE_REPORTER
 	pthread_create(&ctx->json_threadId, 0, json_thread_func, ctx);
+	pthread_create(&ctx->kafka_threadId, 0, kafka_thread_func, ctx);
 #endif
 
 	/* Framework to track the /proc/net/udp socket buffers stats - primarily for loss */

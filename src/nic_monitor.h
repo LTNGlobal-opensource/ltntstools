@@ -35,6 +35,7 @@
 #define PROBE_REPORTER 0
 #if PROBE_REPORTER
 #include <json-c/json.h>
+#include <librdkafka/rdkafka.h>
 #endif
 
 #define DEFAULT_TRAILERROW 18
@@ -90,6 +91,10 @@ struct tool_context_s
 
 	int jsonSocket;
 	struct sockaddr_in jsonSin;
+
+	pthread_t kafka_threadId;
+	int kafka_threadTerminate, kafka_threadRunning, kafka_threadTerminated;
+
 #endif
 
 	/* PCAP */
@@ -170,6 +175,16 @@ void json_item_free(struct tool_context_s *ctx, struct json_item_s *item);
 int json_queue_push(struct tool_context_s *ctx, struct json_item_s *item);
 struct json_item_s *json_queue_pop(struct tool_context_s *ctx);
 struct json_item_s *json_queue_peek(struct tool_context_s *ctx);
+
+struct kafka_item_s
+{
+	struct xorg_list list;
+	unsigned char *buf;
+	int lengthBytes;
+	int lengthBytesMax;
+	struct discovered_item_s *di;
+};
+
 #endif
 
 struct pcap_item_s
@@ -306,6 +321,22 @@ struct discovered_item_s
 	pthread_mutex_t trLock;
 	int trCount;
 	struct ltntstools_tr101290_alarm_s *trArray;
+
+#if PROBE_REPORTER
+	struct kafka_ctx_s {
+		rd_kafka_conf_t       *conf;
+		rd_kafka_topic_conf_t *topic_conf;
+		rd_kafka_t            *rk;
+		rd_kafka_topic_t      *rkt;
+		char                   hostname[128];
+		char                   errstr[512];
+		char                   topicName[64];
+
+		pthread_mutex_t        listLock;
+		struct xorg_list       list;
+	} kafka;
+#endif
+
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);
@@ -340,6 +371,7 @@ void discovered_items_file_summary(struct tool_context_s *ctx, int write_banner)
 void discovered_items_file_detailed(struct tool_context_s *ctx, int write_banner);
 #if PROBE_REPORTER
 void discovered_items_json_summary(struct tool_context_s *ctx);
+void discovered_items_kafka_summary(struct tool_context_s *ctx);
 #endif
 void discovered_items_stats_reset(struct tool_context_s *ctx);
 
@@ -368,8 +400,18 @@ void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx);
 int     nic_monitor_tr101290_alloc(struct discovered_item_s *di);
 ssize_t nic_monitor_tr101290_write(struct discovered_item_s *di, const uint8_t *pkts, size_t packetCount);
 void    nic_monitor_tr101290_free(struct discovered_item_s *di);
+void    nic_monitor_tr101290_reset(struct discovered_item_s *di);
 
 /* Exclusively called from the ncurses domain */
 void    nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *streamCount, int p1col, int p2col);
+
+#if PROBE_REPORTER
+/* Kafka */
+int  kafka_initialize(struct discovered_item_s *di);
+void kafka_free(struct discovered_item_s *di);
+struct kafka_item_s *kafka_item_alloc(struct discovered_item_s *di, int lengthBytesMax);
+int  kafka_queue_push(struct discovered_item_s *di, struct kafka_item_s *item);
+int  kafka_queue_process(struct discovered_item_s *di);
+#endif
 
 #endif /* NIC_MONITOR_H */

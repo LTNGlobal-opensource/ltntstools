@@ -26,6 +26,7 @@ LDADD += -lklscte35 -ldl
 LDADD += -ljson-c -lcurl
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
 LDADD += -lmediainfo
+LDADD += -lrdkafka
 
 #ifdef __APPLE__
 #LDADD += -liconv
@@ -52,6 +53,7 @@ SRC += nic_monitor_di.c
 SRC += nic_monitor_pcap.c
 SRC += nic_monitor_json.c
 SRC += nic_monitor_tr101290.c
+SRC += nic_monitor_kafka.c
 SRC += parsers.c
 SRC += kbhit.c
 SRC += rtmp_analyzer.c

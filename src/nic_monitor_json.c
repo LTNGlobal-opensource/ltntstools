@@ -95,8 +95,9 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	int ret = -1;
 
 #if 0
-	printf("posting json:\n%s\n", item->buf);
+	printf("posting html json:\n%s\n", item->buf);
 #endif
+	return 0; /* Success */
 
 #if 0
 	size_t input_size = item->lengthBytes;

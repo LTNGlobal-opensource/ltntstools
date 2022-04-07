@@ -150,6 +150,14 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 			fprintf(stderr, "\nUnable to allocate tr101290 analyzer, it's safe to continue.\n\n");
 		}
 #endif
+
+#if PROBE_REPORTER
+#if 1
+		if (kafka_initialize(di) < 0) {
+			fprintf(stderr, "\nUnable to allocate kafka connector, it's safe to continue.\n\n");
+		}
+#endif
+#endif
 	}
 
 	return di;
@@ -477,6 +485,17 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 		qi->lengthBytes = strlen((char *)qi->buf);	
 		json_queue_push(ctx, qi);
 	}
+
+	struct kafka_item_s *ki = kafka_item_alloc(di, 65536);
+	if (ki) {
+		/* double crlf, keep the cheap base64encoder happy. */
+		sprintf((char *)ki->buf, "%s\n\n", json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PRETTY));
+		ki->lengthBytes = strlen((char *)ki->buf);	
+		kafka_queue_push(di, ki);
+	}
+
+	json_object_put(feed);
+
 }
 
 /* Write all the stream statistics to a remote server.
@@ -493,6 +512,24 @@ void discovered_items_json_summary(struct tool_context_s *ctx)
 		if (discovered_item_state_get(e, DI_STATE_JSON_PROBE_ACTIVE) == 0)
 			continue;
 		discovered_item_json_summary(ctx, e);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+/* Write all the stream statistics to a remote server.
+ * use a seperate background thread to make this happen,
+ * so we don't block the stats thread in the event of
+ * a network / remote server outage.
+ */
+void discovered_items_kafka_summary(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_JSON_PROBE_ACTIVE) == 0)
+			continue;
+		kafka_queue_process(e);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
