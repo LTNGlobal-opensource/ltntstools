@@ -369,6 +369,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	json_object *fdst = json_object_new_string(di->dstaddr);
 	json_object *fmbps = json_object_new_double(ltntstools_pid_stats_stream_get_mbps(&di->stats));
 	json_object *ftype = json_object_new_string(payloadTypeDesc(di->payloadType));
+	json_object *nic = json_object_new_string(ctx->ifname);
 	json_object *fccerr = json_object_new_int64(di->stats.ccErrors);
 	json_object *fpkts = json_object_new_int64(di->stats.packetCount);
 	json_object *fpsdrop = json_object_new_int64(ctx->pcap_stats.ps_drop);
@@ -380,11 +381,23 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	json_object_object_add(feed, "src", fsrc);
 	json_object_object_add(feed, "dst", fdst);
 
+	double la[3] = { 0.0, 0.0, 0.0 };
+	if (getloadavg(&la[0], 3) == 3) {
+		json_object *la1 = json_object_new_double(la[0]);
+		json_object *la5 = json_object_new_double(la[1]);
+		json_object *la15 = json_object_new_double(la[2]);
+
+		json_object_object_add(feed, "la1", la1);
+		json_object_object_add(feed, "la5", la5);
+		json_object_object_add(feed, "la15", la15);
+	}
+
 	/* Feed statistics */
 	json_object *feedstats = json_object_new_object();
 	json_object_object_add(feedstats, "mbps", fmbps);
 	json_object_object_add(feedstats, "ccerrors", fccerr);
 	json_object_object_add(feedstats, "packetcount", fpkts);
+	json_object_object_add(feedstats, "nic", nic);
 	json_object_object_add(feedstats, "pcap_ifdrop", fifdrop);
 	json_object_object_add(feedstats, "pcap_psdrop", fpsdrop);
 	json_object_object_add(feed, "stats", feedstats);

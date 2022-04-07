@@ -56,6 +56,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Bugfix. nic_monitor: one-time memory leak per stream in the hashing index.
   tstools_nic_monitor: Bugfix. nic_monitor: JSON related cumulative memory leak.
   tstools_nic_monitor: Feature. Significant TR101290 improvements.
+  tstools_nic_monitor: Add additional fields to the json realtime stats. Load averages and nic name being inspected.
   tstools_asi2ip: New tool. Receive MPEGTS via ASI from Dektec 2172 input port, transmit to IP.
   tstools_scte35_inspector: Feature. Track the related video stream, extract and display PTS.
   tstools_scte35_inspector: Don't parse corrupted sections. (potential crash)
