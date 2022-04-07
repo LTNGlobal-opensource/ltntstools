@@ -76,7 +76,7 @@ void discovered_item_free(struct discovered_item_s *di)
 		ltntstools_probe_ltnencoder_free(di->LTNLatencyProbe);
 		di->LTNLatencyProbe = NULL;
 	}
-	//kafka_free(di);
+	kafka_free(di);
 
 	free(di);
 }
