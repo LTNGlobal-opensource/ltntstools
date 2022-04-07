@@ -76,6 +76,8 @@ void discovered_item_free(struct discovered_item_s *di)
 		ltntstools_probe_ltnencoder_free(di->LTNLatencyProbe);
 		di->LTNLatencyProbe = NULL;
 	}
+	//kafka_free(di);
+
 	free(di);
 }
 
@@ -433,6 +435,8 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 		}
 		json_object_object_add(feed, "services", services);
 	}
+	ltntstools_pat_free(m);
+	m = NULL;
 
 	/* Pids */
 	json_object *array = json_object_new_array();
