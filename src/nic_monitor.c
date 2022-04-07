@@ -1071,11 +1071,17 @@ int nic_monitor(int argc, char *argv[])
 	ctx->recordWithSegments = 1;
 
 #if PROBE_REPORTER
-	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:Jt:vMn:w:RS:T")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:Jt:vMn:w:RS:T@")) != -1) {
 #else
-	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:t:vMn:w:RS:T")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:t:vMn:w:RS:T@")) != -1) {
 #endif
 		switch (ch) {
+		case '@':
+			printf("\n");
+			printf("sizeof(struct ltntstools_stream_statistics_s) = %lu\n", sizeof(struct ltntstools_stream_statistics_s));
+			printf("\n");
+			exit(1);
+			break;
 		case 'B':
 			ctx->bufferSize = atoi(optarg);
 			if (ctx->bufferSize < (2 * 1048576))
