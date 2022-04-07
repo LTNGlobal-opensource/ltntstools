@@ -13,6 +13,13 @@ struct hash_index_s *hash_index_alloc()
 
 void hash_index_free(struct hash_index_s *p)
 {
+	for (int i = 0; i < 65535; i++) {
+		struct hash_index_s *e = p + i;
+		if (e->arr) {
+			free(e->arr);
+			e->arr = NULL;
+		}
+	}
 	free(p);
 }
 
