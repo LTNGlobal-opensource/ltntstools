@@ -73,11 +73,17 @@ int nic_monitor_tr101290_alloc(struct discovered_item_s *di)
 
 void nic_monitor_tr101290_reset(struct discovered_item_s *di)
 {
+	if (!di->trHandle)
+		return;
+
 	ltntstools_tr101290_reset_alarms(di->trHandle);
 }
 
 ssize_t nic_monitor_tr101290_write(struct discovered_item_s *di, const uint8_t *pkts, size_t packetCount)
 {
+	if (!di->trHandle)
+		return -1;
+		
 	return ltntstools_tr101290_write(di->trHandle, pkts, packetCount);
 }
 
