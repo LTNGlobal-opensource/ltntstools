@@ -281,6 +281,7 @@ struct discovered_item_s
 
 	/* IAT Histogram */
 	struct ltn_histogram_s *packetIntervals;
+	void *packetIntervalAverages;
 
 	/* PSIP Tree / Stream Model */
 	void *streamModel;

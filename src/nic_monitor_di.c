@@ -67,6 +67,8 @@ void discovered_item_free(struct discovered_item_s *di)
 		di->packetIntervals = NULL;
 	}
 
+	throughput_hires_free(di->packetIntervalAverages);
+
 	if (di->streamModel) {
 		ltntstools_streammodel_free(di->streamModel);
 		di->streamModel = NULL;
@@ -112,6 +114,8 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		di->iat_cur_us = 0;
 
 		ltn_histogram_alloc_video_defaults(&di->packetIntervals, "IAT Intervals");
+
+		throughput_hires_alloc(&di->packetIntervalAverages, 20000); /* Sized for 210mbps */
 
 		ltntstools_pid_stats_reset(&di->stats);
 
@@ -392,6 +396,15 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 		json_object_object_add(feed, "la15", la15);
 	}
 
+	/* IATs - Min/MAX?AVG stats for the last 1 second. */
+	int64_t iat_min, iat_max, iat_avg;
+	throughput_hires_minmaxavg_i64(di->packetIntervalAverages, 0, NULL, NULL, &iat_min, &iat_max, &iat_avg);
+	throughput_hires_expire(di->packetIntervalAverages, NULL); /* Expire anything older than 2 seconds. */
+
+	json_object *iat1_min = json_object_new_int64(iat_min);
+	json_object *iat1_max = json_object_new_int64(iat_max);
+	json_object *iat1_avg = json_object_new_int64(iat_avg);
+
 	/* Feed statistics */
 	json_object *feedstats = json_object_new_object();
 	json_object_object_add(feedstats, "mbps", fmbps);
@@ -400,6 +413,9 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	json_object_object_add(feedstats, "nic", nic);
 	json_object_object_add(feedstats, "pcap_ifdrop", fifdrop);
 	json_object_object_add(feedstats, "pcap_psdrop", fpsdrop);
+	json_object_object_add(feedstats, "iat1_min", iat1_min);
+	json_object_object_add(feedstats, "iat1_max", iat1_max);
+	json_object_object_add(feedstats, "iat1_avg", iat1_avg);
 	json_object_object_add(feed, "stats", feedstats);
 
 	/* Services */

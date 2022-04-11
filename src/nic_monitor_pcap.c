@@ -197,6 +197,8 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 
 		ltn_histogram_interval_update_with_value(di->packetIntervals, di->iat_cur_us / 1000);
 
+		throughput_hires_write_i64(di->packetIntervalAverages, 0, di->iat_cur_us / 1000, NULL);
+
 		if (di->streamModel &&
 			((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))) {
 			int complete;
