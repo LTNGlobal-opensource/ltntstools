@@ -154,6 +154,17 @@ int scte35_inspector(int argc, char *argv[])
 		if (rlen < 0)
 			break;
 
+		if (ctx->verbose >= 2) {
+			for (int j = 0; j < rlen; j += 188) {
+				uint16_t pidnr = ltntstools_pid(buf + j);
+				if (pidnr == ctx->PID) {
+					for (int i = 0; i < 188; i++)
+						printf("%02x ", buf[j + i]);
+					printf("\n");
+				}
+			}
+		}
+
 		if (ctx->pe) {
 			ltntstools_pes_extractor_write(ctx->pe, &buf[0], rlen / 188);
 		}

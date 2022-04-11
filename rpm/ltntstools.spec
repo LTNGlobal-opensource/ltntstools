@@ -61,6 +61,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_scte35_inspector: Feature. Track the related video stream, extract and display PTS.
   tstools_scte35_inspector: Don't parse corrupted sections. (potential crash)
   tstools_scte35_inspector: Slow down calls to avio for better citizen performance.
+  tstools_scte35_inspector: Verbose mode 2 now hexdumps TS packet being extracted.
 
 * Mon Jan 10 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.12.0
