@@ -60,6 +60,10 @@ struct tool_context_s
 	unsigned char sendBuffer[7 * 188];
 	int sendIndex;
 	int minSendBytes;
+
+	/* PCR related */
+	uint64_t bitsTransmitted;
+	uint64_t pcrLast;
 };
 
 static void *callback_smoother(void *userContext, unsigned char *buf, int byteCount)
@@ -71,10 +75,25 @@ static void *callback_smoother(void *userContext, unsigned char *buf, int byteCo
 	return NULL;
 }
 
+uint64_t getPCR(struct tool_context_s *ctx, int additionalBits)
+{
+	//return ctx->pcrLast + ((((double)ctx->bitsTransmitted +
+	return ((((double)ctx->bitsTransmitted +
+		(double)additionalBits) / (double)ctx->bps) * (double)27000000);
+}
+
+static void output_file(struct tool_context_s *ctx, uint8_t *buf, int byteCount, FILE *fh)
+{
+	ctx->bitsTransmitted += (byteCount * 8);
+	fwrite(buf, 1, byteCount, fh);
+}
+
 /* Group TS packets into multiples of N, typically 7 * 188 */
 /* TODO: Push all of this into the libtstools library so I don't have to keep re-implementing it. */
 static void output_write(struct tool_context_s *ctx, const unsigned char *buf, unsigned int byteCount)
 {
+	ctx->bitsTransmitted += (byteCount * 8);
+
 	if (ctx->minSendBytes == 0) {
 		smoother_pcr_write(ctx->smoother, buf, byteCount, NULL);
 	} else {
@@ -186,13 +205,12 @@ int stream_verifier(int argc, char *argv[])
 	avformat_network_init();
 
 	if (ctx->ofn && strncasecmp(ctx->ofn, "udp:", 4) == 0) {
-		int ret = smoother_pcr_alloc(&ctx->smoother, ctx, (smoother_pcr_output_callback)callback_smoother, 15000, ctx->minSendBytes, 0x31, 20 * 1000000);
+		int ret = smoother_pcr_alloc(&ctx->smoother, ctx, (smoother_pcr_output_callback)callback_smoother, 15000, ctx->minSendBytes, 0x31, ctx->bps);
 
 		ret = avio_open2(&ctx->o_puc, ctx->ofn, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 		if (ret < 0) {
 			fprintf(stderr, "-o syntax error\n");
-			ret = -1;
-			goto no_output;
+			exit(1);
 		}
 
 		uint64_t counter = 0; 
@@ -202,17 +220,18 @@ int stream_verifier(int argc, char *argv[])
 
 		int t = ctx->totalSeconds;
 
-		while (t-- > 0) {
+		while (t-- > 0) { /* Per second */
 			int x = pcrsPerSecond;
 			while (x-- > 0) {
+
+				pcr = getPCR(ctx, 0);
 
 				int ret = ltntstools_generatePCROnlyPacket(pkt, sizeof(pkt), 0x31, &pcrcc, pcr);
 				if (ret < 0)
 					break;
+				ctx->pcrLast = pcr;
 
 				output_write(ctx, pkt, sizeof(pkt));
-
-				pcr += (pcrPeriodMs * 27000);
 
 				pat[3] = (pat[3] & 0xf0) | (patcc++ & 0x0f);
 				output_write(ctx, pat, sizeof(pat));
@@ -230,11 +249,16 @@ int stream_verifier(int argc, char *argv[])
 					output_write(ctx, pkt, sizeof(pkt));
 				}
 			}
-			usleep(900 * 1000);				
+			/* Sleep for a while, otherwise we generate 30 seconds of content in a ms or two,
+			 * and we just exhaust the smoother buffers, let's just sleep for something close to
+			 * a second, plus allow some time for all of the computation above.
+			 * Approximate is ok.
+			 */
+			usleep(900 * 1000);
+
 		}
-		avio_close(ctx->o_puc);
-no_output:
 		smoother_pcr_free(ctx->smoother);
+		avio_close(ctx->o_puc);
 	} else if (ctx->ofn) {
 		/* Assume file output */
 		FILE *ofh = fopen(ctx->ofn, "wb");
@@ -252,16 +276,17 @@ no_output:
 					int ret = ltntstools_generatePCROnlyPacket(pkt, sizeof(pkt), 0x31, &pcrcc, pcr);
 					if (ret < 0)
 						break;
+					ctx->pcrLast = pcr;
 
-					fwrite(pkt, 1, sizeof(pkt), ofh);
+					output_file(ctx, pkt, sizeof(pkt), ofh);
 
 					pcr += (pcrPeriodMs * 27000);
 
 					pat[3] = (pat[3] & 0xf0) | (patcc++ & 0x0f);
-					fwrite(pat, 1, sizeof(pat), ofh);
+					output_file(ctx, pat, sizeof(pat), ofh);
 
 					pmt[3] = (pmt[3] & 0xf0) | (pmtcc++ & 0x0f);
-					fwrite(pmt, 1, sizeof(pmt), ofh);
+					output_file(ctx, pmt, sizeof(pmt), ofh);
 
 					int i = 0;
 					while (i++ < packetsPerPCR) {
@@ -270,7 +295,7 @@ no_output:
 						if (ret < 0)
 							break;
 
-						fwrite(pkt, 1, sizeof(pkt), ofh);
+						output_file(ctx, pkt, sizeof(pkt), ofh);
 					}
 				}				
 			}
