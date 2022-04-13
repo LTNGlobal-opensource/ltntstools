@@ -1,4 +1,5 @@
 /* Copyright LiveTimeNet, Inc. 2017. All Rights Reserved. */
+/* sudo sysctl -w net.core.wmem_max=4194304 */
 
 #include <stdio.h>
 #include <unistd.h>
