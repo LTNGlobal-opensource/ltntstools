@@ -210,6 +210,7 @@ int stream_verifier(int argc, char *argv[])
 	avformat_network_init();
 
 	if (ctx->ofn && strncasecmp(ctx->ofn, "udp:", 4) == 0) {
+		/* 15000 items supports up to 800Mb/ps, possibly more. */
 		int ret = smoother_pcr_alloc(&ctx->smoother, ctx, (smoother_pcr_output_callback)callback_smoother, 15000, ctx->minSendBytes, 0x31, ctx->bps);
 
 		ret = avio_open2(&ctx->o_puc, ctx->ofn, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
