@@ -12,6 +12,7 @@ static void kafka_queue_delete(struct discovered_item_s *di);
 
 static void on_delivery(rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque)
 {
+	/* TODO: This isn't firing, why not? */
 	//struct kafka_item_s *item = (struct kafka_item_s *)opaque;
 	//struct discovered_item_s *di = item->di;
 
