@@ -1,3 +1,4 @@
+#if 0
 
 #define _UNICODE
 
@@ -57,3 +58,5 @@ int media_write(const unsigned char *buf, int packetCount)
 
     return 0;
 }
+#endif
+
