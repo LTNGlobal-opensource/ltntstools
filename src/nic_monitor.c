@@ -364,7 +364,7 @@ static void *ui_thread_func(void *p)
 					streamCount++;
 				} else {
 					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> TR101290 Status");
+					mvprintw(streamCount + 2, 0, " -> TR101290 Status (Coming Soon.... Isn't it exciting?)");
 					streamCount++;
 					int p1col = 10;
 					int p2col = 45;

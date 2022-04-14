@@ -47,8 +47,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Tue Jan 11 2022 Steven Toth <stoth@ltnglobal.com> 
-- v1.13.0
+* Thu Apr 14 2022 Steven Toth <stoth@ltnglobal.com> 
+- v1.13.1
   tstools_stream_verifier: Feature. Modify -o option to support and output URL for live streaming.
   tstools_stream_verifier: Improvements for bitrates above 20mbps. Rated now for 800mbps.
   tstools_nic_monitor: Feature. On the console report, display the start/end time for the stats period.
@@ -56,7 +56,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Output to console file write interval (and json) interval settings on startup.
   tstools_nic_monitor: Bugfix. nic_monitor: one-time memory leak per stream in the hashing index.
   tstools_nic_monitor: Bugfix. nic_monitor: JSON related cumulative memory leak.
-  tstools_nic_monitor: Feature. Significant TR101290 improvements.
+  tstools_nic_monitor: Feature. Significant TR101290 improvements. (Disabled for now)
   tstools_nic_monitor: Add additional fields to the json realtime stats. Load averages and nic name being inspected.
   tstools_asi2ip: New tool. Receive MPEGTS via ASI from Dektec 2172 input port, transmit to IP.
   tstools_scte35_inspector: Feature. Track the related video stream, extract and display PTS.

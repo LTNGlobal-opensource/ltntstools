@@ -89,6 +89,9 @@ ssize_t nic_monitor_tr101290_write(struct discovered_item_s *di, const uint8_t *
 
 void nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *sc, int p1col, int p2col)
 {
+	if (!di->trHandle)
+		return;
+		
 	/* Prevent our 101290 callback avoe from touching this while we're rendering results. */
 	pthread_mutex_lock(&di->trLock);
 
