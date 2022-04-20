@@ -47,6 +47,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
+* Wed Apr 20 2022 Steven Toth <stoth@ltnglobal.com> 
+- v1.13.2
+  tstools_nic_monitor: Bugfix. Linear memory over-allocation / leak with large number of streams.
+
 * Thu Apr 14 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.13.1
   tstools_stream_verifier: Feature. Modify -o option to support and output URL for live streaming.
