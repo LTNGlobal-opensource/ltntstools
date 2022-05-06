@@ -25,6 +25,9 @@ static struct tool_context_s *ctx = &g_ctx;
 extern int pthread_setname_np(pthread_t thread, const char *name);
 #endif
 
+extern int ltnpthread_setname_np(pthread_t thread, const char *name);
+
+#if 0
 int ltnpthread_setname_np(pthread_t thread, const char *name)
 {
 #if defined(__linux__)
@@ -35,6 +38,7 @@ int ltnpthread_setname_np(pthread_t thread, const char *name)
         return 0;
 #endif
 }
+#endif
 
 /* Seeing some crashes inside getch, five leves deep related to dorefresh
  * in ncurses. Make sure we don't call getch without ensuring
