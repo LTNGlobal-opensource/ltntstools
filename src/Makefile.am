@@ -23,11 +23,12 @@ LDADD += -L../../target-root/usr/lib -ldvbpsi
 LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2
 LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
+if LINUX
+LDADD += -ljson-c -lcurl
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
-# Disabled for production
-#LDADD += -ljson-c -lcurl
-#LDADD += -lmediainfo
-#LDADD += -lrdkafka
+LDADD += -lmediainfo
+LDADD += -lrdkafka
+endif
 
 #ifdef __APPLE__
 #LDADD += -liconv
