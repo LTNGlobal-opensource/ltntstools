@@ -1,4 +1,5 @@
-#if 0
+
+#ifdef __linux__
 
 #define _UNICODE
 
@@ -58,5 +59,4 @@ int media_write(const unsigned char *buf, int packetCount)
 
     return 0;
 }
-#endif
-
+#endif /* __linux__ */

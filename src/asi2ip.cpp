@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -9,6 +10,7 @@
 #include <assert.h>
 #include <signal.h>
 
+#ifdef __linux__
 #include "dump.h"
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
@@ -293,8 +295,15 @@ static int _asi2ip(int argc, char *argv[])
 
 	return 0;
 }
+#endif /* __linux__ */
 
 extern "C"
 {
+#ifdef __APPLE__
+int asi2ip(int argc, char *argv[]) { printf("Not supported\n"); return 0; }
+#endif
+#ifdef __linux__
 int asi2ip(int argc, char *argv[]) { return _asi2ip(argc, argv); }
+#endif
 };
+
