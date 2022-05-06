@@ -1331,11 +1331,11 @@ int nic_monitor(int argc, char *argv[])
 
 	/* Prepare stats window messages for later print. */
 	char ts_b[64];
-	sprintf(&ts_b[0], ctime(&ctx->lastResetTime));
+	sprintf(&ts_b[0], "%s", ctime(&ctx->lastResetTime));
 	ts_b[ strlen(ts_b) - 1] = 0;
 
 	char ts_e[64];
-	sprintf(&ts_e[0], ctime(&periodEnds));
+	sprintf(&ts_e[0], "%s", ctime(&periodEnds));
 	ts_e[ strlen(ts_e) - 1] = 0;
 
 	time_t d = periodEnds - ctx->lastResetTime;
