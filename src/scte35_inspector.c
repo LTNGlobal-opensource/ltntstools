@@ -17,7 +17,7 @@
 struct tool_ctx_s
 {
 	int   verbose;
-	int   PID;
+	int   scte35PID;
 	void *se; /* SectionExtractor Context */
 
 	int   videoPID;
@@ -152,7 +152,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 	if (ctx->verbose >= 2) {
 		for (int j = 0; j < byteCount; j += 188) {
 			uint16_t pidnr = ltntstools_pid(buf + j);
-			if (pidnr == ctx->PID) {
+			if (pidnr == ctx->scte35PID) {
 				for (int i = 0; i < 188; i++)
 					printf("%02x ", buf[j + i]);
 				printf("\n");
@@ -160,14 +160,14 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 		}
 	}
 
-	if (ctx->sm == NULL && ctx->PID == 0) {
+	if (ctx->sm == NULL && ctx->scte35PID == 0) {
 		if (ltntstools_streammodel_alloc(&ctx->sm, NULL) < 0) {
 			fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
 			exit(1);
 		}
 	}
 
-	if (ctx->sm && ctx->smcomplete == 0 && ctx->PID == 0) {
+	if (ctx->sm && ctx->smcomplete == 0 && ctx->scte35PID == 0) {
 		ltntstools_streammodel_write(ctx->sm, &buf[0], byteCount / 188, &ctx->smcomplete);
 
 		if (ctx->smcomplete) {
@@ -192,7 +192,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 						scte35pid,
 						videopid);
 
-					ctx->PID = scte35pid;
+					ctx->scte35PID = scte35pid;
 					ctx->videoPID = videopid;
 					break; /* TODO: We only support ehf first SCTE35 pid (SPTS) */
 				}
@@ -212,8 +212,8 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 		ltntstools_pes_extractor_set_skip_data(ctx->pe, 1);
 	}
 
-	if (ctx->PID && ctx->se == NULL) {
-		if (ltntstools_sectionextractor_alloc(&ctx->se, ctx->PID, 0xFC /* SCTE35 Table ID */) < 0) {
+	if (ctx->scte35PID && ctx->se == NULL) {
+		if (ltntstools_sectionextractor_alloc(&ctx->se, ctx->scte35PID, 0xFC /* SCTE35 Table ID */) < 0) {
 			fprintf(stderr, "\nUnable to allocate sectionextractor object.\n\n");
 			exit(1);
 		}
@@ -232,7 +232,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 	if (secomplete && crcValid == 0) { 
 			printf("<-- Trigger %d --------------------------------------------------->\n", ++ctx->msgs);
 			time_t now = time(0);
-			printf("SCTE35 message with invalid CRC (skipped), on pid 0x%04x @ %s", ctx->PID, ctime(&now));
+			printf("SCTE35 message with invalid CRC (skipped), on pid 0x%04x @ %s", ctx->scte35PID, ctime(&now));
 	} else
 	if (secomplete && crcValid) {
 		unsigned char dst[1024];
@@ -242,7 +242,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 			printf("<-- Trigger %d --------------------------------------------------->\n", ++ctx->msgs);
 
 			time_t now = time(0);
-			printf("SCTE35 message on pid 0x%04x @ %s", ctx->PID, ctime(&now));
+			printf("SCTE35 message on pid 0x%04x @ %s", ctx->scte35PID, ctime(&now));
 			if (ctx->verbose > 0) {
 				for (int i = 1; i <= len; i++) {
 					if (i == 1 || i % 16 == 1)
@@ -338,7 +338,7 @@ int scte35_inspector(int argc, char *argv[])
 			ctx->mode = MODE_SOURCE_PCAP;
 			break;
 		case 'P':
-			if ((sscanf(optarg, "0x%x", &ctx->PID) != 1) || (ctx->PID > 0x1fff)) {
+			if ((sscanf(optarg, "0x%x", &ctx->scte35PID) != 1) || (ctx->scte35PID > 0x1fff)) {
 				usage(argv[0]);
 				exit(1);
 			}
