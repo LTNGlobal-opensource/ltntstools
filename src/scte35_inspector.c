@@ -140,7 +140,7 @@ static void usage(const char *progname)
 	printf("  -V 0xnnnn PID containing the video stream (Optional)\n");
 	printf("  -F exact pcap filter. Eg 'host 227.1.20.80 && udp port 4001'\n");
 	printf("     DON'T PASS A FILTER WITH MPTS or something with multiple different streams - be very specific, one stream one program\n");
-	printf("Example:\n");
+	printf("\nExample:\n");
 	printf("  sudo ./tstools_scte35_inspector -i eno2 -F 'host 227.1.20.80 && udp port 4001'  -- auto-detect SCTE/video pids from nic\n");
 	printf("       ./tstools_scte35_inspector -i recording.ts                                 -- auto-detect SCTE/video pids from file\n");
 	printf("       ./tstools_scte35_inspector -i recording.ts -V 0x1e1 -P 0x67                -- Disable auto-detect force decode of pid 0x67\n");
