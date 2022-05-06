@@ -73,8 +73,10 @@ SRC += stream_verifier.c
 SRC += pes_inspector.c
 SRC += bitrate_smoother.c
 SRC += nielsen_inspector.cpp
+if LINUX
 SRC += asi2ip.cpp
 SRC += media.cpp
+endif
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
