@@ -26,7 +26,9 @@ struct tool_ctx_s
 
 	int64_t lastVideoPTS;
 
-	void *src_pcap;
+	void *src_pcap; /* Source-pcap context */
+	char *iname;
+	char *pcap_filter;
 
 	int msgs;
 
@@ -37,8 +39,6 @@ struct tool_ctx_s
 #define MODE_SOURCE_PCAP 1
 	int mode;
 
-	char *iname;
-	char *pcap_filter;
 };
 
 static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount);
