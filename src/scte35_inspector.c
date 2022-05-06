@@ -43,6 +43,10 @@ struct tool_ctx_s
 
 static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount);
 
+#ifdef __APPLE__
+#define iphdr ip
+#endif
+
 void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr, const u_char *pkt)
 {
 	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
