@@ -18,13 +18,93 @@ struct tool_ctx_s
 {
 	int   verbose;
 	int   PID;
-	void *se;
+	void *se; /* SectionExtractor Context */
 
 	int   videoPID;
 	int   streamId;
-	void *pe;
+	void *pe; /* PesExtractor Context */
 
 	int64_t lastVideoPTS;
+
+	void *src_pcap;
+
+	int msgs;
+
+	void *sm; /* StreamModel Context */
+	int smcomplete;
+
+#define MODE_SOURCE_AVIO 0
+#define MODE_SOURCE_PCAP 1
+	int mode;
+
+	char *iname;
+	char *pcap_filter;
+};
+
+static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount);
+
+void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr, const u_char *pkt)
+{
+	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
+
+	if (hdr->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
+		return NULL;
+
+	struct ether_header *ethhdr = (struct ether_header *)pkt;
+	if (ntohs(ethhdr->ether_type) == ETHERTYPE_IP) {
+		struct iphdr *iphdr = (struct iphdr *)((u_char *)ethhdr + sizeof(struct ether_header));
+
+#ifdef __APPLE__
+		if (iphdr->ip_p != IPPROTO_UDP)
+			return NULL;
+#endif
+#ifdef __linux__
+		if (iphdr->protocol != IPPROTO_UDP)
+			return NULL;
+#endif
+
+		struct udphdr *udphdr = (struct udphdr *)((u_char *)iphdr + sizeof(struct iphdr));
+		uint8_t *ptr = (uint8_t *)((uint8_t *)udphdr + sizeof(struct udphdr));
+
+		if (ctx->verbose > 2) {
+			struct in_addr dstaddr, srcaddr;
+#ifdef __APPLE__
+			srcaddr.s_addr = iphdr->ip_src.s_addr;
+			dstaddr.s_addr = iphdr->ip_dst.s_addr;
+#endif
+#ifdef __linux__
+			srcaddr.s_addr = iphdr->saddr;
+			dstaddr.s_addr = iphdr->daddr;
+#endif
+
+			char src[24], dst[24];
+			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+
+			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
+				
+				src, dst,
+				ntohs(udphdr->uh_ulen),
+				ptr[0], ptr[1], ptr[2], ptr[3]);
+		}
+
+		int lengthPayloadBytes = ntohs(udphdr->uh_ulen) - sizeof(struct udphdr);
+		
+		if ((lengthPayloadBytes > 12) && ((lengthPayloadBytes - 12) % 188 == 0)) {
+			/* It's RTP */
+			ptr += 12;
+			lengthPayloadBytes -= 12;
+		}
+
+		process_transport_buffer(ctx, ptr, lengthPayloadBytes);
+	}
+
+	return NULL;
+}
+
+struct ltntstools_source_pcap_callbacks_s pcap_callbacks = 
+{
+    .raw = (ltntstools_source_pcap_raw_callback)source_pcap_raw_cb,
 };
 
 void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
@@ -44,15 +124,189 @@ void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 static void usage(const char *progname)
 {
-	printf("A tool to display the SCTE35 packets from a file or live stream.\n");
+	printf("A tool to display the SCTE35 packets from a file, live UDP socket stream, or PCAP NIC.\n");
 	printf("Optionally, follow the video pid and report PTS values during each trigger.\n");
 	printf("Usage:\n");
-	printf("  -i <url> Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
-               "           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -i <url | nicname>   Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n");
+    printf("                           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("                       Eg: eno2    (Also see -F)\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
-	printf("  -P 0xnnnn PID containing the SCTE35 messages.\n");
+	printf("  -P 0xnnnn PID containing the SCTE35 messages (Optional)\n");
 	printf("  -V 0xnnnn PID containing the video stream (Optional)\n");
+	printf("  -F exact pcap filter. Eg 'host 227.1.20.80 && udp port 4001'\n");
+	printf("     DON'T PASS A FILTER WITH MPTS or something with multiple difference streams - be very specific\n");
+	printf("Example:\n");
+	printf("  sudo ./tstools_scte35_inspector -i eno2 -F 'host 227.1.20.80 && udp port 4001'  -- auto-detect SCTE/video pids from nic\n");
+	printf("       ./tstools_scte35_inspector -i recording.ts                                 -- auto-detect SCTE/video pids from file\n");
+	printf("       ./tstools_scte35_inspector -i recording.ts -V 0x1e1 -P 0x67                -- Disable auto-detect force decode of pid 0x67\n");
+	printf("       ./tstools_scte35_inspector -i udp://227.1.20.80:4001                       -- auto-detect SCTE/video pids from socket/stream\n");
+}
+
+static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount)
+{
+	if (ctx->verbose >= 2) {
+		for (int j = 0; j < byteCount; j += 188) {
+			uint16_t pidnr = ltntstools_pid(buf + j);
+			if (pidnr == ctx->PID) {
+				for (int i = 0; i < 188; i++)
+					printf("%02x ", buf[j + i]);
+				printf("\n");
+			}
+		}
+	}
+
+	if (ctx->sm == NULL && ctx->PID == 0) {
+		if (ltntstools_streammodel_alloc(&ctx->sm, NULL) < 0) {
+			fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
+			exit(1);
+		}
+	}
+
+	if (ctx->sm && ctx->smcomplete == 0 && ctx->PID == 0) {
+		ltntstools_streammodel_write(ctx->sm, &buf[0], byteCount / 188, &ctx->smcomplete);
+
+		if (ctx->smcomplete) {
+			struct ltntstools_pat_s *pat = NULL;
+			if (ltntstools_streammodel_query_model(ctx->sm, &pat) == 0) {
+
+				/* Walk all the services, find the first service with a SCTE35 service.
+				 * Query video and SCTE pid.
+				 */
+				int e = 0;
+				struct ltntstools_pmt_s *pmt;
+				uint16_t scte35pid;
+				while (ltntstools_pat_enum_services_scte35(pat, &e, &pmt, &scte35pid) == 0) {
+
+					uint8_t estype;
+					uint16_t videopid;
+					if (ltntstools_pmt_query_video_pid(pmt, &videopid, &estype) < 0)
+						continue;
+
+					printf("DEBUG: Found program %5d, scte35 pid 0x%04x, video pid 0x%04x\n",
+						pmt->program_number,
+						scte35pid,
+						videopid);
+
+					ctx->PID = scte35pid;
+					ctx->videoPID = videopid;
+					break; /* TODO: We only support ehf first SCTE35 pid (SPTS) */
+				}
+
+				//ltntstools_pat_dprintf(pat, 0);
+				ltntstools_pat_free(pat);
+			}
+		}
+	}
+
+	if (ctx->videoPID && ctx->pe == NULL) {
+		if (ltntstools_pes_extractor_alloc(&ctx->pe, ctx->videoPID, ctx->streamId,
+				(pes_extractor_callback)pe_callback, ctx) < 0) {
+			fprintf(stderr, "\nUnable to allocate pes_extractor object.\n\n");
+			exit(1);
+		}
+		ltntstools_pes_extractor_set_skip_data(ctx->pe, 1);
+	}
+
+	if (ctx->PID && ctx->se == NULL) {
+		if (ltntstools_sectionextractor_alloc(&ctx->se, ctx->PID, 0xFC /* SCTE35 Table ID */) < 0) {
+			fprintf(stderr, "\nUnable to allocate sectionextractor object.\n\n");
+			exit(1);
+		}
+	}
+
+	if (ctx->pe) {
+		ltntstools_pes_extractor_write(ctx->pe, &buf[0], byteCount / 188);
+	}
+
+	int secomplete = 0;
+	int crcValid = 0;
+	if (ctx->se) {
+		ltntstools_sectionextractor_write(ctx->se, &buf[0], byteCount / 188, &secomplete, &crcValid);
+	}
+
+	if (secomplete && crcValid == 0) { 
+			printf("<-- Trigger %d --------------------------------------------------->\n", ++ctx->msgs);
+			time_t now = time(0);
+			printf("SCTE35 message with invalid CRC (skipped), on pid 0x%04x @ %s", ctx->PID, ctime(&now));
+	} else
+	if (secomplete && crcValid) {
+		unsigned char dst[1024];
+		int len = ltntstools_sectionextractor_query(ctx->se, &dst[0], sizeof(dst));
+		if (len > 0) {
+
+			printf("<-- Trigger %d --------------------------------------------------->\n", ++ctx->msgs);
+
+			time_t now = time(0);
+			printf("SCTE35 message on pid 0x%04x @ %s", ctx->PID, ctime(&now));
+			if (ctx->verbose > 0) {
+				for (int i = 1; i <= len; i++) {
+					if (i == 1 || i % 16 == 1)
+						printf("\n  -> ");
+					printf("%02x ", dst[i - 1]);
+				}
+				printf("\n");
+				if (len % 16)
+					printf("\n");
+			}
+
+			if (ctx->pe && ctx->lastVideoPTS) {
+				printf("Video pid 0x%04x last pts %" PRIi64 "\n\n",
+					ctx->videoPID,
+					ctx->lastVideoPTS);
+			}
+
+			struct scte35_splice_info_section_s *s = scte35_splice_info_section_parse(dst, len);
+			if (s) {
+				/* Dump struct to console */
+				scte35_splice_info_section_print(s);
+				scte35_splice_info_section_free(s);
+				printf("\n");
+				fflush(0);
+			}
+		}
+	}
+}
+
+static void process_pcap_input(struct tool_ctx_s *ctx)
+{
+	if (ltntstools_source_pcap_alloc(&ctx->src_pcap, ctx, &pcap_callbacks, ctx->iname, ctx->pcap_filter) < 0) {
+		fprintf(stderr, "Failed to open source_pcap interface, check permissions (sudo) or syntax.\n");
+		return;
+	}
+
+	int ok = 1;
+	while (ok) {
+		usleep(50 * 1000);
+	}
+
+	ltntstools_source_pcap_free(ctx->src_pcap);
+}
+
+static void process_avio_input(struct tool_ctx_s *ctx)
+{
+	avformat_network_init();
+	AVIOContext *puc;
+	int ret = avio_open2(&puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "-i syntax error\n");
+		return;
+	}
+
+	uint8_t buf[7 * 188];
+	int ok = 1;
+	while (ok) {
+		int rlen = avio_read(puc, &buf[0], sizeof(buf));
+		if (rlen == -EAGAIN) {
+			usleep(200 * 1000);
+			continue;
+		}
+		if (rlen < 0)
+			break;
+
+		process_transport_buffer(ctx, &buf[0], rlen);
+	}
+	avio_close(puc);
 }
 
 int scte35_inspector(int argc, char *argv[])
@@ -61,11 +315,11 @@ int scte35_inspector(int argc, char *argv[])
 	struct tool_ctx_s *ctx = &s_ctx;
 	ctx->verbose = 1;
 	ctx->streamId = 0xe0; /* Default PES video stream ID */
+	ctx->mode = MODE_SOURCE_AVIO;
 
 	int ch;
-	char *iname = NULL;
 
-	while ((ch = getopt(argc, argv, "?hvi:P:V:S:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hvi:F:P:V:S:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -73,7 +327,11 @@ int scte35_inspector(int argc, char *argv[])
 			exit(1);
 			break;
 		case 'i':
-			iname = optarg;
+			ctx->iname = strdup(optarg);
+			break;
+		case 'F':
+			ctx->pcap_filter = strdup(optarg);
+			ctx->mode = MODE_SOURCE_PCAP;
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x", &ctx->PID) != 1) || (ctx->PID > 0x1fff)) {
@@ -102,127 +360,42 @@ int scte35_inspector(int argc, char *argv[])
 		}
 	}
 
-	if (ctx->PID == 0) {
+	if (getuid() == 0 && getenv("SUDO_UID") && getenv("SUDO_GID") && ctx->mode != MODE_SOURCE_PCAP) {
 		usage(argv[0]);
-		fprintf(stderr, "\n-P is mandatory.\n\n");
+		fprintf(stderr, "\n**** Don't use SUDO against file or udp socket sources, ONLY nic/pcap sources ****.\n\n");
 		exit(1);
 	}
 
-	if (iname == NULL) {
+	if (ctx->iname == NULL) {
 		usage(argv[0]);
 		fprintf(stderr, "\n-i is mandatory.\n\n");
 		exit(1);
 	}
 
-	if (ctx->videoPID && ctx->streamId == 0) {
+	if (ctx->mode == MODE_SOURCE_AVIO && ctx->videoPID && ctx->streamId == 0) {
 		usage(argv[0]);
 		fprintf(stderr, "\n-V mean that -S becomes mandatory.\n\n");
 		exit(1);
 	}
 
-	if (ctx->videoPID) {
-		if (ltntstools_pes_extractor_alloc(&ctx->pe, ctx->videoPID, ctx->streamId,
-				(pes_extractor_callback)pe_callback, ctx) < 0) {
-			fprintf(stderr, "\nUnable to allocate pes_extractor object.\n\n");
-			exit(1);
-		}
-		ltntstools_pes_extractor_set_skip_data(ctx->pe, 1);
+	if (ctx->mode == MODE_SOURCE_AVIO) {
+		printf("Mode: AVIO\n");
+		process_avio_input(ctx);
+	} else
+	if (ctx->mode == MODE_SOURCE_PCAP) {
+		printf("Mode: PCAP\n");
+		process_pcap_input(ctx);
 	}
-
-	if (ltntstools_sectionextractor_alloc(&ctx->se, ctx->PID, 0xFC /* SCTE35 Table ID */) < 0) {
-		fprintf(stderr, "\nUnable to allocate sectionextractor object.\n\n");
-		exit(1);
-	}
-	
-	avformat_network_init();
-	AVIOContext *puc;
-	int ret = avio_open2(&puc, iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
-	if (ret < 0) {
-		fprintf(stderr, "-i syntax error\n");
-		return 1;
-	}
-
-	int msgs = 0;
-	uint8_t buf[7 * 188];
-	int ok = 1;
-	while (ok) {
-		int rlen = avio_read(puc, &buf[0], sizeof(buf));
-		if (rlen == -EAGAIN) {
-			usleep(200 * 1000);
-			continue;
-		}
-		if (rlen < 0)
-			break;
-
-		if (ctx->verbose >= 2) {
-			for (int j = 0; j < rlen; j += 188) {
-				uint16_t pidnr = ltntstools_pid(buf + j);
-				if (pidnr == ctx->PID) {
-					for (int i = 0; i < 188; i++)
-						printf("%02x ", buf[j + i]);
-					printf("\n");
-				}
-			}
-		}
-
-		if (ctx->pe) {
-			ltntstools_pes_extractor_write(ctx->pe, &buf[0], rlen / 188);
-		}
-
-		int complete = 0;
-		int crcValid = 0;
-		ltntstools_sectionextractor_write(ctx->se, &buf[0], rlen / 188, &complete, &crcValid);
-
-		if (complete && crcValid == 0) { 
-				printf("<-- Trigger %d --------------------------------------------------->\n", ++msgs);
-				time_t now = time(0);
-				printf("SCTE35 message with invalid CRC (skipped), on pid 0x%04x @ %s", ctx->PID, ctime(&now));
-		} else
-		if (complete && crcValid) {
-			unsigned char dst[1024];
-			int len = ltntstools_sectionextractor_query(ctx->se, &dst[0], sizeof(dst));
-			if (len > 0) {
-
-				printf("<-- Trigger %d --------------------------------------------------->\n", ++msgs);
-
-				time_t now = time(0);
-				printf("SCTE35 message on pid 0x%04x @ %s", ctx->PID, ctime(&now));
-				if (ctx->verbose > 0) {
-					for (int i = 1; i <= len; i++) {
-						if (i == 1 || i % 16 == 1)
-							printf("\n  -> ");
-						printf("%02x ", dst[i - 1]);
-					}
-					printf("\n");
-					if (len % 16)
-						printf("\n");
-				}
-
-				if (ctx->pe && ctx->lastVideoPTS) {
-					printf("Video pid 0x%04x last pts %" PRIi64 "\n\n",
-						ctx->videoPID,
-						ctx->lastVideoPTS);
-				}
-
-				struct scte35_splice_info_section_s *s = scte35_splice_info_section_parse(dst, len);
-				if (s) {
-					/* Dump struct to console */
-					scte35_splice_info_section_print(s);
-					scte35_splice_info_section_free(s);
-					printf("\n");
-					fflush(0);
-				}
-			}
-		}
-
-	}
-	avio_close(puc);
 
 	if (ctx->pe) {
 		ltntstools_pes_extractor_free(ctx->pe);
 	}
 
 	ltntstools_sectionextractor_free(ctx->se);
+
+	if (ctx->sm) {
+		ltntstools_streammodel_free(ctx->sm);
+	}
 
 	return 0;
 }
