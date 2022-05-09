@@ -1019,6 +1019,7 @@ static void usage(const char *progname)
 	printf("  -E Record in a single file, don't segment into 60sec files\n");
 	printf("  -T Record int a TS format where possible [default is PCAP]\n");
 	printf("  -1 Test the scheduling quanta for 1ms sleeps\n");
+	printf("  -O Danger. Skip the Disk Free space check, don't stop recording when disk has < 10pct free\n");
 }
 
 int nic_monitor(int argc, char *argv[])
@@ -1052,11 +1053,12 @@ int nic_monitor(int argc, char *argv[])
 	ctx->snaplen = g_snaplen_default;
 	ctx->bufferSize = g_buffer_size_default;
 	ctx->recordWithSegments = 1;
+	ctx->skipFreeSpaceCheck = 0;
 
 #if PROBE_REPORTER
-	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:Jt:vMn:w:RS:T@")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:Jt:vOMn:w:RS:T@")) != -1) {
 #else
-	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:t:vMn:w:RS:T@")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:t:vOMn:w:RS:T@")) != -1) {
 #endif
 		switch (ch) {
 		case '@':
@@ -1105,6 +1107,9 @@ int nic_monitor(int argc, char *argv[])
 			break;
 		case 'M':
 			ctx->monitor = 1;
+			break;
+		case 'O':
+			ctx->skipFreeSpaceCheck = 1;
 			break;
 		case 'D':
 			ctx->recordingDir = optarg;

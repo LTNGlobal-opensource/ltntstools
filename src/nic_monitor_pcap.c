@@ -392,7 +392,9 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			double fsfreepct = ltntstools_segmentwriter_get_freespace_pct(di->pcapRecorder);
 			if (fsfreepct >= 0.0) {
 				if (fsfreepct <= 10.0) {
-					discovered_item_state_set(di, DI_STATE_PCAP_RECORD_STOP);
+					if (ctx->skipFreeSpaceCheck == 0) {
+						discovered_item_state_set(di, DI_STATE_PCAP_RECORD_STOP);
+					}
 				}
 			}
 		}

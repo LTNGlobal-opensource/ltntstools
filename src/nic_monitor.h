@@ -71,6 +71,7 @@ struct tool_context_s
 	int recordWithSegments;
 	int recordAsTS;
 	int showUIOptions;
+	int skipFreeSpaceCheck;
 
 	pthread_t pcap_threadId;
 	int pcap_threadTerminate, pcap_threadRunning, pcap_threadTerminated;
