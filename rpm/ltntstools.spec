@@ -48,10 +48,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Fri May  6 2022 Steven Toth <stoth@ltnglobal.com> 
-- v1.40.0
+- v1.14.0
   tstools_scte35_inspector: Feature. Add support for live streams via pcap/nic interfaces.
   tstools_scte35_inspector: Feature. Autodetect audio and video pids (SPTS only).
   tstools_nic_monitor: Feature. -O Don't stop recording when disk has less tha 10pct free. (Danger).
+  general: Fixed various OSX compile time issues, disabled certain tools on OSX (asi2ip).
 
 * Wed Apr 20 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.13.2
