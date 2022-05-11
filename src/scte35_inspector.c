@@ -263,6 +263,8 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 			struct scte35_splice_info_section_s *s = scte35_splice_info_section_parse(dst, len);
 			if (s) {
 				/* Dump struct to console */
+				if (ctx->videoPID && ctx->lastVideoPTS)
+					s->user_current_video_pts = ctx->lastVideoPTS;
 				scte35_splice_info_section_print(s);
 				scte35_splice_info_section_free(s);
 				printf("\n");
