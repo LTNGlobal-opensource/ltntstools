@@ -42,6 +42,7 @@ static void usage(const char *progname)
 	printf("  -h Display command line help.\n");
 	printf("  -P 0xnnnn PID containing the program elementary stream [def: 0x%02x]\n", DEFAULT_PID);
 	printf("  -S PES Stream Id. Eg. 0xe0 or 0xc0 [def: 0x%02x]\n", DEFAULT_STREAMID);
+	printf("  -H Show PES headers only, don't parse payload. [def: disabled, payload shown]\n");
 }
 
 int pes_inspector(int argc, char *argv[])
@@ -55,13 +56,17 @@ int pes_inspector(int argc, char *argv[])
 
 	int ch;
 	char *iname = NULL;
+	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "?hvi:P:S:")) != -1) {
+	while ((ch = getopt(argc, argv, "?Hhvi:P:S:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
 			usage(argv[0]);
 			exit(1);
+			break;
+		case 'H':
+			headersOnly = 1;
 			break;
 		case 'i':
 			iname = optarg;
@@ -105,7 +110,7 @@ int pes_inspector(int argc, char *argv[])
 		exit(1);
 	}
 	
-	ltntstools_pes_extractor_set_skip_data(ctx->pe, ctx->verbose ? 0 : 1);
+	ltntstools_pes_extractor_set_skip_data(ctx->pe, headersOnly);
 
 	avformat_network_init();
 	AVIOContext *puc;

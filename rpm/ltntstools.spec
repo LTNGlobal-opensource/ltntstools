@@ -54,6 +54,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_scte35_inspector: Feature. Show the future ad break time measured in milliseconds.
   tstools_nic_monitor: Feature. -O Don't stop recording when disk has less tha 10pct free. (Danger).
   tstools_pes_inspector: When operator doesn't ask for payload parsing, indicate this when dumping packets. Better clarity.
+  tstools_pes_inspector: Behaviour change. Show PES headers by default, add an opt out argument. Helps with SMPTE2038 debug.
   general: Fixed various OSX compile time issues, disabled certain tools on OSX (asi2ip).
 
 * Wed Apr 20 2022 Steven Toth <stoth@ltnglobal.com> 
