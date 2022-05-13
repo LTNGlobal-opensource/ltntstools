@@ -56,6 +56,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_pes_inspector: When operator doesn't ask for payload parsing, indicate this when dumping packets. Better clarity.
   tstools_pes_inspector: Behaviour change. Show PES headers by default, add an opt out argument. Helps with SMPTE2038 debug.
   general: Fixed various OSX compile time issues, disabled certain tools on OSX (asi2ip).
+  tstools_smpte2038_inspector: Feature. New tool to auto-detect SMPTE2038 messages and dump them for inspection. NIC/PCAP, file or live stream.
 
 * Wed Apr 20 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.13.2
