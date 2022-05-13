@@ -7,7 +7,7 @@ AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_O
 	-DKL_USERSPACE -D__STDC_FORMAT_MACROS \
 	-DGIT_VERSION=\"$(GIT_VERSION)\" -g
 
-LDADD = -lpthread -lz -lm -lltntstools
+LDADD = -lpthread -lz -lm -lltntstools -lklvanc
 
 if LINUX
   LDADD += -lrt
@@ -75,6 +75,7 @@ SRC += bitrate_smoother.c
 SRC += nielsen_inspector.cpp
 SRC += asi2ip.cpp
 SRC += media.cpp
+SRC += smpte2038_inspector.cpp
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -99,6 +100,7 @@ LINKBINS += tstools_pes_inspector
 LINKBINS += tstools_bitrate_smoother
 LINKBINS += tstools_nielsen_inspector
 LINKBINS += tstools_asi2ip
+LINKBINS += tstools_smpte2038_inspector
 
 tstools_util_SOURCES = $(SRC)
 
