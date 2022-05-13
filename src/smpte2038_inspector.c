@@ -148,6 +148,10 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 {
 	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
 
+	char ts[64];
+	libltntstools_getTimestamp(&ts[0], sizeof(ts), NULL);
+	printf("---\nEvent at %s\n", ts);
+
 	if (ctx->verbose >= 2) {
 		ltn_pes_packet_dump(pes, "");
 	}
