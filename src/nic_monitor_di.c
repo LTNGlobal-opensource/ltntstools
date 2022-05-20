@@ -164,9 +164,89 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		}
 #endif
 #endif
+
+#if 0
+		display_doc_initialize(&di->doc_scte35);
+		display_doc_append(&di->doc_scte35, "first line");
+		display_doc_append(&di->doc_scte35, "second line");
+		display_doc_append(&di->doc_scte35, "3 line");
+		display_doc_append(&di->doc_scte35, "4 line");
+		display_doc_append(&di->doc_scte35, "5 line");
+		display_doc_append(&di->doc_scte35, "6 line");
+		display_doc_append(&di->doc_scte35, "7 line");
+		display_doc_append(&di->doc_scte35, "8 line");
+		display_doc_append(&di->doc_scte35, "9 line");
+		display_doc_append(&di->doc_scte35, "10 line");
+		display_doc_append(&di->doc_scte35, "11 line");
+		display_doc_append(&di->doc_scte35, "12 line");
+		display_doc_append(&di->doc_scte35, "13 line");
+		display_doc_append(&di->doc_scte35, "14 line");
+		display_doc_append(&di->doc_scte35, "15 line");
+		display_doc_append(&di->doc_scte35, "16 line");
+		display_doc_append(&di->doc_scte35, "17 line");
+		display_doc_append(&di->doc_scte35, "18 line");
+#endif
 	}
 
 	return di;
+}
+
+static int is_di_streaming(struct discovered_item_s *di, time_t now)
+{
+	if (di->lastUpdated + 5 < now)
+		return 0;
+
+	return 1;
+}
+
+static int is_di_duplicate(struct discovered_item_s *x, struct discovered_item_s *y)
+{
+#ifdef __linux__
+	if (x->iphdr.saddr != y->iphdr.saddr)
+		return 0;
+	if (x->iphdr.daddr != y->iphdr.daddr)
+		return 0;
+	if (x->udphdr.uh_sport != y->udphdr.uh_sport)
+		return 0;
+	if (x->udphdr.uh_dport != y->udphdr.uh_dport)
+		return 0;
+
+#endif
+#ifdef __APPLE__
+	if (x->iphdr.ip_src.s_addr != y->iphdr.ip_src.s_addr)
+		return 0;
+	if (x->iphdr.ip_dst.s_addr != y->iphdr.ip_dst.s_addr)
+		return 0;
+	if (x->udphdr.uh_sport != y->udphdr.uh_sport)
+		return 0;
+	if (x->udphdr.uh_dport != y->udphdr.uh_dport)
+		return 0;
+#endif
+
+	return 1;
+}
+
+static int is_di_dst_duplicate(struct discovered_item_s *x, struct discovered_item_s *y)
+{
+#ifdef __linux__
+	uint64_t a = (uint64_t)ntohl(x->iphdr.daddr) << 16;
+	a |= (x->udphdr.uh_dport);
+
+	uint64_t b = (uint64_t)ntohl(y->iphdr.daddr) << 16;
+	b |= (y->udphdr.uh_dport);
+#endif
+#ifdef __APPLE__
+	uint64_t a = (uint64_t)ntohl(x->iphdr.ip_dst.s_addr) << 16;
+	a |= (x->udphdr.uh_dport);
+
+	uint64_t b = (uint64_t)ntohl(y->iphdr.ip_dst.s_addr) << 16;
+	b |= (y->udphdr.uh_dport);
+#endif
+
+	if (a == b)
+		return 1;
+
+	return 0;
 }
 
 /* This function is take with the ctx->list held by the caller. */
@@ -566,6 +646,83 @@ void discovered_items_kafka_summary(struct tool_context_s *ctx)
 		kafka_queue_process(e);
 	}
 	pthread_mutex_unlock(&ctx->lock);
+}
+#endif
+
+#if 0
+/* Perform any periodic tasks intermittently on the list of di's.
+ * Such as pruning old/stale di objects.
+ * Housekeeping runs every 15 seconds.
+ */
+void discovered_items_housekeeping(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+	struct discovered_item_s *f = NULL;
+
+	/* Housekeeping runs only periodically. */
+	time_t now = time(NULL);
+	if (ctx->lastListHousekeeping + 6 > now) {
+		return;
+	}
+	ctx->lastListHousekeeping = now;
+
+	/* 1. Hide any objects that are stale. */
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+
+		/* We aren't interested in non-duplicates */
+		if (discovered_item_state_get(e, DI_STATE_DST_DUPLICATE) == 0)
+			continue;
+
+		/* Process a duplicate object, we don't know what we're a duplicate of,
+		 * so lets examine state and decide if we need to expire this di.
+		 * di->lastUpdated is time_t, and should represent 'now'. When this falls
+		 * behind significantly, because of no updates to the object, no data
+		 * from the network, take action to hide/remove the object from reports.
+		 */
+		if (is_di_streaming(e, now)) {
+			discovered_item_state_clr(e, DI_STATE_HIDDEN);
+		} else {
+			/* if this is a dup, and it's not already hidden, hide it. */
+			discovered_item_state_set(e, DI_STATE_HIDDEN);
+		}
+
+	}
+	pthread_mutex_unlock(&ctx->lock);
+
+	/* 2. update the duplicate status for each object, based on hidden and usage state. */
+	pthread_mutex_lock(&ctx->lock);
+	e = NULL;
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+
+		/* find all duplicates of this object. */
+		int numberActiveDuplicates = 0;
+		f = NULL;
+		xorg_list_for_each_entry(f, &ctx->list, list) {
+			if (is_di_duplicate(e, f))
+				continue; /* Discard matching against outrself */
+
+			if (is_di_dst_duplicate(e, f)) {
+				if (is_di_streaming(e, now) && is_di_streaming(f, now)) {
+					numberActiveDuplicates++;					
+					discovered_item_state_clr(f, DI_STATE_HIDDEN);
+					discovered_item_state_set(f, DI_STATE_DST_DUPLICATE);
+				}
+			}
+
+		}
+
+		if (is_di_streaming(e, now)) {
+			if (numberActiveDuplicates) {
+				discovered_item_state_set(e, DI_STATE_DST_DUPLICATE);
+			} else {
+				discovered_item_state_clr(e, DI_STATE_DST_DUPLICATE);
+			}
+		}
+
+	}
+	pthread_mutex_unlock(&ctx->lock);
+
 }
 #endif
 

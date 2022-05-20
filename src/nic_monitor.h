@@ -121,6 +121,7 @@ struct tool_context_s
 	/* list of discovered addresses and related statistics. */
 	pthread_mutex_t lock;
 	struct xorg_list list;
+	time_t lastListHousekeeping;
 	struct hash_index_s *hashIndex;
 	uint64_t cacheHit, cacheMiss;
 	double cacheHitRatio;
