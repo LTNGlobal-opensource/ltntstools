@@ -24,10 +24,10 @@ LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresam
 LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
 if LINUX
-LDADD += -ljson-c -lcurl
+#LDADD += -ljson-c -lcurl
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
-LDADD += -lmediainfo
-LDADD += -lrdkafka
+#LDADD += -lmediainfo
+#LDADD += -lrdkafka
 endif
 
 #ifdef __APPLE__
@@ -74,7 +74,7 @@ SRC += pes_inspector.c
 SRC += bitrate_smoother.c
 SRC += nielsen_inspector.cpp
 SRC += asi2ip.cpp
-SRC += media.cpp
+#SRC += media.cpp
 SRC += smpte2038_inspector.cpp
 
 bin_PROGRAMS  = tstools_util
