@@ -114,7 +114,7 @@ static void *ui_thread_func(void *p)
 		}
 
 		attron(COLOR_PAIR(1));
-		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <---------PACKETS <------CCErr <--IAT---------------");
+		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <---------PACKETS <------CCErr <--IAT--Flags--------");
 		attroff(COLOR_PAIR(1));
 
 		int streamCount = 1;
@@ -152,49 +152,57 @@ static void *ui_thread_func(void *p)
 			totalMbps += ltntstools_pid_stats_stream_get_mbps(&di->stats);
 			totalStreams++;
 			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %c%c",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
 					ltntstools_pid_stats_stream_get_mbps(&di->stats),
 					di->stats.packetCount,
 					di->stats.ccErrors,
-					di->iat_hwm_us / 1000);
+					di->iat_hwm_us / 1000,
+					di->iat_hwm_us / 1000 > ctx->iatMax ? 'I' : ' ',
+					di->notMultipleOfSevenError ? 'P' : ' ');
 
 			} else
 			if (di->payloadType == PAYLOAD_A324_CTP) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %c%c",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
 					ltntstools_ctp_stats_stream_get_mbps(&di->stats),
 					di->stats.packetCount,
 					di->stats.ccErrors,
-					di->iat_hwm_us / 1000);
+					di->iat_hwm_us / 1000,
+					di->iat_hwm_us / 1000 > ctx->iatMax ? 'I' : ' ',
+					' ');
 				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
 			} else
 			if ((di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) ||
 				(di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) ||
 				(di->payloadType == PAYLOAD_SMPTE2110_40_ANC)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %c%c",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
 					ltntstools_ctp_stats_stream_get_mbps(&di->stats),
 					di->stats.packetCount,
 					di->stats.ccErrors,
-					di->iat_hwm_us / 1000);
+					di->iat_hwm_us / 1000,
+					di->iat_hwm_us / 1000 > ctx->iatMax ? 'I' : ' ',
+					' ');
 				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
 			} else
 			if (di->payloadType == PAYLOAD_BYTE_STREAM) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %4d",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %4d  %c%c",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
 					ltntstools_bytestream_stats_stream_get_mbps(&di->stats),
 					di->stats.packetCount,
 					"-",
-					di->iat_hwm_us / 1000);
+					di->iat_hwm_us / 1000,
+					di->iat_hwm_us / 1000 > ctx->iatMax ? 'I' : ' ',
+					' ');
 				totalMbps += ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
 			}
 
