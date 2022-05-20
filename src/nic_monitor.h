@@ -203,6 +203,21 @@ int pcap_queue_service(struct tool_context_s *ctx);
 int pcap_queue_rebalance(struct tool_context_s *ctx);
 void pcap_queue_free(struct tool_context_s *ctx);
 
+struct display_doc_s
+{
+	int lineCount;
+	uint8_t **lines;
+
+	int displayLineFrom;
+	int pageSize;
+	int maxPageSize;
+};
+void display_doc_initialize(struct display_doc_s *doc);
+int  display_doc_append(struct display_doc_s *doc, const char *line);
+void display_doc_render(struct display_doc_s *doc, int row, int col);
+void display_doc_page_up(struct display_doc_s *doc);
+void display_doc_page_down(struct display_doc_s *doc);
+
 struct discovered_item_s
 {
 	struct xorg_list list;
@@ -230,6 +245,7 @@ struct discovered_item_s
 #if PROBE_REPORTER
 #define DI_STATE_JSON_PROBE_ACTIVE		(1 << 15)
 #endif
+#define DI_STATE_SHOW_SCTE35			(1 << 16)
 	unsigned int state;
 
 	time_t firstSeen;
@@ -340,6 +356,8 @@ struct discovered_item_s
 	} kafka;
 #endif
 
+	struct display_doc_s doc_scte35;
+
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);
@@ -358,6 +376,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int fd);
 
 void discovered_items_console_summary(struct tool_context_s *ctx);
+void discovered_items_housekeeping(struct tool_context_s *ctx);
 
 /* For a given item, open a detailed stats file on disk, append the current stats, close it. */
 void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int write_banner);
@@ -398,6 +417,9 @@ void discovered_items_select_forward_toggle(struct tool_context_s *ctx, int slot
 #if PROBE_REPORTER
 void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx);
 #endif
+void discovered_items_select_scte35_toggle(struct tool_context_s *ctx);
+void discovered_items_select_scte35_pageup(struct tool_context_s *ctx);
+void discovered_items_select_scte35_pagedown(struct tool_context_s *ctx);
 
 /* TR101290 */
 int     nic_monitor_tr101290_alloc(struct discovered_item_s *di);

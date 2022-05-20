@@ -584,11 +584,18 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 
 	json_object_object_add(feed, "pids", array);
 
+#if 1
+	printf("%s\n",
+		json_object_to_json_string_ext(feed,
 #if 0
-	printf("json:\n'%s'\n",
-		json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PRETTY));
+		JSON_C_TO_STRING_PRETTY
+#else
+		JSON_C_TO_STRING_PLAIN
+#endif
+		));
 #endif
 
+#if 0
 	/* Push the final output to a queue, it will be serviced for output later.
 	 * Max size of allowable message is 64k
 	 */
@@ -607,6 +614,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 		ki->lengthBytes = strlen((char *)ki->buf);	
 		kafka_queue_push(di, ki);
 	}
+#endif
 
 	json_object_put(feed);
 
@@ -1343,3 +1351,113 @@ void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx)
 }
 #endif
 
+void discovered_items_select_scte35_toggle(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		if (discovered_item_state_get(e, DI_STATE_SHOW_SCTE35)) {
+			discovered_item_state_clr(e, DI_STATE_SHOW_SCTE35);
+		} else {
+			discovered_item_state_set(e, DI_STATE_SHOW_SCTE35);
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_scte35_pageup(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		display_doc_page_up(&e->doc_scte35);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_scte35_pagedown(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		display_doc_page_down(&e->doc_scte35);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void display_doc_initialize(struct display_doc_s *doc)
+{
+	memset(doc, 0, sizeof(*doc));
+	doc->displayLineFrom = 0;
+	doc->pageSize = 0;
+	doc->maxPageSize = 15;
+}
+
+int display_doc_append(struct display_doc_s *doc, const char *line)
+{
+	doc->lines = realloc(doc->lines, (doc->lineCount + 1) * sizeof(uint8_t *));
+	if (!doc->lines)
+		return -1;
+
+	int slen = strlen(line);
+
+	uint8_t *ptr = calloc(1, slen);
+	if (!ptr)
+		return -1;
+
+	memcpy(ptr, line, slen);
+	doc->lines[ doc->lineCount ] = ptr;
+
+	doc->lineCount++;
+
+	if (doc->lineCount < doc->maxPageSize)
+		doc->pageSize = doc->lineCount;
+
+	return doc->lineCount;
+}
+
+void display_doc_page_up(struct display_doc_s *doc)
+{
+	doc->displayLineFrom -= doc->pageSize;
+	if (doc->displayLineFrom < 0)
+		doc->displayLineFrom = 0;
+
+	return;
+}
+
+void display_doc_page_down(struct display_doc_s *doc)
+{
+	doc->displayLineFrom += doc->pageSize;
+	if (doc->displayLineFrom + doc->pageSize >= doc->lineCount)
+		doc->displayLineFrom = doc->lineCount - doc->pageSize;
+		
+	return;
+}
+
+void display_doc_render(struct display_doc_s *doc, int row, int col)
+{
+	int l = 0;
+
+	mvprintw(row + l, 64, "%d lines", doc->lineCount);
+
+	for (int i = doc->displayLineFrom; i < (doc->displayLineFrom + doc->pageSize); i++) {
+		if (i >= doc->lineCount)
+			break;
+
+		uint8_t *ptr = doc->lines[i];
+		mvprintw(row + l, col, "xxx %s", ptr);
+		l++;
+	}
+}

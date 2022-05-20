@@ -10,6 +10,15 @@
 
 static void kafka_queue_delete(struct discovered_item_s *di);
 
+#define NOLINK 0
+
+#if NOLINK
+int kafka_initialize(struct discovered_item_s *di) { return -1; }
+struct kafka_item_s *kafka_item_alloc(struct discovered_item_s *di, int lengthBytesMax) { return NULL; }
+void kafka_free(struct discovered_item_s *di) { }
+int kafka_queue_process(struct discovered_item_s *di) { return 0; }
+
+#else
 static void on_delivery(rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque)
 {
 	/* TODO: This isn't firing, why not? */
@@ -25,6 +34,8 @@ static void on_delivery(rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, voi
 
 int kafka_initialize(struct discovered_item_s *di)
 {
+	return -1;
+
 	struct kafka_ctx_s *k = &di->kafka;
 
 	pthread_mutex_init(&k->listLock, NULL);
@@ -214,5 +225,6 @@ static void kafka_queue_delete(struct discovered_item_s *di)
 		item = kafka_queue_pop(di);
 	}
 }
+#endif /* NOLINK */
 
 #endif

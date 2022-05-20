@@ -605,6 +605,14 @@ static void *ui_thread_func(void *p)
 				}
 			}
 
+			if (discovered_item_state_get(di, DI_STATE_SHOW_SCTE35)) {
+				streamCount++;
+				mvprintw(streamCount + 2, 0, " -> SCTE35 Report");
+				streamCount++;
+				display_doc_render(&di->doc_scte35, streamCount + 2, 8);
+				streamCount += di->doc_scte35.pageSize;
+			}
+
 			streamCount++;
 		}
 		pthread_mutex_unlock(&ctx->lock);
@@ -638,6 +646,9 @@ static void *ui_thread_func(void *p)
 			mvprintw(streamCount + 2 - 3, 53, "R) Start/Stop stream recording");
 			mvprintw(streamCount + 2 - 2, 53, "s) Toggle process/socket report");
 			mvprintw(streamCount + 2 - 1, 53, "T) Start/Stop TR101290 analysis (NOT YET SUPPORTED)");
+#if 0
+			mvprintw(streamCount + 2 - 0, 53, "3) Toggle SCTE35 report");
+#endif
 			streamCount++;
 			mvprintw(streamCount + 2, 0, "cursor keys) Select and navigate the cursor");
 
@@ -812,6 +823,12 @@ static void *stats_thread_func(void *p)
 		if (count)
 			workdone++;
 
+#if 0
+		if (workdone) {
+			/* Periodic housekeeping. */
+			discovered_items_housekeeping(ctx);
+		}
+#endif
 		time(&now);
 		if (ctx->file_prefix && ctx->file_prefix_next_write_time <= now) {
 			ctx->file_prefix_next_write_time = now + ctx->file_write_interval;
@@ -1268,7 +1285,11 @@ int nic_monitor(int argc, char *argv[])
 		if (c == 'h') {
 			ctx->showUIOptions = ~ctx->showUIOptions;
 		}
-
+#if 0
+		if (c == '3') {
+			discovered_items_select_scte35_toggle(ctx);
+		}
+#endif
 		/* Cursor key support */
 		if (c == 0x1b) {
 			c = ui_syncronized_getch(ctx);
@@ -1286,6 +1307,17 @@ int nic_monitor(int argc, char *argv[])
 				if (c == 0x44) { /* Left */
 					discovered_items_select_none(ctx);
 				}
+#if 0
+				else
+				if (c == 0x35) { /* Page Up */
+					//printf("0x%02x up\n", c);
+					discovered_items_select_scte35_pageup(ctx);
+				} else
+				if (c == 0x36) { /* Page Down */
+					//printf("0x%02x dn\n", c);
+					discovered_items_select_scte35_pagedown(ctx);
+				}
+#endif
 			}
 		}
 
