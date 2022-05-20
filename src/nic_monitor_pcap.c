@@ -242,7 +242,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 	}
 }
 
-/* Called on the stats thread */
+/* Called on the stats thread, blocking and stalling is tolerated. */
 static void _processPackets_IO(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr,
 	const uint8_t *pkts, uint32_t pktCount, enum payload_type_e payloadType,
