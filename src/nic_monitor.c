@@ -27,19 +27,6 @@ extern int pthread_setname_np(pthread_t thread, const char *name);
 
 extern int ltnpthread_setname_np(pthread_t thread, const char *name);
 
-#if 0
-int ltnpthread_setname_np(pthread_t thread, const char *name)
-{
-#if defined(__linux__)
-        return pthread_setname_np(thread, name);
-#endif
-#if defined(__APPLE__)
-        /* We don't support thread naming on OSX, yet. */
-        return 0;
-#endif
-}
-#endif
-
 /* Seeing some crashes inside getch, five leves deep related to dorefresh
  * in ncurses. Make sure we don't call getch without ensuring
  * the ui thread isn't refreshing the display.
