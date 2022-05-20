@@ -20,6 +20,7 @@ static int gRunning = 0;
 
 static struct tool_context_s g_ctx = { 0 };
 static struct tool_context_s *ctx = &g_ctx;
+static int g_max_iat_ms = 45;
 
 #if defined(__linux__)
 extern int pthread_setname_np(pthread_t thread, const char *name);
@@ -139,7 +140,7 @@ static void *ui_thread_func(void *p)
 			else
 				discovered_item_state_clr(di, DI_STATE_CC_ERROR);
 
-			if (discovered_item_state_get(di, DI_STATE_CC_ERROR))
+			if (discovered_item_state_get(di, DI_STATE_CC_ERROR) || di->iat_hwm_us / 1000 > ctx->iatMax)			
 				attron(COLOR_PAIR(3));
 
 			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
@@ -159,6 +160,7 @@ static void *ui_thread_func(void *p)
 					di->stats.packetCount,
 					di->stats.ccErrors,
 					di->iat_hwm_us / 1000);
+
 			} else
 			if (di->payloadType == PAYLOAD_A324_CTP) {
 				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d",
@@ -202,7 +204,7 @@ static void *ui_thread_func(void *p)
 			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
 				attroff(COLOR_PAIR(4));
 
-			if (discovered_item_state_get(di, DI_STATE_CC_ERROR))
+			if (discovered_item_state_get(di, DI_STATE_CC_ERROR) || di->iat_hwm_us / 1000 > ctx->iatMax)
 				attroff(COLOR_PAIR(3));
 
 			if (discovered_item_state_get(di, DI_STATE_STREAM_FORWARDING)) {
@@ -1024,6 +1026,7 @@ static void usage(const char *progname)
 	printf("  -T Record int a TS format where possible [default is PCAP]\n");
 	printf("  -1 Test the scheduling quanta for 1ms sleeps\n");
 	printf("  -O Danger. Skip the Disk Free space check, don't stop recording when disk has < 10pct free\n");
+	printf("  -I <#> (ms) max allowable IAT measured in ms [def: %d]\n", g_max_iat_ms);
 }
 
 int nic_monitor(int argc, char *argv[])
@@ -1058,11 +1061,12 @@ int nic_monitor(int argc, char *argv[])
 	ctx->bufferSize = g_buffer_size_default;
 	ctx->recordWithSegments = 1;
 	ctx->skipFreeSpaceCheck = 0;
+	ctx->iatMax = g_max_iat_ms;
 
 #if PROBE_REPORTER
-	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:Jt:vOMn:w:RS:T@")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:I:Jt:vOMn:w:RS:T@")) != -1) {
 #else
-	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:t:vOMn:w:RS:T@")) != -1) {
+	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:I:t:vOMn:w:RS:T@")) != -1) {
 #endif
 		switch (ch) {
 		case '@':
@@ -1096,6 +1100,9 @@ int nic_monitor(int argc, char *argv[])
 				printf("\n");
 				exit(1);
 			}
+			break;
+		case 'I':
+			ctx->iatMax = atoi(optarg);
 			break;
 		case 'n':
 			ctx->file_write_interval = atoi(optarg);

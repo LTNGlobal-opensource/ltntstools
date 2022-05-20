@@ -64,6 +64,7 @@ struct tool_context_s
 	int verbose;
 	int monitor;
 	time_t endTime;
+	int iatMax;
 	int automaticallyRecordStreams;
 #if PROBE_REPORTER
 	int automaticallyJSONProbeStreams;
