@@ -64,6 +64,9 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Write recordings to /storage/packet_captures by default, if the dir exists. Else, /tmp
   tstools_nic_monitor: Add max iat metric to summary and detailed stats log files, and ! indicator if the max IAT was exceeded.
   tstools_nic_monitor: show indicator flags for IAT and frame not eq 1316 packing issues
+  tstools_nic_monitor: show indicator flags for duplicate streams
+  tstools_nic_monitor: In summary stats files, don't continiously output data for old and stale streams.
+  tstools_nic_monitor: In detailed stats files, don't continiously output data for old and stale streams.
 
 * Wed Apr 20 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.13.2
