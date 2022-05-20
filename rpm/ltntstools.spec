@@ -63,6 +63,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: When MAX IAT exceeds 45ms, draw the UI row in red for warning, with a configurable options -I for adjustment.
   tstools_nic_monitor: Write recordings to /storage/packet_captures by default, if the dir exists. Else, /tmp
   tstools_nic_monitor: Add max iat metric to summary and detailed stats log files, and ! indicator if the max IAT was exceeded.
+  tstools_nic_monitor: show indicator flags for IAT and frame not eq 1316 packing issues
 
 * Wed Apr 20 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.13.2

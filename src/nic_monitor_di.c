@@ -657,7 +657,6 @@ void discovered_items_kafka_summary(struct tool_context_s *ctx)
 }
 #endif
 
-#if 0
 /* Perform any periodic tasks intermittently on the list of di's.
  * Such as pruning old/stale di objects.
  * Housekeeping runs every 15 seconds.
@@ -705,16 +704,21 @@ void discovered_items_housekeeping(struct tool_context_s *ctx)
 
 		/* find all duplicates of this object. */
 		int numberActiveDuplicates = 0;
+		int numberHiddenDuplicates = 0;
 		f = NULL;
 		xorg_list_for_each_entry(f, &ctx->list, list) {
 			if (is_di_duplicate(e, f))
 				continue; /* Discard matching against outrself */
 
 			if (is_di_dst_duplicate(e, f)) {
+				numberHiddenDuplicates++;
 				if (is_di_streaming(e, now) && is_di_streaming(f, now)) {
 					numberActiveDuplicates++;					
 					discovered_item_state_clr(f, DI_STATE_HIDDEN);
 					discovered_item_state_set(f, DI_STATE_DST_DUPLICATE);
+				}
+				if (is_di_streaming(e, now) && is_di_streaming(f, now) == 0) {
+					e->hasHiddenDuplicates = 1;
 				}
 			}
 
@@ -732,7 +736,6 @@ void discovered_items_housekeeping(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 
 }
-#endif
 
 void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
 {

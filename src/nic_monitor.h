@@ -361,7 +361,7 @@ struct discovered_item_s
 #endif
 
 	struct display_doc_s doc_scte35;
-
+	int hasHiddenDuplicates;
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);
