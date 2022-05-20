@@ -588,6 +588,12 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		if (!di)
 			return;
 
+		/* Flag the fact we've seen the object have data, at this time.
+		 * lastUpdated will be noticed during housekeeping and lack of activity
+		 * on a di object triggers other actions.
+		 */
+		di->lastUpdated = time(NULL);
+
 		int lengthPayloadBytes = ntohs(udphdr->uh_ulen) - sizeof(struct udphdr);
 #if 0
 		/* Mangle incoming stream so we can check our payload detection code */
