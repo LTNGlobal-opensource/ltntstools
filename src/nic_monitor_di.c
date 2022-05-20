@@ -1003,7 +1003,7 @@ void discovered_items_file_summary(struct tool_context_s *ctx, int write_banner)
 
 		if (discovered_item_state_get(e, DI_STATE_HIDDEN))
 			continue;
-			
+
 		discovered_item_file_summary(ctx, e, write_banner);
 
 		/* Implied memcpy of struct */
@@ -1023,6 +1023,10 @@ void discovered_items_file_detailed(struct tool_context_s *ctx, int write_banner
 
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
+
+		if (discovered_item_state_get(e, DI_STATE_HIDDEN))
+			continue;
+			
 		discovered_item_detailed_file_summary(ctx, e, write_banner);
 
 		/* Implied memcpy of struct */
