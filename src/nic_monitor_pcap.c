@@ -1,4 +1,3 @@
-
 #include "nic_monitor.h"
 
 #define QUEUE_MIN (8 * 1024)
@@ -312,7 +311,12 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		char dirprefix[256] = "/tmp";
 		if (ctx->recordingDir) {
 			strcpy(dirprefix, ctx->recordingDir);
-		}	
+		} else {
+			struct stat buf;
+			if (stat("/storage/packet_captures", &buf) == 0) {
+				strcpy(dirprefix, "/storage/packet_captures");
+			}
+		}
 		sprintf(prefix, "%s/nic_monitor-%s-%s", dirprefix, ctx->ifname, di->dstaddr);
 
 		/* Cleanup the filename so we don't have :, they mess up handing recordings via scp. */
