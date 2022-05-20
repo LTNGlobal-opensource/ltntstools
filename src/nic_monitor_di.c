@@ -193,6 +193,9 @@ static void discovered_item_insert(struct tool_context_s *ctx, struct discovered
 		if (a < b)
 			continue;
 
+		/* If we find a duplicate UDP destination address:port, mark the object a dup
+		 * for later wanring/reporting purposes.
+		 */
 		if (a == b) {
 			discovered_item_state_set(di, DI_STATE_DST_DUPLICATE);
 			discovered_item_state_set(e, DI_STATE_DST_DUPLICATE);
