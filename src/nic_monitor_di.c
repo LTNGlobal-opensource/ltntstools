@@ -874,7 +874,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		mbps = ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
 		bps = ltntstools_bytestream_stats_stream_get_bps(&di->stats);
 	}
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d\n",
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s\n",
 		ts,
 		ctx->ifname,
 		bps,
@@ -885,7 +885,9 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		di->srcaddr,
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
-		ctx->pcap_stats.ps_ifdrop);
+		ctx->pcap_stats.ps_ifdrop,
+		di->iat_hwm_us / 1000,
+		di->iat_hwm_us / 1000 > ctx->iatMax ? "!" : "");
 
 	write(fd, line, strlen(line));
 
@@ -969,7 +971,7 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		mbps = ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
 		bps = ltntstools_bytestream_stats_stream_get_bps(&di->stats);
 	}
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d\n",
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s\n",
 		ts,
 		ctx->ifname,
 		bps,
@@ -980,8 +982,9 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		di->srcaddr,
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
-		ctx->pcap_stats.ps_ifdrop);
-
+		ctx->pcap_stats.ps_ifdrop,
+		di->iat_hwm_us / 1000,
+		di->iat_hwm_us / 1000 > ctx->iatMax ? "!" : "");
 	write(fd, line, strlen(line));
 
 	close(fd);
