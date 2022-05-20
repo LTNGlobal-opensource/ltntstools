@@ -53,6 +53,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_scte35_inspector: Feature. Add support for live streams via pcap/nic interfaces.
   tstools_scte35_inspector: Feature. Autodetect audio and video pids (SPTS only).
   tstools_scte35_inspector: Feature. Show the future ad break time measured in milliseconds.
+  tstools_si_streammodel: Feature. Add support for url live srteams as input.
   tstools_nic_monitor: Feature. -O Don't stop recording when disk has less tha 10pct free. (Danger).
   tstools_pes_inspector: When operator doesn't ask for payload parsing, indicate this when dumping packets. Better clarity.
   tstools_pes_inspector: Behaviour change. Show PES headers by default, add an opt out argument. Helps with SMPTE2038 debug.

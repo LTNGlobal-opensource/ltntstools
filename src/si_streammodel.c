@@ -15,14 +15,14 @@
 
 static int gVerbose = 0;
 static int gDumpAll = 0;
-static void *g_sm = NULL;
 
 static void usage(const char *progname)
 {
 	printf("A tool to display the PAT/PMT transport tree structures from file.\n");
 	printf("The first PAT and first set of PMTs are displayed, then the program terminates.\n");
 	printf("Usage:\n");
-	printf("  -i <inputfile.ts>\n");
+	printf("  -i <filename | url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
+	printf("                          172.16.0.67 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -a don't terminate after the first model is obtained\n");
 	printf("  -v Increase level of verbosity (enable descriptor dumping).\n");
 	printf("  -h Display command line help.\n");
@@ -56,10 +56,25 @@ int si_streammodel(int argc, char *argv[])
 	}
 
 	if (iname == NULL) {
+		usage(argv[0]);
 		fprintf(stderr, "\n-i is mandatory.\n\n");
 		exit(1);
 	}
 
+#if 0
+	/* Fast and efficient */
+	struct ltntstools_pat_s *pat;
+	if (ltntstools_streammodel_alloc_from_url(iname, &pat) < 0) {
+		fprintf(stderr, "Error parsing stream, no model found.\n");
+	}
+
+	ltntstools_pat_dprintf(pat, 0);
+	ltntstools_pat_free(pat);
+	return 0;
+#else
+
+	/* With more granular control. */
+	void *g_sm = NULL;
 	if (ltntstools_streammodel_alloc(&g_sm, NULL) < 0) {
 		fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
 		exit(1);
@@ -111,6 +126,7 @@ int si_streammodel(int argc, char *argv[])
 //	ltntstools_streammodel_dprintf(g_sm, 0);
 
 	ltntstools_streammodel_free(g_sm);
+#endif
 
 	return 0;
 }
