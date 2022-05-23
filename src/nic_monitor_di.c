@@ -737,6 +737,57 @@ void discovered_items_housekeeping(struct tool_context_s *ctx)
 
 }
 
+/* The one and only place we maintain di->warningIndicatorLabel */
+void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct discovered_item_s *di)
+{
+	char blank = '-';
+
+	switch(di->payloadType) {
+	case PAYLOAD_RTP_TS:
+	case PAYLOAD_UDP_TS:
+		if (di->iat_hwm_us / 1000 > ctx->iatMax)
+			di->warningIndicatorLabel[0] = 'I';
+		else
+			di->warningIndicatorLabel[0] = blank;
+
+		if (di->hasHiddenDuplicates)
+			di->warningIndicatorLabel[1] = 'D';
+		else
+			di->warningIndicatorLabel[1] = blank;
+
+		if (di->notMultipleOfSevenError)
+			di->warningIndicatorLabel[2] = 'P';
+		else
+			di->warningIndicatorLabel[2] = blank;
+		break;
+	case PAYLOAD_BYTE_STREAM:
+	case PAYLOAD_A324_CTP:
+	case PAYLOAD_SMPTE2110_20_VIDEO:
+	case PAYLOAD_SMPTE2110_30_AUDIO:
+	case PAYLOAD_SMPTE2110_40_ANC:
+		break;
+		if (di->iat_hwm_us / 1000 > ctx->iatMax)
+			di->warningIndicatorLabel[0] = 'I';
+		else
+			di->warningIndicatorLabel[0] = blank;
+
+		if (di->hasHiddenDuplicates)
+			di->warningIndicatorLabel[1] = 'D';
+		else
+			di->warningIndicatorLabel[1] = blank;
+
+		di->warningIndicatorLabel[2] = blank;
+	default:
+		di->warningIndicatorLabel[0] = '?';
+		di->warningIndicatorLabel[1] = '?';
+		di->warningIndicatorLabel[2] = '?';
+		break;
+	}
+
+	/* Null terminate the string */
+	di->warningIndicatorLabel[3] = 0;
+}
+
 void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
 {
 	char stream[128];

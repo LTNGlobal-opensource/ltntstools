@@ -362,6 +362,7 @@ struct discovered_item_s
 
 	struct display_doc_s doc_scte35;
 	int hasHiddenDuplicates;
+	char warningIndicatorLabel[8]; /* ARray of single characters, shows warning flags to operator. */
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);
@@ -387,6 +388,8 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 
 /* For a given item, open a stats file on disk, append the current stats, close it. */
 void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int write_banner);
+
+void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct discovered_item_s *di);
 
 /* Set or clear the state field bitmask */
 void discovered_item_state_set(struct discovered_item_s *di, unsigned int state);

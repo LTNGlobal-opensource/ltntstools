@@ -471,6 +471,8 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		}
 	}
 	pthread_mutex_unlock(&di->h265_metadataLock);
+
+	discovered_item_warningindicators_update(ctx, di);
 }
 
 /* Called on the UI stream, and writes files to disk, handles recordings etc */

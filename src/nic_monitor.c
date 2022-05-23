@@ -152,7 +152,7 @@ static void *ui_thread_func(void *p)
 			totalMbps += ltntstools_pid_stats_stream_get_mbps(&di->stats);
 			totalStreams++;
 			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %c%c%c",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
@@ -160,13 +160,10 @@ static void *ui_thread_func(void *p)
 					di->stats.packetCount,
 					di->stats.ccErrors,
 					di->iat_hwm_us / 1000,
-					di->iat_hwm_us / 1000 > ctx->iatMax ? 'I' : '-',
-					di->hasHiddenDuplicates ? 'D' : '-',
-					di->notMultipleOfSevenError ? 'P' : '-');
-
+					di->warningIndicatorLabel);
 			} else
 			if (di->payloadType == PAYLOAD_A324_CTP) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %c%c%c",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
@@ -174,15 +171,13 @@ static void *ui_thread_func(void *p)
 					di->stats.packetCount,
 					di->stats.ccErrors,
 					di->iat_hwm_us / 1000,
-					di->iat_hwm_us / 1000 > ctx->iatMax ? 'I' : '-',
-					di->hasHiddenDuplicates ? 'D' : '-',
-					'-');
+					di->warningIndicatorLabel);
 				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
 			} else
 			if ((di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) ||
 				(di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) ||
 				(di->payloadType == PAYLOAD_SMPTE2110_40_ANC)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %c%c%c",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
@@ -190,13 +185,11 @@ static void *ui_thread_func(void *p)
 					di->stats.packetCount,
 					di->stats.ccErrors,
 					di->iat_hwm_us / 1000,
-					di->iat_hwm_us / 1000 > ctx->iatMax ? 'I' : '-',
-					di->hasHiddenDuplicates ? 'D' : '-',
-					'-');
+					di->warningIndicatorLabel);
 				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
 			} else
 			if (di->payloadType == PAYLOAD_BYTE_STREAM) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %4d  %c%c%c",
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %4d  %s",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
@@ -204,9 +197,7 @@ static void *ui_thread_func(void *p)
 					di->stats.packetCount,
 					"-",
 					di->iat_hwm_us / 1000,
-					di->iat_hwm_us / 1000 > ctx->iatMax ? 'I' : '-',
-					di->hasHiddenDuplicates ? 'D' : '-',
-					'-');
+					di->warningIndicatorLabel);
 				totalMbps += ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
 			}
 
