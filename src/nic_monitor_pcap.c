@@ -185,6 +185,8 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 	const struct pcap_pkthdr *cb_h, const u_char *cb_pkt, int lengthPayloadBytes,
 	struct discovered_item_s *di)
 {
+	time_t now = time(NULL);
+
 	struct timeval diff;
 	if (di->iat_last_frame.tv_sec) {
 		ltn_histogram_timeval_subtract(&diff, (struct timeval *)&cb_h->ts, &di->iat_last_frame);
@@ -218,6 +220,15 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 			 */
 			ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
 		}
+
+		if (di->stats.ccErrors != di->statsToUI.ccErrors) {
+			if (di->lastStreamCCError != now) {
+				di->lastStreamCCError = now;
+				display_doc_append_cc_error(&di->doc_cc_errors, 0, NULL);
+			}
+			di->statsToUI = di->stats; /* Cache current stats so we can compare the next time around. */
+		}
+
 	} else
 	if (di->payloadType == PAYLOAD_A324_CTP)
 	{

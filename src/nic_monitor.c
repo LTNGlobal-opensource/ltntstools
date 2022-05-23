@@ -610,16 +610,17 @@ static void *ui_thread_func(void *p)
 				}
 			}
 
-			if (discovered_item_state_get(di, DI_STATE_SHOW_SCTE35)) {
+			if (discovered_item_state_get(di, DI_STATE_SHOW_STREAM_LOG)) {
 				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> SCTE35 Report");
+				mvprintw(streamCount + 2, 0, " -> Stream Log / Report");
 				streamCount++;
-				display_doc_render(&di->doc_scte35, streamCount + 2, 8);
-				streamCount += di->doc_scte35.pageSize;
+				display_doc_render(&di->doc_cc_errors, streamCount + 2, 8);
+				streamCount += di->doc_cc_errors.pageSize;
 			}
 
 			streamCount++;
-		}
+		} /* For each DI */
+
 		pthread_mutex_unlock(&ctx->lock);
 
 		if (ctx->showUIOptions) {
@@ -645,12 +646,13 @@ static void *ui_thread_func(void *p)
 			mvprintw(streamCount + 2, 0, "H) Hide the selected stream (analysis continues)");
 			mvprintw(streamCount + 2, 0, "U) Unhide all hidden streams");
 			mvprintw(streamCount + 2 - 7, 53, "I) Toggle stream IAT histogram report");
-			mvprintw(streamCount + 2 - 6, 53, "M) Toggle stream PSIP model report");
-			mvprintw(streamCount + 2 - 5, 53, "P) Toggle stream PID traffic report");
-			mvprintw(streamCount + 2 - 4, 53, "r) Reset stats counters and begin new measurement period");
-			mvprintw(streamCount + 2 - 3, 53, "R) Start/Stop stream recording");
-			mvprintw(streamCount + 2 - 2, 53, "s) Toggle process/socket report");
-			mvprintw(streamCount + 2 - 1, 53, "T) Start/Stop TR101290 analysis (NOT YET SUPPORTED)");
+			mvprintw(streamCount + 2 - 6, 53, "L) Toggle stream log report");
+			mvprintw(streamCount + 2 - 5, 53, "M) Toggle stream PSIP model report");
+			mvprintw(streamCount + 2 - 4, 53, "P) Toggle stream PID traffic report");
+			mvprintw(streamCount + 2 - 3, 53, "r) Reset stats counters and begin new measurement period");
+			mvprintw(streamCount + 2 - 2, 53, "R) Start/Stop stream recording");
+			mvprintw(streamCount + 2 - 1, 53, "s) Toggle process/socket report");
+			mvprintw(streamCount + 2 - 0, 53, "T) Start/Stop TR101290 analysis (NOT YET SUPPORTED)");
 #if 0
 			mvprintw(streamCount + 2 - 0, 53, "3) Toggle SCTE35 report");
 #endif
@@ -1276,6 +1278,9 @@ int nic_monitor(int argc, char *argv[])
 			discovered_items_select_json_probe_toggle(ctx);
 		}
 #endif
+		if (c == 'L') {
+			discovered_items_select_show_stream_log_toggle(ctx);
+		}
 		if (c == 'H') {
 			discovered_items_select_hide(ctx);
 		}
@@ -1316,17 +1321,15 @@ int nic_monitor(int argc, char *argv[])
 				if (c == 0x44) { /* Left */
 					discovered_items_select_none(ctx);
 				}
-#if 0
 				else
 				if (c == 0x35) { /* Page Up */
 					//printf("0x%02x up\n", c);
-					discovered_items_select_scte35_pageup(ctx);
+					discovered_items_select_show_stream_log_pageup(ctx);
 				} else
 				if (c == 0x36) { /* Page Down */
 					//printf("0x%02x dn\n", c);
-					discovered_items_select_scte35_pagedown(ctx);
+					discovered_items_select_show_stream_log_pagedown(ctx);
 				}
-#endif
 			}
 		}
 

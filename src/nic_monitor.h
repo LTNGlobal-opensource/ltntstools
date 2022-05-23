@@ -218,6 +218,8 @@ struct display_doc_s
 };
 void display_doc_initialize(struct display_doc_s *doc);
 int  display_doc_append(struct display_doc_s *doc, const char *line);
+int  display_doc_append_cc_error(struct display_doc_s *doc, uint16_t pid, time_t *when);
+int  display_doc_append_with_time(struct display_doc_s *doc, const char *msg, time_t *when);
 void display_doc_render(struct display_doc_s *doc, int row, int col);
 void display_doc_page_up(struct display_doc_s *doc);
 void display_doc_page_down(struct display_doc_s *doc);
@@ -250,10 +252,12 @@ struct discovered_item_s
 #define DI_STATE_JSON_PROBE_ACTIVE		(1 << 15)
 #endif
 #define DI_STATE_SHOW_SCTE35			(1 << 16)
+#define DI_STATE_SHOW_STREAM_LOG		(1 << 17)
 	unsigned int state;
 
 	time_t firstSeen;
 	time_t lastUpdated;
+	time_t lastStreamCCError;
 	struct ether_header ethhdr;
 #ifdef __APPLE__
 #define iphdr ip
@@ -275,6 +279,7 @@ struct discovered_item_s
 	 */
 	struct ltntstools_stream_statistics_s statsToFileSummary;
 	struct ltntstools_stream_statistics_s statsToFileDetailed;
+	struct ltntstools_stream_statistics_s statsToUI;
 
 	/* File output */
 	char filename[128];
@@ -360,6 +365,7 @@ struct discovered_item_s
 	} kafka;
 #endif
 
+	struct display_doc_s doc_cc_errors;
 	struct display_doc_s doc_scte35;
 	int hasHiddenDuplicates;
 	char warningIndicatorLabel[8]; /* ARray of single characters, shows warning flags to operator. */
@@ -427,6 +433,10 @@ void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx);
 void discovered_items_select_scte35_toggle(struct tool_context_s *ctx);
 void discovered_items_select_scte35_pageup(struct tool_context_s *ctx);
 void discovered_items_select_scte35_pagedown(struct tool_context_s *ctx);
+void discovered_items_select_show_stream_log_toggle(struct tool_context_s *ctx);
+void discovered_items_select_show_stream_log_pageup(struct tool_context_s *ctx);
+void discovered_items_select_show_stream_log_pagedown(struct tool_context_s *ctx);
+
 
 /* TR101290 */
 int     nic_monitor_tr101290_alloc(struct discovered_item_s *di);

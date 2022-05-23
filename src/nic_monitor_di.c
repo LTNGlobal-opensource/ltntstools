@@ -165,27 +165,8 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 #endif
 #endif
 
-#if 0
-		display_doc_initialize(&di->doc_scte35);
-		display_doc_append(&di->doc_scte35, "first line");
-		display_doc_append(&di->doc_scte35, "second line");
-		display_doc_append(&di->doc_scte35, "3 line");
-		display_doc_append(&di->doc_scte35, "4 line");
-		display_doc_append(&di->doc_scte35, "5 line");
-		display_doc_append(&di->doc_scte35, "6 line");
-		display_doc_append(&di->doc_scte35, "7 line");
-		display_doc_append(&di->doc_scte35, "8 line");
-		display_doc_append(&di->doc_scte35, "9 line");
-		display_doc_append(&di->doc_scte35, "10 line");
-		display_doc_append(&di->doc_scte35, "11 line");
-		display_doc_append(&di->doc_scte35, "12 line");
-		display_doc_append(&di->doc_scte35, "13 line");
-		display_doc_append(&di->doc_scte35, "14 line");
-		display_doc_append(&di->doc_scte35, "15 line");
-		display_doc_append(&di->doc_scte35, "16 line");
-		display_doc_append(&di->doc_scte35, "17 line");
-		display_doc_append(&di->doc_scte35, "18 line");
-#endif
+		display_doc_initialize(&di->doc_cc_errors);
+		display_doc_append_with_time(&di->doc_cc_errors, "Logging begins", NULL);
 	}
 
 	return di;
@@ -1104,6 +1085,7 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 		e->iat_lwm_us = 5000000;
 		e->iat_hwm_us = -1;
 		ltn_histogram_reset(e->packetIntervals);
+		display_doc_append_with_time(&e->doc_cc_errors, "Operator manually reset statistics", NULL);
 
 		pthread_mutex_lock(&e->h264_sliceLock);
 		if (e->h264_slices) {
@@ -1466,21 +1448,72 @@ void discovered_items_select_scte35_pagedown(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 }
 
+void discovered_items_select_show_stream_log_toggle(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		if (discovered_item_state_get(e, DI_STATE_SHOW_STREAM_LOG)) {
+			discovered_item_state_clr(e, DI_STATE_SHOW_STREAM_LOG);
+		} else {
+			discovered_item_state_set(e, DI_STATE_SHOW_STREAM_LOG);
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_show_stream_log_pageup(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		display_doc_page_up(&e->doc_cc_errors);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_show_stream_log_pagedown(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		display_doc_page_down(&e->doc_cc_errors);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
 void display_doc_initialize(struct display_doc_s *doc)
 {
 	memset(doc, 0, sizeof(*doc));
 	doc->displayLineFrom = 0;
 	doc->pageSize = 0;
-	doc->maxPageSize = 15;
+	doc->maxPageSize = 10;
 }
 
 int display_doc_append(struct display_doc_s *doc, const char *line)
 {
+	if (doc->lineCount > 1000) {
+		/* For now, some safety, a reasonable limit. */
+		return -1;
+	}
+
 	doc->lines = realloc(doc->lines, (doc->lineCount + 1) * sizeof(uint8_t *));
 	if (!doc->lines)
 		return -1;
 
-	int slen = strlen(line);
+	int slen = strlen(line) + 1;
 
 	uint8_t *ptr = calloc(1, slen);
 	if (!ptr)
@@ -1497,6 +1530,44 @@ int display_doc_append(struct display_doc_s *doc, const char *line)
 	return doc->lineCount;
 }
 
+int display_doc_append_cc_error(struct display_doc_s *doc, uint16_t pid, time_t *when)
+{
+	char line[80];
+	memset(&line[0], 0, sizeof(line));
+
+	time_t t;
+	if (when == NULL) {
+		t = time(NULL);
+	} else {
+		t = *when;
+	}
+
+	libltntstools_getTimestamp_seperated(&line[0], sizeof(line), &t);
+
+	sprintf(line + strlen(line), " : CC Errors in stream");
+
+	return display_doc_append(doc, line);
+}
+
+int display_doc_append_with_time(struct display_doc_s *doc, const char *msg, time_t *when)
+{
+	char line[80];
+	memset(&line[0], 0, sizeof(line));
+
+	time_t t;
+	if (when == NULL) {
+		t = time(NULL);
+	} else {
+		t = *when;
+	}
+
+	libltntstools_getTimestamp_seperated(&line[0], sizeof(line), &t);
+
+	sprintf(line + strlen(line), " : %s", msg);
+
+	return display_doc_append(doc, line);
+}
+
 void display_doc_page_up(struct display_doc_s *doc)
 {
 	doc->displayLineFrom -= doc->pageSize;
@@ -1510,7 +1581,7 @@ void display_doc_page_down(struct display_doc_s *doc)
 {
 	doc->displayLineFrom += doc->pageSize;
 	if (doc->displayLineFrom + doc->pageSize >= doc->lineCount)
-		doc->displayLineFrom = doc->lineCount - doc->pageSize;
+		doc->displayLineFrom = doc->lineCount - doc->pageSize - 1;
 		
 	return;
 }
@@ -1519,14 +1590,13 @@ void display_doc_render(struct display_doc_s *doc, int row, int col)
 {
 	int l = 0;
 
-	mvprintw(row + l, 64, "%d lines", doc->lineCount);
-
-	for (int i = doc->displayLineFrom; i < (doc->displayLineFrom + doc->pageSize); i++) {
+	for (int i = doc->displayLineFrom; i < doc->displayLineFrom + doc->maxPageSize; i++) {
 		if (i >= doc->lineCount)
 			break;
 
 		uint8_t *ptr = doc->lines[i];
-		mvprintw(row + l, col, "xxx %s", ptr);
+		mvprintw(row + l, col, "%s", ptr);
 		l++;
 	}
+	mvprintw(row - 1, col + 22, "[%d of %d]", doc->displayLineFrom, doc->lineCount);
 }
