@@ -1027,7 +1027,7 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		mbps = ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
 		bps = ltntstools_bytestream_stats_stream_get_bps(&di->stats);
 	}
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s\n",
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s,flags=%s\n",
 		ts,
 		ctx->ifname,
 		bps,
