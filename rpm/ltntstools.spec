@@ -70,6 +70,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: In summary stats files, add the warning indicator flags 'flags=---' summary
   tstools_nic_monitor: In detailed stats files, add the warning indicator flags 'flags=---' summary
   tstools_nic_monitor: In the (debug) json probe-output, add the warning indicator flags 'flags=---' summary
+  tstools_nic_monitor: Added Log View 'L' to track CC stream errors over time (use page up/dn to scroll log)
 
 * Wed Apr 20 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.13.2
