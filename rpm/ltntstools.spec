@@ -67,6 +67,9 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: show indicator flags for duplicate streams
   tstools_nic_monitor: In summary stats files, don't continiously output data for old and stale streams.
   tstools_nic_monitor: In detailed stats files, don't continiously output data for old and stale streams.
+  tstools_nic_monitor: In summary stats files, add the warning indicator flags 'flags=---' summary
+  tstools_nic_monitor: In detailed stats files, add the warning indicator flags 'flags=---' summary
+  tstools_nic_monitor: In the (debug) json probe-output, add the warning indicator flags 'flags=---' summary
 
 * Wed Apr 20 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.13.2
