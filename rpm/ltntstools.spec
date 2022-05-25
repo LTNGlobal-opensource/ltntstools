@@ -27,7 +27,6 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_pid_drop
 /usr/local/bin/tstools_pmt_inspector
 /usr/local/bin/tstools_si_inspector
-/usr/local/bin/tstools_udp_capture
 /usr/local/bin/tstools_rtmp_analyzer
 /usr/local/bin/tstools_si_streammodel
 /usr/local/bin/tstools_tr101290_analyzer
@@ -50,7 +49,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Thu May 26 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.0
-  tstools_udp_capture: Deprecated in v1.9.0. See tstools_igmp_join if you need IGMP tooling. 
+  tstools_udp_capture: Tool removed. Deprecated in v1.9.0. See tstools_igmp_join if you need IGMP tooling. 
 
 * Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.14.0
