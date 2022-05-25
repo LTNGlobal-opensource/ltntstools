@@ -209,6 +209,7 @@ void pcap_queue_free(struct tool_context_s *ctx);
 
 struct display_doc_s
 {
+	pthread_mutex_t lock;
 	int lineCount;
 	uint8_t **lines;
 
@@ -217,6 +218,7 @@ struct display_doc_s
 	int maxPageSize;
 };
 void display_doc_initialize(struct display_doc_s *doc);
+void display_doc_free(struct display_doc_s *doc);
 int  display_doc_append(struct display_doc_s *doc, const char *line);
 int  display_doc_append_cc_error(struct display_doc_s *doc, uint16_t pid, time_t *when);
 int  display_doc_append_with_time(struct display_doc_s *doc, const char *msg, time_t *when);
@@ -365,7 +367,7 @@ struct discovered_item_s
 	} kafka;
 #endif
 
-	struct display_doc_s doc_cc_errors;
+	struct display_doc_s doc_stream_log;
 	struct display_doc_s doc_scte35;
 	int hasHiddenDuplicates;
 	char warningIndicatorLabel[8]; /* ARray of single characters, shows warning flags to operator. */

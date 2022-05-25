@@ -224,7 +224,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		if (di->stats.ccErrors != di->statsToUI.ccErrors) {
 			if (di->lastStreamCCError != now) {
 				di->lastStreamCCError = now;
-				display_doc_append_cc_error(&di->doc_cc_errors, 0, NULL);
+				display_doc_append_cc_error(&di->doc_stream_log, 0, NULL);
 			}
 			di->statsToUI = di->stats; /* Cache current stats so we can compare the next time around. */
 		}

@@ -614,8 +614,8 @@ static void *ui_thread_func(void *p)
 				streamCount++;
 				mvprintw(streamCount + 2, 0, " -> Stream Log / Report");
 				streamCount++;
-				display_doc_render(&di->doc_cc_errors, streamCount + 2, 8);
-				streamCount += di->doc_cc_errors.pageSize;
+				display_doc_render(&di->doc_stream_log, streamCount + 2, 8);
+				streamCount += di->doc_stream_log.pageSize;
 			}
 
 			streamCount++;

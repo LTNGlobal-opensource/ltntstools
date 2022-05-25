@@ -165,8 +165,8 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 #endif
 #endif
 
-		display_doc_initialize(&di->doc_cc_errors);
-		display_doc_append_with_time(&di->doc_cc_errors, "Logging begins", NULL);
+		display_doc_initialize(&di->doc_stream_log);
+		display_doc_append_with_time(&di->doc_stream_log, "Logging begins", NULL);
 	}
 
 	return di;
@@ -1085,7 +1085,7 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 		e->iat_lwm_us = 5000000;
 		e->iat_hwm_us = -1;
 		ltn_histogram_reset(e->packetIntervals);
-		display_doc_append_with_time(&e->doc_cc_errors, "Operator manually reset statistics", NULL);
+		display_doc_append_with_time(&e->doc_stream_log, "Operator manually reset statistics", NULL);
 
 		pthread_mutex_lock(&e->h264_sliceLock);
 		if (e->h264_slices) {
@@ -1475,7 +1475,7 @@ void discovered_items_select_show_stream_log_pageup(struct tool_context_s *ctx)
 		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
 			continue;
 
-		display_doc_page_up(&e->doc_cc_errors);
+		display_doc_page_up(&e->doc_stream_log);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -1489,7 +1489,7 @@ void discovered_items_select_show_stream_log_pagedown(struct tool_context_s *ctx
 		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
 			continue;
 
-		display_doc_page_down(&e->doc_cc_errors);
+		display_doc_page_down(&e->doc_stream_log);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -1497,11 +1497,28 @@ void discovered_items_select_show_stream_log_pagedown(struct tool_context_s *ctx
 void display_doc_initialize(struct display_doc_s *doc)
 {
 	memset(doc, 0, sizeof(*doc));
+
+	pthread_mutex_init(&doc->lock, NULL);
 	doc->displayLineFrom = 0;
 	doc->pageSize = 0;
 	doc->maxPageSize = 10;
 }
 
+/* Lock on modify */
+void display_doc_free(struct display_doc_s *doc)
+{
+	pthread_mutex_lock(&doc->lock);
+	for (int i = 0; i < doc->lineCount; i++) {
+		free(doc->lines[i]);
+	}
+	free(doc->lines);
+	pthread_mutex_unlock(&doc->lock);
+	doc->displayLineFrom = 0;
+	doc->pageSize = 0;
+	doc->maxPageSize = 10;
+}
+
+/* Lock on modify */
 int display_doc_append(struct display_doc_s *doc, const char *line)
 {
 	if (doc->lineCount > 1000) {
@@ -1509,15 +1526,20 @@ int display_doc_append(struct display_doc_s *doc, const char *line)
 		return -1;
 	}
 
+	pthread_mutex_lock(&doc->lock);
 	doc->lines = realloc(doc->lines, (doc->lineCount + 1) * sizeof(uint8_t *));
-	if (!doc->lines)
+	if (!doc->lines) {
+		pthread_mutex_unlock(&doc->lock);
 		return -1;
+	}
 
 	int slen = strlen(line) + 1;
 
 	uint8_t *ptr = calloc(1, slen);
-	if (!ptr)
+	if (!ptr) {
+		pthread_mutex_unlock(&doc->lock);
 		return -1;
+	}
 
 	memcpy(ptr, line, slen);
 	doc->lines[ doc->lineCount ] = ptr;
@@ -1527,6 +1549,7 @@ int display_doc_append(struct display_doc_s *doc, const char *line)
 	if (doc->lineCount < doc->maxPageSize)
 		doc->pageSize = doc->lineCount;
 
+	pthread_mutex_unlock(&doc->lock);
 	return doc->lineCount;
 }
 
