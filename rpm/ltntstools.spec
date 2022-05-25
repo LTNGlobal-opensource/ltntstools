@@ -48,6 +48,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
+* Thu May 26 2022 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.15.0
+  tstools_udp_capture: Deprecated in v1.9.0. See tstools_igmp_join if you need IGMP tooling. 
+
 * Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.14.0
   tstools_scte35_inspector: Feature. Add support for live streams via pcap/nic interfaces.
