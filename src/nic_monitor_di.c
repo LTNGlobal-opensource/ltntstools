@@ -47,6 +47,8 @@ void discovered_item_free(struct discovered_item_s *di)
 {
 	nic_monitor_tr101290_free(di);
 
+	display_doc_free(&di->doc_stream_log);
+	
 	if (di->h264_metadata_parser) {
 		pthread_mutex_lock(&di->h264_metadataLock);
 		h264_slice_counter_free(di->h264_metadata_parser);
