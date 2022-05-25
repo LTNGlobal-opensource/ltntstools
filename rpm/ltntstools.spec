@@ -59,10 +59,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_pes_inspector: Behaviour change. Show PES headers by default, add an opt out argument. Helps with SMPTE2038 debug.
   general: Fixed various OSX compile time issues, disabled certain tools on OSX (asi2ip).
   tstools_smpte2038_inspector: Feature. New tool to auto-detect SMPTE2038 messages and dump them for inspection. NIC/PCAP, file or live stream.
-  tstools_nic_monitor: change IAT row reporting to MAX iat measure in ms
+  tstools_nic_monitor: change IAT row reporting to MAX iat measure in ms, removed current and low watermark value.
   tstools_nic_monitor: When MAX IAT exceeds 45ms, draw the UI row in red for warning, with a configurable options -I for adjustment.
   tstools_nic_monitor: Write recordings to /storage/packet_captures by default, if the dir exists. Else, /tmp
-  tstools_nic_monitor: Add max iat metric to summary and detailed stats log files, and ! indicator if the max IAT was exceeded.
+  tstools_nic_monitor: Feature. Add max iat metric to summary and detailed stats log files, and ! indicator if the max IAT was exceeded.
   tstools_nic_monitor: show indicator flags for IAT and frame not eq 1316 packing issues
   tstools_nic_monitor: show indicator flags for duplicate streams
   tstools_nic_monitor: In summary stats files, don't continiously output data for old and stale streams.
@@ -70,7 +70,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: In summary stats files, add the warning indicator flags 'flags=---' summary
   tstools_nic_monitor: In detailed stats files, add the warning indicator flags 'flags=---' summary
   tstools_nic_monitor: In the (debug) json probe-output, add the warning indicator flags 'flags=---' summary
-  tstools_nic_monitor: Added Log View 'L' to track CC stream errors over time (use page up/dn to scroll log)
+  tstools_nic_monitor: Feature. Added Log View 'L' to track CC stream errors over time (use page up/dn to scroll log)
 
 * Wed Apr 20 2022 Steven Toth <stoth@ltnglobal.com> 
 - v1.13.2
