@@ -48,7 +48,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Fri May  6 2022 Steven Toth <stoth@ltnglobal.com> 
+* Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.14.0
   tstools_scte35_inspector: Feature. Add support for live streams via pcap/nic interfaces.
   tstools_scte35_inspector: Feature. Autodetect audio and video pids (SPTS only).
