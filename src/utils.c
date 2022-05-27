@@ -8,6 +8,7 @@
 #include <net/if.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <sys/stat.h>
 
 /* In string 'str', find occurences of character src and replace with character dst. */
 /* return the number of substituions occured. */
@@ -148,4 +149,18 @@ char *network_stream_ascii(struct iphdr *iphdr, struct udphdr *udphdr)
 	sprintf(str + strlen(str), " -> %s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 
 	return str;
+}
+
+int isValidTransportFile(const char *filename)
+{
+	struct stat buf;
+
+	if (stat(filename, &buf) == 0) {
+		if (S_ISREG(buf.st_mode) && buf.st_blocks) {
+			/* Regular file with some length */
+			return 1;
+		}
+	}
+
+	return 0;
 }

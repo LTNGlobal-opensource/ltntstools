@@ -26,4 +26,6 @@ int network_addr_compare(
 
 char *network_stream_ascii(struct iphdr *iphdr, struct udphdr *udphdr);
 
+int isValidTransportFile(const char *filename);
+
 #endif  /* LTNTOOLS_UTILS_H */
