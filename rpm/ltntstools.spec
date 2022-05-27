@@ -51,7 +51,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 - v1.15.0
   tstools_udp_capture: Tool removed. Deprecated in v1.9.0. See tstools_igmp_join if you need IGMP tooling. 
   tstools_nic_monitor: The default location for all tr101290 logs is /storage/ltn/log, or /tmp if it doesn't exist, or a user override.
-  
+  tstools_nic_monitor: Feature. Adjust -i option to analyze transport files from disk.
+
 * Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.14.0
   tstools_scte35_inspector: Feature. Add support for live streams via pcap/nic interfaces.
