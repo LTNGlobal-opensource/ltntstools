@@ -54,6 +54,14 @@ int nic_monitor_tr101290_alloc(struct discovered_item_s *di)
 	if (ret == 0) {
 		char fname[512];
 		char dirprefix[256] = "/tmp";
+
+		/* Prefer LTN logs if it exists, else tmp */
+		struct stat buf;
+		if (stat("/storage/ltn/logs", &buf) == 0) {
+			strcpy(dirprefix, "/storage/ltn/logs");
+		}
+
+		/* TODO: Recording dir override, really? */
 		if (di->ctx->recordingDir) {
 			strcpy(dirprefix, di->ctx->recordingDir);
 		}
