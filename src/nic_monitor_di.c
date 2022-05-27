@@ -147,6 +147,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 #endif
 
 		pthread_mutex_init(&di->h265_metadataLock, NULL);
+
 #if 0
 		if (ltntstools_h265_codec_metadata_alloc(&di->h265_metadata_parser, 0x31, 0xe0) < 0) {
 			fprintf(stderr, "\nUnable to allocate h265 metadata parser, it's safe to continue.\n\n");
@@ -157,6 +158,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		if (nic_monitor_tr101290_alloc(di) < 0) {
 			fprintf(stderr, "\nUnable to allocate tr101290 analyzer, it's safe to continue.\n\n");
 		}
+		discovered_item_state_set(di, DI_STATE_SHOW_TR101290);
 #endif
 
 #if PROBE_REPORTER
@@ -744,6 +746,8 @@ void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct
 			di->warningIndicatorLabel[2] = 'P';
 		else
 			di->warningIndicatorLabel[2] = blank;
+
+		di->warningIndicatorLabel[3] = 'T';
 		break;
 	case PAYLOAD_BYTE_STREAM:
 	case PAYLOAD_A324_CTP:
@@ -762,15 +766,17 @@ void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct
 			di->warningIndicatorLabel[1] = blank;
 
 		di->warningIndicatorLabel[2] = blank;
+		di->warningIndicatorLabel[3] = blank;
 	default:
 		di->warningIndicatorLabel[0] = '?';
 		di->warningIndicatorLabel[1] = '?';
 		di->warningIndicatorLabel[2] = '?';
+		di->warningIndicatorLabel[3] = '?';
 		break;
 	}
 
 	/* Null terminate the string */
-	di->warningIndicatorLabel[3] = 0;
+	di->warningIndicatorLabel[4] = 0;
 }
 
 void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)

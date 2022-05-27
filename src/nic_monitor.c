@@ -93,9 +93,19 @@ static void *ui_thread_func(void *p)
 		sprintf(title_a, "%s", ctx->pcap_filter);
 		char mask[64];
 		sprintf(mask, "%s", inet_ntoa(ip_mask));
-		sprintf(title_c, "NIC: %s (%s/%s) Dropped: %d/%d", ctx->ifname, inet_ntoa(ip_net), mask,
-			ctx->pcap_stats.ps_drop,
-			ctx->pcap_stats.ps_ifdrop);
+		if (ctx->iftype == IF_TYPE_PCAP) {
+			sprintf(title_c, "NIC: %s (%s/%s) Dropped: %d/%d", ctx->ifname, inet_ntoa(ip_net), mask,
+				ctx->pcap_stats.ps_drop,
+				ctx->pcap_stats.ps_ifdrop);
+		} else
+		if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
+			if (ctx->fileLoops) {
+				sprintf(title_c, "LOOP: %s @ %6.2f%%", ctx->ifname, ctx->fileLoopPct);
+			} else {
+				sprintf(title_c, "FILE: %s @ %6.2f%%", ctx->ifname, ctx->fileLoopPct);
+			}
+		}
+
 		int blen = 111 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
@@ -587,9 +597,9 @@ static void *ui_thread_func(void *p)
 
 							int64_t ms = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
 							if (ms >= 0) {
-								mvprintw(streamCount + 2, 86, "%" PRIi64 "ms", ms);
+								mvprintw(streamCount + 2, 87, "%" PRIi64 "ms", ms);
 							} else {
-								mvprintw(streamCount + 2, 86, "n/a");
+								mvprintw(streamCount + 2, 87, "n/a");
 							}
 						}
 
@@ -867,10 +877,60 @@ static void *stats_thread_func(void *p)
 	return 0;
 }
 
+
 static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_char *pkt) 
 {
 	pcap_update_statistics(ctx, h, pkt); /* Update the stream stats realtime to avoid queue jitter */
 	pcap_queue_push(ctx, h, pkt); /* Push the packet onto a deferred queue for late IO processing. */
+}
+
+static struct pcap_pkthdr file_pkthdr;
+
+static uint8_t file_pktdata[42 + (7 * 188)] = 
+{
+	0x01, 0x00, 0x5e, 0x01, 0x14, 0x50, 0xac, 0x1f,
+	0x6b, 0x77, 0x81, 0xd3, 0x08, 0x00, 0x45, 0x00,
+	0x05, 0x40, 0xeb, 0x0d, 0x40, 0x00, 0x05, 0x11,
+	0xb9, 0x55, 0xc0, 0xa8, 0x14, 0x50, 0xe3, 0x01,
+	0x14, 0x50, 0xd2, 0xb1, 0x0f, 0xa1, 0x05, 0x2c,
+	0xf5, 0x29,
+	/* Packet data to follow */
+};
+
+static void *sm_cb_pos(void *userContext, uint64_t pos, uint64_t max, double pct)
+{
+	struct tool_context_s *ctx = userContext;
+	ctx->fileLoopPct = pct;
+//	printf("%6.2f\n", pct);
+
+	return NULL;
+}
+
+static void * sm_cb_raw(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	struct tool_context_s *ctx = userContext;
+
+	/* Convert a series of packets into a PCAP like structure */
+	if (packetCount == 7) {
+		gettimeofday(&file_pkthdr.ts, NULL);
+		file_pkthdr.caplen = 42 + (packetCount * 188);
+		file_pkthdr.len = file_pkthdr.caplen;
+
+		memcpy(&file_pktdata[42], pkts, packetCount * 188);
+		file_pktdata[26] = 192;
+		file_pktdata[27] = 168;
+		file_pktdata[28] = 1;
+		file_pktdata[29] = 1;
+		file_pktdata[30] = 227;
+		file_pktdata[31] = 1;
+		file_pktdata[32] = 1;
+		file_pktdata[33] = 1;
+		file_pktdata[34] = 6502 >> 8;
+		file_pktdata[35] = 6502 & 0xff;
+		pcap_callback((u_char *)ctx, &file_pkthdr, (const u_char *)&file_pktdata[0]);
+	}
+
+	return NULL;
 }
 
 static void *pcap_thread_func(void *p)
@@ -881,78 +941,97 @@ static void *pcap_thread_func(void *p)
 	ctx->pcap_threadTerminated = 0;
 
 	int processed;
+	void *sm = NULL;
+
+	struct ltntstools_source_rcts_callbacks_s sm_callbacks = { 0 };
+	sm_callbacks.raw = (ltntstools_source_rcts_raw_callback)sm_cb_raw;
+	sm_callbacks.pos = (ltntstools_source_rcts_pos_callback)sm_cb_pos;
 
 	ltnpthread_setname_np(ctx->pcap_threadId, "tstools-pcap");
 	pthread_detach(pthread_self());
 
 	time_t lastStatsCheck = 0;
 
-	ctx->descr = pcap_create(ctx->ifname, ctx->errbuf);
-	if (ctx->descr == NULL) {
-		fprintf(stderr, "Error, %s\n", ctx->errbuf);
-		exit(1);
-	}
-
-	pcap_set_snaplen(ctx->descr, ctx->snaplen);
-	pcap_set_promisc(ctx->descr,
+	if (ctx->iftype == IF_TYPE_PCAP) {
+		ctx->descr = pcap_create(ctx->ifname, ctx->errbuf);
+		if (ctx->descr == NULL) {
+			fprintf(stderr, "Error, %s\n", ctx->errbuf);
+			exit(1);
+		}
+	
+		pcap_set_snaplen(ctx->descr, ctx->snaplen);
+		pcap_set_promisc(ctx->descr,
 #ifdef __linux__
-		-1
+			-1
 #endif
 #ifdef __APPLE__
-		1
+			1
 #endif
-	);
+		);
 
-	if (ctx->bufferSize != -1) {
-		int ret = pcap_set_buffer_size(ctx->descr, ctx->bufferSize);
-		if (ret == PCAP_ERROR_ACTIVATED) {
-			fprintf(stderr, "Unable to set -B buffersize to %d, already activated\n", ctx->bufferSize);
-			exit(0);
+		if (ctx->bufferSize != -1) {
+			int ret = pcap_set_buffer_size(ctx->descr, ctx->bufferSize);
+			if (ret == PCAP_ERROR_ACTIVATED) {
+				fprintf(stderr, "Unable to set -B buffersize to %d, already activated\n", ctx->bufferSize);
+				exit(0);
+			}
+			if (ret != 0) {
+				fprintf(stderr, "Unable to set -B buffersize to %d\n", ctx->bufferSize);
+				exit(0);
+			}
 		}
+
+		int ret = pcap_activate(ctx->descr);
 		if (ret != 0) {
-			fprintf(stderr, "Unable to set -B buffersize to %d\n", ctx->bufferSize);
-			exit(0);
+			if (ret == PCAP_ERROR_PERM_DENIED) {
+				fprintf(stderr, "Error, permission denied.\n");
+			}
+			if (ret == PCAP_ERROR_NO_SUCH_DEVICE) {
+				fprintf(stderr, "Error, network interface '%s' not found.\n", ctx->ifname);
+			}
+			fprintf(stderr, "Error, pcap_activate, %s\n", pcap_geterr(ctx->descr));
+			printf("\nAvailable interfaces:\n");
+			networkInterfaceList();
+			exit(1);
 		}
-	}
 
-	int ret = pcap_activate(ctx->descr);
-	if (ret != 0) {
-		if (ret == PCAP_ERROR_PERM_DENIED) {
-			fprintf(stderr, "Error, permission denied.\n");
+		/* TODO: We should craft the filter to be udp dst 224.0.0.0/4 and then
+		* we don't need to manually filter in our callback.
+		*/
+		struct bpf_program fp;
+		ret = pcap_compile(ctx->descr, &fp, ctx->pcap_filter, 0, ctx->netp);
+		if (ret == -1) {
+			fprintf(stderr, "Error, pcap_compile, %s\n", pcap_geterr(ctx->descr));
+			exit(1);
 		}
-		if (ret == PCAP_ERROR_NO_SUCH_DEVICE) {
-			fprintf(stderr, "Error, network interface '%s' not found.\n", ctx->ifname);
+
+		ret = pcap_setfilter(ctx->descr, &fp);
+		if (ret == -1) {
+			fprintf(stderr, "Error, pcap_setfilter\n");
+			exit(1);
 		}
-		fprintf(stderr, "Error, pcap_activate, %s\n", pcap_geterr(ctx->descr));
-		printf("\nAvailable interfaces:\n");
-		networkInterfaceList();
-		exit(1);
-	}
 
-	/* TODO: We should craft the filter to be udp dst 224.0.0.0/4 and then
-	 * we don't need to manually filter in our callback.
-	 */
-	struct bpf_program fp;
-	ret = pcap_compile(ctx->descr, &fp, ctx->pcap_filter, 0, ctx->netp);
-	if (ret == -1) {
-		fprintf(stderr, "Error, pcap_compile, %s\n", pcap_geterr(ctx->descr));
-		exit(1);
-	}
+		pcap_setnonblock(ctx->descr, 1, ctx->errbuf);
+	} else
+	if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
 
-	ret = pcap_setfilter(ctx->descr, &fp);
-	if (ret == -1) {
-		fprintf(stderr, "Error, pcap_setfilter\n");
-		exit(1);
-	}
+		if (ltntstools_source_rcts_alloc(&sm, ctx, &sm_callbacks, ctx->ifname, ctx->fileLoops) < 0) {
 
-	pcap_setnonblock(ctx->descr, 1, ctx->errbuf);
+		}
+
+	}
 
 	while (!ctx->pcap_threadTerminate) {
 
-		processed = pcap_dispatch(ctx->descr, -1, pcap_callback, NULL);
-		if (processed == 0) {
-			ctx->pcap_dispatch_miss++;
-			usleep(1 * 1000);
+		if (ctx->iftype == IF_TYPE_PCAP) {
+			processed = pcap_dispatch(ctx->descr, -1, pcap_callback, NULL);
+			if (processed == 0) {
+				ctx->pcap_dispatch_miss++;
+				usleep(1 * 1000);
+			}
+		} else
+		if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
+			usleep(50 * 1000);
 		}
 
 		time_t now;
@@ -960,23 +1039,34 @@ static void *pcap_thread_func(void *p)
 
 		/* Querying stats repeatidly is cpu expensive, we only need it 1sec intervals. */
 		if (lastStatsCheck == 0) {
-			/* Collect pcap packet loss stats */
-			if (pcap_stats(ctx->descr, &ctx->pcap_stats_startup) != 0) {
-				/* Error */
+			if (ctx->iftype == IF_TYPE_PCAP) {
+				/* Collect pcap packet loss stats */
+				if (pcap_stats(ctx->descr, &ctx->pcap_stats_startup) != 0) {
+					/* Error */
+				}
 			}
 		}
 
 		if (now != lastStatsCheck) {
 			lastStatsCheck = now;
-			/* Collect pcap packet loss stats */
-			struct pcap_stat tmp;
-			if (pcap_stats(ctx->descr, &tmp) != 0) {
-				/* Error */
+
+			if (ctx->iftype == IF_TYPE_PCAP) {
+				/* Collect pcap packet loss stats */
+				struct pcap_stat tmp;
+				if (pcap_stats(ctx->descr, &tmp) != 0) {
+					/* Error */
+				}
+
+				ctx->pcap_stats.ps_recv = tmp.ps_recv - ctx->pcap_stats_startup.ps_recv;
+				ctx->pcap_stats.ps_drop = tmp.ps_drop - ctx->pcap_stats_startup.ps_drop;
+				ctx->pcap_stats.ps_ifdrop = tmp.ps_ifdrop - ctx->pcap_stats_startup.ps_ifdrop;
+			} else
+			if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
+				ctx->pcap_stats.ps_recv = 0;
+				ctx->pcap_stats.ps_drop = 0;
+				ctx->pcap_stats.ps_ifdrop = 0;
 			}
 
-			ctx->pcap_stats.ps_recv = tmp.ps_recv - ctx->pcap_stats_startup.ps_recv;
-			ctx->pcap_stats.ps_drop = tmp.ps_drop - ctx->pcap_stats_startup.ps_drop;
-			ctx->pcap_stats.ps_ifdrop = tmp.ps_ifdrop - ctx->pcap_stats_startup.ps_ifdrop;
 		}
 
 		pcap_queue_rebalance(ctx);
@@ -990,6 +1080,9 @@ static void *pcap_thread_func(void *p)
 		}
 	}
 	ctx->pcap_threadTerminated = 1;
+
+	if (sm)
+		ltntstools_source_rcts_free(sm);
 
 	pthread_exit(NULL);
 	return 0;
@@ -1007,7 +1100,7 @@ static void usage(const char *progname)
 {
 	printf("A tool to monitor PCAP multicast ISO13818 traffic.\n");
 	printf("Usage:\n");
-	printf("  -i <iface>\n");
+	printf("  -i <iface | filename.ts | filename.ts:loop >\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
@@ -1066,6 +1159,7 @@ int nic_monitor(int argc, char *argv[])
 	ctx->recordWithSegments = 1;
 	ctx->skipFreeSpaceCheck = 0;
 	ctx->iatMax = g_max_iat_ms;
+	ctx->iftype = IF_TYPE_PCAP;
 
 #if PROBE_REPORTER
 	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:I:Jt:vOMn:w:RS:T@")) != -1) {
@@ -1098,11 +1192,23 @@ int nic_monitor(int argc, char *argv[])
 			break;
 		case 'i':
 			ctx->ifname = optarg;
-			if (networkInterfaceExists(ctx->ifname) == 0) {
-				fprintf(stderr, "\nNo such network interface '%s', available interfaces:\n", ctx->ifname);
-				networkInterfaceList();
-				printf("\n");
-				exit(1);
+
+			ctx->fileLoops = 0;
+			if (strstr(ctx->ifname, ":loop")) {
+				ctx->fileLoops = 1;
+				ctx->ifname[strlen (ctx->ifname) - 5] = 0;
+			}
+			if (isValidTransportFile(ctx->ifname)) {
+				ctx->iftype = IF_TYPE_MPEGTS_FILE;
+			} else {
+
+				if (networkInterfaceExists(ctx->ifname) == 0) {
+					fprintf(stderr, "\nNo such network interface '%s', available interfaces:\n", ctx->ifname);
+					networkInterfaceList();
+					printf("\n");
+					exit(1);
+				}
+
 			}
 			break;
 		case 'I':
@@ -1176,16 +1282,21 @@ int nic_monitor(int argc, char *argv[])
 		printf("automatic core dumps enabled.\n");
 	}
 
-	pcap_lookupnet(ctx->ifname, &ctx->netp, &ctx->maskp, ctx->errbuf);
+	if (ctx->iftype == IF_TYPE_PCAP) {
+		pcap_lookupnet(ctx->ifname, &ctx->netp, &ctx->maskp, ctx->errbuf);
 
-	struct in_addr ip_net, ip_mask;
-	ip_net.s_addr = ctx->netp;
-	ip_mask.s_addr = ctx->maskp;
-	printf("network: %s\n", inet_ntoa(ip_net));
-	printf("   mask: %s\n", inet_ntoa(ip_mask));
-	printf(" filter: %s\n", ctx->pcap_filter);
-	printf("snaplen: %d\n", ctx->snaplen);
-	printf("buffSiz: %d\n", ctx->bufferSize);
+		struct in_addr ip_net, ip_mask;
+		ip_net.s_addr = ctx->netp;
+		ip_mask.s_addr = ctx->maskp;
+		printf("network: %s\n", inet_ntoa(ip_net));
+		printf("   mask: %s\n", inet_ntoa(ip_mask));
+		printf(" filter: %s\n", ctx->pcap_filter);
+		printf("snaplen: %d\n", ctx->snaplen);
+		printf("buffSiz: %d\n", ctx->bufferSize);
+	} else
+	if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
+	}
+
 	printf("file write interval: %d\n", ctx->file_write_interval);
 #if PROBE_REPORTER
 	printf("json write interval: %d\n", JSON_WRITE_INTERVAL);
@@ -1193,7 +1304,9 @@ int nic_monitor(int argc, char *argv[])
 
 	gRunning = 1;
 	pthread_create(&ctx->stats_threadId, 0, stats_thread_func, ctx);
-	pthread_create(&ctx->pcap_threadId, 0, pcap_thread_func, ctx);
+	if (ctx->iftype == IF_TYPE_PCAP || ctx->iftype == IF_TYPE_MPEGTS_FILE) {
+		pthread_create(&ctx->pcap_threadId, 0, pcap_thread_func, ctx);
+	}
 #if PROBE_REPORTER
 	pthread_create(&ctx->json_threadId, 0, json_thread_func, ctx);
 	pthread_create(&ctx->kafka_threadId, 0, kafka_thread_func, ctx);
@@ -1400,8 +1513,10 @@ printf("ctx->listpcapUsedDepth %d\n", ctx->listpcapUsedDepth);
 printf("ctx->rebalance_last_buffers_used %d\n", ctx->rebalance_last_buffers_used);
 printf("ctx->cacheHitRatio %.02f%% (%" PRIu64 ", %" PRIu64 ")\n", ctx->cacheHitRatio, ctx->cacheHit, ctx->cacheMiss);
 
-	printf("pcap nic '%s' stats: dropped: %d/%d\n",
-		ctx->ifname, ctx->pcap_stats.ps_drop, ctx->pcap_stats.ps_ifdrop);
+	if (ctx->iftype == IF_TYPE_PCAP) {
+		printf("pcap nic '%s' stats: dropped: %d/%d\n",
+			ctx->ifname, ctx->pcap_stats.ps_drop, ctx->pcap_stats.ps_ifdrop);
+	}
 
 	pcap_queue_free(ctx);
 

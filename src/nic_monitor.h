@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <string.h>
 #include <libltntstools/ltntstools.h>
 #include <libltntstools/histogram.h>
 #include <libltntstools/probes.h>
@@ -63,6 +64,12 @@ enum payload_type_e {
 struct tool_context_s
 {
 	char *ifname;
+	enum {
+		IF_TYPE_PCAP = 0,
+		IF_TYPE_MPEGTS_FILE,
+	} iftype;
+	int fileLoops; /* Boolean. A file input, should it loop and repeat at end of file? */
+	double fileLoopPct; /* How much (pct) has the file loop played out? */
 	char *recordingDir;
 	int verbose;
 	int monitor;
