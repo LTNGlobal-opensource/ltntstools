@@ -67,6 +67,7 @@ static int tool_srt_reopen(struct tool_ctx_s *ctx)
 		srt_setsockflag(ctx->skt, SRTO_PASSPHRASE, ctx->passPhrase, strlen(ctx->passPhrase));
 	}
 
+	/* Don't linger and block when _clsoe is called, do an immediate terminate. */
 	uint32_t v = 0;
 	srt_setsockflag(ctx->skt, SO_LINGER, &v, sizeof(v));
 
@@ -75,7 +76,6 @@ static int tool_srt_reopen(struct tool_ctx_s *ctx)
 
 	int st = srt_connect(ctx->skt, (struct sockaddr *)&ctx->sa, sizeof(ctx->sa));
 	if (st < 0) {
-		// TODO
 		printf("failed to connect to srt receiver\n");
 	} else {
 		printf("Connected.\n");
@@ -84,6 +84,8 @@ static int tool_srt_reopen(struct tool_ctx_s *ctx)
 	return st;
 }
 
+/* Called by the rate controlled file transfer player, to give us positional player information.
+ */
 static void *sm_cb_pos(void *userContext, uint64_t pos, uint64_t max, double pct)
 {
 	struct tool_ctx_s *ctx = userContext;
@@ -104,6 +106,8 @@ static void *sm_cb_pos(void *userContext, uint64_t pos, uint64_t max, double pct
 	return NULL;
 }
 
+/* Called by the rate controlled file transfer player, to give us packets.
+ */
 static void * sm_cb_raw(void *userContext, const uint8_t *pkts, int packetCount)
 {
 	struct tool_ctx_s *ctx = userContext;
