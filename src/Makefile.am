@@ -23,6 +23,7 @@ LDADD += -L../../target-root/usr/lib -ldvbpsi
 LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2
 LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
+LDADD += -lsrt -lcrypto
 if LINUX
 #LDADD += -ljson-c -lcurl
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
@@ -75,6 +76,7 @@ SRC += nielsen_inspector.cpp
 SRC += asi2ip.cpp
 #SRC += media.cpp
 SRC += smpte2038_inspector.cpp
+SRC += srt_transmit.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -99,6 +101,7 @@ LINKBINS += tstools_bitrate_smoother
 LINKBINS += tstools_nielsen_inspector
 LINKBINS += tstools_asi2ip
 LINKBINS += tstools_smpte2038_inspector
+LINKBINS += tstools_srt_transmit
 
 tstools_util_SOURCES = $(SRC)
 

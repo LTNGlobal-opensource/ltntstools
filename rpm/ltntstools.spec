@@ -49,9 +49,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Thu May 26 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.0
+  **** CHECK SRT CRYPTO DEPS BEFORE THE NEXT RELEASE ****
   tstools_udp_capture: Tool removed. Deprecated in v1.9.0. See tstools_igmp_join if you need IGMP tooling. 
   tstools_nic_monitor: The default location for all tr101290 logs is /storage/ltn/log, or /tmp if it doesn't exist, or a user override.
   tstools_nic_monitor: Feature. Adjust -i option to analyze transport files from disk.
+  tstools_srt_transmit: Feature. Playout SPTS/MPTS MPEG-TS files from disk in realtime to a SRT receiver.
 
 * Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.14.0
