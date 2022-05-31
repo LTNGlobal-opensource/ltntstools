@@ -142,10 +142,6 @@ int srt_transmit(int argc, char* argv[])
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->fileLoops = 0;
 
-	struct ltntstools_source_rcts_callbacks_s sm_callbacks = { 0 };
-	sm_callbacks.raw = (ltntstools_source_rcts_raw_callback)sm_cb_raw;
-	sm_callbacks.pos = (ltntstools_source_rcts_pos_callback)sm_cb_pos;
-
 	int ch;
 
 	while ((ch = getopt(argc, argv, "?hi:vlo:p:s:")) != -1) {
@@ -212,13 +208,20 @@ int srt_transmit(int argc, char* argv[])
 	 */
 	srt_startup();
 
+	/* Setup the srt outbound connection */
 	tool_srt_reopen(ctx);
+
+	/* Configure the rate controlled TS framework */
+	struct ltntstools_source_rcts_callbacks_s sm_callbacks = { 0 };
+	sm_callbacks.raw = (ltntstools_source_rcts_raw_callback)sm_cb_raw;
+	sm_callbacks.pos = (ltntstools_source_rcts_pos_callback)sm_cb_pos;
 
 	if (ltntstools_source_rcts_alloc(&ctx->sm, ctx, &sm_callbacks, ctx->filename, ctx->fileLoops) < 0) {
 		fprintf(stderr, "%s() Unable to open filename, aborting.\n", __func__);
 		exit(1);
 	}
 
+	/* Sit in a loop, waiting for a ctrl-c signal, or for playout to naturally stop */
 	signal(SIGINT, signal_handler);
 	g_running = 1;
 	while (g_running) {
@@ -226,6 +229,7 @@ int srt_transmit(int argc, char* argv[])
 	}
 	printf("\n");
 
+	/* Teardown */
 	ltntstools_source_rcts_free(ctx->sm);
 	tool_srt_close(ctx);
 	srt_cleanup();
