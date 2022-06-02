@@ -167,7 +167,7 @@ int srt_transmit(int argc, char* argv[])
 
 			ctx->he = gethostbyname(ctx->hostname);
 			if (!ctx->he) {
-				fprintf(stderr, "\nUnable to locate output host, aborting.\n");
+				fprintf(stderr, "\nUnable to locate output hostname, DNS didn't resolve it, aborting.\n");
 				return -1;
 			}
 			if (ctx->port <= 0 || ctx->port > 65535) {
