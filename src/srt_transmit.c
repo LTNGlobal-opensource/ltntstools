@@ -32,6 +32,7 @@ struct tool_ctx_s
 	char hostname[96];
 	int port;
 	struct hostent *he;
+	SRT_TRACEBSTATS stats;
 };
 
 static void signal_handler(int signum)
@@ -235,8 +236,24 @@ int srt_transmit(int argc, char* argv[])
 	/* Sit in a loop, waiting for a ctrl-c signal, or for playout to naturally stop */
 	signal(SIGINT, signal_handler);
 	g_running = 1;
+	int timeout = 2000;
 	while (g_running) {
 		usleep(50 * 1000);
+		timeout -= 50;
+		if (timeout < 0) {
+			timeout = 5000;
+
+			/* https://github.com/hwangsaeul/libsrt/blob/master/docs/statistics.md#mbpsSendRate */
+			if (srt_bistats(ctx->skt, &ctx->stats, 0, 1) == 0) {
+				printf("\nMb/ps: %7.02f\tBytes: %12" PRIu64 "\tRTT: %7.0f\tSendLoss: %8d\tSendDrop: %8d\tRetrans: %8d\n",
+					ctx->stats.mbpsSendRate,
+					ctx->stats.byteSentTotal,
+					ctx->stats.msRTT,
+					ctx->stats.pktSndLossTotal,
+					ctx->stats.pktSndDropTotal,
+					ctx->stats.pktRetransTotal);
+			}
+		}
 	}
 	printf("\n");
 
