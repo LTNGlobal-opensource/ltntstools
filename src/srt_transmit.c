@@ -9,6 +9,8 @@
 #include <libltntstools/ltntstools.h>
 #include <srt/srt.h>
 
+#include "utils.h"
+
 static int g_running = 0;
 
 struct tool_ctx_s
@@ -154,6 +156,11 @@ int srt_transmit(int argc, char* argv[])
 			if (ctx->filename)
 				free(ctx->filename);
 			ctx->filename = strdup(optarg);
+
+			if (!isValidTransportFile(ctx->filename)) {
+				fprintf(stderr, "\ninput filename is missing or problematic, aborting.\n");
+				exit(1);
+			}
 			break;
 		case 'l':
 			ctx->fileLoops = 1;
@@ -161,7 +168,7 @@ int srt_transmit(int argc, char* argv[])
 
 		case 'o':
 			if (sscanf(optarg, "srt://%99[^:]:%d", &ctx->hostname[0], &ctx->port) != 2) {
-				fprintf(stderr, "Syntax error, requires srt://hostname:port, aborting.  %s, %d\n", ctx->hostname, ctx->port);
+				fprintf(stderr, "Syntax error, requires srt://hostname:port, aborting.\n");
 				exit(1);
 			}
 
