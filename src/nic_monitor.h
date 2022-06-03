@@ -168,6 +168,14 @@ struct tool_context_s
 	void *procNetUDPContext;
 	int showForwardOptions;
 	time_t lastSocketReport;
+
+	/* URL Forwarding options */
+#define MAX_URL_FORWARDERS 3
+	struct {
+		char addr[64];
+		int port;
+		char uilabel[64];
+	} url_forwards[MAX_URL_FORWARDERS];
 };
 
 #if PROBE_REPORTER

@@ -291,7 +291,9 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		discovered_item_state_set(di, DI_STATE_STREAM_FORWARDING);
 
 		/* Allocate any resources */
-		sprintf(di->forwardURL, "udp://227.1.240.%d:4001?pkt_size=1316&ttl=3", di->forwardSlotNr);
+		sprintf(di->forwardURL, "udp://%s:%d?pkt_size=1316&ttl=3",
+			ctx->url_forwards[7 - di->forwardSlotNr].addr,
+			ctx->url_forwards[7 - di->forwardSlotNr].port);
 		int ret = avio_open2(&di->forwardAVIO, di->forwardURL,
 			AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 		if (ret < 0) {

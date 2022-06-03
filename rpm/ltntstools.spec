@@ -55,6 +55,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: The default location for all tr101290 logs is /storage/ltn/log, or /tmp if it doesn't exist, or a user override.
   tstools_nic_monitor: Feature. Adjust -i option to analyze transport files from disk.
   tstools_nic_monitor: Refactored the way we processing command line args to make room for future needs.
+  tstools_nic_monitor: Make the UDP port forwarding addresses configurable, see --udp-forwarder in help.
   tstools_srt_transmit: Feature. Playout SPTS/MPTS MPEG-TS files from disk in realtime to a SRT receiver.
   **** tstools_nic_monitor: We're expecting to announce Tr101290 in this release, see rob for exact support reqs.
 

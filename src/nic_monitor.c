@@ -675,7 +675,10 @@ static void *ui_thread_func(void *p)
 		attron(COLOR_PAIR(2));
 		ctx->trailerRow = streamCount + 3;
 		if (ctx->showForwardOptions) {
-			mvprintw(ctx->trailerRow, 12, "-- 7) 227.1.240.7:4001 8) 227.1.240.8:4001 9) 227.1.240.9:4001");
+			mvprintw(ctx->trailerRow, 12, "-- 7) %s 8) %s 9) %s",
+				ctx->url_forwards[0].uilabel,
+				ctx->url_forwards[1].uilabel,
+				ctx->url_forwards[2].uilabel);
 		}
 		mvprintw(ctx->trailerRow, 0, "q)uit h)elp");
 		attroff(COLOR_PAIR(2));
@@ -1124,10 +1127,13 @@ static void usage(const char *progname)
 	printf("  -1 Test the scheduling quanta for 1ms sleeps\n");
 	printf("  -O Danger. Skip the Disk Free space check, don't stop recording when disk has < 10pct free\n");
 	printf("  -I <#> (ms) max allowable IAT measured in ms [def: %d]\n", g_max_iat_ms);
+	printf("\n");
+	printf("  --udp-forwarder udp://a.b.c.d:port   Add up to %d url forwarders\n", MAX_URL_FORWARDERS);
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 {
+	int forwarder_idx = 0;
 	struct option long_options[] =
 	{
 		// 0 - 4
@@ -1157,12 +1163,10 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		{ "record-as-transport",		no_argument,		0, 'T' },
 		{ "record-on-startup",			no_argument,		0, 'R' },
 		{ "test-arg-19",				no_argument,		0, 0 },
-#if 0
+
 		// 20 - 24
-		{ "udp-forwarder7-url",			required_argument,	0, 0 },
-		{ "udp-forwarder8-url",			required_argument,	0, 0 },
-		{ "udp-forwarder9-url",			required_argument,	0, 0 },
-#endif
+		{ "udp-forwarder",				required_argument,	0, 0 },
+
 		{ 0, 0, 0, 0 }
 	};	
 
@@ -1278,10 +1282,23 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 				printf("Checking test-arg-19, success!\n");
 				exit(1);
 				break;
-#if 0
-			case 20: /* udp-forwarder7-url */
+			case 20: /* udp-forwarder-url */
+				if (forwarder_idx == MAX_URL_FORWARDERS) {
+					fprintf(stderr, "\nError, too many forwarders defined, max is %d\n", MAX_URL_FORWARDERS);
+					exit(1);
+				}
+				if (sscanf(optarg, "udp://%99[^:]:%d",
+					&ctx->url_forwards[forwarder_idx].addr[0],
+					&ctx->url_forwards[forwarder_idx].port) != 2)
+				{
+					fprintf(stderr, "\nError parsing forwarding url, check syntax. Must be udp://a.b.c.d:port\n");
+					exit(1);
+				}
+				sprintf(&ctx->url_forwards[forwarder_idx].uilabel[0], "%s:%d",
+					ctx->url_forwards[forwarder_idx].addr,
+					ctx->url_forwards[forwarder_idx].port);
+				forwarder_idx++;
 				break;
-#endif
 			default:
 				usage(argv[0]);
 				exit(1);
@@ -1332,6 +1349,12 @@ int nic_monitor(int argc, char *argv[])
 	ctx->skipFreeSpaceCheck = 0;
 	ctx->iatMax = g_max_iat_ms;
 	ctx->iftype = IF_TYPE_PCAP;
+
+	for (int i = 0; i < 3; i++) {
+		sprintf(&ctx->url_forwards[i].addr[0], "227.1.240.%d", i + 7);
+		ctx->url_forwards[i].port = 4001;
+		sprintf(&ctx->url_forwards[i].uilabel[0], "%s:%d", ctx->url_forwards[i].addr, ctx->url_forwards[i].port);
+	}
 
 	if (processArguments(ctx, argc, argv) < 0) {
 		usage(argv[0]);
