@@ -59,6 +59,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Refactored the way we processing command line args to make room for future needs.
   tstools_nic_monitor: Make the UDP port forwarding addresses configurable, see --udp-forwarder in help.
   tstools_nic_monitor: Changed -O option to explicit --danger-skip-freespace-check option.
+  tstools_nic_monitor: Fixed broken -1 option. Replaced with new syntax, see --measure-scheduling-quanta.
   tstools_srt_transmit: Feature. Playout SPTS/MPTS MPEG-TS files from disk in realtime to a SRT receiver.
 
 * Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 

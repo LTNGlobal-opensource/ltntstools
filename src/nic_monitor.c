@@ -1121,11 +1121,11 @@ static void usage(const char *progname)
 	printf("  -R Automatically record all discovered streams\n");
 	printf("  -E Record in a single file, don't segment into 60sec files\n");
 	printf("  -T Record int a TS format where possible [default is PCAP]\n");
-	printf("  -1 Test the scheduling quanta for 1ms sleeps\n");
 	printf("  -I <#> (ms) max allowable IAT measured in ms [def: %d]\n", g_max_iat_ms);
 	printf("\n");
 	printf("  --udp-forwarder udp://a.b.c.d:port   Add up to %d url forwarders\n", MAX_URL_FORWARDERS);
 	printf("  --danger-skip-freespace-check        Skip the Disk Free space check, don't stop recording when disk has < 10pct free\n");
+	printf("  --measure-scheduling-quanta          Test the scheduling quanta for 1000us sleep granularity\n");
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
@@ -1163,6 +1163,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 
 		// 20 - 24
 		{ "udp-forwarder",				required_argument,	0, 0 },
+		{ "measure-scheduling-quanta",	no_argument,		0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1295,6 +1296,18 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 					ctx->url_forwards[forwarder_idx].addr,
 					ctx->url_forwards[forwarder_idx].port);
 				forwarder_idx++;
+				break;
+			case 21: /* measure-scheduling-quanta */
+				{
+					struct timeval a, b, r;
+					gettimeofday(&a, NULL);
+					usleep(1000);
+					gettimeofday(&b, NULL);
+					ltn_histogram_timeval_subtract(&r, &b, &a);
+					uint32_t diffUs = ltn_histogram_timeval_to_us(&r);
+					printf("\nSlept for 1000us, woke to find we'd spent %dus asleep.\n\n", diffUs);
+					exit(1);
+				}
 				break;
 			default:
 				usage(argv[0]);
