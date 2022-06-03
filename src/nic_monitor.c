@@ -1103,7 +1103,7 @@ static void usage(const char *progname)
 {
 	printf("A tool to monitor PCAP multicast ISO13818 traffic.\n");
 	printf("Usage:\n");
-	printf("  -i <iface | filename.ts | filename.ts:loop >\n");
+	printf("  -i <iface | filename.ts | filename.ts:loop>\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
