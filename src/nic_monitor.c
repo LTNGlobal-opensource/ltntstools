@@ -1116,19 +1116,16 @@ static void usage(const char *progname)
 #if PROBE_REPORTER
 	printf("  -J Automatically send JSON reports for all discovered streams [def: disabled]\n");
 #endif
-#if 0
-	printf("  -o <output filename> (optional)\n");
-#endif
 	printf("  -S <number> Packet buffer size [def: %d] (min: 2048)\n", g_snaplen_default);
 	printf("  -B <number> Buffer size [def: %d]\n", g_buffer_size_default);
 	printf("  -R Automatically record all discovered streams\n");
 	printf("  -E Record in a single file, don't segment into 60sec files\n");
 	printf("  -T Record int a TS format where possible [default is PCAP]\n");
 	printf("  -1 Test the scheduling quanta for 1ms sleeps\n");
-	printf("  -O Danger. Skip the Disk Free space check, don't stop recording when disk has < 10pct free\n");
 	printf("  -I <#> (ms) max allowable IAT measured in ms [def: %d]\n", g_max_iat_ms);
 	printf("\n");
 	printf("  --udp-forwarder udp://a.b.c.d:port   Add up to %d url forwarders\n", MAX_URL_FORWARDERS);
+	printf("  --danger-skip-freespace-check        Skip the Disk Free space check, don't stop recording when disk has < 10pct free\n");
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
@@ -1153,7 +1150,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		// 10 - 14
 		{ "verbose",					no_argument,		0, 'v' },
 		{ "ui",							no_argument,		0, 'M' },
-		{ "danger-skip-freespace-check", no_argument,		0, 'O' },
+		{ "danger-skip-freespace-check", no_argument,		0, 0 },
 		{ "pcap-record-dir",			required_argument,	0, 'D' },
 		{ "record-single-file",			no_argument,		0, 'E' },
 
@@ -1174,9 +1171,9 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 	while (1) {
 		int option_index = 0;
 #if PROBE_REPORTER
-		char *opts = "?hd:B:D:EF:i:I:t:vOMn:w:RS:T@J";
+		char *opts = "?hd:B:D:EF:i:I:t:vMn:w:RS:T@J";
 #else
-		char *opts = "?hd:B:D:EF:i:I:t:vOMn:w:RS:T@";
+		char *opts = "?hd:B:D:EF:i:I:t:vMn:w:RS:T@";
 #endif
 		ch = getopt_long(argc, argv, opts, long_options, &option_index);
 		if (ch == -1)
@@ -1247,9 +1244,6 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		case 'M':
 			ctx->monitor = 1;
 			break;
-		case 'O':
-			ctx->skipFreeSpaceCheck = 1;
-			break;
 		case 'D':
 			ctx->recordingDir = optarg;
 			break;
@@ -1278,7 +1272,10 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			break;
 		default:
 			switch (option_index) {
-			case 19:
+			case 12: /* danger-skip-freespace-check */
+				ctx->skipFreeSpaceCheck = 1;
+				break;
+			case 19: /* test-arg-19 */
 				printf("Checking test-arg-19, success!\n");
 				exit(1);
 				break;
