@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
+#include <getopt.h>
 #include <libltntstools/ltntstools.h>
 #include <libltntstools/histogram.h>
 #include <libltntstools/probes.h>

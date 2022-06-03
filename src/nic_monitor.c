@@ -1126,46 +1126,60 @@ static void usage(const char *progname)
 	printf("  -I <#> (ms) max allowable IAT measured in ms [def: %d]\n", g_max_iat_ms);
 }
 
-int nic_monitor(int argc, char *argv[])
+static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 {
+	struct option long_options[] =
+	{
+		// 0 - 4
+		{ "struct-sizes",				no_argument,		0, '@' },
+		{ "pcap-buffer-size",			required_argument,	0, 'B' },
+		{ "stats-summary-dir",			required_argument,	0, 'd' },
+		{ "pcap-filter",				required_argument,	0, 'F' },
+		{ "help",						required_argument,	0, 'h' },
+
+		// 5 - 9
+		{ "help",						required_argument,	0, '?' },
+		{ "input",						required_argument,	0, 'i' },
+		{ "iat-max",					required_argument,	0, 'I' },
+		{ "stats-write-interval",		required_argument,	0, 'n' },
+		{ "terminate-after",			required_argument,	0, 't' },
+
+		// 10 - 14
+		{ "verbose",					no_argument,		0, 'v' },
+		{ "ui",							no_argument,		0, 'M' },
+		{ "danger-skip-freespace-check", no_argument,		0, 'O' },
+		{ "pcap-record-dir",			required_argument,	0, 'D' },
+		{ "record-single-file",			no_argument,		0, 'E' },
+
+		// 15 - 19
+		{ "pcap-packet-size",			required_argument,	0, 'S' },
+		{ "stats-detailed-dir",			required_argument,	0, 'w' },
+		{ "record-as-transport",		no_argument,		0, 'T' },
+		{ "record-on-startup",			no_argument,		0, 'R' },
+		{ "test-arg-19",				no_argument,		0, 0 },
+#if 0
+		// 20 - 24
+		{ "udp-forwarder7-url",			required_argument,	0, 0 },
+		{ "udp-forwarder8-url",			required_argument,	0, 0 },
+		{ "udp-forwarder9-url",			required_argument,	0, 0 },
+#endif
+		{ 0, 0, 0, 0 }
+	};	
+
 	int ch;
-
-	pthread_mutex_init(&ctx->lock, NULL);
-	xorg_list_init(&ctx->list);
-
-	pthread_mutex_init(&ctx->ui_threadLock, NULL);
-	pthread_mutex_init(&ctx->lockpcap, NULL);
-	xorg_list_init(&ctx->listpcapFree);
-	xorg_list_init(&ctx->listpcapUsed);
-
-#if MEDIA_MONITOR
-	media_init();
-#endif
-
+	while (1) {
+		int option_index = 0;
 #if PROBE_REPORTER
-	pthread_mutex_init(&ctx->lockJSONPost, NULL);
-	xorg_list_init(&ctx->listJSONPost);
-	ctx->jsonSocket = -1;
-#endif
-
-	pcap_queue_initialize(ctx);
-	ctx->file_write_interval = FILE_WRITE_INTERVAL;
-#if PROBE_REPORTER
-	ctx->json_write_interval = JSON_WRITE_INTERVAL;
-#endif
-	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
-	ctx->snaplen = g_snaplen_default;
-	ctx->bufferSize = g_buffer_size_default;
-	ctx->recordWithSegments = 1;
-	ctx->skipFreeSpaceCheck = 0;
-	ctx->iatMax = g_max_iat_ms;
-	ctx->iftype = IF_TYPE_PCAP;
-
-#if PROBE_REPORTER
-	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:I:Jt:vOMn:w:RS:T@")) != -1) {
+		char *opts = "?hd:B:D:EF:i:I:t:vOMn:w:RS:T@J";
 #else
-	while ((ch = getopt(argc, argv, "?hd:B:D:EF:i:I:t:vOMn:w:RS:T@")) != -1) {
+		char *opts = "?hd:B:D:EF:i:I:t:vOMn:w:RS:T@";
 #endif
+		ch = getopt_long(argc, argv, opts, long_options, &option_index);
+		if (ch == -1)
+			break;
+
+//printf("ch = '%c', optidx %d\n", ch, option_index);
+
 		switch (ch) {
 		case '@':
 			printf("\n");
@@ -1259,14 +1273,68 @@ int nic_monitor(int argc, char *argv[])
 			ctx->automaticallyRecordStreams = 1;
 			break;
 		default:
-			usage(argv[0]);
-			exit(1);
+			switch (option_index) {
+			case 19:
+				printf("Checking test-arg-19, success!\n");
+				exit(1);
+				break;
+#if 0
+			case 20: /* udp-forwarder7-url */
+				break;
+#endif
+			default:
+				usage(argv[0]);
+				exit(1);
+			}
 		}
-	}
+	} 
 
 	if (ctx->ifname == NULL) {
 		usage(argv[0]);
 		fprintf(stderr, "\nError, -i is mandatory.\n\n");
+		exit(1);
+	}
+
+	return 0;
+}
+
+int nic_monitor(int argc, char *argv[])
+{
+	//int ch;
+
+	pthread_mutex_init(&ctx->lock, NULL);
+	xorg_list_init(&ctx->list);
+
+	pthread_mutex_init(&ctx->ui_threadLock, NULL);
+	pthread_mutex_init(&ctx->lockpcap, NULL);
+	xorg_list_init(&ctx->listpcapFree);
+	xorg_list_init(&ctx->listpcapUsed);
+
+#if MEDIA_MONITOR
+	media_init();
+#endif
+
+#if PROBE_REPORTER
+	pthread_mutex_init(&ctx->lockJSONPost, NULL);
+	xorg_list_init(&ctx->listJSONPost);
+	ctx->jsonSocket = -1;
+#endif
+
+	pcap_queue_initialize(ctx);
+	ctx->file_write_interval = FILE_WRITE_INTERVAL;
+#if PROBE_REPORTER
+	ctx->json_write_interval = JSON_WRITE_INTERVAL;
+#endif
+	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
+	ctx->snaplen = g_snaplen_default;
+	ctx->bufferSize = g_buffer_size_default;
+	ctx->recordWithSegments = 1;
+	ctx->skipFreeSpaceCheck = 0;
+	ctx->iatMax = g_max_iat_ms;
+	ctx->iftype = IF_TYPE_PCAP;
+
+	if (processArguments(ctx, argc, argv) < 0) {
+		usage(argv[0]);
 		exit(1);
 	}
 
