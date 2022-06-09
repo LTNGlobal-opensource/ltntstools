@@ -19,12 +19,6 @@ struct tool_context_s
 	int verbose;
 	int stopAfterSeconds;
 
-	/* Segment Writer */
-	void *swctx;
-
-	int trailerRow;
-	int threadTerminate, threadRunning, threadTerminated;
-
 #ifdef __linux__
 	timer_t timerId;
 #endif
