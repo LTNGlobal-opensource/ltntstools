@@ -60,6 +60,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Make the UDP port forwarding addresses configurable, see --udp-forwarder in help.
   tstools_nic_monitor: Changed -O option to explicit --danger-skip-freespace-check option.
   tstools_nic_monitor: Fixed broken -1 option. Replaced with new syntax, see --measure-scheduling-quanta.
+  tstools_nic_monitor: Removed an unhelpful 'Stream PMT didn't arrive X vs Y messages, mostly seen in freeze UI mode.
   tstools_srt_transmit: Feature. Playout SPTS/MPTS MPEG-TS files from disk in realtime to a SRT receiver.
   tstools_smpte2038_inspector: Output helpful message and stream service information if the smpte2038 pid isn't found.
   tstools_smpte2038_inspector: Improvements related to EVERTZ XPS SMPTE2038 detection.
