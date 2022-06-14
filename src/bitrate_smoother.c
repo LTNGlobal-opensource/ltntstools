@@ -93,7 +93,7 @@ struct tool_context_s
 	AVIOContext *i_puc;
 	AVIOContext *o_puc;
 
-	int bitrate_bps;
+	int latencyMS;
 	int pcrPID;
 
 #if ENABLE_PIR_CORRECTOR
@@ -471,7 +471,7 @@ static void usage(const char *progname)
 	printf("  -o <url> Eg: udp://234.1.1.1:4560\n");
 	printf("  -P 0xnnnn PID containing the PCR\n");
 	printf("  -v Increase level of verbosity.\n");
-	printf("  -b bitrate (bps) that the input stream should match.\n");
+	printf("  -l latency (ms) of protection.\n");
 	printf("  -h Display command line help.\n");
 #ifdef __linux__
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
@@ -489,20 +489,21 @@ int bitrate_smoother(int argc, char *argv[])
 	struct tool_context_s tctx, *ctx;
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
+	ctx->latencyMS = 100;
 
 #if ENABLE_PIR_CORRECTOR
 	ctx->pc.vpid = 0x31; /* TODO */
 #endif
 
-	while ((ch = getopt(argc, argv, "?hi:b:o:P:vt:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:l:o:P:vt:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
 			usage(argv[0]);
 			exit(1);
 			break;
-		case 'b':
-			ctx->bitrate_bps = atoi(optarg);
+		case 'l':
+			ctx->latencyMS = atoi(optarg);
 			break;
 		case 'i':
 			ctx->iname = optarg;
@@ -514,10 +515,10 @@ int bitrate_smoother(int argc, char *argv[])
 			ctx->oname = optarg;
 			break;
 		case 'P':
-                        if ((sscanf(optarg, "0x%x", &ctx->pcrPID) != 1) || (ctx->pcrPID > 0x1fff)) {
-                                usage(argv[0]);
-                                exit(1);
-                        }
+			if ((sscanf(optarg, "0x%x", &ctx->pcrPID) != 1) || (ctx->pcrPID > 0x1fff)) {
+					usage(argv[0]);
+					exit(1);
+			}
 			break;
 #ifdef __linux__
 		case 't':
@@ -528,12 +529,6 @@ int bitrate_smoother(int argc, char *argv[])
 			usage(argv[0]);
 			exit(1);
 		}
-	}
-
-	if (!ctx->bitrate_bps) {
-		usage(argv[0]);
-		fprintf(stderr, "\n-b is mandatory, aborting.\n\n");
-		exit(1);
 	}
 
 	if (!ctx->pcrPID) {
@@ -577,7 +572,7 @@ int bitrate_smoother(int argc, char *argv[])
 	}
 
 	ret = smoother_pcr_alloc(&ctx->smoother, ctx, (smoother_pcr_output_callback)smoother_cb,
-		5000, 1316, ctx->pcrPID, ctx->bitrate_bps);
+		5000, 1316, ctx->pcrPID, ctx->latencyMS);
 
 	/* Preallocate enough throughput measures for approx a 40mbit stream */
 	signal(SIGINT, signal_handler);
