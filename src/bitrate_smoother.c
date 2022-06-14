@@ -19,6 +19,7 @@
 
 #define DEFAULT_FIFOSIZE 1048576
 #define DEFAULT_TRAILERROW 18
+#define DEFAULT_LATENCY 100
 
 #define ENABLE_PIR_CORRECTOR 0
 
@@ -471,7 +472,7 @@ static void usage(const char *progname)
 	printf("  -o <url> Eg: udp://234.1.1.1:4560\n");
 	printf("  -P 0xnnnn PID containing the PCR\n");
 	printf("  -v Increase level of verbosity.\n");
-	printf("  -l latency (ms) of protection.\n");
+	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
 	printf("  -h Display command line help.\n");
 #ifdef __linux__
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
@@ -489,7 +490,7 @@ int bitrate_smoother(int argc, char *argv[])
 	struct tool_context_s tctx, *ctx;
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
-	ctx->latencyMS = 100;
+	ctx->latencyMS = DEFAULT_LATENCY;
 
 #if ENABLE_PIR_CORRECTOR
 	ctx->pc.vpid = 0x31; /* TODO */
