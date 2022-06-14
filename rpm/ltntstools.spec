@@ -66,6 +66,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_smpte2038_inspector: Improvements related to EVERTZ XPS SMPTE2038 detection.
   tstools_igmp_join: Removed some unused context vars (code tidy up).
   tstools_bitrate_smoother: Removed hard output bitrate arg requirement, using jitter protection latency (ms) instead.
+  tstools_bitrate_smoother: Adjust help description for latency, show default value (in ms).
 
 * Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.14.0
