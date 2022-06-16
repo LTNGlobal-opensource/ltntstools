@@ -22,3 +22,4 @@ tstools_bitrate_smoother
 tstools_nielsen_inspector
 tstools_asi2ip
 tstools_smpte2038_inspector
+tstools_srt_transmit
