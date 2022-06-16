@@ -61,12 +61,15 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Changed -O option to explicit --danger-skip-freespace-check option.
   tstools_nic_monitor: Fixed broken -1 option. Replaced with new syntax, see --measure-scheduling-quanta.
   tstools_nic_monitor: Removed an unhelpful 'Stream PMT didn't arrive X vs Y messages, mostly seen in freeze UI mode.
+  tstools_nic_monitor: Show the D.HH:MM:SS.ms PCR in the model report.
   tstools_srt_transmit: Feature. Playout SPTS/MPTS MPEG-TS files from disk in realtime to a SRT receiver.
   tstools_smpte2038_inspector: Output helpful message and stream service information if the smpte2038 pid isn't found.
   tstools_smpte2038_inspector: Improvements related to EVERTZ XPS SMPTE2038 detection.
   tstools_igmp_join: Removed some unused context vars (code tidy up).
   tstools_bitrate_smoother: Removed hard output bitrate arg requirement, using jitter protection latency (ms) instead.
   tstools_bitrate_smoother: Adjust help description for latency, show default value (in ms).
+  tstools_bitrate_smoother: Adjust verbose features. Add mode to show current stream PCR times in human readible formats.
+  tstools_bitrate_smoother: Ensure output UDP frames are always 1316 in length.
 
 * Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.14.0
