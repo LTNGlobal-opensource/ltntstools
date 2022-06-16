@@ -603,6 +603,12 @@ static void *ui_thread_func(void *p)
 							}
 						}
 
+						int64_t pcr = ltntstools_pid_stats_pid_get_pcr(&di->stats, m->programs[p].pmt.PCR_PID);
+						char *ts = NULL;
+						ltntstools_pcr_to_ascii(&ts, pcr);
+						mvprintw(streamCount + 1, 82, "PCR: %s", ts);
+						free(ts);
+
 						if (0) {
 							streamCount++;
 							mvprintw(streamCount + 2, 52, "PCR Drift (us): %7" PRIi64 ", %" PRIi64 " %" PRIi64 " %" PRIi64,
