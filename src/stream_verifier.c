@@ -71,13 +71,14 @@ struct tool_context_s
 	uint64_t pcrLast;
 };
 
-static void *callback_smoother(void *userContext, unsigned char *buf, int byteCount)
+static int callback_smoother(void *userContext, unsigned char *buf, int byteCount,
+	struct ltntstools_pcr_position_s *array, int arrayLength)
 {
 	struct tool_context_s *ctx = userContext;
 
 	avio_write(ctx->o_puc, buf, byteCount);
 
-	return NULL;
+	return 0;
 }
 
 uint64_t getPCR(struct tool_context_s *ctx, int additionalBits)
@@ -211,7 +212,7 @@ int stream_verifier(int argc, char *argv[])
 
 	if (ctx->ofn && strncasecmp(ctx->ofn, "udp:", 4) == 0) {
 		/* 15000 items supports up to 800Mb/ps, possibly more. */
-		int ret = smoother_pcr_alloc(&ctx->smoother, ctx, (smoother_pcr_output_callback)callback_smoother, 15000, ctx->minSendBytes, 0x31, ctx->bps);
+		int ret = smoother_pcr_alloc(&ctx->smoother, ctx, &callback_smoother, 15000, ctx->minSendBytes, 0x31, 200 /* ms */);
 
 		ret = avio_open2(&ctx->o_puc, ctx->ofn, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 		if (ret < 0) {

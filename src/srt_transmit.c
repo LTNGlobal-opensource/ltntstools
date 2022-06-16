@@ -228,6 +228,7 @@ int srt_transmit(int argc, char* argv[])
 	sm_callbacks.raw = (ltntstools_source_rcts_raw_callback)sm_cb_raw;
 	sm_callbacks.pos = (ltntstools_source_rcts_pos_callback)sm_cb_pos;
 
+	/* Initialize a rate Controlled Transport Stream input object. */
 	if (ltntstools_source_rcts_alloc(&ctx->sm, ctx, &sm_callbacks, ctx->filename, ctx->fileLoops) < 0) {
 		fprintf(stderr, "%s() Unable to open filename, aborting.\n", __func__);
 		exit(1);

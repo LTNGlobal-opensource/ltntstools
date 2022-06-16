@@ -71,6 +71,13 @@ const unsigned char nal[] = {
 
 static int gRunning = 0;
 
+struct buffer_1316_s
+{
+	unsigned char sendBuffer[7 * 188];
+	int sendIndex;
+	int minSendBytes;
+};
+
 struct tool_context_s
 {
 	char *iname, *oname;
@@ -104,7 +111,38 @@ struct tool_context_s
 		time_t lastInject;
 	} pc;
 #endif
+
+	struct buffer_1316_s outputBuf;
 };
+
+static void output_write(struct tool_context_s *ctx, struct buffer_1316_s *ob, const unsigned char *buf, unsigned int byteCount)
+{
+	if (ob->minSendBytes == 0) {
+		//smoother_pcr_write(ctx->smoother, buf, byteCount, NULL);
+		avio_write(ctx->o_puc, buf, byteCount);
+	} else {
+		int len = byteCount;
+		int offset = 0;
+		int cplen;
+		while (len > 0) {
+			if (len > (ob->minSendBytes - ob->sendIndex)) {
+				cplen = ob->minSendBytes - ob->sendIndex;
+			} else {
+				cplen = len;
+			}
+			memcpy(ob->sendBuffer + ob->sendIndex, buf + offset, cplen);
+			ob->sendIndex += cplen;
+			offset += cplen;
+			len -= cplen;
+
+			if (ob->sendIndex == ob->minSendBytes) {
+				//smoother_pcr_write(ctx->smoother, ctx->sendBuffer, ctx->minSendBytes, NULL);
+				avio_write(ctx->o_puc, ob->sendBuffer, 7 * 188);
+				ob->sendIndex = 0;
+			}
+		}
+	}
+}
 
 static void transmit_packets(struct tool_context_s *ctx, unsigned char *pkts, int packetCount)
 {
@@ -146,14 +184,26 @@ static void transmit_packets(struct tool_context_s *ctx, unsigned char *pkts, in
 	avio_write(ctx->o_puc, buf, 7 * 188);
 	free(buf);
 #else
-	avio_write(ctx->o_puc, pkts, packetCount * 188);
+	output_write(ctx, &ctx->outputBuf, pkts, packetCount * 188);
 #endif
 }
 
-static void *smoother_cb(void *userContext, unsigned char *buf, int byteCount)
+static int smoother_cb(void *userContext, unsigned char *buf, int byteCount,
+	struct ltntstools_pcr_position_s *array, int arrayLength)
 {
 	struct tool_context_s *ctx = userContext;
 
+	if (ctx->verbose & 8) {
+		for (int i = 0; i < arrayLength; i++) {
+			struct ltntstools_pcr_position_s *e = &array[i];
+			char *ts = NULL;
+			ltntstools_pcr_to_ascii(&ts, e->pcr);
+			printf("%s : %14" PRIi64 ", %8" PRIu64 ", %04x\n",
+				ts,
+				e->pcr, e->offset, e->pid);
+			free(ts);
+		}
+	}
 	for (int i = 0; i < byteCount; i += 188) {
 		uint16_t pidnr = ltntstools_pid(buf + i);
 		struct ltntstools_pid_statistics_s *pid = &ctx->o_stream.pids[pidnr];
@@ -178,7 +228,7 @@ static void *smoother_cb(void *userContext, unsigned char *buf, int byteCount)
 		if (ltntstools_tei_set(buf + i))
 			pid->teiErrors++;
 
-		if (ctx->verbose) {
+		if (ctx->verbose & 2) {
 			for (int i = 0; i < byteCount; i += 188) {
 				for (int j = 0; j < 24; j++) {
 					printf("%02x ", buf[i + j]);
@@ -342,7 +392,7 @@ static void *smoother_cb(void *userContext, unsigned char *buf, int byteCount)
 	transmit_packets(ctx, buf, byteCount / 188);
 
 #endif
-	return NULL;
+	return 0;
 }
 
 static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteCount)
@@ -371,7 +421,7 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 		if (ltntstools_tei_set(buf + i))
 			pid->teiErrors++;
 
-		if (ctx->verbose) {
+		if (ctx->verbose & 1) {
 			for (int i = 0; i < byteCount; i += 188) {
 				for (int j = 0; j < 24; j++) {
 					printf("%02x ", buf[i + j]);
@@ -399,7 +449,7 @@ static void *thread_packet_rx(void *p)
 
 	while (!ctx->ffmpeg_threadTerminate) {
 		int rlen = avio_read(ctx->i_puc, buf, sizeof(buf));
-		if (ctx->verbose == 2) {
+		if (ctx->verbose & 1) {
 			printf("source received %d bytes\n", rlen);
 		}
 		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
@@ -471,7 +521,10 @@ static void usage(const char *progname)
 	printf("           172.16.0.67 is the IP addr where we'll issue an IGMP join\n");
 	printf("  -o <url> Eg: udp://234.1.1.1:4560\n");
 	printf("  -P 0xnnnn PID containing the PCR\n");
-	printf("  -v Increase level of verbosity.\n");
+	printf("  -v # bitmask. Set level of verbosity. [def: 0]\n");
+	printf("     1 - input packet hex\n");
+	printf("     2 - output packet hex\n");
+	printf("     4 - output packet PCR data and human readable PCR clock\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
 	printf("  -h Display command line help.\n");
 #ifdef __linux__
@@ -491,12 +544,13 @@ int bitrate_smoother(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->latencyMS = DEFAULT_LATENCY;
+	ctx->outputBuf.minSendBytes = 7 * 188;
 
 #if ENABLE_PIR_CORRECTOR
 	ctx->pc.vpid = 0x31; /* TODO */
 #endif
 
-	while ((ch = getopt(argc, argv, "?hi:l:o:P:vt:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:l:o:P:v:t:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -510,7 +564,7 @@ int bitrate_smoother(int argc, char *argv[])
 			ctx->iname = optarg;
 			break;
 		case 'v':
-			ctx->verbose++;
+			ctx->verbose = atoi(optarg);
 			break;
 		case 'o':
 			ctx->oname = optarg;
@@ -572,8 +626,7 @@ int bitrate_smoother(int argc, char *argv[])
 		goto no_output;
 	}
 
-	ret = smoother_pcr_alloc(&ctx->smoother, ctx, (smoother_pcr_output_callback)smoother_cb,
-		5000, 1316, ctx->pcrPID, ctx->latencyMS);
+	ret = smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
 
 	/* Preallocate enough throughput measures for approx a 40mbit stream */
 	signal(SIGINT, signal_handler);
