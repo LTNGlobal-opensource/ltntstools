@@ -1252,7 +1252,8 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			ctx->monitor = 1;
 			break;
 		case 'D':
-			ctx->recordingDir = optarg;
+			free(ctx->recordingDir);
+			ctx->recordingDir = strdup(optarg);
 			break;
 		case 'E':
 			ctx->recordWithSegments = 0;
