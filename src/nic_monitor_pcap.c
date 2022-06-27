@@ -330,7 +330,17 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 				strcpy(dirprefix, "/storage/packet_captures");
 			}
 		}
-		sprintf(prefix, "%s/nic_monitor-%s-%s", dirprefix, ctx->ifname, di->dstaddr);
+	
+		char *fn_sep = "-";
+
+		struct stat buf;
+		if (stat(dirprefix, &buf) == 0) {
+			if (buf.st_mode & S_IFDIR) {
+				fn_sep = "/";
+			}
+		}
+
+		sprintf(prefix, "%s%snic_monitor-%s-%s", dirprefix, fn_sep, ctx->ifname, di->dstaddr);
 
 		/* Cleanup the filename so we don't have :, they mess up handing recordings via scp. */
 		/* Substitute : for . */
