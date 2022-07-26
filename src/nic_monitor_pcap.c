@@ -301,7 +301,19 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	}
 	if (discovered_item_state_get(di, DI_STATE_STREAM_FORWARDING)) {
 		/* Do actual forwarding. */
+#if 1
 		avio_write(di->forwardAVIO, pkts, pktCount * 188);
+#else
+		/* Drop all pids except video, so we can measure video pid jitter.
+		 * TODO: Hardcoded to 0x100, lab use only.
+		 */
+		for (int z = 0; z < pktCount * 188; z += 188) {
+			uint16_t pidnr = ltntstools_pid(pkts + z);
+			if (pidnr == 0x100) {
+				avio_write(di->forwardAVIO, pkts + z, 188);
+			}
+		}
+#endif
 	}
 	/* End: Packet Forwarding */
 
