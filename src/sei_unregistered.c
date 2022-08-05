@@ -15,13 +15,40 @@
 
 static int gVerbose = 0;
 
+static void findSEIT35(unsigned char *buf, int lengthBytes, uint32_t offset)
+{
+	unsigned char pattern[] = { 0x00, 0x00, 0x01, 0x06, 0x04 };
+
+	for (int i = 0; i < lengthBytes - 5; i++) {
+		if (memcmp(buf + i, &pattern[0], sizeof(pattern)) == 0) {
+			printf(" t.35 offset 0x%08x : ", offset + i);
+
+			int truncated = 0;
+			int len = 42;
+			if (gVerbose) {
+				len = 5 + *(buf + i + 5);
+			}
+			if (len > (lengthBytes - i)) {
+				len = lengthBytes - i;
+				truncated = 1;
+			}
+
+			for (int j = 0; j < len; j++)
+				printf("%02x ", *(buf + i + j));
+			if (truncated)
+				printf(" ... <snip>");
+			printf("\n");
+		}
+	}
+}
+
 static void findSEIUnregistered(unsigned char *buf, int lengthBytes, uint32_t offset)
 {
 	unsigned char pattern[] = { 0x00, 0x00, 0x01, 0x06, 0x05 };
 
 	for (int i = 0; i < lengthBytes - 5; i++) {
 		if (memcmp(buf + i, &pattern[0], sizeof(pattern)) == 0) {
-			printf("offset 0x%08x : ", offset + i);
+			printf("unreg offset 0x%08x : ", offset + i);
 
 			int truncated = 0;
 			int len = 32;
@@ -41,12 +68,14 @@ static void findSEIUnregistered(unsigned char *buf, int lengthBytes, uint32_t of
 		}
 	}
 }
+
 static void usage(const char *progname)
 {
-	printf("A tool to find SEI UNREGISTERED data patterns in video files.\n");
+	printf("A tool to find SEI UNREGISTERED data patterns in video files, or T35 Captions SEI segments.\n");
 	printf("Usage:\n");
 	printf("  -i <url> Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
 		"           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -c Find caption SEIs in H.264 [Default: disabled].\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 }
@@ -55,13 +84,17 @@ int sei_unregistered(int argc, char *argv[])
 {
 	int ch;
 	char *iname = NULL;
+	int doT35 = 0;
 
-	while ((ch = getopt(argc, argv, "?hvi:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hcvi:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
 			usage(argv[0]);
 			exit(1);
+			break;
+		case 'c':
+			doT35 = 1;
 			break;
 		case 'i':
 			iname = optarg;
@@ -102,6 +135,9 @@ int sei_unregistered(int argc, char *argv[])
 		if (rlen < 0)
 			break;
 
+		if (doT35)
+			findSEIT35(buf, rlen, offset);
+		
 		findSEIUnregistered(buf, rlen, offset);
 
 		offset += rlen;
