@@ -104,6 +104,7 @@ static void usage(const char *progname)
 		"           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -c Find caption SEIs in H.264 [Default: disabled].\n");
 	printf("  -f Find filler payload SEIs in H.264 [Default: disabled].\n");
+	printf("  -P 0xnnnn Search video PID for FILLER NAL types [def: disabled]\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 }
@@ -114,8 +115,10 @@ int sei_unregistered(int argc, char *argv[])
 	char *iname = NULL;
 	int doT35 = 0;
 	int doFiller = 0;
+	void *nalfinder = NULL;
+	int pid;
 
-	while ((ch = getopt(argc, argv, "?hcfvi:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hcfvi:P:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -133,6 +136,13 @@ int sei_unregistered(int argc, char *argv[])
 			break;
 		case 'v':
 			gVerbose = 1;
+			break;
+		case 'P':
+			if ((sscanf(optarg, "0x%x", &pid) != 1) || (pid > 0x1fff)) {
+				usage(argv[0]);
+				exit(1);
+			}
+			nalfinder = h264_slice_counter_alloc(pid);
 			break;
 		default:
 			usage(argv[0]);
@@ -174,11 +184,19 @@ int sei_unregistered(int argc, char *argv[])
 		
 		findSEIUnregistered(buf, rlen, offset);
 
+		if (nalfinder)
+			h264_slice_counter_write(nalfinder, buf, rlen / 188);
+
 		offset += rlen;
 	}
 	printf("Closing stream\n");
 	avio_close(puc);
 	free(buf);
+
+	if (nalfinder) {
+		h264_slice_counter_dprintf(nalfinder, 1, 1);
+		h264_slice_counter_free(nalfinder);
+	}
 
 	return 0;
 }

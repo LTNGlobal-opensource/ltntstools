@@ -68,8 +68,9 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_bitrate_smoother: Adjust help description for latency, show default value (in ms).
   tstools_bitrate_smoother: Adjust verbose features. Add mode to show current stream PCR times in human readible formats.
   tstools_bitrate_smoother: Ensure output UDP frames are always 1316 in length.
-  tstools_sei_unregistered: Add support for searching for H.264 SEI Caption headers
-  tstools_sei_unregistered: Add support for searching for H.264 SEI Filler Padding headers
+  tstools_sei_unregistered: Add support -c for searching for H.264 SEI Caption headers
+  tstools_sei_unregistered: Add support -f for searching for H.264 SEI Filler Padding headers
+  tstools_sei_unregistered: Add support -P for dumping all NAL types (including padding)
 
 * Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.14.0
