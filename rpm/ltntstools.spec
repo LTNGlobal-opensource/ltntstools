@@ -48,12 +48,9 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Thu May 26 2022 Steven Toth <steven.toth@ltnglobal.com> 
+* Fri Aug  5 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.0
-  **** CHECK SRT CRYPTO DEPS EXIST ON ALL LEAFS?APPLIANCES BEFORE THE NEXT RELEASE ****
-  **** We're expecting to announce Tr101290 in this release, see rob for exact support reqs.
   tstools_udp_capture: Tool removed. Deprecated in v1.9.0. See tstools_igmp_join if you need IGMP tooling. 
-  tstools_nic_monitor: Feature. TR101290 support enabled by default.
   tstools_nic_monitor: The default location for all tr101290 logs is /storage/ltn/log, or /tmp if it doesn't exist, or a user override.
   tstools_nic_monitor: Feature. Adjust -i option to analyze in realtime transport files from disk.
   tstools_nic_monitor: Refactored the way we processing command line args to make room for future needs.
