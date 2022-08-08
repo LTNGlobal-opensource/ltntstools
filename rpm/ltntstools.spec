@@ -71,6 +71,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_sei_unregistered: Add support -c for searching for H.264 SEI Caption headers
   tstools_sei_unregistered: Add support -f for searching for H.264 SEI Filler Padding headers
   tstools_sei_unregistered: Add support -P for dumping all NAL types (including padding)
+  tstools_pes_inspector: Add support -4 for measuring H.264 per-NAL throughput for live streams.
 
 * Wed May 25 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.14.0
