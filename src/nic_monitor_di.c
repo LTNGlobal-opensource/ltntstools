@@ -571,7 +571,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 
 	json_object_object_add(feed, "pids", array);
 
-#if 1
+#if 0
 	printf("%s\n",
 		json_object_to_json_string_ext(feed,
 #if 0
