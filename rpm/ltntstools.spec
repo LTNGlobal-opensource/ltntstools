@@ -48,7 +48,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Fri Aug  5 2022 Steven Toth <steven.toth@ltnglobal.com> 
+* Mon Aug  8 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.0
   tstools_udp_capture: Tool removed. Deprecated in v1.9.0. See tstools_igmp_join if you need IGMP tooling. 
   tstools_nic_monitor: The default location for all tr101290 logs is /storage/ltn/log, or /tmp if it doesn't exist, or a user override.
