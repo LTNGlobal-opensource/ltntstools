@@ -474,7 +474,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	json_object *iat1_min = json_object_new_int64(iat_min);
 	json_object *iat1_max = json_object_new_int64(iat_max);
 	json_object *iat1_avg = json_object_new_int64(iat_avg);
-	json_object *warning_indicators = json_object_new_string(di->warningIndicators);
+	json_object *warning_indicators = json_object_new_string(di->warningIndicatorLabel);
 
 	/* Feed statistics */
 	json_object *feedstats = json_object_new_object();
