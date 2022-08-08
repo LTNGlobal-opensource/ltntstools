@@ -212,7 +212,7 @@ int si_inspector(int argc, char *argv[])
 			iname = optarg;
 			break;
 		case 'v':
-			gVerbose = 1;
+			gVerbose++;
 			break;
 		default:
 			usage(argv[0]);
@@ -262,7 +262,15 @@ int si_inspector(int argc, char *argv[])
 		if (rlen < 0)
 			break;
 
-		//printf("Read %d\n", rlen);
+		if (buf[0] == 0x80) {
+			printf("Input stream probably RTP\n");
+		}
+		if (gVerbose > 1) {
+			printf("Read %4d : ", rlen);
+			for (int i = 0; i < 16; i++)
+				printf("%02x ", buf[i]);
+			printf("\n");
+		}
 		updateStream(strm, buf, rlen);
 		if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS)) {
 			ok = 0;
@@ -277,5 +285,3 @@ out:
 
 	return 0;
 }
-
-
