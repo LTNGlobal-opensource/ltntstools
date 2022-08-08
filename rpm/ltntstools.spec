@@ -60,6 +60,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Removed an unhelpful 'Stream PMT didn't arrive X vs Y messages, mostly seen in freeze UI mode.
   tstools_nic_monitor: Show the D.HH:MM:SS.ms PCR in the model report. (Takes a few seconds to appear).
   tstools_nic_monitor: Bugfix, -D prefix not working and allowing arbitrary file prefixes.
+  tstools_nic_monitor: Feature. Add SMPTE2038 registration description Yes / No when detected in Model UI.
   tstools_srt_transmit: Feature. Playout SPTS/MPTS MPEG-TS files from disk in realtime to a SRT receiver.
   tstools_smpte2038_inspector: Output helpful message and stream service information if the smpte2038 pid isn't found.
   tstools_smpte2038_inspector: Improvements related to EVERTZ XPS SMPTE2038 detection.

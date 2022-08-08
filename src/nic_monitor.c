@@ -502,6 +502,7 @@ static void *ui_thread_func(void *p)
 					for (int p = 0; p < m->program_count; p++) {
 
 						int has_scte35 = ltntstools_descriptor_list_contains_scte35_cue_registration(&m->programs[p].pmt.descr_list);
+						int has_smpte2038 = 0;
 
 						streamCount++;
 						if (m->programs[p].program_number == 0) {
@@ -527,6 +528,10 @@ static void *ui_thread_func(void *p)
 								52,
 								d,
 								strlen(d) >= 52 ? "..." : "");
+
+							if (m->programs[p].pmt.streams[s].stream_type  == 0x06 /* Private PES */) {
+								has_smpte2038 = ltntstools_descriptor_list_contains_smpte2038_registration(&m->programs[p].pmt.streams[s].descr_list);
+							}
 
 							if (m->programs[p].pmt.streams[s].stream_type  == 0x1b /* H.264 */) {
 
@@ -583,6 +588,8 @@ static void *ui_thread_func(void *p)
 						if (m->programs[p].pmt.stream_count > 0) {
 							streamCount++;
 							mvprintw(streamCount + 2, 52, "SCTE35 Registration: %s", has_scte35 ? "Yes" : "No");
+							streamCount++;
+							mvprintw(streamCount + 2, 52, "SMPTE2038 Registration: %s", has_smpte2038 ? "Yes" : "No");
 						}
 
 						unsigned int major, minor, patch;
