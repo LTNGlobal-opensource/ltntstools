@@ -48,6 +48,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
+* Mon Aug 15 2022 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.16.0
+  tstools_pes_inspector: Add support -5 for measuring H.265/HEVC per-NAL throughput for live streams. 
+
 * Mon Aug  8 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.1
   tstools_udp_capture: Tool removed. Deprecated in v1.9.0. See tstools_igmp_join if you need IGMP tooling. 

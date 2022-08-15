@@ -24,17 +24,19 @@ struct nal_statistic_s
 	void     *throughputCtx; /* precise throughput framework handle */
 };
 
-struct nal_h264_throughput_s
+struct nal_throughput_s
 {
 	time_t    lastReport;
 	void     *throughputCtx; /* precise throughput framework handle */
 	int64_t   bps;           /* Entire NAL stream bps */
 
-#define MAX_NALS 32
+// 32 H.264
+// 63 H.265
+#define MAX_NALS 63
 	struct nal_statistic_s stats[MAX_NALS];
 };
 
-static void nal_h264_throughput_init(struct nal_h264_throughput_s *ctx)
+static void nal_throughput_init(struct nal_throughput_s *ctx)
 {
 	throughput_hires_alloc(&ctx->throughputCtx, 5000);
 
@@ -43,7 +45,7 @@ static void nal_h264_throughput_init(struct nal_h264_throughput_s *ctx)
 	}
 }
 
-static void nal_h264_throughput_free(struct nal_h264_throughput_s *ctx)
+static void nal_throughput_free(struct nal_throughput_s *ctx)
 {
 	throughput_hires_free(ctx->throughputCtx);
 
@@ -52,7 +54,7 @@ static void nal_h264_throughput_free(struct nal_h264_throughput_s *ctx)
 	}
 }
 
-static void nal_h264_throughput_report(struct nal_h264_throughput_s *ctx, time_t now)
+static void nal_throughput_report(struct nal_throughput_s *ctx, time_t now, int doH264NalThroughput, int doH265NalThroughput)
 {
 	printf("UnitType                                                Name  Mb/ps  Count @ %s",
 		ctime(&now));
@@ -66,9 +68,16 @@ static void nal_h264_throughput_report(struct nal_h264_throughput_s *ctx, time_t
 
 		summed_bps += nt->bps;
 
+		const char *nalName = "";
+		if (doH264NalThroughput) {
+			nalName = h264Nals_lookupName(i);
+		} else
+		if (doH265NalThroughput) {
+			nalName = h265Nals_lookupName(i);
+		}
 		printf("    0x%02x %50s %7.03f  %"PRIu64 "\n",
 			i,
-			h264Nals_lookupName(i),
+			nalName,
 			(double)nt->bps / (double)1e6,
 			nt->totalCount);
 
@@ -79,44 +88,63 @@ static void nal_h264_throughput_report(struct nal_h264_throughput_s *ctx, time_t
 struct tool_ctx_s
 {
 	int doH264NalThroughput;
+	int doH265NalThroughput;
 	int verbose;
 	int pid;
 	int streamId;
 	void *pe;
 
-	struct nal_h264_throughput_s h264_throughput;
+	struct nal_throughput_s throughput;
 };
 
-static void _pes_packet_measure_nal_h264_throughput(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes, struct nal_h264_throughput_s *s)
+static void _pes_packet_measure_nal_throughput(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes, struct nal_throughput_s *s)
 {
 	struct nal_statistic_s *prevNal = NULL;
 
-	throughput_hires_write_i64(ctx->h264_throughput.throughputCtx, 0, pes->dataLengthBytes * 8, NULL);
+	throughput_hires_write_i64(ctx->throughput.throughputCtx, 0, pes->dataLengthBytes * 8, NULL);
 
     /* Pes payload may contain zero or more complete H264 nals. */ 
     int offset = -1, lastOffset = 0;
-    while (1) {
-        int ret = ltn_nal_h264_findHeader(pes->data, pes->dataLengthBytes, &offset);
-        if (ret < 0) {
-			if (prevNal) {
-		   		throughput_hires_write_i64(prevNal->throughputCtx, 0, (pes->dataLengthBytes - lastOffset) * 8, NULL);
-			}
-           break;
-        }
-
-  		unsigned int nalType = pes->data[offset + 3] & 0x1f;
+	unsigned int nalType = 0;
+	int ret;
 #define LOCAL_DEBUG 0
+#if LOCAL_DEBUG		
+	const char *nalName = NULL;
+#endif
+    while (1) {
+		if (ctx->doH264NalThroughput) {
+			ret = ltn_nal_h264_findHeader(pes->data, pes->dataLengthBytes, &offset);
+		} else
+		if (ctx->doH265NalThroughput) {
+			ret = ltn_nal_h265_findHeader(pes->data, pes->dataLengthBytes, &offset);
+		}
+		if (ret < 0) {
+			if (prevNal) {
+				throughput_hires_write_i64(prevNal->throughputCtx, 0, (pes->dataLengthBytes - lastOffset) * 8, NULL);
+			}
+			break;
+		}
+		if (ctx->doH264NalThroughput) {
+	  		nalType = pes->data[offset + 3] & 0x1f;
+#if LOCAL_DEBUG		
+			nalName = h264Nals_lookupName(nalType);
+#endif
+		} else
+		if (ctx->doH265NalThroughput) {
+			nalType = (pes->data[offset + 3] >> 1) & 0x3f;
+#if LOCAL_DEBUG		
+			nalName = h265Nals_lookupName(nalType);
+#endif
+		}
 
-#if LOCAL_DEBUG
-		const char *nalName = h264Nals_lookupName(nalType);
-
+#if LOCAL_DEBUG		
         for (int i = 0; i < 5; i++) {
             printf("%02x ", *(pes->data + offset + i));
         }
         printf(": NalType %02x : %s\n", nalType, nalName);
 #endif
 
-		struct nal_statistic_s *nt = &ctx->h264_throughput.stats[nalType];
+		struct nal_statistic_s *nt = &ctx->throughput.stats[nalType];
 		nt->enabled = 1;
 		nt->totalCount++;
 
@@ -134,11 +162,11 @@ static void _pes_packet_measure_nal_h264_throughput(struct tool_ctx_s *ctx, stru
 
 	/* Summary report once per second */
 	time_t now = time(NULL);
-	if (now != ctx->h264_throughput.lastReport) {
-		ctx->h264_throughput.lastReport = now;
+	if (now != ctx->throughput.lastReport) {
+		ctx->throughput.lastReport = now;
 
 		for (int i = 0; i < MAX_NALS; i++) {
-			struct nal_statistic_s *nt = &ctx->h264_throughput.stats[i];
+			struct nal_statistic_s *nt = &ctx->throughput.stats[i];
 			if (!nt->enabled)
 				continue;
 
@@ -147,10 +175,12 @@ static void _pes_packet_measure_nal_h264_throughput(struct tool_ctx_s *ctx, stru
 			throughput_hires_expire(nt->throughputCtx, NULL);
 		}
 
-		ctx->h264_throughput.bps = throughput_hires_sumtotal_i64(ctx->h264_throughput.throughputCtx, 0, NULL, NULL);
+		ctx->throughput.bps = throughput_hires_sumtotal_i64(ctx->throughput.throughputCtx, 0, NULL, NULL);
 
-		nal_h264_throughput_report(&ctx->h264_throughput, now);
-		throughput_hires_expire(ctx->h264_throughput.throughputCtx, NULL);
+		if (ctx->doH264NalThroughput || ctx->doH265NalThroughput) {
+			nal_throughput_report(&ctx->throughput, now, ctx->doH264NalThroughput, ctx->doH265NalThroughput);
+		}
+		throughput_hires_expire(ctx->throughput.throughputCtx, NULL);
 	}
 }
 
@@ -159,8 +189,8 @@ void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
 
 	/* If we're analyzing NALs then ONLY do this.... */
-	if (ctx->doH264NalThroughput) {
-		_pes_packet_measure_nal_h264_throughput(ctx, pes, &ctx->h264_throughput);
+	if (ctx->doH264NalThroughput || ctx->doH265NalThroughput) {
+		_pes_packet_measure_nal_throughput(ctx, pes, &ctx->throughput);
 	} else {
 		/* Else, dump all the PES packets */
 		ltn_pes_packet_dump(pes, "");
@@ -183,6 +213,7 @@ static void usage(const char *progname)
 	printf("  -S PES Stream Id. Eg. 0xe0 or 0xc0 [def: 0x%02x]\n", DEFAULT_STREAMID);
 	printf("  -H Show PES headers only, don't parse payload. [def: disabled, payload shown]\n");
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
+	printf("  -5 dump H.266 NAL headers (live stream only) and measure per-NAL throughput\n");
 }
 
 int pes_inspector(int argc, char *argv[])
@@ -191,7 +222,7 @@ int pes_inspector(int argc, char *argv[])
 	ctx = &myctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-	nal_h264_throughput_init(&ctx->h264_throughput);
+	nal_throughput_init(&ctx->throughput);
 
 	ctx->streamId = DEFAULT_STREAMID;
 	ctx->pid = DEFAULT_PID;
@@ -200,7 +231,7 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "4?Hhvi:P:S:")) != -1) {
+	while ((ch = getopt(argc, argv, "45?Hhvi:P:S:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -209,6 +240,11 @@ int pes_inspector(int argc, char *argv[])
 			break;
 		case '4':
 			ctx->doH264NalThroughput = 1;
+			ctx->doH265NalThroughput = 0;
+			break;
+		case '5':
+			ctx->doH264NalThroughput = 0;
+			ctx->doH265NalThroughput = 1;
 			break;
 		case 'H':
 			headersOnly = 1;
@@ -282,9 +318,7 @@ int pes_inspector(int argc, char *argv[])
 	avio_close(puc);
 
 	ltntstools_pes_extractor_free(ctx->pe);
-	nal_h264_throughput_free(&ctx->h264_throughput);
+	nal_throughput_free(&ctx->throughput);
 
 	return 0;
 }
-
-
