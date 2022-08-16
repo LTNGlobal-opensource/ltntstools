@@ -236,6 +236,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 	} else
 	if (secomplete && crcValid) {
 		unsigned char dst[1024];
+		memset(dst, 0, sizeof(dst));
 		int len = ltntstools_sectionextractor_query(ctx->se, &dst[0], sizeof(dst));
 		if (len > 0) {
 
@@ -268,6 +269,9 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 				scte35_splice_info_section_print(s);
 				scte35_splice_info_section_free(s);
 				printf("\n");
+				fflush(0);
+			} else {
+				printf("SCTE35 trigger %d did not parse reliably, skipping.\n\n", ctx->msgs);
 				fflush(0);
 			}
 		}
