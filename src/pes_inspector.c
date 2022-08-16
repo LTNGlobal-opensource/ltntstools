@@ -56,7 +56,7 @@ static void nal_throughput_free(struct nal_throughput_s *ctx)
 
 static void nal_throughput_report(struct nal_throughput_s *ctx, time_t now, int doH264NalThroughput, int doH265NalThroughput)
 {
-	printf("UnitType                                                Name  Mb/ps  Count @ %s",
+	printf("UnitType                                               Name   Mb/ps  Count @ %s",
 		ctime(&now));
 
 	int64_t summed_bps = 0;
