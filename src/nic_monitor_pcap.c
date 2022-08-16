@@ -196,6 +196,16 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		if (di->iat_cur_us >= di->iat_hwm_us)
 			di->iat_hwm_us = di->iat_cur_us;
 
+		/* Track max IAT for the last second, it's reported in the summary/detailed logs. */
+		if (di->iat_cur_us > di->iat_hwm_us_last_second_accumulator) {
+			di->iat_hwm_us_last_second_accumulator = di->iat_cur_us;
+		}
+		if (di->iat_hwm_us_last_second_time != now) {
+			di->iat_hwm_us_last_second_time = now;
+			di->iat_hwm_us_last_second = di->iat_hwm_us_last_second_accumulator;
+			di->iat_hwm_us_last_second_accumulator = 0;
+		}
+
 		ltn_histogram_interval_update_with_value(di->packetIntervals, di->iat_cur_us / 1000);
 #if PROBE_REPORTER
 		throughput_hires_write_i64(di->packetIntervalAverages, 0, di->iat_cur_us / 1000, NULL);

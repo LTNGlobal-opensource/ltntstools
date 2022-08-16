@@ -51,6 +51,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Mon Aug 15 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.16.0
   tstools_nic_monitor: Add LTN Encoder latency measurement (in ms) to -d -w log files, or 'n/a' when not detected.
+  tstools_nic_monitor: Adjust -d -w logfiles to report maxIAT for the last second, instead of the max IAT since the stats were reset.
   tstools_pes_inspector: Add support -5 for measuring H.265/HEVC per-NAL throughput for live streams.
   tstools_scte35_inspector: If a trigger fails to parse, report the issue instead of ignoring it.
 
