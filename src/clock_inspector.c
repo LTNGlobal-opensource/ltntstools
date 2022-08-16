@@ -497,8 +497,6 @@ int clock_inspector(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
-                        break;
-
 			break;
 		case 'D':
 			ctx->maxAllowablePTSDTSDrift = atoi(optarg);
