@@ -919,7 +919,33 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		mbps = ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
 		bps = ltntstools_bytestream_stats_stream_get_bps(&di->stats);
 	}
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s,flags=%s\n",
+
+	/* Query the LTN encoder latency, if it exists */
+	struct ltntstools_pat_s *m = NULL;
+	char enclat[8];
+	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
+		
+		for (int p = 0; p < m->program_count; p++) {
+
+			unsigned int major, minor, patch;
+			int ret = ltntstools_descriptor_list_contains_ltn_encoder_sw_version(&m->programs[p].pmt.descr_list,
+				&major, &minor, &patch);
+			if (ret == 1) {
+				di->isLTNEncoder = 1;
+
+				int64_t encoderLatencyMS = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
+				if (encoderLatencyMS >= 0) {
+					sprintf(enclat, "%" PRIi64, encoderLatencyMS);
+				} else {
+					sprintf(enclat, "n/a");
+				}
+			}
+
+		}
+		ltntstools_pat_free(m);
+	}
+
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s,flags=%s,enclat=%s\n",
 		ts,
 		ctx->ifname,
 		bps,
@@ -933,7 +959,8 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		ctx->pcap_stats.ps_ifdrop,
 		di->iat_hwm_us / 1000,
 		di->iat_hwm_us / 1000 > ctx->iatMax ? "!" : "",
-		di->warningIndicatorLabel);
+		di->warningIndicatorLabel,
+		enclat);
 
 	write(fd, line, strlen(line));
 
@@ -1017,7 +1044,33 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		mbps = ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
 		bps = ltntstools_bytestream_stats_stream_get_bps(&di->stats);
 	}
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s,flags=%s\n",
+
+	/* Query the LTN encoder latency, if it exists */
+	struct ltntstools_pat_s *m = NULL;
+	char enclat[8];
+	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
+		
+		for (int p = 0; p < m->program_count; p++) {
+
+			unsigned int major, minor, patch;
+			int ret = ltntstools_descriptor_list_contains_ltn_encoder_sw_version(&m->programs[p].pmt.descr_list,
+				&major, &minor, &patch);
+			if (ret == 1) {
+				di->isLTNEncoder = 1;
+
+				int64_t encoderLatencyMS = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
+				if (encoderLatencyMS >= 0) {
+					sprintf(enclat, "%" PRIi64, encoderLatencyMS);
+				} else {
+					sprintf(enclat, "n/a");
+				}
+			}
+
+		}
+		ltntstools_pat_free(m);
+	}
+
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s,flags=%s,enclat=%s\n",
 		ts,
 		ctx->ifname,
 		bps,
@@ -1031,7 +1084,8 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		ctx->pcap_stats.ps_ifdrop,
 		di->iat_hwm_us / 1000,
 		di->iat_hwm_us / 1000 > ctx->iatMax ? "!" : "",
-		di->warningIndicatorLabel);
+		di->warningIndicatorLabel,
+		enclat);
 	write(fd, line, strlen(line));
 
 	close(fd);
