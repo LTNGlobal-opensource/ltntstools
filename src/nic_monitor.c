@@ -1385,7 +1385,9 @@ int nic_monitor(int argc, char *argv[])
 		exit(1);
 	}
 
-	printf("  iface: %s\n", ctx->ifname);
+	if (ctx->verbose) {
+		printf("  iface: %s\n", ctx->ifname);
+	}
 
 	/* Configure automatic core-dumps */
 	struct rlimit core_limit;
@@ -1403,19 +1405,23 @@ int nic_monitor(int argc, char *argv[])
 		struct in_addr ip_net, ip_mask;
 		ip_net.s_addr = ctx->netp;
 		ip_mask.s_addr = ctx->maskp;
-		printf("network: %s\n", inet_ntoa(ip_net));
-		printf("   mask: %s\n", inet_ntoa(ip_mask));
-		printf(" filter: %s\n", ctx->pcap_filter);
-		printf("snaplen: %d\n", ctx->snaplen);
-		printf("buffSiz: %d\n", ctx->bufferSize);
+		if (ctx->verbose) {
+			printf("network: %s\n", inet_ntoa(ip_net));
+			printf("   mask: %s\n", inet_ntoa(ip_mask));
+			printf(" filter: %s\n", ctx->pcap_filter);
+			printf("snaplen: %d\n", ctx->snaplen);
+			printf("buffSiz: %d\n", ctx->bufferSize);
+		}
 	} else
 	if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
 	}
 
-	printf("file write interval: %d\n", ctx->file_write_interval);
+	if (ctx->verbose) {
+		printf("file write interval: %d\n", ctx->file_write_interval);
 #if PROBE_REPORTER
-	printf("json write interval: %d\n", JSON_WRITE_INTERVAL);
+		printf("json write interval: %d\n", JSON_WRITE_INTERVAL);
 #endif
+	}
 
 	gRunning = 1;
 	pthread_create(&ctx->stats_threadId, 0, stats_thread_func, ctx);
@@ -1621,12 +1627,14 @@ int nic_monitor(int argc, char *argv[])
 
 	ltntstools_proc_net_udp_free(ctx->procNetUDPContext);
 
-printf("pcap_free_miss %" PRIi64 "\n", ctx->pcap_free_miss);
-printf("pcap_dispatch_miss %" PRIi64 "\n", ctx->pcap_dispatch_miss);
-printf("ctx->listpcapFreeDepth %d\n", ctx->listpcapFreeDepth);
-printf("ctx->listpcapUsedDepth %d\n", ctx->listpcapUsedDepth);
-printf("ctx->rebalance_last_buffers_used %d\n", ctx->rebalance_last_buffers_used);
-printf("ctx->cacheHitRatio %.02f%% (%" PRIu64 ", %" PRIu64 ")\n", ctx->cacheHitRatio, ctx->cacheHit, ctx->cacheMiss);
+	if (ctx->verbose) {
+		printf("pcap_free_miss %" PRIi64 "\n", ctx->pcap_free_miss);
+		printf("pcap_dispatch_miss %" PRIi64 "\n", ctx->pcap_dispatch_miss);
+		printf("ctx->listpcapFreeDepth %d\n", ctx->listpcapFreeDepth);
+		printf("ctx->listpcapUsedDepth %d\n", ctx->listpcapUsedDepth);
+		printf("ctx->rebalance_last_buffers_used %d\n", ctx->rebalance_last_buffers_used);
+		printf("ctx->cacheHitRatio %.02f%% (%" PRIu64 ", %" PRIu64 ")\n", ctx->cacheHitRatio, ctx->cacheHit, ctx->cacheMiss);
+	}
 
 	if (ctx->iftype == IF_TYPE_PCAP) {
 		printf("pcap nic '%s' stats: dropped: %d/%d\n",
