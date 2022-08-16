@@ -56,7 +56,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_pes_inspector: Add support -5 for measuring H.265/HEVC per-NAL throughput for live streams.
   tstools_scte35_inspector: If a trigger fails to parse, report the issue instead of ignoring it.
   tstools_pid_drop: Add support for multiple concurrent pids to be dropped.
-  tstools_clock_inspector: removed a spurious break during command processing
+  tstools_clock_inspector: Removed a spurious break during command processing
 
 * Mon Aug  8 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.1
