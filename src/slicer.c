@@ -1,5 +1,4 @@
-/* For a given TS file, drop N packets on PID X start at PID X packet Y. */
-/* A tool that should take a clean video file, drop PTS packets for a specific pid a reproduce the TR101290 2.5 error on demand. */
+/* For a given TS file, calculate all clock timestamps and extract ts packets between timestamps. */
 
 #include <stdio.h>
 #include <unistd.h>
