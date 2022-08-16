@@ -28,6 +28,8 @@ struct tool_context_s
 	uint8_t pidLastCC;
 
 	uint64_t ts_total_packets;
+
+	unsigned char filter[8192];
 };
 
 static void usage(const char *progname)
@@ -38,7 +40,7 @@ static void usage(const char *progname)
 	printf("  -i <input.ts>\n");
 	printf("  -o <output.ts>\n");
 	printf("  -f enable fixup the CC counters in the headers after dropping [def: disabled]\n");
-	printf("  -P pid 0xNNNN to be removed [def: 0x0]\n");
+	printf("  -P pid 0xNNNN to be removed [def: none], multiple -P instances supported.\n");
 	printf("  -p <number>. Drop packets from packet <number> onwards, for -n packets. [def: 0x0]\n");
 	printf("  -n <number>. Number of packets to drop on pid -P. [def: 0x0]\n");
 }
@@ -50,6 +52,7 @@ int pid_drop(int argc, char *argv[])
 	struct tool_context_s tctx, *ctx;
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
+	memset(&ctx->filter[0], 1, sizeof(ctx->filter)); /* Pass all pids by default */
 
         while ((ch = getopt(argc, argv, "?fhi:n:o:p:P:")) != -1) {
 		switch (ch) {
@@ -73,6 +76,7 @@ int pid_drop(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
+			ctx->filter[ ctx->pid ] = 0; /* Disable pid output */
 			break;
 		default:
 			usage(argv[0]);
@@ -81,12 +85,19 @@ int pid_drop(int argc, char *argv[])
 	}
 
 	if (ctx->ifn == 0) {
-		fprintf(stderr, "-i is mandatory\n");
+		usage(argv[0]);
+		fprintf(stderr, "\n-i is mandatory\n");
 		exit(1);
 	}
 	if (ctx->ofn == 0) {
-		fprintf(stderr, "-o is mandatory\n");
+		fprintf(stderr, "\n-o is mandatory\n");
 		exit(1);
+	}
+
+	for (int i = 0; i < 8192; i++) {
+		if (ctx->filter[i] == 0) {
+			printf("Dropping content on PID 0x%04x\n", i);
+		}
 	}
 
 	/* File is assumed to have properly aligned packets. */
@@ -127,7 +138,7 @@ int pid_drop(int argc, char *argv[])
 			ctx->ts_total_packets++;
 
 			uint16_t pid = ltntstools_pid(p);
-			if (ctx->pid != pid) {
+			if (ctx->filter[pid]) {
 				fwrite(p, 1, 188, ctx->ofh);
 				continue;
 			}

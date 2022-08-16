@@ -54,6 +54,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Adjust -d -w logfiles to report maxIAT for the last second, instead of the max IAT since the stats were reset.
   tstools_pes_inspector: Add support -5 for measuring H.265/HEVC per-NAL throughput for live streams.
   tstools_scte35_inspector: If a trigger fails to parse, report the issue instead of ignoring it.
+  tstools_pid_drop: Add support for multiple concurrent pids to be dropped.
 
 * Mon Aug  8 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.1
