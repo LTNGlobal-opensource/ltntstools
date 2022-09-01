@@ -939,6 +939,8 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 				} else {
 					sprintf(enclat, "n/a");
 				}
+			} else {
+				sprintf(enclat, "n/a");
 			}
 
 		}
@@ -1064,6 +1066,8 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 				} else {
 					sprintf(enclat, "n/a");
 				}
+			} else {
+				sprintf(enclat, "n/a");
 			}
 
 		}
