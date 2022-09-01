@@ -68,6 +68,7 @@ struct tool_context_s
 	enum {
 		IF_TYPE_PCAP = 0,
 		IF_TYPE_MPEGTS_FILE,
+		IF_TYPE_MPEGTS_AVDEVICE,
 	} iftype;
 	int fileLoops; /* Boolean. A file input, should it loop and repeat at end of file? */
 	double fileLoopPct; /* How much (pct) has the file loop played out? */
@@ -176,6 +177,11 @@ struct tool_context_s
 		int port;
 		char uilabel[64];
 	} url_forwards[MAX_URL_FORWARDERS];
+
+	/* SRT Ingest, and packet reframing */
+	unsigned char srt_sendBuffer[7 * 188];
+	int srt_sendIndex;
+	int srt_minSendBytes;
 };
 
 #if PROBE_REPORTER
@@ -390,6 +396,7 @@ struct discovered_item_s
 	struct display_doc_s doc_scte35;
 	int hasHiddenDuplicates;
 	char warningIndicatorLabel[8]; /* ARray of single characters, shows warning flags to operator. */
+
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);

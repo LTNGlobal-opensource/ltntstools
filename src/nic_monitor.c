@@ -104,6 +104,10 @@ static void *ui_thread_func(void *p)
 			} else {
 				sprintf(title_c, "FILE: %s @ %6.2f%%", ctx->ifname, ctx->fileLoopPct);
 			}
+		} else
+		if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
+			sprintf(title_a, "NIC Monitor");
+			sprintf(title_c, "URL: %s", ctx->ifname);
 		}
 
 		int blen = 111 - (strlen(title_a) + strlen(title_c));
@@ -944,6 +948,46 @@ static void * sm_cb_raw(void *userContext, const uint8_t *pkts, int packetCount)
 		file_pktdata[34] = 6502 >> 8;
 		file_pktdata[35] = 6502 & 0xff;
 		pcap_callback((u_char *)ctx, &file_pkthdr, (const u_char *)&file_pktdata[0]);
+	} else {
+		/* Should never happen.
+		 * Of the two possible callers:
+		 * RCTS reframes to guarantee to 7 packets.
+		 * SRT AVcodec reframes to guarantee to 7 packets.
+		 */
+	}
+
+	return NULL;
+}
+
+static void *srt_send_raw(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	struct tool_context_s *ctx = userContext;
+	int byteCount = packetCount * 188;
+
+	ctx->srt_minSendBytes = 7 * 188;
+
+	if (ctx->srt_minSendBytes == 0) {
+		//smoother_pcr_write(ctx->smoother, buf, byteCount, NULL);
+	} else {
+		int len = byteCount;
+		int offset = 0;
+		int cplen;
+		while (len > 0) {
+			if (len > (ctx->srt_minSendBytes - ctx->srt_sendIndex)) {
+				cplen = ctx->srt_minSendBytes - ctx->srt_sendIndex;
+			} else {
+				cplen = len;
+			}
+			memcpy(ctx->srt_sendBuffer + ctx->srt_sendIndex, pkts + offset, cplen);
+			ctx->srt_sendIndex += cplen;
+			offset += cplen;
+			len -= cplen;
+
+			if (ctx->srt_sendIndex == ctx->srt_minSendBytes) {
+				sm_cb_raw(ctx, ctx->srt_sendBuffer, ctx->srt_minSendBytes / 188);
+				ctx->srt_sendIndex = 0;
+			}
+		}
 	}
 
 	return NULL;
@@ -958,6 +1002,9 @@ static void *pcap_thread_func(void *p)
 
 	int processed;
 	void *sm = NULL;
+	AVIOContext *puc = NULL;
+	uint8_t *buf = NULL;
+	int buflen = 240 * 188;
 
 	struct ltntstools_source_rcts_callbacks_s sm_callbacks = { 0 };
 	sm_callbacks.raw = (ltntstools_source_rcts_raw_callback)sm_cb_raw;
@@ -1034,7 +1081,22 @@ static void *pcap_thread_func(void *p)
 		if (ltntstools_source_rcts_alloc(&sm, ctx, &sm_callbacks, ctx->ifname, ctx->fileLoops) < 0) {
 
 		}
+	} else
+	if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
+		buf = malloc(buflen);
+		if (!buf) {
+			ctx->pcap_threadRunning = 1;
+			ctx->pcap_threadTerminated = 1;
+			return NULL;
+		}
 
+		avformat_network_init();
+	
+		int ret = avio_open2(&puc, ctx->ifname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+		if (ret < 0) {
+			fprintf(stderr, "-i syntax error, invalid URL syntax, aborting.\n");
+			exit(1);
+		}
 	}
 
 	while (!ctx->pcap_threadTerminate) {
@@ -1048,6 +1110,23 @@ static void *pcap_thread_func(void *p)
 		} else
 		if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
 			usleep(50 * 1000);
+		} else
+		if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
+			/* ulk reads of less than this (7 * 188 eg) cause the ffurl_read in libsrt
+			 * to throw constant expcetions / warnings.
+			 * Read larger buffer values to avoid the issue.
+			 */
+			int rlen = avio_read(puc, buf, buflen);
+			if (rlen == -EAGAIN) {
+				usleep(1 * 1000);
+				continue;
+			}
+			if (rlen < 0) {
+				// TODO: Do what if the URL breaks?
+				break;
+			}
+
+			srt_send_raw(ctx, buf, rlen / 188);
 		}
 
 		time_t now;
@@ -1081,6 +1160,12 @@ static void *pcap_thread_func(void *p)
 				ctx->pcap_stats.ps_recv = 0;
 				ctx->pcap_stats.ps_drop = 0;
 				ctx->pcap_stats.ps_ifdrop = 0;
+			} else
+			if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
+				/* TODO: Wire up the SRT loss stats these these? Show them in the UI? */
+				ctx->pcap_stats.ps_recv = 0;
+				ctx->pcap_stats.ps_drop = 0;
+				ctx->pcap_stats.ps_ifdrop = 0;
 			}
 
 		}
@@ -1099,6 +1184,14 @@ static void *pcap_thread_func(void *p)
 
 	if (sm)
 		ltntstools_source_rcts_free(sm);
+
+	if (puc)
+		avio_close(puc);
+
+	if (buf) {
+		free(buf);
+		buf = NULL;
+	}
 
 	pthread_exit(NULL);
 	return 0;
@@ -1223,10 +1316,23 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			ctx->ifname = optarg;
 
 			ctx->fileLoops = 0;
+			if (strstr(ctx->ifname, "srt://")) {
+				ctx->iftype = IF_TYPE_MPEGTS_AVDEVICE;
+			} else
+#if 0
+			if (strstr(ctx->ifname, "http://")) {
+				ctx->iftype = IF_TYPE_MPEGTS_AVDEVICE;
+				printf("We have an HTTP input!!!\n");
+				We might need to pcr the pcr and rate limit it, for example for a HTTP faster than realtime source
+			} else
+#endif
 			if (strstr(ctx->ifname, ":loop")) {
 				ctx->fileLoops = 1;
 				ctx->ifname[strlen (ctx->ifname) - 5] = 0;
 			}
+			if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
+
+			} else
 			if (isValidTransportFile(ctx->ifname)) {
 				ctx->iftype = IF_TYPE_MPEGTS_FILE;
 			} else {
@@ -1414,6 +1520,8 @@ int nic_monitor(int argc, char *argv[])
 		}
 	} else
 	if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
+	} else
+	if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
 	}
 
 	if (ctx->verbose) {
@@ -1425,7 +1533,7 @@ int nic_monitor(int argc, char *argv[])
 
 	gRunning = 1;
 	pthread_create(&ctx->stats_threadId, 0, stats_thread_func, ctx);
-	if (ctx->iftype == IF_TYPE_PCAP || ctx->iftype == IF_TYPE_MPEGTS_FILE) {
+	if (ctx->iftype == IF_TYPE_PCAP || ctx->iftype == IF_TYPE_MPEGTS_FILE || ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
 		pthread_create(&ctx->pcap_threadId, 0, pcap_thread_func, ctx);
 	}
 #if PROBE_REPORTER
