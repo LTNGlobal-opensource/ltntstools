@@ -318,9 +318,9 @@ struct discovered_item_s
 	int iat_lwm_us; /* IAT low watermark (us), measurement of UDP receive interval */
 	int iat_hwm_us; /* IAT high watermark (us), measurement of UDP receive interval */
 	int iat_cur_us; /* IAT current measurement (us) */
-	int iat_hwm_us_last_second; /* IAT high watermark (us), for the last second, measurement of UDP receive interval */
-	int iat_hwm_us_last_second_accumulator; /* IAT high watermark (us), for the last second, measurement of UDP receive interval */
-	time_t iat_hwm_us_last_second_time; /* time the per-second IAT measurement reports to. */
+	int iat_hwm_us_last_nsecond; /* IAT high watermark (us), for the last Nsecond, measurement of UDP receive interval */
+	int iat_hwm_us_last_nsecond_accumulator; /* IAT high watermark (us), for the last Nsecond, measurement of UDP receive interval */
+	time_t iat_hwm_us_last_nsecond_time; /* time the per-second IAT measurement reports to. */
 	struct timeval iat_last_frame; /* Timestamp of last UDP frame for this entity. */
 
 	/* PCAP recording */

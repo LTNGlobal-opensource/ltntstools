@@ -959,8 +959,8 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
 		ctx->pcap_stats.ps_ifdrop,
-		di->iat_hwm_us_last_second / 1000,
-		di->iat_hwm_us_last_second / 1000 > ctx->iatMax ? "!" : "",
+		di->iat_hwm_us_last_nsecond / 1000,
+		di->iat_hwm_us_last_nsecond / 1000 > ctx->iatMax ? "!" : "",
 		di->warningIndicatorLabel,
 		enclat);
 
@@ -1086,8 +1086,8 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
 		ctx->pcap_stats.ps_ifdrop,
-		di->iat_hwm_us_last_second / 1000,
-		di->iat_hwm_us_last_second / 1000 > ctx->iatMax ? "!" : "",
+		di->iat_hwm_us_last_nsecond / 1000,
+		di->iat_hwm_us_last_nsecond / 1000 > ctx->iatMax ? "!" : "",
 		di->warningIndicatorLabel,
 		enclat);
 	write(fd, line, strlen(line));

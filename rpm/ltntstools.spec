@@ -48,17 +48,18 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Mon Aug 15 2022 Steven Toth <steven.toth@ltnglobal.com> 
+* Thu Sep  1 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.16.0
   tstools_nic_monitor: Feature. Added support for an SRT input urls, monitor an SRT feed. -i srt://1.2.3.4:5678
   tstools_nic_monitor: Add LTN Encoder latency measurement (in ms) to -d -w log files, or 'n/a' when not detected.
-  tstools_nic_monitor: Adjust -d -w logfiles to report maxIAT for the last second, instead of the max IAT since the stats were reset.
+  tstools_nic_monitor: Adjust -d -w logfiles to report maxIAT for the last -n seconds, instead of the max IAT since the stats were reset.
   tstools_nic_monitor: Moved 6-7 developer console messages (settings) into -v verbose mode, if people still need them.
   tstools_nic_monitor: Bug. Attempting to record from FILE or SRT input would not create a recording.
+  tstools_nic_monitor: Missing enclat "n/a" value in stats files, when non-ltn encoder detected.
   tstools_pes_inspector: Add support -5 for measuring H.265/HEVC per-NAL throughput for live streams.
   tstools_scte35_inspector: If a trigger fails to parse, report the issue instead of ignoring it.
   tstools_pid_drop: Add support for multiple concurrent pids to be dropped.
-  tstools_clock_inspector: Removed a spurious break during command processing
+  tstools_clock_inspector: Removed a spurious break during command processing, no impact to users.
 
 * Mon Aug  8 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.1
