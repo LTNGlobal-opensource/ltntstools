@@ -56,7 +56,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Moved 6-7 developer console messages (settings) into -v verbose mode, if people still need them.
   tstools_nic_monitor: Bug. Attempting to record from FILE or SRT input would not create a recording.
   tstools_nic_monitor: Missing enclat "n/a" value in stats files, when non-ltn encoder detected.
-  tstools_pes_inspector: Add support -5 for measuring H.265/HEVC per-NAL throughput for live streams.
+  tstools_pes_inspector: Add support -4 for measuring H.264/AVC per-NAL bitrate throughput for live streams.
+  tstools_pes_inspector: Add support -5 for measuring H.265/HEVC per-NAL bitrate throughput for live streams.
   tstools_scte35_inspector: If a trigger fails to parse, report the issue instead of ignoring it.
   tstools_pid_drop: Add support for multiple concurrent pids to be dropped.
   tstools_clock_inspector: Removed a spurious break during command processing, no impact to users.
