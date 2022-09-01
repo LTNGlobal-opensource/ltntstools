@@ -362,7 +362,15 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			}
 		}
 
-		sprintf(prefix, "%s%snic_monitor-%s-%s", dirprefix, fn_sep, ctx->ifname, di->dstaddr);
+		if (ctx->iftype == IF_TYPE_PCAP) {
+			sprintf(prefix, "%s%snic_monitor-%s-%s", dirprefix, fn_sep, ctx->ifname, di->dstaddr);
+		} else
+		if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
+			sprintf(prefix, "%s%snic_monitor-%s-%s", dirprefix, fn_sep, "file", di->dstaddr);
+		} else
+		if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
+			sprintf(prefix, "%s%snic_monitor-%s-%s", dirprefix, fn_sep, "avdevice", di->dstaddr);
+		}
 
 		/* Cleanup the filename so we don't have :, they mess up handing recordings via scp. */
 		/* Substitute : for . */
