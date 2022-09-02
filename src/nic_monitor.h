@@ -179,9 +179,7 @@ struct tool_context_s
 	} url_forwards[MAX_URL_FORWARDERS];
 
 	/* SRT Ingest, and packet reframing */
-	unsigned char srt_sendBuffer[7 * 188];
-	int srt_sendIndex;
-	int srt_minSendBytes;
+	struct ltntstools_reframer_ctx_s *reframer;
 };
 
 #if PROBE_REPORTER

@@ -959,36 +959,10 @@ static void * sm_cb_raw(void *userContext, const uint8_t *pkts, int packetCount)
 	return NULL;
 }
 
-static void *srt_send_raw(void *userContext, const uint8_t *pkts, int packetCount)
+static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
 {
 	struct tool_context_s *ctx = userContext;
-	int byteCount = packetCount * 188;
-
-	ctx->srt_minSendBytes = 7 * 188;
-
-	if (ctx->srt_minSendBytes == 0) {
-		//smoother_pcr_write(ctx->smoother, buf, byteCount, NULL);
-	} else {
-		int len = byteCount;
-		int offset = 0;
-		int cplen;
-		while (len > 0) {
-			if (len > (ctx->srt_minSendBytes - ctx->srt_sendIndex)) {
-				cplen = ctx->srt_minSendBytes - ctx->srt_sendIndex;
-			} else {
-				cplen = len;
-			}
-			memcpy(ctx->srt_sendBuffer + ctx->srt_sendIndex, pkts + offset, cplen);
-			ctx->srt_sendIndex += cplen;
-			offset += cplen;
-			len -= cplen;
-
-			if (ctx->srt_sendIndex == ctx->srt_minSendBytes) {
-				sm_cb_raw(ctx, ctx->srt_sendBuffer, ctx->srt_minSendBytes / 188);
-				ctx->srt_sendIndex = 0;
-			}
-		}
-	}
+	sm_cb_raw(ctx, buf, lengthBytes / 188);
 
 	return NULL;
 }
@@ -1126,7 +1100,7 @@ static void *pcap_thread_func(void *p)
 				break;
 			}
 
-			srt_send_raw(ctx, buf, rlen / 188);
+			ltststools_reframer_write(ctx->reframer, buf, rlen);
 		}
 
 		time_t now;
@@ -1467,6 +1441,8 @@ int nic_monitor(int argc, char *argv[])
 	ctx->jsonSocket = -1;
 #endif
 
+	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
+
 	pcap_queue_initialize(ctx);
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
 #if PROBE_REPORTER
@@ -1760,5 +1736,8 @@ int nic_monitor(int argc, char *argv[])
 
 	free(ctx->file_prefix);
 	free(ctx->detailed_file_prefix);
+
+	ltntstools_reframer_free(ctx->reframer);
+
 	return 0;
 }
