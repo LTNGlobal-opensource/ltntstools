@@ -71,13 +71,6 @@ const unsigned char nal[] = {
 
 static int gRunning = 0;
 
-struct buffer_1316_s
-{
-	unsigned char sendBuffer[7 * 188];
-	int sendIndex;
-	int minSendBytes;
-};
-
 struct tool_context_s
 {
 	char *iname, *oname;
@@ -112,36 +105,14 @@ struct tool_context_s
 	} pc;
 #endif
 
-	struct buffer_1316_s outputBuf;
+	struct ltntstools_reframer_ctx_s *reframer;
 };
 
-static void output_write(struct tool_context_s *ctx, struct buffer_1316_s *ob, const unsigned char *buf, unsigned int byteCount)
+static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
 {
-	if (ob->minSendBytes == 0) {
-		//smoother_pcr_write(ctx->smoother, buf, byteCount, NULL);
-		avio_write(ctx->o_puc, buf, byteCount);
-	} else {
-		int len = byteCount;
-		int offset = 0;
-		int cplen;
-		while (len > 0) {
-			if (len > (ob->minSendBytes - ob->sendIndex)) {
-				cplen = ob->minSendBytes - ob->sendIndex;
-			} else {
-				cplen = len;
-			}
-			memcpy(ob->sendBuffer + ob->sendIndex, buf + offset, cplen);
-			ob->sendIndex += cplen;
-			offset += cplen;
-			len -= cplen;
-
-			if (ob->sendIndex == ob->minSendBytes) {
-				//smoother_pcr_write(ctx->smoother, ctx->sendBuffer, ctx->minSendBytes, NULL);
-				avio_write(ctx->o_puc, ob->sendBuffer, 7 * 188);
-				ob->sendIndex = 0;
-			}
-		}
-	}
+	struct tool_context_s *ctx = userContext;
+	avio_write(ctx->o_puc, buf, lengthBytes);
+	return NULL;
 }
 
 static void transmit_packets(struct tool_context_s *ctx, unsigned char *pkts, int packetCount)
@@ -184,7 +155,7 @@ static void transmit_packets(struct tool_context_s *ctx, unsigned char *pkts, in
 	avio_write(ctx->o_puc, buf, 7 * 188);
 	free(buf);
 #else
-	output_write(ctx, &ctx->outputBuf, pkts, packetCount * 188);
+	ltststools_reframer_write(ctx->reframer, pkts, packetCount * 188);
 #endif
 }
 
@@ -544,7 +515,7 @@ int bitrate_smoother(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->latencyMS = DEFAULT_LATENCY;
-	ctx->outputBuf.minSendBytes = 7 * 188;
+	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
 
 #if ENABLE_PIR_CORRECTOR
 	ctx->pc.vpid = 0x31; /* TODO */
@@ -648,6 +619,7 @@ int bitrate_smoother(int argc, char *argv[])
 	avio_close(ctx->o_puc);
 
 	smoother_pcr_free(ctx->smoother);
+	ltntstools_reframer_free(ctx->reframer);
 
 	ret = 0;
 
