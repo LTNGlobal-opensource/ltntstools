@@ -58,13 +58,13 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Missing enclat "n/a" value in stats files, when non-ltn encoder detected.
   tstools_pes_inspector: Add support -4 for measuring H.264/AVC per-NAL bitrate throughput for live streams.
   tstools_pes_inspector: Add support -5 for measuring H.265/HEVC per-NAL bitrate throughput for live streams.
+  tstools_pes_inspector: In H265 NAL bitrate measure mode, change a Padding NAL console description to be more helpful.
   tstools_scte35_inspector: If a trigger fails to parse, report the issue instead of ignoring it.
   tstools_pid_drop: Add support for multiple concurrent pids to be dropped.
   tstools_clock_inspector: Removed a spurious break during command processing, no impact to users.
-  tstools_bitrate_smoother: Known issue. Upstream packet loss disrupts processing, process has to be restarted.
-  tstools_pes_inspector: In H265 NAL bitrate measure mode, change a Padding NAL console description to be more helpful.
   tstools_stream_verifier: Switch from custome reframer to common library code
   tstools_bitrate_smoother: Switch from custome reframer to common library code
+  tstools_bitrate_smoother: Known issue. Upstream packet loss disrupts processing, process has to be restarted.
 
 * Mon Aug  8 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.1
