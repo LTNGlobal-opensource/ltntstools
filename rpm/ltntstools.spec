@@ -62,8 +62,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_scte35_inspector: If a trigger fails to parse, report the issue instead of ignoring it.
   tstools_pid_drop: Add support for multiple concurrent pids to be dropped.
   tstools_clock_inspector: Removed a spurious break during command processing, no impact to users.
-  tstools_stream_verifier: Switch from custome reframer to common library code
-  tstools_bitrate_smoother: Switch from custome reframer to common library code
+  tstools_stream_verifier: Switch from custom reframer to common library code
+  tstools_bitrate_smoother: Switch from custom reframer to common library code
   tstools_bitrate_smoother: Known issue. Upstream packet loss disrupts processing, process has to be restarted.
 
 * Mon Aug  8 2022 Steven Toth <steven.toth@ltnglobal.com> 
