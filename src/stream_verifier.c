@@ -62,9 +62,7 @@ struct tool_context_s
 
 	void *smoother;
 
-	unsigned char sendBuffer[7 * 188];
-	int sendIndex;
-	int minSendBytes;
+	struct ltntstools_reframer_ctx_s *reframer;
 
 	/* PCR related */
 	uint64_t bitsTransmitted;
@@ -96,33 +94,16 @@ static void output_file(struct tool_context_s *ctx, uint8_t *buf, int byteCount,
 
 /* Group TS packets into multiples of N, typically 7 * 188 */
 /* TODO: Push all of this into the libtstools library so I don't have to keep re-implementing it. */
-static void output_write(struct tool_context_s *ctx, const unsigned char *buf, unsigned int byteCount)
+
+static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
 {
-	ctx->bitsTransmitted += (byteCount * 8);
+	struct tool_context_s *ctx = userContext;
 
-	if (ctx->minSendBytes == 0) {
-		smoother_pcr_write(ctx->smoother, buf, byteCount, NULL);
-	} else {
-		int len = byteCount;
-		int offset = 0;
-		int cplen;
-		while (len > 0) {
-			if (len > (ctx->minSendBytes - ctx->sendIndex)) {
-				cplen = ctx->minSendBytes - ctx->sendIndex;
-			} else {
-				cplen = len;
-			}
-			memcpy(ctx->sendBuffer + ctx->sendIndex, buf + offset, cplen);
-			ctx->sendIndex += cplen;
-			offset += cplen;
-			len -= cplen;
+	ctx->bitsTransmitted += (lengthBytes * 8);
 
-			if (ctx->sendIndex == ctx->minSendBytes) {
-				smoother_pcr_write(ctx->smoother, ctx->sendBuffer, ctx->minSendBytes, NULL);
-				ctx->sendIndex = 0;
-			}
-		}
-	}
+	smoother_pcr_write(ctx->smoother, buf, lengthBytes, NULL);
+
+	return NULL;
 }
 
 static void usage(const char *progname)
@@ -158,9 +139,9 @@ int stream_verifier(int argc, char *argv[])
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->totalSeconds = DEFAULT_TOTAL_SECONDS;
 	ctx->bps = DEFAULT_BPS;
-	ctx->minSendBytes = 1316;
+	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
 
-        while ((ch = getopt(argc, argv, "?hi:b:d:o:v")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:b:d:o:v")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -212,7 +193,7 @@ int stream_verifier(int argc, char *argv[])
 
 	if (ctx->ofn && strncasecmp(ctx->ofn, "udp:", 4) == 0) {
 		/* 15000 items supports up to 800Mb/ps, possibly more. */
-		int ret = smoother_pcr_alloc(&ctx->smoother, ctx, &callback_smoother, 15000, ctx->minSendBytes, 0x31, 200 /* ms */);
+		int ret = smoother_pcr_alloc(&ctx->smoother, ctx, &callback_smoother, 15000, 7 * 188, 0x31, 200 /* ms */);
 
 		ret = avio_open2(&ctx->o_puc, ctx->ofn, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 		if (ret < 0) {
@@ -238,13 +219,13 @@ int stream_verifier(int argc, char *argv[])
 					break;
 				ctx->pcrLast = pcr;
 
-				output_write(ctx, pkt, sizeof(pkt));
+				ltststools_reframer_write(ctx->reframer, pkt, sizeof(pkt));
 
 				pat[3] = (pat[3] & 0xf0) | (patcc++ & 0x0f);
-				output_write(ctx, pat, sizeof(pat));
+				ltststools_reframer_write(ctx->reframer, pat, sizeof(pat));
 
 				pmt[3] = (pmt[3] & 0xf0) | (pmtcc++ & 0x0f);
-				output_write(ctx, pmt, sizeof(pmt));
+				ltststools_reframer_write(ctx->reframer, pmt, sizeof(pmt));
 
 				int i = 0;
 				while (i++ < packetsPerPCR) {
@@ -253,7 +234,7 @@ int stream_verifier(int argc, char *argv[])
 					if (ret < 0)
 						break;
 
-					output_write(ctx, pkt, sizeof(pkt));
+					ltststools_reframer_write(ctx->reframer, pkt, sizeof(pkt));
 				}
 			}
 			/* Sleep for a while, otherwise we generate 30 seconds of content in a ms or two,
@@ -373,6 +354,8 @@ int stream_verifier(int argc, char *argv[])
 		free(ctx->ofn);
 	if (ctx->iname)
 		free(ctx->iname);
+
+	ltntstools_reframer_free(ctx->reframer);
 
 	return 0;
 }

@@ -63,6 +63,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: Removed a spurious break during command processing, no impact to users.
   tstools_bitrate_smoother: Known issue. Upstream packet loss disrupts processing, process has to be restarted.
   tstools_pes_inspector: In H265 NAL bitrate measure mode, change a Padding NAL console description to be more helpful.
+  tstools_stream_verifier: Switch from customer reframer to common library code
 
 * Mon Aug  8 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.15.1
