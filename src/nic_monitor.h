@@ -50,6 +50,8 @@
 #endif
 #define DEFAULT_PCAP_FILTER "udp dst portrange 4000-4999"
 
+#define DEFAULT_STORAGE_LOCATION "/storage/packet_captures"
+
 enum payload_type_e {
 	PAYLOAD_UNDEFINED = 0,
 	PAYLOAD_UDP_TS,

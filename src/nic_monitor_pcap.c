@@ -348,8 +348,8 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			strcpy(dirprefix, ctx->recordingDir);
 		} else {
 			struct stat buf;
-			if (stat("/storage/packet_captures", &buf) == 0) {
-				strcpy(dirprefix, "/storage/packet_captures");
+			if (stat(DEFAULT_STORAGE_LOCATION, &buf) == 0) {
+				strcpy(dirprefix, "DEFAULT_STORAGE_LOCATION");
 			}
 		}
 	
