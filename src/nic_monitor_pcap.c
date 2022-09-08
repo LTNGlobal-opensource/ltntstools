@@ -196,7 +196,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		if (di->iat_cur_us >= di->iat_hwm_us)
 			di->iat_hwm_us = di->iat_cur_us;
 
-		/* Track max IAT for the last second, it's reported in the summary/detailed logs. */
+		/* Track max IAT for the last N seconds, it's reported in the summary/detailed logs. */
 		if (di->iat_cur_us > di->iat_hwm_us_last_nsecond_accumulator) {
 			di->iat_hwm_us_last_nsecond_accumulator = di->iat_cur_us;
 		}
