@@ -349,7 +349,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		} else {
 			struct stat buf;
 			if (stat(DEFAULT_STORAGE_LOCATION, &buf) == 0) {
-				strcpy(dirprefix, "DEFAULT_STORAGE_LOCATION");
+				strcpy(dirprefix, DEFAULT_STORAGE_LOCATION);
 			}
 		}
 	
