@@ -93,6 +93,8 @@ struct tool_ctx_s
 	int pid;
 	int streamId;
 	void *pe;
+	int writeES;
+	uint64_t esSeqNr;
 
 	struct nal_throughput_s throughput;
 };
@@ -196,6 +198,34 @@ void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 		ltn_pes_packet_dump(pes, "");
 	}
 
+	if (ctx->writeES) {
+
+		int arrayLength = 0;
+		struct ltn_nal_headers_s *array = NULL;
+		if (ltn_nal_h264_find_headers(pes->data, pes->dataLengthBytes, &array, &arrayLength) == 0) {
+
+			for (int i = 0; i < arrayLength; i++) {
+				struct ltn_nal_headers_s *e = array + i;
+				char fn[256];
+				sprintf(&fn[0], "%014" PRIu64 "-es-pid-%04x-streamId-%02x-nal-%02x-name-%s.bin",
+					ctx->esSeqNr++,
+					ctx->pid,
+					ctx->streamId,
+					e->nalType,
+					e->nalName);
+				printf("Writing %s length %9d bytes\n", fn, e->lengthBytes);
+				FILE *fh = fopen(fn, "wb");
+				if (fh) {
+					fwrite(e->ptr, 1, e->lengthBytes, fh);
+					fclose(fh);
+				}
+			}
+
+			free(array);
+		}
+
+	}
+
 	ltn_pes_packet_free(pes);
 
 	return NULL;
@@ -214,6 +244,15 @@ static void usage(const char *progname)
 	printf("  -H Show PES headers only, don't parse payload. [def: disabled, payload shown]\n");
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -5 dump H.266 NAL headers (live stream only) and measure per-NAL throughput\n");
+	printf("  -E write H.264 PES ES Nals to individual sequences files [def: no]\n");
+	printf("     Eg. 00000000046068-es-pid-0064-streamId-e0-nal-06-name-SEI.bin\n"
+           "         00000000046067-es-pid-0064-streamId-e0-nal-06-name-SEI.bin\n"
+           "         00000000046066-es-pid-0064-streamId-e0-nal-09-name-AUD.bin\n"
+           "         00000000046072-es-pid-0064-streamId-e0-nal-08-name-PPS.bin\n"
+           "         00000000046071-es-pid-0064-streamId-e0-nal-07-name-SPS.bin\n"
+           "         00000000046070-es-pid-0064-streamId-e0-nal-09-name-AUD.bin\n"
+           "         00000000046077-es-pid-0064-streamId-e0-nal-05-name-slice_layer_without_partitioning_rbsp IDR.bin\n");
+
 }
 
 int pes_inspector(int argc, char *argv[])
@@ -231,7 +270,7 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "45?Hhvi:P:S:")) != -1) {
+	while ((ch = getopt(argc, argv, "45?EHhvi:P:S:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -245,6 +284,9 @@ int pes_inspector(int argc, char *argv[])
 		case '5':
 			ctx->doH264NalThroughput = 0;
 			ctx->doH265NalThroughput = 1;
+			break;
+		case 'E':
+			ctx->writeES = 1;
 			break;
 		case 'H':
 			headersOnly = 1;

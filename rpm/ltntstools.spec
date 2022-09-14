@@ -48,6 +48,13 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
+* Fri Sep  2 2022 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.17.0
+  tstools_nic_monitor: Update console help to show correct recordings locations.
+  (TODO) tstools_nic_monitor: Man page removed
+  tstools_pes_inspector: Add support -E to record H.264 nals to individual files for offline analysis.
+
+%changelog
 * Thu Sep  1 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.16.0
   tstools_nic_monitor: Feature. Added support for an SRT input urls, monitor an SRT feed. -i srt://1.2.3.4:5678
