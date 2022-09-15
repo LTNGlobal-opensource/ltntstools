@@ -50,9 +50,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Fri Sep  2 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.17.0
-  tstools_nic_monitor: Update console help to show correct recordings locations.
+  tstools_nic_monitor: Update console help to show correct recording locations.
   (TODO) tstools_nic_monitor: Man page removed
   tstools_pes_inspector: Add support -E to record H.264 nals to individual files for offline analysis.
+  tstools_slicer: Update the console help, the descriptor for -l -s -e were missing.
 
 %changelog
 * Thu Sep  1 2022 Steven Toth <steven.toth@ltnglobal.com> 

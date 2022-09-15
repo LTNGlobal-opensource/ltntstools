@@ -432,6 +432,9 @@ static void usage(const char *progname)
 	printf("\nUsage:\n");
 	printf("  -i <input.ts>\n");
 	printf("  -o <output.ts>\n");
+	printf("  -l List the relevant timing information (from the .idx file)\n");
+	printf("  -s 0.hh:mm:ss.0  Start time for the slice operation\n");
+	printf("  -e 0.hh:mm:ss.0    End time for the slice operation\n");
 	printf("  -v Increase level of verbosity\n");
 	printf("\nExamples:\n");
 	printf("  # Create a timing index of your recording.ts file, 2hr recording can take 2-3 mins.\n");
