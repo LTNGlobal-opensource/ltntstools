@@ -88,10 +88,6 @@ int _nielsen_inspector(int argc, char **argv)
 	}
 	ltntstools_audioanalyzer_set_verbosity(ctx->aa, ctx->verbose);
 
-#ifdef __linux__
-	av_register_all();
-#endif
-
 	/* Quiet the ffmpeg stack, we don't care about parsing errors on startup. */
 	av_log_set_level(AV_LOG_QUIET);
 

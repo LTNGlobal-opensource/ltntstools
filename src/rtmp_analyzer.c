@@ -453,11 +453,6 @@ printf("%" PRIi64 " clkval\n", c.currentTime);
     video_dst_filename = argv[2];
     audio_dst_filename = argv[3];
 
-    /* register all formats and codecs */
-#ifdef __linux__
-    av_register_all();
-#endif
-
     /* open input file, and allocate format context */
     if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0) {
         fprintf(stderr, "Could not open source file %s\n", src_filename);
