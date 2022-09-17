@@ -1206,6 +1206,7 @@ static void usage(const char *progname)
 	printf("  --udp-forwarder udp://a.b.c.d:port   Add up to %d url forwarders\n", MAX_URL_FORWARDERS);
 	printf("  --danger-skip-freespace-check        Skip the Disk Free space check, don't stop recording when disk has < 10pct free\n");
 	printf("  --measure-scheduling-quanta          Test the scheduling quanta for 1000us sleep granularity\n");
+	printf("  --show-h264-metadata 0xnnnn          Analyze the given H264 PID (or detect it), show different codec stats (Experimental).\n");
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
@@ -1244,6 +1245,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		// 20 - 24
 		{ "udp-forwarder",				required_argument,	0, 0 },
 		{ "measure-scheduling-quanta",	no_argument,		0, 0 },
+		{ "show-h264-metadata",			required_argument,	0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1400,6 +1402,13 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 					ltn_histogram_timeval_subtract(&r, &b, &a);
 					uint32_t diffUs = ltn_histogram_timeval_to_us(&r);
 					printf("\nSlept for 1000us, woke to find we'd spent %dus asleep.\n\n", diffUs);
+					exit(1);
+				}
+				break;
+			case 22: /* show-h264-metadata */
+				ctx->gatherH264Metadata = 1;
+				if ((sscanf(optarg, "0x%x", &ctx->gatherH264MetadataPID) != 1) || (ctx->gatherH264MetadataPID > 0x1fff)) {
+					usage(argv[0]);
 					exit(1);
 				}
 				break;

@@ -134,17 +134,21 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		}
 
 		pthread_mutex_init(&di->h264_sliceLock, NULL);
-#if 0
-		/* Keeping this disabled for the time being. */
-		di->h264_slices = h264_slice_counter_alloc(0x31); /* 0x2000 by default, count all slices across all video pids. */
-#endif
+
+		if (ctx->gatherH264Metadata && ctx->gatherH264MetadataPID) {
+			/* Keeping this user opt in for the time being, I get random segfaults. */
+			/* TODO: dynamically figure out the PID. */
+			/* 0x2000 by default, count all slices across all video pids. */
+			di->h264_slices = h264_slice_counter_alloc(ctx->gatherH264MetadataPID);
+		}
 
 		pthread_mutex_init(&di->h264_metadataLock, NULL);
-#if 0
-		if (ltntstools_h264_codec_metadata_alloc(&di->h264_metadata_parser, 0x31, 0xe0) < 0) {
-			fprintf(stderr, "\nUnable to allocate h264 metadata parser, it's safe to continue.\n\n");
+
+		if (ctx->gatherH264Metadata && ctx->gatherH264MetadataPID) {
+			if (ltntstools_h264_codec_metadata_alloc(&di->h264_metadata_parser, ctx->gatherH264MetadataPID, 0xe0) < 0) {
+				fprintf(stderr, "\nUnable to allocate h264 metadata parser, it's safe to continue.\n\n");
+			}
 		}
-#endif
 
 		pthread_mutex_init(&di->h265_metadataLock, NULL);
 
