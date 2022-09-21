@@ -1638,15 +1638,15 @@ int display_doc_append_cc_error(struct display_doc_s *doc, uint16_t pid, time_t 
 
 	libltntstools_getTimestamp_seperated(&line[0], sizeof(line), &t);
 
-	sprintf(line + strlen(line), " : CC Errors in stream");
+	sprintf(line + strlen(line), ": CC Errors in stream");
 
 	return display_doc_append(doc, line);
 }
 
 int display_doc_append_with_time(struct display_doc_s *doc, const char *msg, time_t *when)
 {
-	char line[80];
-	memset(&line[0], 0, sizeof(line));
+	int len = strlen(msg) + 32;
+	char *line = malloc(len);
 
 	time_t t;
 	if (when == NULL) {
@@ -1655,9 +1655,9 @@ int display_doc_append_with_time(struct display_doc_s *doc, const char *msg, tim
 		t = *when;
 	}
 
-	libltntstools_getTimestamp_seperated(&line[0], sizeof(line), &t);
+	libltntstools_getTimestamp_seperated(line, len, &t);
 
-	sprintf(line + strlen(line), " : %s", msg);
+	sprintf(line + strlen(line), ": %s", msg);
 
 	return display_doc_append(doc, line);
 }
