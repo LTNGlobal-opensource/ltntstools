@@ -51,7 +51,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 - v1.17.0
   tstools_nic_monitor: Update console help to show correct recording locations.
   tstools_nic_monitor: Feature. Add --show-h264-metadata open to show more advanced H264 codec statistics (experimental - opt in).
-  (TODO) tstools_nic_monitor: Man page removed
+  tstools_nic_monitor: Man page removed
   tstools_pes_inspector: Add support -E to record H.264 nals to individual files for offline analysis.
   tstools_slicer: Update the console help, the descriptor for -l -s -e were missing.
   tstools_smpte2038_inspector: bugfix in libklvanc dependency, 2038 parsing crash with test case MEM_ATL.
