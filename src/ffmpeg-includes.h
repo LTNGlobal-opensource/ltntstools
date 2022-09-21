@@ -10,6 +10,9 @@ extern "C" {
 #include <libavutil/avstring.h>
 #include <libavutil/mem.h>
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/pixdesc.h>
+#include <libavutil/opt.h>
 
 #ifdef __cplusplus
 };
