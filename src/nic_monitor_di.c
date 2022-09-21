@@ -152,6 +152,9 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 
 		pthread_mutex_init(&di->h265_metadataLock, NULL);
 
+		display_doc_initialize(&di->doc_stream_log);
+		display_doc_append_with_time(&di->doc_stream_log, "Logging begins", NULL);
+
 #if 0
 		if (ltntstools_h265_codec_metadata_alloc(&di->h265_metadata_parser, 0x31, 0xe0) < 0) {
 			fprintf(stderr, "\nUnable to allocate h265 metadata parser, it's safe to continue.\n\n");
@@ -173,8 +176,6 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 #endif
 #endif
 
-		display_doc_initialize(&di->doc_stream_log);
-		display_doc_append_with_time(&di->doc_stream_log, "Logging begins", NULL);
 	}
 
 	return di;
