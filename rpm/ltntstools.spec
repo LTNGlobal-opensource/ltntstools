@@ -43,7 +43,6 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_asi2ip
 /usr/local/bin/tstools_smpte2038_inspector
 /usr/local/bin/tstools_srt_transmit
-/usr/local/share/man/man8/tstools_nic_monitor.8
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
@@ -55,6 +54,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   (TODO) tstools_nic_monitor: Man page removed
   tstools_pes_inspector: Add support -E to record H.264 nals to individual files for offline analysis.
   tstools_slicer: Update the console help, the descriptor for -l -s -e were missing.
+  tstools_smpte2038_inspector: bugfix in libklvanc dependency, 2038 parsing crash with test case MEM_ATL.
 
 %changelog
 * Thu Sep  1 2022 Steven Toth <steven.toth@ltnglobal.com> 
