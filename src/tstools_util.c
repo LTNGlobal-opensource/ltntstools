@@ -61,7 +61,9 @@ int main(int argc, char *argv[])
 		{ "tstools_pes_inspector",		pes_inspector, },
 		{ "tstools_bitrate_smoother",	bitrate_smoother, },
 		{ "tstools_nielsen_inspector",	nielsen_inspector, },
+#ifdef HAVE_DTAPI
 		{ "tstools_asi2ip",				asi2ip, },
+#endif
 		{ "tstools_smpte2038_inspector", smpte2038_inspector, },
 		{ "tstools_srt_transmit",		srt_transmit, },
 		{ 0, 0 },

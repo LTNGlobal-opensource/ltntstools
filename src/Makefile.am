@@ -24,7 +24,9 @@ LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
 LDADD += -lsrt -lcrypto
 if LINUX
+if DTAPI
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
+endif
 #LDADD += -lmediainfo
 #LDADD += -ljson-c -lcurl
 #LDADD += -lrdkafka
@@ -72,7 +74,9 @@ SRC += stream_verifier.c
 SRC += pes_inspector.c
 SRC += bitrate_smoother.c
 SRC += nielsen_inspector.cpp
+if DTAPI
 SRC += asi2ip.cpp
+endif
 #SRC += media.cpp
 SRC += smpte2038_inspector.cpp
 SRC += srt_transmit.c
@@ -98,7 +102,9 @@ LINKBINS += tstools_stream_verifier
 LINKBINS += tstools_pes_inspector
 LINKBINS += tstools_bitrate_smoother
 LINKBINS += tstools_nielsen_inspector
+if DTAPI
 LINKBINS += tstools_asi2ip
+endif
 LINKBINS += tstools_smpte2038_inspector
 LINKBINS += tstools_srt_transmit
 
