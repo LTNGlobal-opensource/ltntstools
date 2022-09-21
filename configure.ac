@@ -76,5 +76,20 @@ AM_CONDITIONAL(DTAPI, test x"$dtapi" = x"true")
 AM_COND_IF(DTAPI,
     AC_DEFINE(HAVE_DTAPI, 1, [Define to 1 if dtapi support included]),)
 
+# Add NBA Tissot Timing protocol library support
+AC_ARG_ENABLE(ntt,
+  AS_HELP_STRING(
+    [--enable-ntt],
+    [enable NBA Tissot timing protocol, default: no]),
+    [case "${enableval}" in
+      yes) ntt=true ;;
+      no)  ntt=false ;;
+      *)   AC_MSG_ERROR([bad value ${enableval} for --enable-ntt]) ;;
+    esac],
+    [ntt=false])
+AM_CONDITIONAL(NTT, test x"$ntt" = x"true")
+AM_COND_IF(NTT,
+    AC_DEFINE(HAVE_NTT, 1, [Define to 1 if NBA Tissot Timing support included]),)
+
 AC_CONFIG_FILES([Makefile src/Makefile])
 AC_OUTPUT

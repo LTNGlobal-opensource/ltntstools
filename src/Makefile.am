@@ -31,6 +31,9 @@ endif
 #LDADD += -ljson-c -lcurl
 #LDADD += -lrdkafka
 endif
+if NTT
+LDADD += -lntt
+endif
 
 #ifdef __APPLE__
 #LDADD += -liconv
@@ -80,6 +83,9 @@ endif
 #SRC += media.cpp
 SRC += smpte2038_inspector.cpp
 SRC += srt_transmit.c
+if NTT
+SRC += ntt_inspector.cpp
+endif
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -107,6 +113,9 @@ LINKBINS += tstools_asi2ip
 endif
 LINKBINS += tstools_smpte2038_inspector
 LINKBINS += tstools_srt_transmit
+if NTT
+LINKBINS += tstools_ntt_inspector
+endif
 
 tstools_util_SOURCES = $(SRC)
 
