@@ -4,8 +4,7 @@ GIT_VERSION := $(shell git describe --abbrev=8 --dirty --always --tags)
 
 AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_OFFSET_BITS=64 \
 	-D_BSD_SOURCE \
-	-DKL_USERSPACE -D__STDC_FORMAT_MACROS \
-	-DGIT_VERSION=\"$(GIT_VERSION)\" -g
+	-DGIT_VERSION=\"$(GIT_VERSION)\"
 
 LDADD = -lpthread -lz -lm -lltntstools -lklvanc
 
@@ -39,7 +38,7 @@ if DEBUG
 	CFLAGS += -g
 endif
 
-CXXFLAGS = $(CFLAGS)
+AM_CXXFLAGS = $(AM_CFLAGS) -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS
 
 SRC  = tstools_util.c
 SRC += pat_inspector.c
