@@ -10,6 +10,7 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
+#include <signal.h>
 
 #include <libltntstools/ltntstools.h>
 #include <libklvanc/vanc.h>
@@ -36,6 +37,12 @@ struct tool_ctx_s
 #define MODE_SOURCE_PCAP 1
 	int mode;
 };
+
+static int gRunning = 1;
+static void signal_handler(int signum)
+{
+	gRunning = 0;
+}
 
 static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount);
 
@@ -199,8 +206,6 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 			if (klvanc_packet_parse(vanchdl, l->line_number, words, wordCount) < 0) {
 			}
 
-
-
 			free(words); /* Caller must free the resource */
 
 			//ctx->vanc_packets_found++;
@@ -263,16 +268,14 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 			struct ltntstools_pat_s *pat = NULL;
 			if (ltntstools_streammodel_query_model(ctx->sm, &pat) == 0) {
 
-printf("model\n");
 				/* Walk all the services, find the first service with a SMPTE2038 service.
 				 * Query SMPTE2038 pid.
 				 */
 				int e = 0;
 				struct ltntstools_pmt_s *pmt;
-				uint16_t smpte2038pid;
+				uint16_t smpte2038pid = 0;
 				while (ltntstools_pat_enum_services_smpte2038(pat, &e, &pmt, &smpte2038pid) == 0) {
 
-printf("video\n");
 					uint8_t estype;
 					uint16_t videopid;
 					if (ltntstools_pmt_query_video_pid(pmt, &videopid, &estype) < 0)
@@ -291,9 +294,10 @@ printf("video\n");
 					ltntstools_pat_dprintf(pat, 0);
 				}
 
-				if (e == 0) {
-					printf("\nNo SMPTE2038 PID detected\n\n");
-					ltntstools_pat_dprintf(pat, 0);
+				if (smpte2038pid == 0) {
+					printf("\nNo SMPTE2038 PID detected, terminating\n\n");
+					signal_handler(0); /* Terminate */
+					//ltntstools_pat_dprintf(pat, 0);
 				}
 				ltntstools_pat_free(pat);
 			}
@@ -322,8 +326,7 @@ static void process_pcap_input(struct tool_ctx_s *ctx)
 		return;
 	}
 
-	int ok = 1;
-	while (ok) {
+	while (gRunning) {
 		usleep(50 * 1000);
 	}
 
@@ -341,8 +344,7 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 	}
 
 	uint8_t buf[7 * 188];
-	int ok = 1;
-	while (ok) {
+	while (gRunning) {
 		int rlen = avio_read(puc, &buf[0], sizeof(buf));
 		if (rlen == -EAGAIN) {
 			usleep(200 * 1000);
@@ -405,6 +407,8 @@ int smpte2038_inspector(int argc, char *argv[])
 		fprintf(stderr, "\n-i is mandatory.\n\n");
 		exit(1);
 	}
+
+	signal(SIGINT, signal_handler);
 
 	if (ctx->mode == MODE_SOURCE_AVIO) {
 		printf("Mode: AVIO\n");
