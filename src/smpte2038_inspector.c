@@ -287,7 +287,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 						videopid);
 
 					ctx->smpte2038PID = smpte2038pid;
-					break; /* TODO: We only support ehf first SCTE35 pid (SPTS) */
+					break; /* TODO: We only support the first SCTE35 pid (SPTS) */
 				}
 
 				if (ctx->verbose > 1) {
