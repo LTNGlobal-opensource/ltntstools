@@ -55,12 +55,14 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: UI Log. Remove leading space before : seperator in log messages, and allow log lines greater than 80 chars
   tstools_nic_monitor: Initialize internal log document before we initialize TR101290 (in the future)
   tstools_nic_monitor: When TR101290 is enabled (future), place all messages into the UI log (L key) for user view
+  tstools_nic_monitor: Feature: Added --http-json-reporting feature to http post json stats to a remote server (Experimental)
   tstools_slicer: Update the console help, the descriptor for -l -s -e were missing.
   tstools_smpte2038_inspector: bugfix in libklvanc dependency, 2038 parsing crash with test case MEM_ATL.
   tstools_smpte2038_inspector: In auto-detect pid mode, if we don't detect a pid, terminate with a NO PID found hekpful message.
   tstools_smpte2038_inspector: Support proper terminate if the user initiates CTRL-C
   tstools_pes_inspector: Add support -E to record H.264 nals to individual files for offline analysis.
   tstools_pes_inspector: Add support -T to produce fullsize h264 thumbnail jpegs every 5 seconds. (disabled in production builds)
+  tstools_scte35_inspector: segfault on exit when no SCTE35 detected in stream.
 
 %changelog
 * Thu Sep  1 2022 Steven Toth <steven.toth@ltnglobal.com> 
