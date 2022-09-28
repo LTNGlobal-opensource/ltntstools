@@ -401,8 +401,10 @@ int scte35_inspector(int argc, char *argv[])
 		ltntstools_pes_extractor_free(ctx->pe);
 	}
 
-	ltntstools_sectionextractor_free(ctx->se);
-
+	if (ctx->se) {
+		ltntstools_sectionextractor_free(ctx->se);
+	}
+	
 	if (ctx->sm) {
 		ltntstools_streammodel_free(ctx->sm);
 	}
