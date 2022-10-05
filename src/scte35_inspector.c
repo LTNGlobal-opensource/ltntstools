@@ -39,6 +39,8 @@ struct tool_ctx_s
 #define MODE_SOURCE_PCAP 1
 	int mode;
 
+	int isRTP;
+
 };
 
 static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount);
@@ -149,10 +151,14 @@ static void usage(const char *progname)
 
 static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount)
 {
+	if (ctx->isRTP)
+		buf += 12;
+
 	if (ctx->verbose >= 2) {
 		for (int j = 0; j < byteCount; j += 188) {
 			uint16_t pidnr = ltntstools_pid(buf + j);
 			if (pidnr == ctx->scte35PID) {
+				printf("PID %04x : ", ctx->scte35PID);
 				for (int i = 0; i < 188; i++)
 					printf("%02x ", buf[j + i]);
 				printf("\n");
@@ -295,6 +301,10 @@ static void process_pcap_input(struct tool_ctx_s *ctx)
 
 static void process_avio_input(struct tool_ctx_s *ctx)
 {
+	if (strcasestr(ctx->iname, "rtp://")) {
+		ctx->isRTP = 1;
+	}
+
 	avformat_network_init();
 	AVIOContext *puc;
 	int ret = avio_open2(&puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
