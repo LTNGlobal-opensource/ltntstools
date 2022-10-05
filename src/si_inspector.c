@@ -251,10 +251,13 @@ int si_inspector(int argc, char *argv[])
 	pat->used = 1;
 	pat->psip_type = PID_PAT;
 
-	uint8_t buf[7 * 188];
+	uint8_t buf[(7 * 188) + 12];
 	int ok = 1;
+	int isRTP = 0;
+	int blen = 7 * 188;
+	int boffset = 0;
 	while (ok) {
-		int rlen = avio_read(puc, &buf[0], sizeof(buf));
+		int rlen = avio_read(puc, &buf[0], blen);
 		if (rlen == -EAGAIN) {
 			usleep(2 * 1000);
 			continue;
@@ -262,8 +265,11 @@ int si_inspector(int argc, char *argv[])
 		if (rlen < 0)
 			break;
 
-		if (buf[0] == 0x80) {
-			printf("Input stream probably RTP\n");
+		if (buf[0] == 0x80 && isRTP == 0) {
+			rlen += 12;
+			isRTP = 1;
+			boffset = 12;
+			continue;
 		}
 		if (gVerbose > 1) {
 			printf("Read %4d : ", rlen);
@@ -271,7 +277,7 @@ int si_inspector(int argc, char *argv[])
 				printf("%02x ", buf[i]);
 			printf("\n");
 		}
-		updateStream(strm, buf, rlen);
+		updateStream(strm, buf + boffset, blen - boffset);
 		if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS)) {
 			ok = 0;
 			break;
