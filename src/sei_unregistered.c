@@ -164,6 +164,7 @@ int sei_unregistered(int argc, char *argv[])
 		return 1;
 	}
 
+	/* TODO: Migrate this to use the source-avio.[ch] framework */
 	uint32_t offset = 0;
 	int blen = 128 * 188;
 	uint8_t *buf = malloc(blen);

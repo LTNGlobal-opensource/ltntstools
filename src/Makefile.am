@@ -77,6 +77,7 @@ SRC += asi2ip.cpp
 #SRC += media.cpp
 SRC += smpte2038_inspector.cpp
 SRC += srt_transmit.c
+SRC += source-avio.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -113,6 +114,7 @@ noinst_HEADERS += parsers.h
 noinst_HEADERS += nic_monitor.h
 noinst_HEADERS += utils.h
 noinst_HEADERS += hash_index.h
+noinst_HEADERS += source-avio.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)

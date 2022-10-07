@@ -1086,6 +1086,8 @@ static void *pcap_thread_func(void *p)
 			usleep(50 * 1000);
 		} else
 		if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
+			/* TODO: Migrate this to use the source-avio.[ch] framework */
+
 			/* ulk reads of less than this (7 * 188 eg) cause the ffurl_read in libsrt
 			 * to throw constant expcetions / warnings.
 			 * Read larger buffer values to avoid the issue.
@@ -1291,6 +1293,8 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		case 'i':
 			ctx->ifname = optarg;
 
+			// Eg. hls+http://sportsgrid-vizio.amagi.tv/playlist.m3u8
+			
 			ctx->fileLoops = 0;
 			if (strstr(ctx->ifname, "srt://")) {
 				ctx->iftype = IF_TYPE_MPEGTS_AVDEVICE;

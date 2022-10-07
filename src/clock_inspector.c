@@ -555,6 +555,8 @@ int clock_inspector(int argc, char *argv[])
 
 	signal(SIGINT, signal_handler);
 
+
+	/* TODO: Migrate this to use the source-avio.[ch] framework */
 	uint64_t filepos = 0;
 	uint64_t fileLengthBytes = 0;
 	uint64_t streamPosition = 0;

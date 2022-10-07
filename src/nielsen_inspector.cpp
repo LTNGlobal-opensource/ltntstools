@@ -196,6 +196,7 @@ int _nielsen_inspector(int argc, char **argv)
 	signal(SIGINT, signal_handler);
 	gRunning = 1;
 
+	/* TODO: Migrate this to use the source-avio.[ch] framework */
 	while (gRunning) {
 		int rlen = avio_read(i_puc, buf, blen);
 		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {

@@ -47,7 +47,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Fri Sep  2 2022 Steven Toth <steven.toth@ltnglobal.com> 
+* Fri Oct  7 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.17.0
   tstools_nic_monitor: Update console help to show correct recording locations.
   tstools_nic_monitor: Feature. Add --show-h264-metadata open to show more advanced H264 codec statistics (experimental - opt in).
@@ -68,6 +68,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_scte35_inspector: Bugfix. Segfault on exit when no SCTE35 detected in stream.
   tstools_scte35_inspector: Bugfix. Misdetected RTP inputs.
   tstools_si_inspector: Bugfix. Misdetected RTP inputs.
+  tstools_ntt_inspector: New tool added, to help monitor NBA tissot data in SMPTE2038 streams.
 
 %changelog
 * Thu Sep  1 2022 Steven Toth <steven.toth@ltnglobal.com> 
