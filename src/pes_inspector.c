@@ -214,8 +214,7 @@ static int ltntstools_h264_iframe_thumbnailer_alloc_encoder(struct ltntstools_h2
 	}
 	ctx->enc.cc->time_base = (AVRational){1, 25};
 	ctx->enc.cc->framerate = (AVRational){1, 25};
-	ctx->enc.cc->pix_fmt = AV_PIX_FMT_YUVJ420P; //AV_PIX_FMT_YUV420P;
-	av_opt_set(ctx->enc.cc->priv_data, "preset", "fast", 0);
+	ctx->enc.cc->pix_fmt = AV_PIX_FMT_YUVJ420P;
 
 	/* open it */
     if (avcodec_open2(ctx->enc.cc, ctx->enc.codec, NULL) < 0) {
@@ -275,7 +274,62 @@ void ltntstools_h264_iframe_thumbnailer_free(void *handle)
 	free(ctx);
 }
 
-static int ltntstools_h264_iframe_thumbnailer_avframe_encode(struct ltntstools_h264_iframe_thumbnailer_ctx_s *ctx, AVFrame *frm)
+static int ltntstools_h264_iframe_thumbnailer_avframe_scale_to_N(struct ltntstools_h264_iframe_thumbnailer_ctx_s *ctx, AVFrame *infrm, AVFrame **out, int out_w, int out_h)
+{
+	/* Scale any kind of YUV420P frame to 320x-1.
+	 * Leave the inframe completely untouched.
+	 * Return a new AVFrame as output.
+	 */
+	*out = NULL;
+
+	int dst_w = out_w, dst_h = out_h;
+
+	AVFrame *ofrm = av_frame_alloc();
+	if (!ofrm) {
+		fprintf(stderr, "%s() Failed allocating frame\n", __func__);
+		return -1;
+	}
+	//avcodec_get_frame_defaults(ofrm);
+	ofrm->width = dst_w;
+	ofrm->height = dst_h;
+	ofrm->format = infrm->format;
+
+	int ret = av_image_alloc(&ofrm->data[0], &ofrm->linesize[0], ofrm->width, ofrm->height, ofrm->format, 1);
+	if (ret < 0) {
+		fprintf(stderr, "%s() Failed allocating image\n", __func__);
+		av_frame_free(&frm);
+		return -1;
+	}
+
+	struct SwsContext *sws_ctx = sws_getContext(
+			infrm->width, infrm->height, infrm->format,
+			dst_w, dst_h, infrm->format,
+			SWS_BILINEAR, NULL, NULL, NULL);
+
+	if (!sws_ctx) {
+        fprintf(stderr,
+			"Impossible to create scale context for the conversion "
+			"fmt:%s s:%dx%d -> fmt:%s s:%dx%d\n",
+			av_get_pix_fmt_name(infrm->format), infrm->width, infrm->height,
+			av_get_pix_fmt_name(infrm->format), dst_w, dst_h);
+
+		av_freep(&frm->data[0]);
+		av_frame_free(&frm);
+		sws_freeContext(sws_ctx);
+		return -1;
+	}
+
+	/* convert to destination format */
+	sws_scale(sws_ctx, (const uint8_t * const*)infrm->data, &infrm->linesize[0], 0, infrm->height, &ofrm->data[0], &ofrm->linesize[0]);
+
+	sws_freeContext(sws_ctx);
+
+	*out = ofrm;
+
+	return 0; /* Success */
+}
+
+static int ltntstools_h264_iframe_thumbnailer_avframe_encode(struct ltntstools_h264_iframe_thumbnailer_ctx_s *ctx, AVFrame *frm, int quality)
 {
 	if (frm->width != ctx->enc.cc->width ||
 		frm->height != ctx->enc.cc->height)
@@ -284,6 +338,10 @@ static int ltntstools_h264_iframe_thumbnailer_avframe_encode(struct ltntstools_h
 		ltntstools_h264_iframe_thumbnailer_free_encoder(ctx);
 		ltntstools_h264_iframe_thumbnailer_alloc_encoder(ctx, frm);
 	}
+
+	/* Drive the JPEG encoder quality */
+	frm->quality = FF_LAMBDA_MAX * quality; /* Worst Quality is 31. best 1 */
+	frm->pict_type = AV_PICTURE_TYPE_NONE;
 
 	int ret = avcodec_send_frame(ctx->enc.cc, frm);
 	if (ret < 0) {
@@ -353,7 +411,20 @@ static void ltntstools_h264_iframe_thumbnailer_decode(struct ltntstools_h264_ifr
 			ltntstools_h264_iframe_thumbnailer_avframe_dump(frame);
 		}
 		if (frame->key_frame) {
-			ltntstools_h264_iframe_thumbnailer_avframe_encode(ctx, frame);
+			AVFrame *frm;
+
+			/* Encode the full frame using a quality scale of 1..31 where 1 is best */
+			ltntstools_h264_iframe_thumbnailer_avframe_encode(ctx, frame, 10);
+#if 1
+			/* Created a 160x90 scaled version */
+			ltntstools_h264_iframe_thumbnailer_avframe_scale_to_N(ctx, frame, &frm, 160, 90);
+
+			/* Encode the scaled frame using a quality scale of 1..31 where 1 is best */
+			ltntstools_h264_iframe_thumbnailer_avframe_encode(ctx, frm, 5);
+
+			av_freep(&frm->data[0]);
+			av_frame_free(&frm);
+#endif
 		}
     }
 }
@@ -573,8 +644,8 @@ void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 					}
 				}
 
-				free(array);
 			}
+			free(array);
 #endif
 		} /* if find headers */
 
