@@ -62,6 +62,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_smpte2038_inspector: bugfix in libklvanc dependency, 2038 parsing crash with test case MEM_ATL.
   tstools_smpte2038_inspector: In auto-detect pid mode, if we don't detect a pid, terminate with a NO PID found hekpful message.
   tstools_smpte2038_inspector: Support proper terminate if the user initiates CTRL-C
+  tstools_smpte2038_inspector: minor console help verbage cleanup
   tstools_pes_inspector: Add support -E to record H.264 nals to individual files for offline analysis.
   tstools_pes_inspector: Add support -T to produce fullsize h264 thumbnail jpegs every 5 seconds. (disabled in production builds)
   tstools_pes_inspector: Improve -T support to also produce 160x90 thumbnails (disabled in production builds)
@@ -69,10 +70,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_scte35_inspector: Bugfix. Misdetected RTP inputs.
   tstools_si_inspector: Bugfix. Misdetected RTP inputs.
   tstools_ntt_inspector: New tool added, to help monitor NBA tissot data in SMPTE2038 streams.
+  tstools_ntt_inspector: minor console help verbage cleanup
   tstools_nielsen_inpector: Fix new compiler warning comparison between signed and unsigned integer expressions
   tstools_asi2ip: Fix compiler new compiler warnings re set but unused vars
   tstools_ffmpeg_metadata: Fix new compiler warning re signed vs unused usage. Removed unused signal handler
-  
+
 %changelog
 * Thu Sep  1 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.16.0
