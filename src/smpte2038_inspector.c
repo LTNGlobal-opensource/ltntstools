@@ -17,6 +17,8 @@
 
 #include "ffmpeg-includes.h"
 
+char *strcasestr(const char *haystack, const char *needle);
+
 struct tool_ctx_s
 {
 	int   verbose;
@@ -36,6 +38,8 @@ struct tool_ctx_s
 #define MODE_SOURCE_AVIO 0
 #define MODE_SOURCE_PCAP 1
 	int mode;
+
+	int isRTP;
 };
 
 static int gRunning = 1;
@@ -335,6 +339,10 @@ static void process_pcap_input(struct tool_ctx_s *ctx)
 
 static void process_avio_input(struct tool_ctx_s *ctx)
 {
+	if (strcasestr(ctx->iname, "rtp://")) {
+		ctx->isRTP = 1;
+	}
+
 	avformat_network_init();
 	AVIOContext *puc;
 	int ret = avio_open2(&puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
@@ -343,8 +351,10 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 		return;
 	}
 
+	/* TODO: Migrate this to use the source-avio.[ch] framework */
 	uint8_t buf[7 * 188];
-	while (gRunning) {
+	int ok = 1;
+	while (ok) {
 		int rlen = avio_read(puc, &buf[0], sizeof(buf));
 		if (rlen == -EAGAIN) {
 			usleep(200 * 1000);

@@ -12,7 +12,7 @@
 
 #include "dump.h"
 #include <libltntstools/ltntstools.h>
-#include "ffmpeg-includes.h"
+#include "source-avio.h"
 
 #define VIDEO_STREAM_DR			0xF2
 #define CA_DR					0x09
@@ -23,7 +23,11 @@
 
 #define MAX_PIDS				8192
 
+char *strcasestr(const char *haystack, const char *needle);
+
 struct ts_stream_s;
+
+static int g_running = 1;
 
 enum ts_pid_psiptype_e
 {
@@ -55,7 +59,7 @@ void destroyPID(struct ts_pid_s *pid);
 void freeStream(struct ts_stream_s *strm);
 int  allocStream(struct ts_stream_s **strm, void *userctx);
 __inline__ struct ts_pid_s *findPID(struct ts_stream_s *strm, uint16_t pid);
-void updateStream(struct ts_stream_s *strm, unsigned char *buf, unsigned int len);
+void updateStream(struct ts_stream_s *strm, const uint8_t *buf, unsigned int len);
 
 static int gVerbose = 0;
 static int gDumpAll = 0;
@@ -133,13 +137,13 @@ void destroyPID(struct ts_pid_s *pid)
 	pid->psip_type = PID_UNKNOWN;
 }
 
-void updateStream(struct ts_stream_s *strm, unsigned char *buf, unsigned int len)
+void updateStream(struct ts_stream_s *strm, const uint8_t *pkts, unsigned int packetCount)
 {
-	for (unsigned int i = 0; i < len; i += 188) {
-		uint16_t i_pid = ltntstools_pid(buf + i);
+	for (unsigned int i = 0; i < packetCount; i++) {
+		uint16_t i_pid = ltntstools_pid(pkts + (i * 188));
 		struct ts_pid_s *pid = findPID(strm, i_pid);
 		if (pid->used) {
-			dvbpsi_packet_push(pid->dvbpsi, buf + i);
+			dvbpsi_packet_push(pid->dvbpsi, (uint8_t *)pkts + (i * 188));
 		}
 	}
 }
@@ -181,6 +185,20 @@ static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
 		p_program = p_program->p_next;
 	}
 	dvbpsi_pat_delete(p_pat);
+}
+
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	struct ts_stream_s *strm = (struct ts_stream_s *)userContext;
+	//printf("%s() strm %p, pkts %p, count %d\n", __func__, strm, pkts, packetCount);
+
+	updateStream(strm, pkts, packetCount);
+
+	if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS)) {
+		g_running = 0;
+	}
+
+	return NULL;
 }
 
 static void usage(const char *progname)
@@ -229,9 +247,11 @@ int si_inspector(int argc, char *argv[])
 	if (allocStream(&strm, NULL) < 0)
 		return 1;
 
-	avformat_network_init();
-	AVIOContext *puc;
-	int ret = avio_open2(&puc, iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
+	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+
+	void *srcctx = NULL;
+	int ret = ltntstools_source_avio_alloc(&srcctx, strm, &cbs, iname);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
 		return 1;
@@ -251,39 +271,11 @@ int si_inspector(int argc, char *argv[])
 	pat->used = 1;
 	pat->psip_type = PID_PAT;
 
-	uint8_t buf[(7 * 188) + 12];
-	int ok = 1;
-	int isRTP = 0;
-	int blen = 7 * 188;
-	int boffset = 0;
-	while (ok) {
-		int rlen = avio_read(puc, &buf[0], blen);
-		if (rlen == -EAGAIN) {
-			usleep(2 * 1000);
-			continue;
-		}
-		if (rlen < 0)
-			break;
-
-		if (buf[0] == 0x80 && isRTP == 0) {
-			rlen += 12;
-			isRTP = 1;
-			boffset = 12;
-			continue;
-		}
-		if (gVerbose > 1) {
-			printf("Read %4d : ", rlen);
-			for (int i = 0; i < 16; i++)
-				printf("%02x ", buf[i]);
-			printf("\n");
-		}
-		updateStream(strm, buf + boffset, blen - boffset);
-		if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS)) {
-			ok = 0;
-			break;
-		}
+	while (g_running) {
+		usleep(50 * 1000);
 	}
-	avio_close(puc);
+
+	ltntstools_source_avio_free(srcctx);
 
 out:
 

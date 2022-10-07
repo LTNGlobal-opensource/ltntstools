@@ -14,6 +14,8 @@
 #include <libklscte35/scte35.h>
 #include "ffmpeg-includes.h"
 
+char *strcasestr(const char *haystack, const char *needle);
+
 struct tool_ctx_s
 {
 	int   verbose;
@@ -313,10 +315,13 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 		return;
 	}
 
-	uint8_t buf[7 * 188];
+	/* TODO: Migrate this to use the source-avio.[ch] framework */
+	uint8_t buf[(7 * 188) + 12];
 	int ok = 1;
+	int blen = 7 * 188;
+	int boffset = 0;
 	while (ok) {
-		int rlen = avio_read(puc, &buf[0], sizeof(buf));
+		int rlen = avio_read(puc, &buf[0], blen);
 		if (rlen == -EAGAIN) {
 			usleep(200 * 1000);
 			continue;
@@ -324,7 +329,14 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 		if (rlen < 0)
 			break;
 
-		process_transport_buffer(ctx, &buf[0], rlen);
+		if (buf[0] == 0x80 && ctx->isRTP == 0) {
+			blen += 12;
+			ctx->isRTP = 1;
+			boffset = 12;
+			continue;
+		}
+
+		process_transport_buffer(ctx, buf + boffset, blen - boffset);
 	}
 	avio_close(puc);
 }
