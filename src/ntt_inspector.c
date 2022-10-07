@@ -287,6 +287,13 @@ printf("video\n");
 				}
 				ltntstools_pat_free(pat);
 			}
+			if (ctx->smpte2038PID == 0) {
+				/* Free up the stream model so we can detect 2038 in the PMT if it
+				   starts appearing */
+				ltntstools_streammodel_free(ctx->sm);
+				ctx->sm = NULL;
+				ctx->smcomplete = 0;
+			}
 		}
 	}
 
