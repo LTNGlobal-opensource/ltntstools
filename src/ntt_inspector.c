@@ -253,7 +253,6 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 			struct ltntstools_pat_s *pat = NULL;
 			if (ltntstools_streammodel_query_model(ctx->sm, &pat) == 0) {
 
-printf("model\n");
 				/* Walk all the services, find the first service with a SMPTE2038 service.
 				 * Query SMPTE2038 pid.
 				 */
@@ -262,7 +261,6 @@ printf("model\n");
 				uint16_t smpte2038pid = 0;
 				while (ltntstools_pat_enum_services_smpte2038(pat, &e, &pmt, &smpte2038pid) == 0) {
 
-printf("video\n");
 					uint8_t estype;
 					uint16_t videopid;
 					if (ltntstools_pmt_query_video_pid(pmt, &videopid, &estype) < 0)
