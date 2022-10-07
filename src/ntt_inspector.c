@@ -220,10 +220,10 @@ static void usage(const char *progname)
 	printf("  -F exact pcap filter. Eg 'host 227.1.20.80 && udp port 4001'\n");
 	printf("     DON'T PASS A FILTER WITH MPTS or something with multiple different streams - be very specific, one stream one program\n");
 	printf("\nExample:\n");
-	printf("  sudo ./tstools_ntt_inspector -i eno2 -F 'host 227.1.20.80 && udp port 4001'  -- auto-detect SCTE/video pids from nic\n");
-	printf("       ./tstools_ntt_inspector -i recording.ts                                 -- auto-detect SCTE/video pids from file\n");
+	printf("  sudo ./tstools_ntt_inspector -i eno2 -F 'host 227.1.20.80 && udp port 4001'  -- auto-detect SMPTE pid from nic\n");
+	printf("       ./tstools_ntt_inspector -i recording.ts                                 -- auto-detect SMPTE pid from file\n");
 	printf("       ./tstools_ntt_inspector -i recording.ts -P 0x67                         -- Disable auto-detect force decode of pid 0x67\n");
-	printf("       ./tstools_ntt_inspector -i udp://227.1.20.80:4001                       -- auto-detect SCTE/video pids from socket/stream\n");
+	printf("       ./tstools_ntt_inspector -i udp://227.1.20.80:4001                       -- auto-detect SMPTE pid from socket/stream\n");
 }
 
 static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount)
