@@ -10,13 +10,6 @@ extern "C" {
 #include <libavutil/dict.h>
 };
 
-static int gRunning = 0;
-
-static void signal_handler(int signum)
-{
-	gRunning = 0;
-}
-
 struct tools_ctx_s
 {
 	char *iname;
@@ -92,14 +85,14 @@ int _ffmpeg_metadata(int argc, char **argv)
 	printf("  ->input   : %s:\n", ifmt->long_name);
 	printf("  ->metadata: %p:\n", fmt_ctx->metadata);
 	printf("  ->nb_programs = %d\n", fmt_ctx->nb_programs);
-	for (int i = 0; i < fmt_ctx->nb_programs; i++) {
+	for (unsigned int i = 0; i < fmt_ctx->nb_programs; i++) {
 		AVProgram *p = fmt_ctx->programs[i];
 		printf("    [%02d] pmt_pid 0x%04x pcr_pid 0x%04x\n", p->program_num, p->pmt_pid, p->pcr_pid);
 	}
 
 	printf("    ->nb_streams = %d\n", fmt_ctx->nb_streams);
 	printf("       NN      pid    type   codec width height  framerate channels    fmt   rate  bitrate\n");
-	for (int i = 0; i < fmt_ctx->nb_streams; i++) {
+	for (unsigned int i = 0; i < fmt_ctx->nb_streams; i++) {
 		AVStream *s = fmt_ctx->streams[i];
 		AVCodecParameters *codec = s->codecpar;
 
