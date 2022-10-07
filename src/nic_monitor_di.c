@@ -80,7 +80,7 @@ void discovered_item_free(struct discovered_item_s *di)
 		ltntstools_probe_ltnencoder_free(di->LTNLatencyProbe);
 		di->LTNLatencyProbe = NULL;
 	}
-#if PROBE_REPORTER
+#if KAFKA_REPORTER
 	kafka_free(di);
 #endif
 
@@ -168,7 +168,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		discovered_item_state_set(di, DI_STATE_SHOW_TR101290);
 #endif
 
-#if PROBE_REPORTER
+#if KAFKA_REPORTER
 #if 1
 		if (kafka_initialize(di) < 0) {
 			fprintf(stderr, "\nUnable to allocate kafka connector, it's safe to continue.\n\n");
@@ -400,19 +400,15 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 			if (ctx->automaticallyRecordStreams) {
 				discovered_item_state_set(found, DI_STATE_PCAP_RECORD_START);
 			}
-#if PROBE_REPORTER
 			if (ctx->automaticallyJSONProbeStreams) {
 				discovered_item_state_set(found, DI_STATE_JSON_PROBE_ACTIVE);
 			}
-#endif
 		}
 	}
 	pthread_mutex_unlock(&ctx->lock);
 
 	return found;
 }
-
-#if PROBE_REPORTER
 
 /* See prometheus integration:
  *  https://github.com/prometheus-community/json_exporter
@@ -587,7 +583,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 		));
 #endif
 
-#if 0
+#if 1
 	/* Push the final output to a queue, it will be serviced for output later.
 	 * Max size of allowable message is 64k
 	 */
@@ -598,7 +594,9 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 		qi->lengthBytes = strlen((char *)qi->buf);	
 		json_queue_push(ctx, qi);
 	}
+#endif
 
+#if 0
 	struct kafka_item_s *ki = kafka_item_alloc(di, 65536);
 	if (ki) {
 		/* double crlf, keep the cheap base64encoder happy. */
@@ -630,6 +628,7 @@ void discovered_items_json_summary(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 }
 
+#if KAFKA_REPORTER
 /* Write all the stream statistics to a remote server.
  * use a seperate background thread to make this happen,
  * so we don't block the stats thread in the event of
@@ -843,9 +842,7 @@ void discovered_items_console_summary(struct tool_context_s *ctx)
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		discovered_item_fd_per_pid_report(ctx, e, STDOUT_FILENO);
 		discovered_item_fd_per_h264_slice_report(ctx, e, STDOUT_FILENO);
-#if PROBE_REPORTER
 		discovered_item_json_summary(ctx, e);
-#endif
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -1453,7 +1450,6 @@ void discovered_items_select_forward_toggle(struct tool_context_s *ctx, int slot
 	pthread_mutex_unlock(&ctx->lock);
 }
 
-#if PROBE_REPORTER
 void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
@@ -1471,7 +1467,6 @@ void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx)
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
-#endif
 
 void discovered_items_select_scte35_toggle(struct tool_context_s *ctx)
 {

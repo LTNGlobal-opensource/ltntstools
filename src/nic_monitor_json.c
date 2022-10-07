@@ -1,8 +1,6 @@
 #include "nic_monitor.h"
 #include "base64.h"
 
-#if PROBE_REPORTER
-
 #include <curl/curl.h>
 
 /* Setup a socket so we can push UDP datagrams */
@@ -97,7 +95,7 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 #if 0
 	printf("posting html json:\n%s\n", item->buf);
 #endif
-	return 0; /* Success */
+//	return 0; /* Success */
 
 #if 0
 	size_t input_size = item->lengthBytes;
@@ -116,7 +114,8 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	headers = curl_slist_append(headers, "Content-Type: application/json");
 	headers = curl_slist_append(headers, "charset: utf-8");
 
-	curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:6502/hook");
+	//curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:13300/nicmonitor/01");
+	curl_easy_setopt(curl, CURLOPT_URL, ctx->json_http_url);
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, item->buf);
@@ -134,7 +133,7 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	curl_slist_free_all(headers);
 	curl_global_cleanup();
 
-	return ret;	
+	return ret; /* Success */	
 }
 
 /* Peek the list, don't remove it because our post may fail, and I don't want to
@@ -180,5 +179,3 @@ int json_queue_push(struct tool_context_s *ctx, struct json_item_s *item)
 
 	return 0; /* Success */
 }
-
-#endif

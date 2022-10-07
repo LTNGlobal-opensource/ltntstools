@@ -291,12 +291,10 @@ static void *ui_thread_func(void *p)
 					attroff(COLOR_PAIR(7));
 				}
 			}
-#if PROBE_REPORTER
 			if (discovered_item_state_get(di, DI_STATE_JSON_PROBE_ACTIVE)) {
 				streamCount++;
 				mvprintw(streamCount + 2, 0, " -> JSON Probe Active");
 			}
-#endif
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
 				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
@@ -740,7 +738,6 @@ static void *ui_thread_func(void *p)
 	return 0;
 }
 
-#if PROBE_REPORTER
 static void *json_thread_func(void *p)
 {
 	struct tool_context_s *ctx = p;
@@ -772,7 +769,7 @@ static void *json_thread_func(void *p)
 			/* Look at the queue, take everything off it, issue http post reqs. */
 			int failed = 0;
 			struct json_item_s *item = json_queue_peek(ctx);
-			while (item) {
+			while (item && ctx->json_threadTerminate == 0) {
 #if 1
 				if (json_item_post_http(ctx, item) == 0) {
 #else
@@ -792,7 +789,7 @@ static void *json_thread_func(void *p)
 
 				if (failed >= 2000) {
 					/* Back off for 30 seconds before we try again. */
-					json_next_post_time = now + 30;
+					json_next_post_time = now + 1;
 					break;
 				}
 
@@ -811,6 +808,7 @@ static void *json_thread_func(void *p)
 	return 0;
 }
 
+#if KAFKA_REPORTER
 static void *kafka_thread_func(void *p)
 {
 	struct tool_context_s *ctx = p;
@@ -822,7 +820,7 @@ static void *kafka_thread_func(void *p)
 	pthread_detach(pthread_self());
 
 	while (!ctx->kafka_threadTerminate) {
-		discovered_items_kafka_summary(ctx);
+		//discovered_items_kafka_summary(ctx);
 		usleep(500 * 1000);
 	}
 	ctx->kafka_threadTerminated = 1;
@@ -879,13 +877,11 @@ static void *stats_thread_func(void *p)
 			workdone++;
 		}
 
-#if PROBE_REPORTER
 		if (ctx->json_next_write_time <= now) {
 			ctx->json_next_write_time = now + ctx->json_write_interval;
 			discovered_items_json_summary(ctx);
 			workdone++;
 		}
-#endif
 
 		/* We don't want the thread thrashing when we have nothing to process. */
 		if (!workdone)
@@ -1195,9 +1191,6 @@ static void usage(const char *progname)
 	printf("  -w <dir> Write detailed per pid stats per stream in this target directory prefix, every -n seconds.\n");
 	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
 	printf("  -F '<string>' Use a custom pcap filter. [def: '%s']\n", DEFAULT_PCAP_FILTER);
-#if PROBE_REPORTER
-	printf("  -J Automatically send JSON reports for all discovered streams [def: disabled]\n");
-#endif
 	printf("  -S <number> Packet buffer size [def: %d] (min: 2048)\n", g_snaplen_default);
 	printf("  -B <number> Buffer size [def: %d]\n", g_buffer_size_default);
 	printf("  -R Automatically record all discovered streams\n");
@@ -1205,10 +1198,12 @@ static void usage(const char *progname)
 	printf("  -T Record int a TS format where possible [default is PCAP]\n");
 	printf("  -I <#> (ms) max allowable IAT measured in ms [def: %d]\n", g_max_iat_ms);
 	printf("\n");
-	printf("  --udp-forwarder udp://a.b.c.d:port   Add up to %d url forwarders\n", MAX_URL_FORWARDERS);
-	printf("  --danger-skip-freespace-check        Skip the Disk Free space check, don't stop recording when disk has < 10pct free\n");
-	printf("  --measure-scheduling-quanta          Test the scheduling quanta for 1000us sleep granularity\n");
+	printf("  --udp-forwarder udp://a.b.c.d:port   Add up to %d url forwarders.\n", MAX_URL_FORWARDERS);
+	printf("  --danger-skip-freespace-check        Skip the Disk Free space check, don't stop recording when disk has < 10pct free.\n");
+	printf("  --measure-scheduling-quanta          Test the scheduling quanta for 1000us sleep granularity.\n");
 	printf("  --show-h264-metadata 0xnnnn          Analyze the given H264 PID (or detect it), show different codec stats (Experimental).\n");
+	printf("  --http-json-reporting http://url     Send 1sec json stats reports for all discovered streams [def: disabled] (Experimental).\n");
+	printf("    Eg. http://127.0.0.1:13400/whatever_resource_name_you_want\n");
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
@@ -1248,6 +1243,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		{ "udp-forwarder",				required_argument,	0, 0 },
 		{ "measure-scheduling-quanta",	no_argument,		0, 0 },
 		{ "show-h264-metadata",			required_argument,	0, 0 },
+		{ "http-json-reporting",		required_argument,	0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1255,11 +1251,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 	int ch;
 	while (1) {
 		int option_index = 0;
-#if PROBE_REPORTER
-		char *opts = "?hd:B:D:EF:i:I:t:vMn:w:RS:T@J";
-#else
 		char *opts = "?hd:B:D:EF:i:I:t:vMn:w:RS:T@";
-#endif
 		ch = getopt_long(argc, argv, opts, long_options, &option_index);
 		if (ch == -1)
 			break;
@@ -1351,11 +1343,6 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		case 'E':
 			ctx->recordWithSegments = 0;
 			break;
-#if PROBE_REPORTER
-		case 'J':
-			ctx->automaticallyJSONProbeStreams = 1;
-			break;
-#endif
 		case 'S':
 			ctx->snaplen = atoi(optarg);
 			if (ctx->snaplen < 2048)
@@ -1416,6 +1403,10 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 					exit(1);
 				}
 				break;
+			case 23: /* http-json-reporting */
+				ctx->automaticallyJSONProbeStreams = 1;
+				strcpy(&ctx->json_http_url[0], optarg);
+				break;
 			default:
 				usage(argv[0]);
 				exit(1);
@@ -1448,19 +1439,15 @@ int nic_monitor(int argc, char *argv[])
 	media_init();
 #endif
 
-#if PROBE_REPORTER
 	pthread_mutex_init(&ctx->lockJSONPost, NULL);
 	xorg_list_init(&ctx->listJSONPost);
 	ctx->jsonSocket = -1;
-#endif
 
 	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
 
 	pcap_queue_initialize(ctx);
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
-#if PROBE_REPORTER
 	ctx->json_write_interval = JSON_WRITE_INTERVAL;
-#endif
 	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
 	ctx->snaplen = g_snaplen_default;
 	ctx->bufferSize = g_buffer_size_default;
@@ -1468,6 +1455,7 @@ int nic_monitor(int argc, char *argv[])
 	ctx->skipFreeSpaceCheck = 0;
 	ctx->iatMax = g_max_iat_ms;
 	ctx->iftype = IF_TYPE_PCAP;
+	strcpy(ctx->json_http_url, "http://127.0.0.1:13400/nicmonitor");
 
 	for (int i = 0; i < 3; i++) {
 		sprintf(&ctx->url_forwards[i].addr[0], "227.1.240.%d", i + 7);
@@ -1515,9 +1503,7 @@ int nic_monitor(int argc, char *argv[])
 
 	if (ctx->verbose) {
 		printf("file write interval: %d\n", ctx->file_write_interval);
-#if PROBE_REPORTER
 		printf("json write interval: %d\n", JSON_WRITE_INTERVAL);
-#endif
 	}
 
 	gRunning = 1;
@@ -1525,8 +1511,8 @@ int nic_monitor(int argc, char *argv[])
 	if (ctx->iftype == IF_TYPE_PCAP || ctx->iftype == IF_TYPE_MPEGTS_FILE || ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
 		pthread_create(&ctx->pcap_threadId, 0, pcap_thread_func, ctx);
 	}
-#if PROBE_REPORTER
 	pthread_create(&ctx->json_threadId, 0, json_thread_func, ctx);
+#if KAFKA_REPORTER
 	pthread_create(&ctx->kafka_threadId, 0, kafka_thread_func, ctx);
 #endif
 
@@ -1604,11 +1590,9 @@ int nic_monitor(int argc, char *argv[])
 		if (c == 'I') {
 			discovered_items_select_show_iats_toggle(ctx);
 		}
-#if PROBE_REPORTER
 		if (c == 'J') {
 			discovered_items_select_json_probe_toggle(ctx);
 		}
-#endif
 		if (c == 'L') {
 			discovered_items_select_show_stream_log_toggle(ctx);
 		}
@@ -1675,17 +1659,13 @@ int nic_monitor(int argc, char *argv[])
 	ctx->ui_threadTerminate = 1;
 	ctx->pcap_threadTerminate = 1;
 	ctx->stats_threadTerminate = 1;
-#if PROBE_REPORTER
 	ctx->json_threadTerminate = 1;
-#endif
 	while (!ctx->pcap_threadTerminated)
 		usleep(50 * 1000);
 	while (!ctx->stats_threadTerminated)
 		usleep(50 * 1000);
-#if PROBE_REPORTER
 	while (!ctx->json_threadTerminated)
 		usleep(50 * 1000);
-#endif
 
 	/* Shutdown ui */
 	if (ctx->monitor) {

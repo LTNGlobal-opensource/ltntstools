@@ -2,7 +2,7 @@
 
 /* See https://docs.confluent.io/clients-librdkafka/current/overview.html */
 
-#if PROBE_REPORTER
+#if KAFKA_REPORTER
 
 #include <curl/curl.h>
 
@@ -10,7 +10,7 @@
 
 static void kafka_queue_delete(struct discovered_item_s *di);
 
-#define NOLINK 0
+#define NOLINK 1
 
 #if NOLINK
 int kafka_initialize(struct discovered_item_s *di) { return -1; }

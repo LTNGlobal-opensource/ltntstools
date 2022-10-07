@@ -37,17 +37,15 @@
 #include "media.h"
 #endif
 
-#define PROBE_REPORTER 0
-#if PROBE_REPORTER
 #include <json-c/json.h>
+
+#if KAFKA_REPORTER
 #include <librdkafka/rdkafka.h>
 #endif
 
 #define DEFAULT_TRAILERROW 18
 #define FILE_WRITE_INTERVAL 5
-#if PROBE_REPORTER
 #define JSON_WRITE_INTERVAL 1
-#endif
 #define DEFAULT_PCAP_FILTER "udp dst portrange 4000-4999"
 
 #define DEFAULT_STORAGE_LOCATION "/storage/packet_captures"
@@ -80,9 +78,7 @@ struct tool_context_s
 	time_t endTime;
 	int iatMax;
 	int automaticallyRecordStreams;
-#if PROBE_REPORTER
 	int automaticallyJSONProbeStreams;
-#endif
 	int recordWithSegments;
 	int recordAsTS;
 	int showUIOptions;
@@ -101,18 +97,17 @@ struct tool_context_s
 	int trailerRow;
 	pthread_mutex_t ui_threadLock;
 
-#if PROBE_REPORTER
+	char json_http_url[256];
 	pthread_t json_threadId;
 	int json_threadTerminate, json_threadRunning, json_threadTerminated;
 	pthread_mutex_t lockJSONPost;
 	struct xorg_list listJSONPost;
-
 	int jsonSocket;
 	struct sockaddr_in jsonSin;
 
+#if KAFKA_REPORTER
 	pthread_t kafka_threadId;
 	int kafka_threadTerminate, kafka_threadRunning, kafka_threadTerminated;
-
 #endif
 
 	/* PCAP */
@@ -155,11 +150,9 @@ struct tool_context_s
 	int file_write_interval;
 	time_t file_prefix_next_write_time;
 
-#if PROBE_REPORTER
 	/* Json probe writes */
 	int json_write_interval;
 	time_t json_next_write_time;
-#endif
 
 	/* Detailed file based statistics */
 	char *detailed_file_prefix;
@@ -186,7 +179,6 @@ struct tool_context_s
 	struct ltntstools_reframer_ctx_s *reframer;
 };
 
-#if PROBE_REPORTER
 struct json_item_s
 {
 	struct xorg_list list;
@@ -206,6 +198,7 @@ int json_queue_push(struct tool_context_s *ctx, struct json_item_s *item);
 struct json_item_s *json_queue_pop(struct tool_context_s *ctx);
 struct json_item_s *json_queue_peek(struct tool_context_s *ctx);
 
+#if KAFKA_REPORTER
 struct kafka_item_s
 {
 	struct xorg_list list;
@@ -274,9 +267,7 @@ struct discovered_item_s
 #define DI_STATE_STREAM_FORWARD_START	(1 << 12)
 #define DI_STATE_STREAM_FORWARDING		(1 << 13)
 #define DI_STATE_STREAM_FORWARD_STOP	(1 << 14)
-#if PROBE_REPORTER
 #define DI_STATE_JSON_PROBE_ACTIVE		(1 << 15)
-#endif
 #define DI_STATE_SHOW_SCTE35			(1 << 16)
 #define DI_STATE_SHOW_STREAM_LOG		(1 << 17)
 	unsigned int state;
@@ -379,7 +370,7 @@ struct discovered_item_s
 	int trCount;
 	struct ltntstools_tr101290_alarm_s *trArray;
 
-#if PROBE_REPORTER
+#if KAFKA_REPORTER
 	struct kafka_ctx_s {
 		rd_kafka_conf_t       *conf;
 		rd_kafka_topic_conf_t *topic_conf;
@@ -410,10 +401,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr);
 
-#if PROBE_REPORTER
 void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_item_s *di);
-#endif
-
 void discovered_item_fd_summary(struct tool_context_s *ctx, struct discovered_item_s *di, int fd);
 
 void discovered_items_console_summary(struct tool_context_s *ctx);
@@ -434,8 +422,8 @@ unsigned int discovered_item_state_get(struct discovered_item_s *di, unsigned in
 
 void discovered_items_file_summary(struct tool_context_s *ctx, int write_banner);
 void discovered_items_file_detailed(struct tool_context_s *ctx, int write_banner);
-#if PROBE_REPORTER
 void discovered_items_json_summary(struct tool_context_s *ctx);
+#if KAFKA_REPORTER
 void discovered_items_kafka_summary(struct tool_context_s *ctx);
 #endif
 void discovered_items_stats_reset(struct tool_context_s *ctx);
@@ -457,9 +445,7 @@ void discovered_items_select_hide(struct tool_context_s *ctx);
 void discovered_items_unhide_all(struct tool_context_s *ctx);
 void discovered_items_select_show_streammodel_toggle(struct tool_context_s *ctx);
 void discovered_items_select_forward_toggle(struct tool_context_s *ctx, int slotNr);
-#if PROBE_REPORTER
 void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx);
-#endif
 void discovered_items_select_scte35_toggle(struct tool_context_s *ctx);
 void discovered_items_select_scte35_pageup(struct tool_context_s *ctx);
 void discovered_items_select_scte35_pagedown(struct tool_context_s *ctx);
@@ -477,7 +463,7 @@ void    nic_monitor_tr101290_reset(struct discovered_item_s *di);
 /* Exclusively called from the ncurses domain */
 void    nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *streamCount, int p1col, int p2col);
 
-#if PROBE_REPORTER
+#if KAFKA_REPORTER
 /* Kafka */
 int  kafka_initialize(struct discovered_item_s *di);
 void kafka_free(struct discovered_item_s *di);
