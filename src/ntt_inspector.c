@@ -259,7 +259,7 @@ printf("model\n");
 				 */
 				int e = 0;
 				struct ltntstools_pmt_s *pmt;
-				uint16_t smpte2038pid;
+				uint16_t smpte2038pid = 0;
 				while (ltntstools_pat_enum_services_smpte2038(pat, &e, &pmt, &smpte2038pid) == 0) {
 
 printf("video\n");
@@ -281,7 +281,7 @@ printf("video\n");
 					ltntstools_pat_dprintf(pat, 0);
 				}
 
-				if (e == 0) {
+				if (smpte2038pid == 0) {
 					printf("\nNo SMPTE2038 PID detected\n\n");
 					ltntstools_pat_dprintf(pat, 0);
 				}
