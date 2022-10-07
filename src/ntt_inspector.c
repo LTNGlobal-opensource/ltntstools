@@ -307,7 +307,6 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 	if (ctx->pe) {
 		ltntstools_pes_extractor_write(ctx->pe, &buf[0], byteCount / 188);
 	}
-
 }
 
 static void process_pcap_input(struct tool_ctx_s *ctx)
@@ -394,9 +393,9 @@ int ntt_inspector(int argc, char *argv[])
 		fprintf(stderr, "Error initializing ntt library context\n");
 		exit(1);
 	}
-        ctx->tissot_ctx->user_ctx = ctx;
-        ctx->tissot_ctx->user_cb = tissot_cb;
-        ctx->tissot_ctx->log_cb = tissot_log_cb;
+	ctx->tissot_ctx->user_ctx = ctx;
+	ctx->tissot_ctx->user_cb = tissot_cb;
+	ctx->tissot_ctx->log_cb = tissot_log_cb;
 
 	int ch;
 
