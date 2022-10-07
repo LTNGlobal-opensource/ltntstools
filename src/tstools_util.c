@@ -29,6 +29,7 @@ extern int bitrate_smoother(int argc, char *argv[]);
 extern int nielsen_inspector(int argc, char *argv[]);
 extern int asi2ip(int argc, char *argv[]);
 extern int smpte2038_inspector(int argc, char *argv[]);
+extern int ntt_inspector(int argc, char *argv[]);
 extern int srt_transmit(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
@@ -61,8 +62,13 @@ int main(int argc, char *argv[])
 		{ "tstools_pes_inspector",		pes_inspector, },
 		{ "tstools_bitrate_smoother",	bitrate_smoother, },
 		{ "tstools_nielsen_inspector",	nielsen_inspector, },
+#ifdef HAVE_DTAPI
 		{ "tstools_asi2ip",				asi2ip, },
+#endif
 		{ "tstools_smpte2038_inspector", smpte2038_inspector, },
+#ifdef HAVE_NTT
+		{ "tstools_ntt_inspector",	ntt_inspector, },
+#endif
 		{ "tstools_srt_transmit",		srt_transmit, },
 		{ 0, 0 },
 	};

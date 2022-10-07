@@ -4,8 +4,7 @@ GIT_VERSION := $(shell git describe --abbrev=8 --dirty --always --tags)
 
 AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_OFFSET_BITS=64 \
 	-D_BSD_SOURCE \
-	-DKL_USERSPACE -D__STDC_FORMAT_MACROS \
-	-DGIT_VERSION=\"$(GIT_VERSION)\" -g
+	-DGIT_VERSION=\"$(GIT_VERSION)\"
 
 LDADD = -lpthread -lz -lm -lltntstools -lklvanc
 
@@ -25,11 +24,16 @@ LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
 LDADD += -lsrt -lcrypto
 if LINUX
+if DTAPI
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
+endif
 #LDADD += -lmediainfo
 LDADD += -lcurl
 LDADD += ../../target-root/usr/lib/libjson-c.a
 #LDADD += -lrdkafka
+endif
+if NTT
+LDADD += -lntt
 endif
 
 #ifdef __APPLE__
@@ -40,7 +44,7 @@ if DEBUG
 	CFLAGS += -g
 endif
 
-CXXFLAGS = $(CFLAGS)
+AM_CXXFLAGS = $(AM_CFLAGS) -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS
 
 SRC  = tstools_util.c
 SRC += pat_inspector.c
@@ -74,11 +78,16 @@ SRC += stream_verifier.c
 SRC += pes_inspector.c
 SRC += bitrate_smoother.c
 SRC += nielsen_inspector.cpp
+if DTAPI
 SRC += asi2ip.cpp
+endif
 #SRC += media.cpp
 SRC += smpte2038_inspector.cpp
 SRC += srt_transmit.c
 SRC += source-avio.c
+if NTT
+SRC += ntt_inspector.cpp
+endif
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -101,9 +110,14 @@ LINKBINS += tstools_stream_verifier
 LINKBINS += tstools_pes_inspector
 LINKBINS += tstools_bitrate_smoother
 LINKBINS += tstools_nielsen_inspector
+if DTAPI
 LINKBINS += tstools_asi2ip
+endif
 LINKBINS += tstools_smpte2038_inspector
 LINKBINS += tstools_srt_transmit
+if NTT
+LINKBINS += tstools_ntt_inspector
+endif
 
 tstools_util_SOURCES = $(SRC)
 
