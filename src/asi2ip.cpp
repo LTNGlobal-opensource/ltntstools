@@ -147,6 +147,9 @@ static void checkDektecOverflow(struct tool_ctx_s *ctx)
 	// Check for overflow (only report overflow once)
 	int Flags = 0, Latched = 0;
 	DTAPI_RESULT dr = ginput.GetFlags(Flags, Latched);
+	if (dr != DTAPI_OK) {
+		fprintf(stderr, "Error querying flags\n");
+	}
 	if (Latched & DTAPI_RX_FIFO_OVF)
 	{
 		time_t now = time(NULL);
@@ -256,6 +259,9 @@ static int _asi2ip(int argc, char *argv[])
 	int rem;
 	while (gRunning) {
 		dr = ginput.GetFifoLoad(FifoLoad);
+		if (dr != DTAPI_OK) {
+			fprintf(stderr, "Unable to query fifo level.\n");
+		}
 		if (FifoLoad < blen) {
 			usleep(1 * 1000);
 			continue;
