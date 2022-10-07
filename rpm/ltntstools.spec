@@ -69,7 +69,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_scte35_inspector: Bugfix. Misdetected RTP inputs.
   tstools_si_inspector: Bugfix. Misdetected RTP inputs.
   tstools_ntt_inspector: New tool added, to help monitor NBA tissot data in SMPTE2038 streams.
-
+  tstools_nielsen_inpector: Fix new compiler warning comparison between signed and unsigned integer expressions
+  tstools_asi2ip: Fix compiler new compiler warnings re set but unused vars
+  tstools_ffmpeg_metadata: Fix new compiler warning re signed vs unused usage. Removed unused signal handler
+  
 %changelog
 * Thu Sep  1 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.16.0
