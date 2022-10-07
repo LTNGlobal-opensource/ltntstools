@@ -45,9 +45,6 @@ AC_TYPE_UINT8_T
 # Checks for library functions.
 AC_CHECK_FUNCS([memset strrchr])
 
-AC_CONFIG_FILES([Makefile src/Makefile])
-AC_OUTPUT
-
 # Add debug support
 AC_ARG_ENABLE(debug,
   AS_HELP_STRING(
@@ -63,3 +60,36 @@ AM_CONDITIONAL(DEBUG, test x"$debug" = x"true")
 AM_COND_IF(DEBUG,
     AC_DEFINE(DEBUG, 1, [Define to 0 if this is a release build]),
     AC_DEFINE(DEBUG, 0, [Define to 1 or higher if this is a debug build]))
+
+# Add Dektec DTAPI
+AC_ARG_ENABLE(dtapi,
+  AS_HELP_STRING(
+    [--enable-dtapi],
+    [enable dektec dtapi, default: yes]),
+    [case "${enableval}" in
+      yes) dtapi=true ;;
+      no)  dtapi=false ;;
+      *)   AC_MSG_ERROR([bad value ${enableval} for --enable-dtapi]) ;;
+    esac],
+    [dtapi=true])
+AM_CONDITIONAL(DTAPI, test x"$dtapi" = x"true")
+AM_COND_IF(DTAPI,
+    AC_DEFINE(HAVE_DTAPI, 1, [Define to 1 if dtapi support included]),)
+
+# Add NBA Tissot Timing protocol library support
+AC_ARG_ENABLE(ntt,
+  AS_HELP_STRING(
+    [--enable-ntt],
+    [enable NBA Tissot timing protocol, default: no]),
+    [case "${enableval}" in
+      yes) ntt=true ;;
+      no)  ntt=false ;;
+      *)   AC_MSG_ERROR([bad value ${enableval} for --enable-ntt]) ;;
+    esac],
+    [ntt=false])
+AM_CONDITIONAL(NTT, test x"$ntt" = x"true")
+AM_COND_IF(NTT,
+    AC_DEFINE(HAVE_NTT, 1, [Define to 1 if NBA Tissot Timing support included]),)
+
+AC_CONFIG_FILES([Makefile src/Makefile])
+AC_OUTPUT
