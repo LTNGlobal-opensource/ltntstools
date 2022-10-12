@@ -12,6 +12,7 @@
 
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
+#include "source-avio.h"
 
 #define H264_IFRAME_THUMBNAILING 0
 
@@ -45,6 +46,8 @@ static time_t g_nextThumbnailTime = 0;
 
 #define DEFAULT_STREAMID 0xe0
 #define DEFAULT_PID 0x31
+
+static int g_running = 1;
 
 struct nal_statistic_s
 {
@@ -656,6 +659,15 @@ void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 	return NULL;
 }
 
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
+	
+	ltntstools_pes_extractor_write(ctx->pe, pkts, packetCount);
+
+	return NULL;
+}
+
 static void usage(const char *progname)
 {
 	printf("\nA tool to extract and display PES packets from transport files or streams.\n");
@@ -777,33 +789,21 @@ int pes_inspector(int argc, char *argv[])
 	
 	ltntstools_pes_extractor_set_skip_data(ctx->pe, headersOnly);
 
-	avformat_network_init();
-	AVIOContext *puc;
-	int ret = avio_open2(&puc, iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
+	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+
+	void *srcctx = NULL;
+	int ret = ltntstools_source_avio_alloc(&srcctx, ctx, &cbs, iname);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
 		return 1;
 	}
 
-	uint8_t buf[7 * 188];
-	int ok = 1;
-	while (ok) {
-		int rlen = avio_read(puc, &buf[0], sizeof(buf));
-		if (rlen == -EAGAIN) {
-			usleep(2 * 1000);
-			continue;
-		}
-		if (rlen < 0)
-			break;
-
-		if (ctx->verbose > 2) {
-			printf("Pushing %d bytes into the pes extractor\n", rlen);
-		}
-
-		ltntstools_pes_extractor_write(ctx->pe, &buf[0], rlen / 188);
-
+	while (g_running) {
+		usleep(50 * 1000);
 	}
-	avio_close(puc);
+
+	ltntstools_source_avio_free(srcctx);
 
 	ltntstools_pes_extractor_free(ctx->pe);
 	nal_throughput_free(&ctx->throughput);
