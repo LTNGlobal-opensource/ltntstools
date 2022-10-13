@@ -13,6 +13,7 @@
 #include <libltntstools/ltntstools.h>
 #include <libklscte35/scte35.h>
 #include "ffmpeg-includes.h"
+#include "source-avio.h"
 
 char *strcasestr(const char *haystack, const char *needle);
 
@@ -301,44 +302,36 @@ static void process_pcap_input(struct tool_ctx_s *ctx)
 	ltntstools_source_pcap_free(ctx->src_pcap);
 }
 
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
+	process_transport_buffer(ctx, pkts, packetCount * 188);
+
+	return NULL;
+}
+
 static void process_avio_input(struct tool_ctx_s *ctx)
 {
 	if (strcasestr(ctx->iname, "rtp://")) {
 		ctx->isRTP = 1;
 	}
 
-	avformat_network_init();
-	AVIOContext *puc;
-	int ret = avio_open2(&puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
+	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+
+	void *srcctx = NULL;
+	int ret = ltntstools_source_avio_alloc(&srcctx, ctx, &cbs, ctx->iname);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
 		return;
 	}
 
-	/* TODO: Migrate this to use the source-avio.[ch] framework */
-	uint8_t buf[(7 * 188) + 12];
 	int ok = 1;
-	int blen = 7 * 188;
-	int boffset = 0;
 	while (ok) {
-		int rlen = avio_read(puc, &buf[0], blen);
-		if (rlen == -EAGAIN) {
-			usleep(200 * 1000);
-			continue;
-		}
-		if (rlen < 0)
-			break;
-
-		if (buf[0] == 0x80 && ctx->isRTP == 0) {
-			blen += 12;
-			ctx->isRTP = 1;
-			boffset = 12;
-			continue;
-		}
-
-		process_transport_buffer(ctx, buf + boffset, blen - boffset);
+		usleep(50 * 1000);
 	}
-	avio_close(puc);
+
+	ltntstools_source_avio_free(srcctx);
 }
 
 int scte35_inspector(int argc, char *argv[])
