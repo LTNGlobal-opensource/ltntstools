@@ -67,6 +67,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_pes_inspector: Add support -T to produce fullsize h264 thumbnail jpegs every 5 seconds. (disabled in production builds)
   tstools_pes_inspector: Improve -T support to also produce 160x90 thumbnails (disabled in production builds)
   tstools_pes_inspector: Switch to source-avio frame for better RTP handling.
+  tstools_si_streammodel: Switch to source-avio frame for better RTP handling.
   tstools_scte35_inspector: Bugfix. Segfault on exit when no SCTE35 detected in stream.
   tstools_scte35_inspector: Bugfix. Misdetected RTP inputs.
   tstools_si_inspector: Bugfix. Misdetected RTP inputs.
