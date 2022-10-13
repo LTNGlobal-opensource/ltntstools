@@ -47,7 +47,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Fri Oct  7 2022 Steven Toth <steven.toth@ltnglobal.com> 
+* Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.17.0
   tstools_nic_monitor: Update console help to show correct recording locations.
   tstools_nic_monitor: Feature. Add --show-h264-metadata open to show more advanced H264 codec statistics (experimental - opt in).
