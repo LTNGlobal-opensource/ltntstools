@@ -12,8 +12,13 @@
 
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
+#include "source-avio.h"
 
 static int gVerbose = 0;
+static uint32_t goffset = 0;
+static int doT35 = 0;
+static int doFiller = 0;
+static void *nalfinder = NULL;
 
 static void findSEIFillerPayload(unsigned char *buf, int lengthBytes, uint32_t offset)
 {
@@ -96,11 +101,33 @@ static void findSEIUnregistered(unsigned char *buf, int lengthBytes, uint32_t of
 	}
 }
 
+
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	if (doT35) {
+		findSEIT35((uint8_t *)pkts, packetCount * 188, goffset);
+	}
+
+	if (doFiller) {
+		findSEIFillerPayload((uint8_t *)pkts, packetCount * 188, goffset);
+	}
+		
+	findSEIUnregistered((uint8_t *)pkts, packetCount * 188, goffset);
+
+	if (nalfinder) {
+		h264_slice_counter_write(nalfinder, pkts, packetCount);
+	}
+
+	goffset += (packetCount * 188);
+
+	return NULL;
+}
+
 static void usage(const char *progname)
 {
 	printf("A tool to find SEI UNREGISTERED data patterns, or T35 Captions, or filler/padding SEI segments in H.264 streams.\n");
 	printf("Usage:\n");
-	printf("  -i <url> Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
+	printf("  -i <url> Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
 		"           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -c Find caption SEIs in H.264 [Default: disabled].\n");
 	printf("  -f Find filler payload SEIs in H.264 [Default: disabled].\n");
@@ -113,9 +140,6 @@ int sei_unregistered(int argc, char *argv[])
 {
 	int ch;
 	char *iname = NULL;
-	int doT35 = 0;
-	int doFiller = 0;
-	void *nalfinder = NULL;
 	int pid;
 
 	while ((ch = getopt(argc, argv, "?hcfvi:P:")) != -1) {
@@ -156,43 +180,23 @@ int sei_unregistered(int argc, char *argv[])
 		exit(1);
 	}
 
-	avformat_network_init();
-	AVIOContext *puc;
-	int ret = avio_open2(&puc, iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
+	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+
+	void *srcctx = NULL;
+	int ret = ltntstools_source_avio_alloc(&srcctx, NULL, &cbs, iname);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
 		return 1;
 	}
 
-	/* TODO: Migrate this to use the source-avio.[ch] framework */
-	uint32_t offset = 0;
-	int blen = 128 * 188;
-	uint8_t *buf = malloc(blen);
 	int ok = 1;
 	while (ok) {
-		int rlen = avio_read(puc, buf, blen);
-		if (rlen == -EAGAIN) {
-			usleep(2 * 1000);
-			continue;
-		}
-		if (rlen < 0)
-			break;
-
-		if (doT35)
-			findSEIT35(buf, rlen, offset);
-		if (doFiller)
-			findSEIFillerPayload(buf, rlen, offset);
-		
-		findSEIUnregistered(buf, rlen, offset);
-
-		if (nalfinder)
-			h264_slice_counter_write(nalfinder, buf, rlen / 188);
-
-		offset += rlen;
+		usleep(50 * 1000);
 	}
 	printf("Closing stream\n");
-	avio_close(puc);
-	free(buf);
+
+	ltntstools_source_avio_free(srcctx);
 
 	if (nalfinder) {
 		h264_slice_counter_dprintf(nalfinder, 1, 1);
