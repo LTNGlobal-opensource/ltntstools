@@ -51,6 +51,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.18.0
   tstools_si_inspector: When dumping descriptors, add decoding for AVC_Video_Descritor type.
+  tstools_si_inspector: Reflect the fact we support RTP in the online help.
   tstools_smpte2038_inspector: Bigfux. Fixup CTRL-C termination issue.
   tstools_smpte2038_inspector: Added support for RTP/ source-avio input.
   tstools_scte35_inspector: Reflect the fact we support RTP in the online help.
