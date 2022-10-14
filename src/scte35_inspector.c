@@ -136,7 +136,7 @@ static void usage(const char *progname)
 	printf("A tool to display the SCTE35 packets from a file, live UDP socket stream, or PCAP NIC.\n");
 	printf("Optionally, follow the video pid and report PTS values during each trigger.\n");
 	printf("Usage:\n");
-	printf("  -i <url | nicname>   Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n");
+	printf("  -i <url | nicname>   Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n");
     printf("                           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("                       Eg: eno2    (Also see -F)\n");
 	printf("  -v Increase level of verbosity.\n");
