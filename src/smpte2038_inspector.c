@@ -16,6 +16,7 @@
 #include <libklvanc/vanc.h>
 
 #include "ffmpeg-includes.h"
+#include "source-avio.h"
 
 char *strcasestr(const char *haystack, const char *needle);
 
@@ -230,7 +231,7 @@ static void usage(const char *progname)
 {
 	printf("A tool to display the SMPTE2038 packets from a file, live UDP socket stream, or PCAP NIC.\n");
 	printf("Usage:\n");
-	printf("  -i <url | nicname>   Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n");
+	printf("  -i <url | nicname>   Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n");
     printf("                           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("                       Eg: eno2    (Also see -F)\n");
 	printf("  -v Increase level of verbosity.\n");
@@ -337,35 +338,35 @@ static void process_pcap_input(struct tool_ctx_s *ctx)
 	ltntstools_source_pcap_free(ctx->src_pcap);
 }
 
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
+	process_transport_buffer(ctx, pkts, packetCount * 188);
+
+	return NULL;
+}
+
 static void process_avio_input(struct tool_ctx_s *ctx)
 {
 	if (strcasestr(ctx->iname, "rtp://")) {
 		ctx->isRTP = 1;
 	}
 
-	avformat_network_init();
-	AVIOContext *puc;
-	int ret = avio_open2(&puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
+	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+
+	void *srcctx = NULL;
+	int ret = ltntstools_source_avio_alloc(&srcctx, ctx, &cbs, ctx->iname);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
 		return;
 	}
 
-	/* TODO: Migrate this to use the source-avio.[ch] framework */
-	uint8_t buf[7 * 188];
-	int ok = 1;
-	while (ok) {
-		int rlen = avio_read(puc, &buf[0], sizeof(buf));
-		if (rlen == -EAGAIN) {
-			usleep(200 * 1000);
-			continue;
-		}
-		if (rlen < 0)
-			break;
-
-		process_transport_buffer(ctx, &buf[0], rlen);
+	while (gRunning) {
+		usleep(50 * 1000);
 	}
-	avio_close(puc);
+
+	ltntstools_source_avio_free(srcctx);
 }
 
 int smpte2038_inspector(int argc, char *argv[])
