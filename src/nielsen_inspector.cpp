@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <libltntstools/ltntstools.h>
+#include "source-avio.h"
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -29,6 +30,20 @@ struct tools_ctx_s
 
 	void *aa;
 };
+
+
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	struct tools_ctx_s *ctx = (struct tools_ctx_s *)userContext;
+
+	if (ctx->verbose >= 6) {
+		printf("source received %d bytes\n", packetCount * 188);
+	}
+
+	ltntstools_audioanalyzer_write(ctx->aa, pkts, packetCount);
+
+	return NULL;
+}
 
 static void usage()
 {
@@ -173,53 +188,28 @@ int _nielsen_inspector(int argc, char **argv)
 	}
 	printf("\n");
 
-	/* Listen to the entire transport stream, push it all into the audio decoder framework.
-		* The latency of feedinto to the audiodecoder isn't that important. The output of the audio
-		* decoder isn't anything we'll listen to, it's data that we'll further analyze for
-		* remote inspection.
-		*/
-	avformat_network_init();
-
-	AVIOContext *i_puc = NULL;
-
 	printf("Be patient, this can take 90 seconds or so...\n\n");
 	printf("Reading %s\n", ctx->iname);
-	ret = avio_open2(&i_puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+
+	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
+	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+
+	void *srcctx = NULL;
+	ret = ltntstools_source_avio_alloc(&srcctx, ctx, &cbs, ctx->iname);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
-		exit(1); /* how does this happen? */
+		return 1;
 	}
-
-	int blen = 7 * 188;
-	unsigned char *buf = (unsigned char *)malloc(blen);
 
 	signal(SIGINT, signal_handler);
 	gRunning = 1;
 
-	/* TODO: Migrate this to use the source-avio.[ch] framework */
 	while (gRunning) {
-		int rlen = avio_read(i_puc, buf, blen);
-		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
-			usleep(1 * 1000);
-			continue;
-		} else
-		if (rlen < 0) {
-			usleep(1 * 1000);
-			/* General Error or end of stream. */
-			continue;
-		}
-
-		if (ctx->verbose >= 6) {
-			printf("source received %d bytes\n", rlen);
-		}
-
-		if (rlen > 0) {
-			ltntstools_audioanalyzer_write(ctx->aa, &buf[0], rlen / 188);
-		}
+		usleep(50 * 1000);
 	}
 	printf("Terminating....\n");
 
-	avio_close(i_puc);
+	ltntstools_source_avio_free(srcctx);
 
 	//avformat_close_input(&fmt_ctx);  segfault in this
 #if LOCAL_DEBUG
