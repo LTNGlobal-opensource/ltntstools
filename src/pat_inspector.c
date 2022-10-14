@@ -48,9 +48,10 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 static void usage(const char *progname)
 {
 	printf("A tool to display one or more PAT structures from a ISO13818 transport stream.\n");
-	printf("Check one APT, or EVERY pat, useful for version-change stream debugging.\n");
+	printf("Check one PAT, or EVERY pat, useful for version-change stream debugging.\n");
 	printf("Usage:\n");
-	printf("  -i <inputfile.ts>\n");
+	printf("  -i <filename | url> Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
+           "                      192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -a process all pats, not just the first\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");

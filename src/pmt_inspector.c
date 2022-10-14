@@ -10,65 +10,127 @@
 
 #include <libltntstools/ltntstools.h>
 #include "dump.h"
+#include "source-avio.h"
 
+#define DEFAULT_PID 0x30
+
+static int gRunning = 1;
 static int gDumpAll = 0;
 static int gPMTCount = 0;
 static int gVerbose = 0;
-
-static uint16_t i_program_number, i_pmt_pid;
+static uint32_t gi_program_number = 1, gi_pmt_pid = DEFAULT_PID;
+static dvbpsi_t *gp_dvbpsi = NULL;
 
 static void DumpPMT(void *p_zero, dvbpsi_pmt_t * p_pmt)
 {
-	tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0, i_pmt_pid);
+	tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0, gi_pmt_pid);
 	dvbpsi_pmt_delete(p_pmt);
 	gPMTCount++;
 }
 
-/*****************************************************************************
- * main
- *****************************************************************************/
-int pmt_inspector(int i_argc, char *pa_argv[])
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
 {
-	int i_fd;
-	uint8_t data[188];
-	dvbpsi_t *p_dvbpsi;
-	bool b_ok;
-
-	if (i_argc != 4)
-		return 1;
-
-	i_fd = open(pa_argv[1], 0);
-	if (i_fd < 0)
-		return 1;
-
-	i_program_number = atoi(pa_argv[2]);
-	i_pmt_pid = atoi(pa_argv[3]);
-
-	p_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
-	if (p_dvbpsi == NULL)
-		goto out;
-
-	if (!dvbpsi_pmt_attach(p_dvbpsi, i_program_number, DumpPMT, NULL))
-		goto out;
-
-	b_ok = tstools_ReadPacket(i_fd, data);
-
-	while (b_ok) {
-		uint16_t i_pid = ((uint16_t) (data[1] & 0x1f) << 8) + data[2];
-		if (i_pid == i_pmt_pid)
-			dvbpsi_packet_push(p_dvbpsi, data);
-		b_ok = tstools_ReadPacket(i_fd, data);
-
-		if (gPMTCount && !gDumpAll)
-			break;
+	for (int i = 0; i < packetCount; i++) {
+		if (ltntstools_pid(pkts + (i * 188)) == gi_pmt_pid) {
+			dvbpsi_packet_push(gp_dvbpsi, (uint8_t *)pkts + (i * 188));
+		}
 	}
+
+	if (gPMTCount && !gDumpAll) {
+		gRunning  = 0;
+	}
+
+	return NULL;
+}
+
+static void usage(const char *progname)
+{
+	printf("A tool to display one or more PMT structures from a ISO13818 transport stream.\n");
+	printf("Check one PMT, or EVERY PMT, useful for version-change stream debugging.\n");
+	printf("Usage:\n");
+	printf("  -i <filename | url> Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
+           "                      192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -a process all pmts, not just the first\n");
+	printf("  -n program/service number [def: %d]\n", gi_program_number);
+	printf("  -P 0xnnnn PID containing the program elementary stream [def: 0x%02x]\n", DEFAULT_PID);
+	printf("  -v Increase level of verbosity.\n");
+	printf("  -h Display command line help.\n");
+}
+
+int pmt_inspector(int argc, char *argv[])
+{
+	int ch;
+	char *iname = NULL;
+
+	while ((ch = getopt(argc, argv, "a?hvi:P:n:")) != -1) {
+		switch (ch) {
+		case 'a':
+			gDumpAll = 1;
+			break;
+		case '?':
+		case 'h':
+			usage(argv[0]);
+			exit(1);
+			break;
+		case 'i':
+			iname = strdup(optarg);
+			break;
+		case 'n':
+			gi_program_number = atoi(optarg);
+			break;
+		case 'P':
+			if ((sscanf(optarg, "0x%x", &gi_pmt_pid) != 1) || (gi_pmt_pid > 0x1fff)) {
+				usage(argv[0]);
+				exit(1);
+			}
+			break;
+		case 'v':
+			gVerbose = 1;
+			break;
+		default:
+			usage(argv[0]);
+			exit(1);
+		}
+	}
+
+	if (iname == NULL) {
+		usage(argv[0]);
+		fprintf(stderr, "\n-i is mandatory.\n");
+		exit(1);
+	}
+
+	gp_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
+	if (gp_dvbpsi == NULL) {
+		goto out;
+	}
+
+	if (!dvbpsi_pmt_attach(gp_dvbpsi, gi_program_number, DumpPMT, NULL)) {
+		goto out;
+	}
+
+
+	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
+	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+
+	void *srcctx = NULL;
+	int ret = ltntstools_source_avio_alloc(&srcctx, NULL, &cbs, iname);
+	if (ret < 0) {
+		fprintf(stderr, "-i syntax error\n");
+		return 1;
+	}
+
+	while (gRunning) {
+		usleep(50 * 1000);
+	}
+
+	ltntstools_source_avio_free(srcctx);
 
 out:
-	if (p_dvbpsi) {
-		dvbpsi_pmt_detach(p_dvbpsi);
-		dvbpsi_delete(p_dvbpsi);
+	if (gp_dvbpsi) {
+		dvbpsi_pmt_detach(gp_dvbpsi);
+		dvbpsi_delete(gp_dvbpsi);
 	}
-	close(i_fd);
+	free(iname);
 
 	return 0;
 }

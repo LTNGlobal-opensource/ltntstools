@@ -58,6 +58,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_si_streammodel: Reflect the fact we support RTP in the online help.
   tstools_pes_inspector: Reflect the fact we support RTP in the online help.
   tstools_pat_inspector: Add RTP support. General code tidy up. Updated online help.
+  tstools_pmt_inspector: Add RTP and stream support. Overhaul / tidy up and better online help.
 
 * Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.17.0
