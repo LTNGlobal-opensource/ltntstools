@@ -455,7 +455,7 @@ int slicer(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-        while ((ch = getopt(argc, argv, "?hi:ls:e:o:q:v")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:ls:e:o:q:v")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
