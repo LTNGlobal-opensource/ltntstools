@@ -9,10 +9,13 @@
 #include "dump.h"
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
+#include "source-avio.h"
 
 static int gDumpAll = 0;
 static int gPATCount = 0;
 static int gVerbose = 0;
+static int gRunning = 1;
+static dvbpsi_t *gp_dvbpsi = NULL;
 
 static void DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat)
 {
@@ -21,11 +24,34 @@ static void DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat)
 	gPATCount++;
 }
 
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	for (int i = 0; i < packetCount; i++) {
+		uint16_t i_pid = ltntstools_pid(pkts + (i * 188));
+		if (i_pid == 0x0) {
+			if (gVerbose > 0) {
+				printf("Pushing packet\n");
+			}
+			dvbpsi_packet_push(gp_dvbpsi, (uint8_t *)pkts + (i * 188));
+		}
+
+		if (gPATCount && !gDumpAll) {
+			printf("Aborting\n");
+			gRunning = 0;
+			break;
+		}
+	}
+
+	return NULL;
+}
+
 static void usage(const char *progname)
 {
 	printf("A tool to display one or more PAT structures from a ISO13818 transport stream.\n");
+	printf("Check one APT, or EVERY pat, useful for version-change stream debugging.\n");
 	printf("Usage:\n");
 	printf("  -i <inputfile.ts>\n");
+	printf("  -a process all pats, not just the first\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 }
@@ -33,7 +59,6 @@ static void usage(const char *progname)
 int pat_inspector(int argc, char *argv[])
 {
 	int ch;
-	dvbpsi_t *p_dvbpsi;
 	char *iname = NULL;
 
 	while ((ch = getopt(argc, argv, "a?hvi:")) != -1) {
@@ -59,55 +84,45 @@ int pat_inspector(int argc, char *argv[])
 	}
 
 	if (iname == NULL) {
-		fprintf(stderr, "-i is mandatory.\n");
+		usage(argv[0]);
+		fprintf(stderr, "\n-i is mandatory.\n");
 		exit(1);
 	}
 
-	avformat_network_init();
-	AVIOContext *puc;
-	int ret = avio_open2(&puc, iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+
+	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
+	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+
+	void *srcctx = NULL;
+	int ret = ltntstools_source_avio_alloc(&srcctx, NULL, &cbs, iname);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
 		return 1;
 	}
 
-	if (gVerbose)
-		p_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_DEBUG);
-	else
-		p_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
-	if (p_dvbpsi == NULL)
-		goto out;
-
-	if (!dvbpsi_pat_attach(p_dvbpsi, DumpPAT, NULL))
-		goto out;
-
-	unsigned char buf[7 * 188];
-	int ok = 1;
-	while (ok)
-	{
-		int rlen = avio_read(puc, buf, sizeof(buf));
-		if (rlen == -EAGAIN) {
-			usleep(2 * 1000);
-			continue;
-		}
-
-		for (int i = 0; i < rlen; i += 188) {
-			uint16_t i_pid = ltntstools_pid(&buf[i]);
-			if (i_pid == 0x0)
-				dvbpsi_packet_push(p_dvbpsi, &buf[i]);
-
-			if (gPATCount && !gDumpAll) {
-				ok = 0;
-				break;
-			}
-		}
+	if (gVerbose) {
+		gp_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_DEBUG);
+	} else {
+		gp_dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
 	}
-	avio_close(puc);
+
+	if (gp_dvbpsi == NULL) {
+		goto out;
+	}
+
+	if (!dvbpsi_pat_attach(gp_dvbpsi, DumpPAT, NULL)) {
+		goto out;
+	}
+
+	while (gRunning) {
+		usleep(50 * 1000);
+	}
+	ltntstools_source_avio_free(srcctx);
 
 out:
-	if (p_dvbpsi) {
-		dvbpsi_pat_detach(p_dvbpsi);
-		dvbpsi_delete(p_dvbpsi);
+	if (gp_dvbpsi) {
+		dvbpsi_pat_detach(gp_dvbpsi);
+		dvbpsi_delete(gp_dvbpsi);
 	}
 
 	return 0;
