@@ -55,6 +55,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_smpte2038_inspector: Bigfux. Fixup CTRL-C termination issue.
   tstools_smpte2038_inspector: Added support for RTP/ source-avio input.
   tstools_scte35_inspector: Reflect the fact we support RTP in the online help.
+  tstools_si_streammodel: Reflect the fact we support RTP in the online help.
 
 * Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.17.0

@@ -45,7 +45,7 @@ static void usage(const char *progname)
 	printf("A tool to display the PAT/PMT transport tree structures from file.\n");
 	printf("The first PAT and first set of PMTs are displayed, then the program terminates.\n");
 	printf("Usage:\n");
-	printf("  -i <filename | url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
+	printf("  -i <filename | url> Eg: rtp|udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
 	printf("                          172.16.0.67 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -a don't terminate after the first model is obtained\n");
 	printf("  -v Increase level of verbosity (enable descriptor dumping).\n");
