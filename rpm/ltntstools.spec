@@ -49,6 +49,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.18.0
+  tstools_si_inspector: When dumping descriptors, add decoding for AVC_Video_Descritor type.
+
+* Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.17.0
   tstools_nic_monitor: Update console help to show correct recording locations.
   tstools_nic_monitor: Feature. Add --show-h264-metadata open to show more advanced H264 codec statistics (experimental - opt in).

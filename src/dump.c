@@ -177,6 +177,53 @@ static void DumpRegistrationDescriptor(dvbpsi_registration_dr_t *p_descriptor)
 	printf("Registration: 0x%x [%s]\n", p_descriptor->i_format_identifier, b);
 }
 
+static void DumpAVCVideoDescriptor(const char* str, dvbpsi_descriptor_t* p_descriptor)
+{
+  uint8_t profile_idc = p_descriptor->p_data[0];
+
+  uint8_t constraint_set_flag[6];      
+  constraint_set_flag[0] = (p_descriptor->p_data[1] >> 7) & 1;
+  constraint_set_flag[1] = (p_descriptor->p_data[1] >> 6) & 1;
+  constraint_set_flag[2] = (p_descriptor->p_data[1] >> 5) & 1;
+  constraint_set_flag[3] = (p_descriptor->p_data[1] >> 4) & 1;
+  constraint_set_flag[4] = (p_descriptor->p_data[1] >> 3) & 1;
+  constraint_set_flag[5] = (p_descriptor->p_data[1] >> 2) & 1;
+
+  uint8_t AVC_compatible_flags = p_descriptor->p_data[1] & 0x03;
+
+  uint8_t level_idc = p_descriptor->p_data[2];
+  uint8_t AVC_still_present = (p_descriptor->p_data[3] >> 7) & 1;
+  uint8_t AVC_24_hour_picture_flag = (p_descriptor->p_data[3] >> 6) & 1;
+  uint8_t Frame_Packing_SEI_not_present_flag = (p_descriptor->p_data[3] >> 5) & 1;
+
+  /* This is a little loosy goosy, should be a common func and doesn't take into consideration the constraint sets */
+  printf("AVC_Video_descriptor: profile_idc = %s? [0x%02x], level_idc = %3.1f\n",
+    profile_idc == 66 ? "Baseline" :
+    profile_idc == 77 ? "Main" :
+    profile_idc == 44 ? "High" :
+    profile_idc == 88 ? "Main" :
+    profile_idc == 100 ? "High" :
+    profile_idc == 110 ? "High" :
+    profile_idc == 122 ? "High" :
+    profile_idc == 224 ? "High" : "Unknown",
+    profile_idc,
+    ((double)level_idc) / 10.0);
+  printf("%50s constraint_set0..5_flags = %d %d %d %d %d %d",
+    "",
+    constraint_set_flag[0],
+    constraint_set_flag[1],
+    constraint_set_flag[2],
+    constraint_set_flag[3],
+    constraint_set_flag[4],
+    constraint_set_flag[5]
+    );
+  printf(", AVC_compatible_flags = 0x%02x\n", AVC_compatible_flags);
+  printf("%50s AVC_still_present = %d", "", AVC_still_present);
+  printf(", AVC_24_hour_picture_flag = %d", AVC_24_hour_picture_flag);
+  printf(", Frame_Packing_SEI_not_present_flag = %d\n", Frame_Packing_SEI_not_present_flag);
+
+}
+
 void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
 {
   while(p_descriptor) {
@@ -215,6 +262,9 @@ void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
       break;
     case REGISTRATION_DR:
       DumpRegistrationDescriptor(dvbpsi_DecodeRegistrationDr(p_descriptor));
+      break;
+    case 0x28: /* AVC_VIDEO_DESCRIPTOR */
+      DumpAVCVideoDescriptor(str, p_descriptor);
       break;
     default:
       printf("\"");
