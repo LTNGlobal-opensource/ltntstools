@@ -672,7 +672,7 @@ static void usage(const char *progname)
 {
 	printf("\nA tool to extract and display PES packets from transport files or streams.\n");
 	printf("Usage:\n");
-	printf("  -i <url> Eg: udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
+	printf("  -i <url> Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
                "           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
