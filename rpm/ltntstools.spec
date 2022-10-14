@@ -43,6 +43,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_asi2ip
 /usr/local/bin/tstools_smpte2038_inspector
 /usr/local/bin/tstools_srt_transmit
+/usr/local/bin/tstools_ntt_inspector
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
