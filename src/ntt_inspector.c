@@ -345,6 +345,7 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 			char *json_stats = tissot_stats_recent_json(ctx->tissot_ctx);
 			if (json_stats != NULL) {
 				printf("%s\n", json_stats);
+				fflush(stdout);
 				free(json_stats);
 			}
 			ctx->last_report_time = cur_time;
@@ -379,6 +380,7 @@ static void tissot_log_cb(void *p, int level, const char *fmt, ...)
 static void tissot_cb(void *user_ctx, const char *json_buf)
 {
 	printf("%s\n", json_buf);
+	fflush(stdout);
 }
 
 int ntt_inspector(int argc, char *argv[])
