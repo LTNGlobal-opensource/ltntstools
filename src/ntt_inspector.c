@@ -318,6 +318,17 @@ static void process_pcap_input(struct tool_ctx_s *ctx)
 
 	int ok = 1;
 	while (ok) {
+		time_t cur_time = time(NULL);
+		if (cur_time > ctx->last_report_time) {
+			char *json_stats = tissot_stats_recent_json(ctx->tissot_ctx);
+			if (json_stats != NULL) {
+				printf("%s\n", json_stats);
+				fflush(stdout);
+				free(json_stats);
+			}
+			ctx->last_report_time = cur_time;
+		}
+
 		usleep(50 * 1000);
 	}
 
