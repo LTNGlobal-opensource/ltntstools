@@ -440,5 +440,3 @@ int smpte2038_inspector(int argc, char *argv[])
 
 	return 0;
 }
-
-
