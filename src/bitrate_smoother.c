@@ -76,6 +76,7 @@ struct tool_context_s
 	char *iname, *oname;
 	int verbose;
 	int stopAfterSeconds;
+	int terminateLOSSeconds;
 
 	struct ltntstools_stream_statistics_s i_stream, o_stream;
 	void *smoother;
@@ -418,12 +419,23 @@ static void *thread_packet_rx(void *p)
 
 	unsigned char buf[7 * 188];
 
+	time_t lastPacketTime = time(0);
+	time_t now;
+
 	while (!ctx->ffmpeg_threadTerminate) {
 		int rlen = avio_read(ctx->i_puc, buf, sizeof(buf));
 		if (ctx->verbose & 1) {
 			printf("source received %d bytes\n", rlen);
 		}
+		now = time(0);
 		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
+			if (ctx->terminateLOSSeconds && (lastPacketTime + ctx->terminateLOSSeconds <= now)) {
+				/* We lost input packets for N seconds. Terminate cleanly. */
+				printf("LOS occured for %d seconds. Terminating at %s",
+					ctx->terminateLOSSeconds,
+					ctime(&now));
+				exit(1);
+			}
 			usleep(1 * 1000);
 			continue;
 		} else
@@ -434,10 +446,12 @@ static void *thread_packet_rx(void *p)
 			continue;
 		}
 
-		if (rlen > 0) 
+	
+		if (rlen > 0) {
+			lastPacketTime = now;
 			packet_cb(ctx, &buf[0], rlen);
-
-		smoother_pcr_write(ctx->smoother, buf, sizeof(buf), NULL);
+			smoother_pcr_write(ctx->smoother, buf, sizeof(buf), NULL);
+		}
 	}
 	ctx->ffmpeg_threadTerminated = 1;
 
@@ -497,6 +511,7 @@ static void usage(const char *progname)
 	printf("     2 - output packet hex\n");
 	printf("     4 - output packet PCR data and human readable PCR clock\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
+	printf("  -L <#seconds> During input LOS, terminate software after time. [def: 0 - don't terminate]\n");
 	printf("  -h Display command line help.\n");
 #ifdef __linux__
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
@@ -521,7 +536,7 @@ int bitrate_smoother(int argc, char *argv[])
 	ctx->pc.vpid = 0x31; /* TODO */
 #endif
 
-	while ((ch = getopt(argc, argv, "?hi:l:o:P:v:t:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:v:t:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -539,6 +554,9 @@ int bitrate_smoother(int argc, char *argv[])
 			break;
 		case 'o':
 			ctx->oname = optarg;
+			break;
+		case 'L':
+			ctx->terminateLOSSeconds = atoi(optarg);
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x", &ctx->pcrPID) != 1) || (ctx->pcrPID > 0x1fff)) {
@@ -573,6 +591,10 @@ int bitrate_smoother(int argc, char *argv[])
 		usage(argv[0]);
 		fprintf(stderr, "\n-o is mandatory, aborting.\n\n");
 		exit(1);
+	}
+
+	if (ctx->terminateLOSSeconds) {
+		printf("\n-L %d, process will self terminate if input LOS exceeds %d seconds.\n\n", ctx->terminateLOSSeconds, ctx->terminateLOSSeconds);
 	}
 
 	if (ctx->stopAfterSeconds) {
