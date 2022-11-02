@@ -48,6 +48,12 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
+* Thu Nov  2 2022 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.19.0
+  tstools_bitrate_smoother: Adjust console example help, remove -b and replace with -l.
+  tstools_bitrate_smoother: Feature. Add option -L to terminate process after N seconds of input LOS.
+  tstools_bitrate_smoother: Report system socket buffer sizes on the console.
+
 * Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.18.0
   tstools_si_inspector: When dumping descriptors, add decoding for AVC_Video_Descritor type.
@@ -62,9 +68,6 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_sei_unregistered: Add RTP support, migrate to the source-avio framework.
   tstools_nielsen_inpector: Add RTP support, migrate to the source-avio framework.
   tstools_ntt_inspector: Fixes for printing status line in pcap mode and flushing stdout
-  tstools_bitrate_smoother: Adjust console example help, remove -b and replace with -l.
-  tstools_bitrate_smoother: Feature. Add option -L to terminate process after N seconds of input LOS.
-  tstools_bitrate_smoother: Report system socket buffer sizes on the console.
   
 * Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.17.0
