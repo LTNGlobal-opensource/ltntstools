@@ -107,6 +107,10 @@ struct tool_context_s
 #endif
 
 	struct ltntstools_reframer_ctx_s *reframer;
+
+	void *sm; /* StreamModel Context */
+	int smcomplete;
+
 };
 
 static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
@@ -164,7 +168,7 @@ static int smoother_cb(void *userContext, unsigned char *buf, int byteCount,
 	struct ltntstools_pcr_position_s *array, int arrayLength)
 {
 	struct tool_context_s *ctx = userContext;
-
+	
 	if (ctx->verbose & 8) {
 		for (int i = 0; i < arrayLength; i++) {
 			struct ltntstools_pcr_position_s *e = &array[i];
@@ -420,7 +424,12 @@ static void *thread_packet_rx(void *p)
 	unsigned char buf[7 * 188];
 
 	time_t lastPacketTime = time(0);
-	time_t now;
+
+	char ts[256];
+	time_t now = time(0);
+	sprintf(ts, "%s", ctime(&now));
+	ts[ strlen(ts) - 1] = 0;
+	printf("%s: Smoother starting\n", ts);
 
 	while (!ctx->ffmpeg_threadTerminate) {
 		int rlen = avio_read(ctx->i_puc, buf, sizeof(buf));
@@ -430,8 +439,14 @@ static void *thread_packet_rx(void *p)
 		now = time(0);
 		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
 			if (ctx->terminateLOSSeconds && (lastPacketTime + ctx->terminateLOSSeconds <= now)) {
+				char ts[256];
+				time_t now = time(0);
+				sprintf(ts, "%s", ctime(&now));
+				ts[ strlen(ts) - 1] = 0;
+
 				/* We lost input packets for N seconds. Terminate cleanly. */
-				printf("LOS occured for %d seconds. Terminating at %s",
+				printf("%s: LOS occured for %d seconds. Terminating at %s",
+					ts,
 					ctx->terminateLOSSeconds,
 					ctime(&now));
 				exit(1);
@@ -446,12 +461,78 @@ static void *thread_packet_rx(void *p)
 			continue;
 		}
 
-	
-		if (rlen > 0) {
-			lastPacketTime = now;
-			packet_cb(ctx, &buf[0], rlen);
+		if (rlen < 1) {
+			usleep(1 * 1000);
+			continue;
+		}
+
+		/* Process the payload */
+
+		if (ctx->sm == NULL && ctx->pcrPID == 0) {
+			if (ltntstools_streammodel_alloc(&ctx->sm, NULL) < 0) {
+				fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
+				exit(1);
+			}
+		} else
+		if (ctx->sm == NULL && ctx->pcrPID && ctx->smoother == NULL) {
+			smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
+		}
+
+		if (ctx->sm && ctx->smcomplete == 0 && ctx->pcrPID == 0) {
+
+			ltntstools_streammodel_write(ctx->sm, &buf[0], rlen / 188, &ctx->smcomplete);
+
+			if (ctx->smcomplete) {
+				struct ltntstools_pat_s *pat = NULL;
+				if (ltntstools_streammodel_query_model(ctx->sm, &pat) == 0) {
+
+					/* Walk all the services, find the first service PMT. */
+					int e = 0;
+					struct ltntstools_pmt_s *pmt;
+					uint16_t videopid = 0;
+
+					while (ltntstools_pat_enum_services_video(pat, &e, &pmt) == 0) {
+
+						uint8_t estype;
+						ltntstools_pmt_query_video_pid(pmt, &videopid, &estype);
+
+						char ts[256];
+						time_t now = time(0);
+						sprintf(ts, "%s", ctime(&now));
+						ts[ strlen(ts) - 1] = 0;
+
+						printf("%s: Found program %5d, PCR pid 0x%04x, video pid 0x%04x\n",
+							ts,
+							pmt->program_number,
+							pmt->PCR_PID,
+							videopid);
+
+						ctx->pcrPID = pmt->PCR_PID;
+						break; /* TODO: We only support the first VIDEO pid (SPTS) */
+					}
+
+					if (ctx->verbose > 1) {
+						ltntstools_pat_dprintf(pat, 0);
+					}
+
+					if (ctx->pcrPID == 0) {
+						printf("\nNo VIDEO/PCR_PID PID detected, terminating\n\n");
+						gRunning = 0; /* Terminate */
+						//ltntstools_pat_dprintf(pat, 0);
+					} else {
+						smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
+					}
+					ltntstools_pat_free(pat);
+				}
+			}
+		}
+
+		lastPacketTime = now;
+		packet_cb(ctx, &buf[0], rlen);
+		if (ctx->smoother) {
 			smoother_pcr_write(ctx->smoother, buf, sizeof(buf), NULL);
 		}
+
 	}
 	ctx->ffmpeg_threadTerminated = 1;
 
@@ -533,20 +614,20 @@ static void usage(const char *progname)
 	printf("  -i <url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
 	printf("           172.16.0.67 is the IP addr where we'll issue an IGMP join\n");
 	printf("  -o <url> Eg: udp://234.1.1.1:4560\n");
-	printf("  -P 0xnnnn PID containing the PCR\n");
+	printf("  -P 0xnnnn PID containing the PCR (Optional)\n");
 	printf("  -v # bitmask. Set level of verbosity. [def: 0]\n");
 	printf("     1 - input packet hex\n");
 	printf("     2 - output packet hex\n");
 	printf("     4 - output packet PCR data and human readable PCR clock\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
+#ifdef __linux__
+	printf("  -t <#seconds> Stop after N seconds [def: 0 - unlimited]\n");
+#endif
 	printf("  -L <#seconds> During input LOS, terminate software after time. [def: 0 - don't terminate]\n");
 	printf("  -h Display command line help.\n");
-#ifdef __linux__
-	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
-#endif
 	printf("\n  Example:\n");
 	printf("    tstools_bitrate_smoother -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000' \\\n");
-	printf("      -o udp://227.1.20.45:4501?pkt_size=1316 -l 500 -P 0x31\n");
+	printf("      -o udp://227.1.20.45:4501?pkt_size=1316 -l 500\n");
 }
 
 int bitrate_smoother(int argc, char *argv[])
@@ -603,12 +684,6 @@ int bitrate_smoother(int argc, char *argv[])
 		}
 	}
 
-	if (!ctx->pcrPID) {
-		usage(argv[0]);
-		fprintf(stderr, "\n-P is mandatory, aborting.\n\n");
-		exit(1);
-	}
-
 	if (ctx->iname == NULL) {
 		usage(argv[0]);
 		fprintf(stderr, "\n-i is mandatory, aborting.\n\n");
@@ -647,8 +722,6 @@ int bitrate_smoother(int argc, char *argv[])
 		goto no_output;
 	}
 
-	ret = smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
-
 	kernel_check_socket_sizes(ctx->i_puc);
 
 	/* Preallocate enough throughput measures for approx a 40mbit stream */
@@ -672,6 +745,10 @@ int bitrate_smoother(int argc, char *argv[])
 
 	smoother_pcr_free(ctx->smoother);
 	ltntstools_reframer_free(ctx->reframer);
+
+	if (ctx->sm) {
+		ltntstools_streammodel_free(ctx->sm);
+	}
 
 	ret = 0;
 
