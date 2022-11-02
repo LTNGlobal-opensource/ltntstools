@@ -503,7 +503,7 @@ static void usage(const char *progname)
 #endif
 	printf("\n  Example:\n");
 	printf("    tstools_bitrate_smoother -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000' \\\n");
-	printf("      -o udp://227.1.20.45:4501?pkt_size=1316 -b 15000000 -P 0x31\n");
+	printf("      -o udp://227.1.20.45:4501?pkt_size=1316 -l 500 -P 0x31\n");
 }
 
 int bitrate_smoother(int argc, char *argv[])

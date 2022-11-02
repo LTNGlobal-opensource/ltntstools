@@ -62,6 +62,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_sei_unregistered: Add RTP support, migrate to the source-avio framework.
   tstools_nielsen_inpector: Add RTP support, migrate to the source-avio framework.
   tstools_ntt_inspector: Fixes for printing status line in pcap mode and flushing stdout
+  tstools_bitrate_smoother: Adjust console example help, remove -b and replace with -l.
   
 * Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.17.0
