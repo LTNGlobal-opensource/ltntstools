@@ -64,6 +64,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_ntt_inspector: Fixes for printing status line in pcap mode and flushing stdout
   tstools_bitrate_smoother: Adjust console example help, remove -b and replace with -l.
   tstools_bitrate_smoother: Feature. Add option -L to terminate process after N seconds of input LOS.
+  tstools_bitrate_smoother: Report system socket buffer sizes on the console.
   
 * Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.17.0

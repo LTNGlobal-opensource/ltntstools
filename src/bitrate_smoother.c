@@ -464,6 +464,34 @@ static void signal_handler(int signum)
 	gRunning = 0;
 }
 
+static void kernel_check_socket_sizes(AVIOContext *i)
+{
+	printf("Kernel configured default/max socket buffer sizes:\n");
+
+	char line[256];
+	int val;
+	FILE *fh = fopen("/proc/sys/net/core/rmem_default", "r");
+	if (fh) {
+		fread(&line[0], 1, sizeof(line), fh);
+		val = atoi(line);
+		printf("/proc/sys/net/core/rmem_default = %d\n", val);
+		fclose(fh);
+	}
+
+	fh = fopen("/proc/sys/net/core/rmem_max", "r");
+	if (fh) {
+		fread(&line[0], 1, sizeof(line), fh);
+		val = atoi(line);
+		printf("/proc/sys/net/core/rmem_max = %d\n", val);
+		if (i->buffer_size > val) {
+			fprintf(stderr, "buffer_size %d exceeds rmem_max %d, aborting\n", i->buffer_size, val);
+			exit(1);
+		}
+		fclose(fh);
+	}
+
+}
+
 #ifdef __linux__
 static void timer_thread(union sigval arg)
 {
@@ -620,6 +648,8 @@ int bitrate_smoother(int argc, char *argv[])
 	}
 
 	ret = smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
+
+	kernel_check_socket_sizes(ctx->i_puc);
 
 	/* Preallocate enough throughput measures for approx a 40mbit stream */
 	signal(SIGINT, signal_handler);
