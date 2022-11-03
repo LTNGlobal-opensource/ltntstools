@@ -1,3 +1,3 @@
 #!/bin/sh
-git tag -a v1.18.0 -m "v1.18.0"
+git tag -a v1.19.0 -m "v1.19.0"
 
