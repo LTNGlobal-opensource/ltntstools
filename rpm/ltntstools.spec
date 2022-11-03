@@ -50,11 +50,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Thu Nov  2 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.19.0
-  tstools_bitrate_smoother: Adjust console example help, remove -b and replace with -l.
+  tstools_bitrate_smoother: Adjust console help example command, remove -b and replace with -l.
   tstools_bitrate_smoother: Feature. Add option -L to terminate process after N seconds of input LOS.
   tstools_bitrate_smoother: Report system socket buffer sizes on the console.
   tstools_bitrate_smoother: Feature. Discover PCR pid automatically.
-  tstools_bitrate_smoother: Show dates/times in log messages for key events.
+  tstools_bitrate_smoother: Show dates/times in log messages for important events.
 
 * Thu Oct 13 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.18.0
