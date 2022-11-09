@@ -628,6 +628,24 @@ static void *ui_thread_func(void *p)
 								);
 						}
 
+						if (m->programs[p].service_name[0] && m->programs[p].service_provider[0]) {
+							streamCount++;
+							mvprintw(streamCount + 2, 52, "Service/Provider: '%s' / '%s'",
+								m->programs[p].service_name,
+								m->programs[p].service_provider);
+						} else {
+							if (m->programs[p].service_name[0]) {
+								streamCount++;
+								mvprintw(streamCount + 2, 52, "Service: '%s'",
+									m->programs[p].service_name);
+							}
+							if (m->programs[p].service_name[0]) {
+								streamCount++;
+								mvprintw(streamCount + 2, 52, "Provider: '%s'",
+									m->programs[p].service_provider);
+							}
+						}
+
 					} /* For each program */
 
 					ltntstools_pat_free(m);
