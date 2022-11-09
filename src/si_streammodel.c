@@ -32,7 +32,7 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 
 		struct ltntstools_pat_s *pat = NULL;
 		if (ltntstools_streammodel_query_model(g_sm, &pat) == 0) {
-//				ltntstools_pat_dprintf(pat, 0);
+			ltntstools_pat_dprintf(pat, 1);
 			ltntstools_pat_free(pat);
 		}
 	}
