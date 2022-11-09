@@ -9,60 +9,27 @@
 #include <inttypes.h>
 #include <pthread.h>
 #include <libltntstools/ltntstools.h>
-#include "ffmpeg-includes.h"
+#include "parsers.h"
+#include "utils.h"
 
 static int gRunning = 0;
 
 struct tool_context_s
 {
 	char *iname;
+	char *ifname;
 	int verbose;
 	int stopAfterSeconds;
+
+#define MAX_ADDRESS_COUNT 64
+	int addressCount;
+	struct parser_ippid_s address[MAX_ADDRESS_COUNT];
+	void *joinHandles[MAX_ADDRESS_COUNT];
 
 #ifdef __linux__
 	timer_t timerId;
 #endif
-
-	/* ffmpeg related */
-	pthread_t ffmpeg_threadId;
-	int ffmpeg_threadTerminate, ffmpeg_threadRunning, ffmpeg_threadTerminated;
-	AVIOContext *puc;
 };
-
-static void *thread_packet_rx(void *p)
-{
-	struct tool_context_s *ctx = p;
-	ctx->ffmpeg_threadRunning = 1;
-	ctx->ffmpeg_threadTerminate = 0;
-	ctx->ffmpeg_threadTerminated = 0;
-
-	pthread_detach(ctx->ffmpeg_threadId);
-
-	unsigned char buf[7 * 188];
-
-	while (!ctx->ffmpeg_threadTerminate) {
-		int rlen = avio_read(ctx->puc, buf, sizeof(buf));
-		if (ctx->verbose) {
-			printf("source received %d bytes\n", rlen);
-		}
-		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
-			usleep(2 * 1000);
-			continue;
-		} else
-		if (rlen < 0) {
-			usleep(2 * 1000);
-			gRunning = 0;
-			/* General Error or end of stream. */
-			continue;
-		}
-
-		/* Discard the packets */
-	}
-	ctx->ffmpeg_threadTerminated = 1;
-
-	pthread_exit(0);
-	return 0;
-}
 
 static void signal_handler(int signum)
 {
@@ -107,9 +74,10 @@ static void terminate_after_seconds(struct tool_context_s *ctx, int seconds)
 static void usage(const char *progname)
 {
 	printf("A tool to issue IGMP joins on a specific multicast group and interface.\n");
+	printf("Up to %d joins are supported on a single interface, via multiple -a options.\n", MAX_ADDRESS_COUNT);
 	printf("Usage:\n");
-	printf("  -i <url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
-	printf("           172.16.0.67 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -i <nicname> Eg: eno2\n");
+	printf("  -a <url> Eg: udp://234.1.1.1:4160\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 #ifdef __linux__
@@ -126,15 +94,34 @@ int igmp_join(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-	while ((ch = getopt(argc, argv, "?hi:vt:")) != -1) {
+	while ((ch = getopt(argc, argv, "?ha:i:vt:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
 			usage(argv[0]);
 			exit(1);
 			break;
-		case 'i':
+		case 'a':
 			ctx->iname = optarg;
+			ret = parsers_ippid_parse(ctx->iname, &ctx->address[ctx->addressCount]);
+			if (ret < 0) {
+				fprintf(stderr, "Error parsing address, err = %d\n", ret);
+				exit(1);
+			}
+			ctx->addressCount++;
+			if (ctx->addressCount >= MAX_ADDRESS_COUNT) {
+				fprintf(stderr, "Too many joins, limit is %d, aborting\n", MAX_ADDRESS_COUNT);
+				exit(1);
+			}
+			break;
+		case 'i':
+			ctx->ifname = optarg;
+			if (!networkInterfaceExists(ctx->ifname)) {
+				fprintf(stderr, "\nNo such network interface '%s', available interfaces:\n", ctx->ifname);
+				networkInterfaceList();
+				printf("\n");
+				exit(1);
+			}
 			break;
 		case 'v':
 			ctx->verbose++;
@@ -152,6 +139,11 @@ int igmp_join(int argc, char *argv[])
 
 	if (ctx->iname == NULL) {
 		usage(argv[0]);
+		fprintf(stderr, "\n-a is mandatory.\n\n");
+		exit(1);
+	}
+	if (ctx->ifname == NULL) {
+		usage(argv[0]);
 		fprintf(stderr, "\n-i is mandatory.\n\n");
 		exit(1);
 	}
@@ -162,35 +154,28 @@ int igmp_join(int argc, char *argv[])
 #endif
 	}
 
-	avformat_network_init();
-	
-	ret = avio_open2(&ctx->puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
-	if (ret < 0) {
-		fprintf(stderr, "-i syntax error\n");
-		ret = -1;
-		goto no_output;
+	for (int i = 0; i < ctx->addressCount; i++) {
+		ret = ltntstools_igmp_join(&ctx->joinHandles[i], ctx->address[i].address, ctx->address[i].port, ctx->ifname);
+		if (ret < 0) {
+			fprintf(stderr, "Unable to join address %s:%d, aborting\n", ctx->address[i].address, ctx->address[i].port);
+			exit(1);
+		}
 	}
 
+	printf("<CTRL-C> to exit\n");
+	
 	signal(SIGINT, signal_handler);
 	gRunning = 1;
-
-	pthread_create(&ctx->ffmpeg_threadId, 0, thread_packet_rx, ctx);
-
-	printf("\nJoined %s\n", ctx->iname);
-	printf("<CTRL-C> to exit\n");
 	while (gRunning) {
 		usleep(50 * 1000);
 	}
 
-	/* Shutdown ffmpeg */
-	ctx->ffmpeg_threadTerminate = 1;
-	while (!ctx->ffmpeg_threadTerminated)
-		usleep(50 * 1000);
-
-	avio_close(ctx->puc);
+	for (int i = 0; i < ctx->addressCount; i++) {
+		if (ctx->joinHandles[i])
+			ltntstools_igmp_drop(ctx->joinHandles[i]);
+	}
 
 	ret = 0;
 
-no_output:
 	return ret;
 }

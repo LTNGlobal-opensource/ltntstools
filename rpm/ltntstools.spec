@@ -53,6 +53,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 - v1.20.0
   tstools_nic_monitor: Avoid SRT buffer warnings with high jitter and bursty streams
   tstools_nic_monitor: Display SDT Service name / provider if available in the model view.
+  tstools_igmp_join: Overhaul tool, reduced cpu usage and support up to 64 joins on a single nic.
 
 * Thu Nov  2 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.19.0

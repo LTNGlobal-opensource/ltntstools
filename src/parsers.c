@@ -1,8 +1,10 @@
 
 #include <stdio.h>
+#include <string.h>
 
 #include "parsers.h"
 
+/* Mandatory format decimal pid: a.b.c.d:port */
 /* Mandatory format decimal pid: a.b.c.d:port.pid */
 /* Mandatory format     hex pid: a.b.c.d:port.0xpid */
 
@@ -24,6 +26,19 @@ int parsers_ippid_parse(const char *str, struct parser_ippid_s *dst)
 {
 	if (!dst || !str)
 		return -1;
+
+	char addr[64];
+	int port;
+	if (sscanf(str, "udp://%99[^:]:%d", &addr[0], &port) == 2) {
+		strcpy(dst->address, addr);
+		dst->port = port;
+		sprintf(dst->ui_address_ip, "%s:%d",
+			dst->address, dst->port);
+		sprintf(dst->ui_address_ip_pid, "%s:%d.0x%x",
+			dst->address, dst->port, dst->pid);
+
+		return 0; /* Success */
+	}
 
 	int ret = sscanf(str, "%d.%d.%d.%d:%d.0x%x",
 		&dst->digit[0], &dst->digit[1], &dst->digit[2], &dst->digit[3], &dst->port, &dst->pid);
