@@ -992,7 +992,12 @@ static void *pcap_thread_func(void *p)
 	void *sm = NULL;
 	AVIOContext *puc = NULL;
 	uint8_t *buf = NULL;
-	int buflen = 240 * 188;
+
+	/* Massive buffer, I know.
+	 * We saw SRT buffer errors with high jitter/latency streams, super bursty.
+	 * make the SRT input buffer big enough that our reads can absorb it.
+	 */
+	int buflen = 8192 * 188;
 
 	struct ltntstools_source_rcts_callbacks_s sm_callbacks = { 0 };
 	sm_callbacks.raw = (ltntstools_source_rcts_raw_callback)sm_cb_raw;
@@ -1102,7 +1107,7 @@ static void *pcap_thread_func(void *p)
 		if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
 			/* TODO: Migrate this to use the source-avio.[ch] framework */
 
-			/* ulk reads of less than this (7 * 188 eg) cause the ffurl_read in libsrt
+			/* Bulk reads of less than this (7 * 188 eg) cause the ffurl_read in libsrt
 			 * to throw constant expcetions / warnings.
 			 * Read larger buffer values to avoid the issue.
 			 */
