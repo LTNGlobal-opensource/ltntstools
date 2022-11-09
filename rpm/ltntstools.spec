@@ -47,7 +47,13 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
+
 %changelog
+* Wed Nov 09 2022 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.20.0
+  tstools_nic_monitor: Avoid SRT buffer warnings with high jitter and bursty streams
+  tstools_nic_monitor: Display SDT Service name / provider if available in the model view.
+
 * Thu Nov  2 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.19.0
   tstools_bitrate_smoother: Adjust console help example command, remove -b and replace with -l.
