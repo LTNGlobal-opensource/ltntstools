@@ -274,6 +274,13 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	time_t now;
 	time(&now);
 
+	/* Expire any interval averages every few seconds, ro avoid queue growth and memory loss over time. */
+
+	if (now >= di->packetIntervalAveragesLastExpire + 5) {
+		di->packetIntervalAveragesLastExpire = now;
+		throughput_hires_expire(di->packetIntervalAverages, NULL); /* Expire anything older than 2 seconds. */
+	}
+
 	if (di->payloadType == PAYLOAD_RTP_TS) {
 		if (ntohs(udphdr->uh_ulen) - 8 - 12 != (7 * 188)) {
         		di->notMultipleOfSevenError++;

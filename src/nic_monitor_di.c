@@ -470,7 +470,6 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	/* IATs - Min/MAX?AVG stats for the last 1 second. */
 	int64_t iat_min, iat_max, iat_avg;
 	throughput_hires_minmaxavg_i64(di->packetIntervalAverages, 0, NULL, NULL, &iat_min, &iat_max, &iat_avg);
-	throughput_hires_expire(di->packetIntervalAverages, NULL); /* Expire anything older than 2 seconds. */
 
 	json_object *iat1_min = json_object_new_int64(iat_min);
 	json_object *iat1_max = json_object_new_int64(iat_max);

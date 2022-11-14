@@ -329,6 +329,7 @@ struct discovered_item_s
 	/* IAT Histogram */
 	struct ltn_histogram_s *packetIntervals;
 	void *packetIntervalAverages;
+	time_t packetIntervalAveragesLastExpire;
 
 	/* PSIP Tree / Stream Model */
 	void *streamModel;
