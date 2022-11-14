@@ -51,7 +51,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Wed Nov 09 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.20.0
-  tstools_nic_monitor: Don't show a bogus PCR measurement in Model View for program 0.
+  tstools_nic_monitor: Don't show a bogus PCR measurement in Model View for program number zero.
   tstools_nic_monitor: Avoid SRT buffer warnings with high jitter and bursty streams
   tstools_nic_monitor: Display SDT Service name / provider if available in the model view.
   tstools_nic_monitor: Fix a 46byte leak on shutdown.
