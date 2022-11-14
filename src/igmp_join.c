@@ -75,6 +75,7 @@ static void usage(const char *progname)
 {
 	printf("A tool to issue IGMP joins on a specific multicast group and interface.\n");
 	printf("Up to %d joins are supported on a single interface, via multiple -a options.\n", MAX_ADDRESS_COUNT);
+	printf("Each process supports only one NIC, don't issue multiple -i args.\n");
 	printf("Usage:\n");
 	printf("  -i <nicname> Eg: eno2\n");
 	printf("  -a <url> Eg: udp://234.1.1.1:4160\n");
@@ -83,6 +84,8 @@ static void usage(const char *progname)
 #ifdef __linux__
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 #endif
+	printf("\nExample:\n");
+	printf("  ./tstools_igmp_join -i net1 -a udp://227.1.1.1:4001 -a udp://227.1.1.2:4002     -- Issue two joins on net1\n");
 }
 
 int igmp_join(int argc, char *argv[])
