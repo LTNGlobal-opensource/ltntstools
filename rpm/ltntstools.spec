@@ -54,7 +54,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Don't show a bogus PCR measurement in Model View for program number zero.
   tstools_nic_monitor: Avoid SRT buffer warnings with high jitter and bursty streams
   tstools_nic_monitor: Display SDT Service name / provider if available in the model view.
-  tstools_nic_monitor: Fix a 46byte leak on shutdown.
+  tstools_nic_monitor: Fix a one-time 46byte leak on shutdown.
   tstools_nic_monitor: Fix a memory overuse issue introduced in v1.17. Extended use would exhaust system ram.
   tstools_igmp_join: Overhaul tool, reduced cpu usage and support up to 64 joins on a single nic.
 
