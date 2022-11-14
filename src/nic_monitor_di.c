@@ -1654,7 +1654,11 @@ int display_doc_append_with_time(struct display_doc_s *doc, const char *msg, tim
 
 	sprintf(line + strlen(line), ": %s", msg);
 
-	return display_doc_append(doc, line);
+	int ret = display_doc_append(doc, line);
+
+	free(line);
+
+	return ret;
 }
 
 void display_doc_page_up(struct display_doc_s *doc)
