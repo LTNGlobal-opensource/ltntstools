@@ -1752,6 +1752,9 @@ int nic_monitor(int argc, char *argv[])
 	printf("  from %s -> %s\n", ts_b, ts_e);
 	printf("  duration %02d:%02d:%02d (HH:MM:SS)\n\n", diff.tm_hour, diff.tm_min, diff.tm_sec);
 
+	if (ctx->pcap_filter)
+		free(ctx->pcap_filter);
+
 	free(ctx->file_prefix);
 	free(ctx->detailed_file_prefix);
 
