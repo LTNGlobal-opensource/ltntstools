@@ -49,7 +49,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
-* Wed Nov 09 2022 Steven Toth <steven.toth@ltnglobal.com> 
+* Mon Nov 14 2022 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.21.0
+  tstools_nic_monitor: Segfault on exist, if you didn't specify -F for a custom filter. Safe, but annoying.
+
+* Mon Nov 14 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.20.0
   tstools_nic_monitor: Don't show a bogus PCR measurement in Model View for program number zero.
   tstools_nic_monitor: Avoid SRT buffer warnings with high jitter and bursty streams
