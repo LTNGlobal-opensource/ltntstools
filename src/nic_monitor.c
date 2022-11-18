@@ -1227,6 +1227,7 @@ static void usage(const char *progname)
 	printf("  --danger-skip-freespace-check        Skip the Disk Free space check, don't stop recording when disk has < 10pct free.\n");
 	printf("  --measure-scheduling-quanta          Test the scheduling quanta for 1000us sleep granularity.\n");
 	printf("  --show-h264-metadata 0xnnnn          Analyze the given H264 PID (or detect it), show different codec stats (Experimental).\n");
+	printf("  --report-rtp-headers                 For RTP UDP/TS streams, dump each RTP header to console.\n");
 	printf("  --http-json-reporting http://url     Send 1sec json stats reports for all discovered streams [def: disabled] (Experimental).\n");
 	printf("    Eg. http://127.0.0.1:13400/whatever_resource_name_you_want\n");
 }
@@ -1269,6 +1270,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		{ "measure-scheduling-quanta",	no_argument,		0, 0 },
 		{ "show-h264-metadata",			required_argument,	0, 0 },
 		{ "http-json-reporting",		required_argument,	0, 0 },
+		{ "report-rtp-headers",			no_argument,		0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1431,6 +1433,9 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			case 23: /* http-json-reporting */
 				ctx->automaticallyJSONProbeStreams = 1;
 				strcpy(&ctx->json_http_url[0], optarg);
+				break;
+			case 24: /* report-rtp-headers */
+				ctx->reportRTPHeaders = 1;
 				break;
 			default:
 				usage(argv[0]);

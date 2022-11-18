@@ -47,6 +47,8 @@ void discovered_item_free(struct discovered_item_s *di)
 {
 	nic_monitor_tr101290_free(di);
 
+	rtp_analyzer_free(&di->rtpAnalyzerCtx);
+
 	display_doc_free(&di->doc_stream_log);
 	
 	if (di->h264_metadata_parser) {
@@ -175,6 +177,11 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		}
 #endif
 #endif
+
+		/* Initialize the rtp context regardless of stream type.
+		 * We'll only push packets into this for payloadTypes we supported.
+		 */
+		rtp_analyzer_init(&di->rtpAnalyzerCtx);
 
 	}
 
@@ -840,6 +847,9 @@ void discovered_items_console_summary(struct tool_context_s *ctx)
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		discovered_item_fd_per_pid_report(ctx, e, STDOUT_FILENO);
+		if (e->payloadType == PAYLOAD_RTP_TS) {
+			rtp_analyzer_report_dprintf(&e->rtpAnalyzerCtx, 1);
+		}
 		discovered_item_fd_per_h264_slice_report(ctx, e, STDOUT_FILENO);
 		discovered_item_json_summary(ctx, e);
 	}
@@ -1161,6 +1171,10 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 		pthread_mutex_unlock(&e->h264_sliceLock);
 
 		nic_monitor_tr101290_reset(e);
+
+		if (e->payloadType == PAYLOAD_RTP_TS) {
+			rtp_analyzer_reset(&e->rtpAnalyzerCtx);
+		}
 
 	}
 	pthread_mutex_unlock(&ctx->lock);

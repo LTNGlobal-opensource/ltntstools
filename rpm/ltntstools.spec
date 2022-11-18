@@ -52,6 +52,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Mon Nov 14 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.21.0
   tstools_nic_monitor: Segfault on exit, if you didn't specify -F for a custom filter. Safe, but annoying.
+  tstools_nic_monitor: Added some basic RTP header analysis with console reporting.
+  tstools_nic_monitor: Added option --report-rtp-headers to report RTP headers to console.
 
 * Mon Nov 14 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.20.0

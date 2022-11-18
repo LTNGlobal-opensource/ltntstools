@@ -85,6 +85,7 @@ struct tool_context_s
 	int skipFreeSpaceCheck;
 	int gatherH264Metadata;
 	int gatherH264MetadataPID;
+	int reportRTPHeaders;
 
 	pthread_t pcap_threadId;
 	int pcap_threadTerminate, pcap_threadRunning, pcap_threadTerminated;
@@ -370,6 +371,9 @@ struct discovered_item_s
 	pthread_mutex_t trLock;
 	int trCount;
 	struct ltntstools_tr101290_alarm_s *trArray;
+
+	/* RTP Analaysis - Only used when payloadType == PAYLOAD_RTP_TS. */
+	struct rtp_hdr_analyzer_s rtpAnalyzerCtx;
 
 #if KAFKA_REPORTER
 	struct kafka_ctx_s {

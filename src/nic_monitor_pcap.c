@@ -286,6 +286,30 @@ static void _processPackets_IO(struct tool_context_s *ctx,
         		di->notMultipleOfSevenError++;
         		time(&di->notMultipleOfSevenErrorLastEvent);
 		}
+
+		/* Feed the analyzer */
+		if (isRTP) {
+			/* Extra check, does no harm */
+			const struct rtp_hdr *h = (const struct rtp_hdr *)(pkts - 12);
+
+			if (ctx->reportRTPHeaders) {
+				char stream[128];
+				sprintf(stream, "%s", di->srcaddr);
+				sprintf(stream + strlen(stream), " -> %s : ", di->dstaddr);
+
+				dprintf(STDOUT_FILENO, "%s", stream);
+				for (int i = 0; i < 12; i++) {
+					dprintf(STDOUT_FILENO, "%02x ", *(pkts - 12 + i));
+				}
+				dprintf(STDOUT_FILENO, ": ");
+
+				rtp_analyzer_hdr_dprintf(h, STDOUT_FILENO);
+			}
+
+			rtp_hdr_write(&di->rtpAnalyzerCtx, h);
+
+		}
+
 	} else {
 		if (ntohs(udphdr->uh_ulen) - 8 != (7 * 188)) {
         		di->notMultipleOfSevenError++;
