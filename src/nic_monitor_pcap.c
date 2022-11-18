@@ -534,7 +534,10 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	discovered_item_warningindicators_update(ctx, di);
 }
 
-/* Called on the UI stream, and writes files to disk, handles recordings etc */
+/* Called on the UI stream, and writes files to disk, handles recordings etc.
+ * You can stall this thread a little, most of the work done here is designed to be blocking,
+ * sleeping (a little), io writes, non-realtime work.
+ */
 static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr *h, const u_char *pkt) 
 {
 	int isRTP = 0;
@@ -603,7 +606,7 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 	}
 }
 
-/* Called on the pcap thread */
+/* Called on the pcap thread. don't linger, be swift else risk, pcap buffer loss under load. */
 void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr *h, const u_char *pkt) 
 { 
 	enum payload_type_e payloadType = PAYLOAD_UNDEFINED;
