@@ -92,8 +92,9 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 {
 	int ret = -1;
 
-#if 0
+#if 1
 	printf("posting html json:\n%s\n", item->buf);
+	return 0; /* Success */
 #endif
 //	return 0; /* Success */
 
@@ -103,6 +104,7 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	printf("base64 = %s\n", encoded_data);
 #endif
 
+#if 0
 	curl_global_init(CURL_GLOBAL_ALL);
 
 	CURL *curl = curl_easy_init();
@@ -133,7 +135,10 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	curl_slist_free_all(headers);
 	curl_global_cleanup();
 
-	return ret; /* Success */	
+	return ret;
+#endif
+
+	return ret;	
 }
 
 /* Peek the list, don't remove it because our post may fail, and I don't want to

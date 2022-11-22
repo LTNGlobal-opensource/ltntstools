@@ -28,7 +28,7 @@ if DTAPI
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
 endif
 #LDADD += -lmediainfo
-LDADD += -lcurl
+#LDADD += -lcurl
 LDADD += ../../target-root/usr/lib/libjson-c.a
 #LDADD += -lrdkafka
 endif
