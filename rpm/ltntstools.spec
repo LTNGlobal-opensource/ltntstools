@@ -52,6 +52,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Mon Dec  5 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.22.0
   tstools_nielsen_inspector: Bugfix: Compile time issue preventing ALL audio code detection.
+  tstools_nielsen_inspector: Raise a sensible error and exit, if the SDK isn't found during runtime.
 
 * Tue Nov 22 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.21.0
