@@ -95,6 +95,11 @@ int _nielsen_inspector(int argc, char **argv)
 		exit(1);
 	}
 
+	if (ltntstools_audioanalyzer_has_feature_nielsen(NULL) == 0) {
+		printf("No Nielsen audio decoder detected, this build does not includie Nielsen support, aborting.\n");
+		exit(1);
+	}
+
 	printf("\nEnabling the Nielsen decoder\n\n");
 	int ret = ltntstools_audioanalyzer_alloc(&ctx->aa);
 	if (ret != 0) {
