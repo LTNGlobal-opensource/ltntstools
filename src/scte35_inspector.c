@@ -265,9 +265,17 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 			}
 
 			if (ctx->pe && ctx->lastVideoPTS) {
-				printf("Video pid 0x%04x last pts %" PRIi64 "\n\n",
+
+				char *t = NULL;
+				ltntstools_pts_to_ascii(&t, ctx->lastVideoPTS);
+
+				printf("Video pid 0x%04x last pts %" PRIi64 " [ %s ]\n\n",
 					ctx->videoPID,
-					ctx->lastVideoPTS);
+					ctx->lastVideoPTS,
+					t);
+
+				if (t)
+					free(t);
 			}
 
 			struct scte35_splice_info_section_s *s = scte35_splice_info_section_parse(dst, len);
