@@ -55,6 +55,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nielsen_inspector: Raise a sensible error and exit, if the SDK isn't found during runtime.
   tstools_scte35_inspector: During trigger reporting, show the last video pts time in a human readable time format.
   tstools_scte35_inspector: Don't hang after analyzing a file, recognize end of file and terminate cleanly.
+  tstools_smpte2038_inspector: Don't hang after analyzing a file, recognize end of file and terminate cleanly.
 
 * Tue Nov 22 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.21.0
