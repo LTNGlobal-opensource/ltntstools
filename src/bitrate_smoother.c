@@ -21,53 +21,11 @@
 #define DEFAULT_TRAILERROW 18
 #define DEFAULT_LATENCY 100
 
-#define ENABLE_PIR_CORRECTOR 0
-
-#if ENABLE_PIR_CORRECTOR
-
-#include "klbitstream_readwriter.h"
-
-const unsigned char nal[] = {
-
-#if 0
-	/* sps */
-	0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x0a, 0xf8, 0x41, 0xa2,
-
-	/* see 14496-10 7/3/2/2 - pic_parameter_set_rbsp */
-	0x00, 0x00, 0x00, 0x01, 0x68, 0xce, 0x38, 0x80,
-#endif
-	/* Slice header */
-	0x00, 0x00, 0x00, 0x01, 0x05, 0x88, 0x84, 0x21, 0xa0, 
-	
-	/* One I_PCM 16x16 macroblock. 384 bytes which is 16x16x1.5 for luma and chroma. */
-	0x27, 0x28, 0x28, 0x2a,
-	0x2b, 0x28, 0x14, 0x11, 0x11, 0x17, 0x19, 0x19, 0x1f, 0x21, 0x13, 0x11, 0x28, 0x28, 0x29, 0x2c,
-	0x2d, 0x2a, 0x13, 0x10, 0x11, 0x17, 0x19, 0x18, 0x1b, 0x1a, 0x11, 0x0f, 0x29, 0x29, 0x29, 0x2b,
-	0x2b, 0x28, 0x12, 0x10, 0x10, 0x17, 0x1a, 0x19, 0x18, 0x16, 0x13, 0x10, 0x2c, 0x2c, 0x2c, 0x2d,
-	0x2b, 0x27, 0x12, 0x10, 0x11, 0x19, 0x1b, 0x1a, 0x18, 0x15, 0x18, 0x16, 0x2b, 0x29, 0x2b, 0x2d,
-	0x2c, 0x26, 0x12, 0x10, 0x10, 0x20, 0x28, 0x29, 0x2a, 0x18, 0x1c, 0x1d, 0x29, 0x28, 0x29, 0x2c,
-	0x2b, 0x24, 0x11, 0x10, 0x10, 0x35, 0x45, 0x46, 0x47, 0x1f, 0x1a, 0x24, 0x2a, 0x29, 0x29, 0x2b,
-	0x29, 0x22, 0x10, 0x0f, 0x11, 0x42, 0x4e, 0x45, 0x3f, 0x1c, 0x17, 0x2a, 0x2a, 0x29, 0x28, 0x29,
-	0x28, 0x23, 0x10, 0x10, 0x12, 0x32, 0x34, 0x32, 0x2c, 0x19, 0x15, 0x2f, 0x2b, 0x29, 0x28, 0x27,
-	0x28, 0x22, 0x10, 0x10, 0x11, 0x1a, 0x36, 0x62, 0x65, 0x3d, 0x10, 0x27, 0x2c, 0x2a, 0x29, 0x28,
-	0x28, 0x21, 0x10, 0x10, 0x10, 0x16, 0x3f, 0x7a, 0x7b, 0x55, 0x12, 0x1f, 0x2c, 0x29, 0x29, 0x27,
-	0x27, 0x20, 0x10, 0x10, 0x10, 0x15, 0x35, 0x5a, 0x56, 0x3c, 0x13, 0x1e, 0x2b, 0x29, 0x29, 0x27,
-	0x27, 0x1d, 0x10, 0x10, 0x11, 0x14, 0x25, 0x36, 0x2f, 0x1d, 0x12, 0x1c, 0x27, 0x28, 0x29, 0x27,
-	0x26, 0x1b, 0x10, 0x10, 0x11, 0x13, 0x19, 0x26, 0x26, 0x1c, 0x0f, 0x17, 0x27, 0x27, 0x29, 0x28,
-	0x23, 0x18, 0x0f, 0x10, 0x10, 0x12, 0x16, 0x20, 0x23, 0x1b, 0x0f, 0x11, 0x28, 0x26, 0x29, 0x28,
-	0x21, 0x16, 0x0f, 0x10, 0x10, 0x11, 0x13, 0x16, 0x16, 0x13, 0x10, 0x13, 0x27, 0x27, 0x28, 0x28,
-	0x21, 0x15, 0x10, 0x10, 0x10, 0x11, 0x12, 0x17, 0x1a, 0x13, 0x0f, 0x1b, 0x79, 0x78, 0x77, 0x7e,
-	0x89, 0x92, 0x8a, 0x80, 0x76, 0x76, 0x77, 0x7e, 0x8a, 0x9b, 0x85, 0x7d, 0x78, 0x76, 0x78, 0x7d,
-	0x90, 0xb0, 0x9b, 0x7a, 0x77, 0x78, 0x79, 0x7c, 0x95, 0xb2, 0x99, 0x7b, 0x76, 0x79, 0x7a, 0x7e,
-	0x8d, 0x8b, 0x7f, 0x7e, 0x77, 0x79, 0x7a, 0x7e, 0x8a, 0x84, 0x7c, 0x7f, 0x78, 0x78, 0x7b, 0x7e,
-	0x88, 0x84, 0x7d, 0x7f, 0x78, 0x78, 0x7c, 0x7f, 0x84, 0x81, 0x7c, 0x83, 0x86, 0x87, 0x88, 0x81,
-	0x7e, 0x7b, 0x83, 0x82, 0x87, 0x87, 0x86, 0x81, 0x7d, 0x79, 0x82, 0x83, 0x87, 0x87, 0x86, 0x81,
-	0x76, 0x61, 0x70, 0x85, 0x86, 0x87, 0x86, 0x81, 0x70, 0x60, 0x73, 0x86, 0x86, 0x86, 0x86, 0x80,
-	0x7b, 0x85, 0x8b, 0x84, 0x87, 0x86, 0x85, 0x7f, 0x7e, 0x85, 0x85, 0x81, 0x87, 0x86, 0x84, 0x7f,
-	0x7e, 0x80, 0x80, 0x80, 0x86, 0x87, 0x83, 0x7f, 0x7f, 0x81, 0x84, 0x7b,
-	0x80 /* Slice Stop Bit */
-};
-#endif
+/* We previously had ENABLE_PIR_CORRECTOR disabled code here,
+ * that demonstrated patching PIR streams.
+ * It was non-functional and removed, but if you want it, check out
+ * hash 087d51a10d46d11e33a71c95d8f6934793f71b1f
+ */
 
 static int gRunning = 0;
 
@@ -98,14 +56,6 @@ struct tool_context_s
 	int latencyMS;
 	int pcrPID;
 
-#if ENABLE_PIR_CORRECTOR
-	struct {
-		uint8_t video_NextCC;
-		uint16_t vpid;
-		time_t lastInject;
-	} pc;
-#endif
-
 	struct ltntstools_reframer_ctx_s *reframer;
 
 	void *sm; /* StreamModel Context */
@@ -122,46 +72,7 @@ static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
 
 static void transmit_packets(struct tool_context_s *ctx, unsigned char *pkts, int packetCount)
 {
-#if ENABLE_PIR_CORRECTOR
-	printf("Sending %d\n", packetCount);
-
-	unsigned char *buf = malloc(7 * 188);
-	for (int i = 0; i < 7; i++) {
-		ltntstools_generateNullPacket(&buf[i * 188]);
-	}
-
-	memcpy(buf, pkts, packetCount * 188);
-
-	printf("Sending %d/%d packets : \n\t", packetCount, 7 - packetCount);
-	for (int j = 0; j < 7; j++) {
-		unsigned char *pkt = buf + (j * 188);
-		for (int i = 0; i < 8; i++)
-			printf("%02x ", *(pkt + i));
-		printf(" , ");
-	}
-	printf("\n");
-
-
-	/* Find any video pids, and update their CC counters to remove any probelms due to inserts. */
-	for (int i = 0; i < 7; i++) {
-		uint16_t pidnr = ltntstools_pid(buf + (i * 188));
-
-		if (pidnr != ctx->pc.vpid)
-			continue;
-
-		/* Update the video counters to be consecutive */
-		unsigned char *p = buf + (i * 188) + 3;
-		*p &= 0xf0;
-		*p |= (ctx->pc.video_NextCC & 0x0f);
-
-		ctx->pc.video_NextCC++;
-	}
-
-	avio_write(ctx->o_puc, buf, 7 * 188);
-	free(buf);
-#else
 	ltststools_reframer_write(ctx->reframer, pkts, packetCount * 188);
-#endif
 }
 
 static int smoother_cb(void *userContext, unsigned char *buf, int byteCount,
@@ -216,158 +127,7 @@ static int smoother_cb(void *userContext, unsigned char *buf, int byteCount,
 		}
 	}
 
-#if ENABLE_PIR_CORRECTOR
-
-
-	/* Issue a video pid insertion every couple of seconds */
-
-	/* Search the current buffer for a video pid with ltntstools_payload_unit_start_indicator() true */
-	/* Output every packet up to that point. */
-
-	/* The NAL is prebuilt. */
-	/* Allocate a new PES, put the right PTS time in. */
-	/* add the NAL to the pes */
-	/* Container the PES into TS. */
-	/* update the CC counters in the TS. */
-	/* Inject the TS */
-	/* Enjext the rest of the remaining origing input buffer. */
-
-	time_t now = time(NULL);
-
-	/* Index into buffer, if we've located a good place ti insert a new slice. */
-	int PU_offset_pkt = -1;
-
-	if (ctx->pc.lastInject + 1 <= now) {
-
-		for (int i = 0; i < byteCount; i += 188) {
-			uint8_t *pkt = buf + i;
-
-			uint16_t pidnr = ltntstools_pid(pkt);
-			if (pidnr != ctx->pc.vpid)
-				continue;
-
-			if (ltntstools_payload_unit_start_indicator(pkt) == 0)
-				continue;
-
-			/* Found a place to insert our new slice, before this packet. */
-			PU_offset_pkt = i;
-			break;
-		}
-
-		if (PU_offset_pkt == -1) {
-			/* Wanted to insert new slice, coun't find an appropriate stream position,
-			 * continue as normal and check during next callback.
-			 */
-		} else {
-			ctx->pc.lastInject = now;
-
-			/* Transmit all packets up to the new PUSI */
-			printf("Sending head to  %d\n", PU_offset_pkt);
-			transmit_packets(ctx, buf, PU_offset_pkt / 188);
-#if 1
-			/* Make a new PES, appaend our new NAL. */
-			struct ltn_pes_packet_s *pes = ltn_pes_packet_alloc();
-
-			pes->packet_start_code_prefix	= 1;
-			pes->stream_id					= 0xe0;
-			pes->PES_packet_length			= 3 + sizeof(nal);
-			pes->PES_scrambling_control		= 0;
-			pes->PES_priority				= 1;
-			pes->data_alignment_indicator	= 1;
-			pes->copyright					= 1;
-			pes->original_or_copy			= 1;
-			pes->PTS_DTS_flags				= 0; //2;
-			pes->ESCR_flag					= 0;
-			pes->ES_rate_flag				= 0;
-			pes->DSM_trick_mode_flag		= 0;
-			pes->additional_copy_info_flag	= 0;
-			pes->PES_CRC_flag				= 0;
-			pes->PES_extension_flag			= 0;
-			pes->PES_header_data_length		= 0;
-			pes->dataLengthBytes            = sizeof(nal);
-			pes->data						= malloc(pes->dataLengthBytes);
-			memcpy(pes->data, nal, pes->dataLengthBytes);
-
-			if (pes->PTS_DTS_flags == 2) {
-				/* PTS only */
-				pes->PTS = 5 * 90000;
-				/* TODO, we need the next PTS for the current video slice, so the downstyream decoder decodes
-				* this slice and an iframe, updates its macroblock, then immediately replaces the same macroblock
-				* with the next immediate video frame.
-				*/
-			}
-
-			/* We need a bitstream and a target buffer */
-			int esbuflen = 512;
-			unsigned char *esbuf = calloc(1, esbuflen);
-
-			struct klbs_context_s *bs = klbs_alloc();
-			klbs_write_set_buffer(bs, esbuf, esbuflen);
-
-			/* Pack the pes into the bitstream */
-			ssize_t bits = ltn_pes_packet_pack(pes, bs);
-
-			for (int i = 0; i < 32; i++) {
-				printf("%02x ", *(esbuf + i));
-			}
-			printf("\n");
-
-			ltn_pes_packet_dump(pes, "");
-
-			/* Packetize into TS */
-			uint8_t *pkts;
-			uint32_t packetCount;
-			uint8_t cc = 0;
-			ltntstools_ts_packetizer(esbuf, ((bits / 8) + 1), &pkts, &packetCount, 188, &cc, 0x31);
-
-			for (int i = 0; i < 32; i++) {
-				printf("%02x ", *(esbuf + i));
-			}
-			printf("\n");
-
-			for (int i = 0; i < 32; i++) {
-				printf("%02x ", *(pkts + i));
-			}
-			printf("\n");
-	#if 0
-			/* TODO: Round out the ts allocation to be a multiple of 7 packets.
-			* this messes the PCR but keeps nic monitor happy during the
-			* prototype phase.
-			*/
-			if (packetCount == 3) {
-				pkts = realloc(pkts, 7 * 188);
-				ltntstools_generateNullPacket(&pkts[3 * 188]);
-				ltntstools_generateNullPacket(&pkts[4 * 188]);
-				ltntstools_generateNullPacket(&pkts[5 * 188]);
-				ltntstools_generateNullPacket(&pkts[6 * 188]);
-				packetCount += 4;
-			}
-	#endif
-			printf("Sending new slice\n");
-			transmit_packets(ctx, pkts, packetCount);
-
-			free(pkts);
-			klbs_free(bs);
-			free(esbuf);
-			ltn_pes_packet_free(pes);
-#endif
-			/* Transmit all remaing packets from the original buffer */
-			printf("Sending tail from %d\n", PU_offset_pkt);
-			transmit_packets(ctx, buf + PU_offset_pkt, (byteCount - PU_offset_pkt) / 188);
-
-		} /* if we're inserting */
-		
-	} /* If we're searching for an insert location */
-
-	if (PU_offset_pkt == -1) {
-		transmit_packets(ctx, buf, byteCount / 188);
-	}
-
-#else
-
 	transmit_packets(ctx, buf, byteCount / 188);
-
-#endif
 	return 0;
 }
 
@@ -640,10 +400,6 @@ int bitrate_smoother(int argc, char *argv[])
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->latencyMS = DEFAULT_LATENCY;
 	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
-
-#if ENABLE_PIR_CORRECTOR
-	ctx->pc.vpid = 0x31; /* TODO */
-#endif
 
 	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:v:t:")) != -1) {
 		switch (ch) {
