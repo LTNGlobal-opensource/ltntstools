@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <assert.h>
+#include <signal.h>
 
 #include <libltntstools/ltntstools.h>
 #include <libklscte35/scte35.h>
@@ -45,6 +46,12 @@ struct tool_ctx_s
 	int isRTP;
 
 };
+
+static int gRunning = 1;
+static void signal_handler(int signum)
+{
+	gRunning = 0;
+}
 
 static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount);
 
@@ -302,8 +309,7 @@ static void process_pcap_input(struct tool_ctx_s *ctx)
 		return;
 	}
 
-	int ok = 1;
-	while (ok) {
+	while (gRunning) {
 		usleep(50 * 1000);
 	}
 
@@ -318,6 +324,22 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 	return NULL;
 }
 
+static void *_avio_raw_callback_status(void *userContext, enum source_avio_status_e status)
+{
+	switch (status) {
+	case AVIO_STATUS_MEDIA_START:
+		printf("AVIO media starts\n");
+		break;
+	case AVIO_STATUS_MEDIA_END:
+		printf("AVIO media ends\n");
+		signal_handler(0);
+		break;
+	default:
+		fprintf(stderr, "unsupported avio state %d\n", status);
+	}
+	return NULL;
+}
+
 static void process_avio_input(struct tool_ctx_s *ctx)
 {
 	if (strcasestr(ctx->iname, "rtp://")) {
@@ -326,6 +348,7 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 
 	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
 	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+	cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
 
 	void *srcctx = NULL;
 	int ret = ltntstools_source_avio_alloc(&srcctx, ctx, &cbs, ctx->iname);
@@ -334,8 +357,7 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 		return;
 	}
 
-	int ok = 1;
-	while (ok) {
+	while (gRunning) {
 		usleep(50 * 1000);
 	}
 
@@ -410,6 +432,8 @@ int scte35_inspector(int argc, char *argv[])
 		fprintf(stderr, "\n-V mean that -S becomes mandatory.\n\n");
 		exit(1);
 	}
+
+	signal(SIGINT, signal_handler);
 
 	if (ctx->mode == MODE_SOURCE_AVIO) {
 		printf("Mode: AVIO\n");
