@@ -95,6 +95,11 @@ int main(int argc, char *argv[])
 		} else {
 			if (strcmp(appname, app->name) == 0)
 				return app->func(argc, argv);
+
+			/* Enable instances of tstools_bitrate_smoother0..x to run */
+			if ((strcmp("tstools_bitrate_smoother", app->name) == 0) && (strncmp(appname, "tstools_bitrate_smoother", 24) == 0)) {
+				return app->func(argc, argv);
+			}
 		}
 
 		app = &apps[i++];
