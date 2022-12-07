@@ -49,6 +49,9 @@ static void *avio_thread_func(void *p)
 	int isRTP = 0;
 	int blen = 7 * 188;
 	int boffset = 0;
+	if (ctx->callbacks.status) {
+		ctx->callbacks.status(ctx->userContext, AVIO_STATUS_MEDIA_START);
+	}
 	while (!ctx->threadTerminate) {
 		int rlen = avio_read(ctx->puc, buf, blen);
 		if (rlen == -EAGAIN) {
@@ -73,6 +76,9 @@ static void *avio_thread_func(void *p)
 		if (ctx->callbacks.raw) {
 			ctx->callbacks.raw(ctx->userContext, buf + boffset, (blen - boffset) / 188);
 		}
+	}
+	if (ctx->callbacks.status) {
+		ctx->callbacks.status(ctx->userContext, AVIO_STATUS_MEDIA_END);
 	}
 
 	free(buf);

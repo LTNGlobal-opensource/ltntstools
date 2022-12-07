@@ -23,11 +23,20 @@
 extern "C" {
 #endif
 
+enum source_avio_status_e
+{
+    AVIO_STATUS_UNDEFINED = 0,
+    AVIO_STATUS_MEDIA_START,
+    AVIO_STATUS_MEDIA_END,
+};
+
 typedef void (*ltntstools_source_avio_raw_callback)(void *userContext, const uint8_t *pkts, int packetCount);
+typedef void (*ltntstools_source_avio_raw_callback_status)(void *userContext, enum source_avio_status_e status);
 
 struct ltntstools_source_avio_callbacks_s
 {
     ltntstools_source_rcts_raw_callback raw;
+    ltntstools_source_avio_raw_callback_status status;
 };
 
 /**
