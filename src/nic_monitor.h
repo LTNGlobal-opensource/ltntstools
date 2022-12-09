@@ -287,7 +287,7 @@ struct discovered_item_s
 	struct udphdr udphdr;
 
 	/* PID Statistics */
-	struct ltntstools_stream_statistics_s stats;
+	struct ltntstools_stream_statistics_s *stats;
 
 	/* Each time we write stats to a file, we cache the last write
 	 * here. When we write the files, if the CC has changed
@@ -295,9 +295,9 @@ struct discovered_item_s
 	 * we make that obvious in the files, for easier operator
 	 * parsing.
 	 */
-	struct ltntstools_stream_statistics_s statsToFileSummary;
-	struct ltntstools_stream_statistics_s statsToFileDetailed;
-	struct ltntstools_stream_statistics_s statsToUI;
+	struct ltntstools_stream_statistics_s *statsToFileSummary;
+	struct ltntstools_stream_statistics_s *statsToFileDetailed;
+	struct ltntstools_stream_statistics_s *statsToUI;
 
 	/* File output */
 	char filename[128];

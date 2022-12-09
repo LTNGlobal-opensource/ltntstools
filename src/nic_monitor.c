@@ -149,7 +149,7 @@ static void *ui_thread_func(void *p)
 				di->payloadType = PAYLOAD_BYTE_STREAM;
 			}
 
-			if (di->stats.ccErrors)
+			if (di->stats->ccErrors)
 				discovered_item_state_set(di, DI_STATE_CC_ERROR);
 			else
 				discovered_item_state_clr(di, DI_STATE_CC_ERROR);
@@ -163,16 +163,16 @@ static void *ui_thread_func(void *p)
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
 				attron(COLOR_PAIR(5));
 
-			totalMbps += ltntstools_pid_stats_stream_get_mbps(&di->stats);
+			totalMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
 			totalStreams++;
 			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
 				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
-					ltntstools_pid_stats_stream_get_mbps(&di->stats),
-					di->stats.packetCount,
-					di->stats.ccErrors,
+					ltntstools_pid_stats_stream_get_mbps(di->stats),
+					di->stats->packetCount,
+					di->stats->ccErrors,
 					di->iat_hwm_us / 1000,
 					di->warningIndicatorLabel);
 			} else
@@ -181,12 +181,12 @@ static void *ui_thread_func(void *p)
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
-					ltntstools_ctp_stats_stream_get_mbps(&di->stats),
-					di->stats.packetCount,
-					di->stats.ccErrors,
+					ltntstools_ctp_stats_stream_get_mbps(di->stats),
+					di->stats->packetCount,
+					di->stats->ccErrors,
 					di->iat_hwm_us / 1000,
 					di->warningIndicatorLabel);
-				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+				totalMbps += ltntstools_ctp_stats_stream_get_mbps(di->stats);
 			} else
 			if ((di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) ||
 				(di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) ||
@@ -195,24 +195,24 @@ static void *ui_thread_func(void *p)
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
-					ltntstools_ctp_stats_stream_get_mbps(&di->stats),
-					di->stats.packetCount,
-					di->stats.ccErrors,
+					ltntstools_ctp_stats_stream_get_mbps(di->stats),
+					di->stats->packetCount,
+					di->stats->ccErrors,
 					di->iat_hwm_us / 1000,
 					di->warningIndicatorLabel);
-				totalMbps += ltntstools_ctp_stats_stream_get_mbps(&di->stats);
+				totalMbps += ltntstools_ctp_stats_stream_get_mbps(di->stats);
 			} else
 			if (di->payloadType == PAYLOAD_BYTE_STREAM) {
 				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %4d  %s",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
 					di->dstaddr,
-					ltntstools_bytestream_stats_stream_get_mbps(&di->stats),
-					di->stats.packetCount,
+					ltntstools_bytestream_stats_stream_get_mbps(di->stats),
+					di->stats->packetCount,
 					"-",
 					di->iat_hwm_us / 1000,
 					di->warningIndicatorLabel);
-				totalMbps += ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
+				totalMbps += ltntstools_bytestream_stats_stream_get_mbps(di->stats);
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
@@ -318,7 +318,7 @@ static void *ui_thread_func(void *p)
 					mvprintw(streamCount + 2, 0, " -> PID Report not available for unidentified byte streams");
 				}
 				for (int i = 0; i < MAX_PID; i++) {
-					if (di->stats.pids[i].enabled) {
+					if (di->stats->pids[i].enabled) {
 						streamCount++;
 						if (i == 0) {
 							mvprintw(streamCount + 2, 0, " -> PID Report");
@@ -327,9 +327,9 @@ static void *ui_thread_func(void *p)
 						mvprintw(streamCount + 2, 37, "0x%04x (%4d) %7.2f %'17" PRIu64 " %12" PRIu64 "\n",
 							i,
 							i,
-							ltntstools_pid_stats_pid_get_mbps(&di->stats, i),
-							di->stats.pids[i].packetCount,
-							di->stats.pids[i].ccErrors);
+							ltntstools_pid_stats_pid_get_mbps(di->stats, i),
+							di->stats->pids[i].packetCount,
+							di->stats->pids[i].ccErrors);
 					}
 				}
 				streamCount++;
@@ -518,7 +518,7 @@ static void *ui_thread_func(void *p)
 								m->programs[p].pmt.stream_count);
 
 							/* Poke the stats model and let it know we should be receiving PCRs on this pid. */
-							ltntstools_pid_stats_pid_set_contains_pcr(&di->stats, m->programs[p].pmt.PCR_PID);
+							ltntstools_pid_stats_pid_set_contains_pcr(di->stats, m->programs[p].pmt.PCR_PID);
 						}
 						for (int s = 0; s < m->programs[p].pmt.stream_count; s++) {
 							if (s > 0)
@@ -613,7 +613,7 @@ static void *ui_thread_func(void *p)
 						}
 
 						if (m->programs[p].program_number > 0 && m->programs[p].pmt.PCR_PID) {
-							int64_t pcr = ltntstools_pid_stats_pid_get_pcr(&di->stats, m->programs[p].pmt.PCR_PID);
+							int64_t pcr = ltntstools_pid_stats_pid_get_pcr(di->stats, m->programs[p].pmt.PCR_PID);
 							char *ts = NULL;
 							ltntstools_pcr_to_ascii(&ts, pcr);
 							mvprintw(streamCount + 1, 82, "PCR: %s", ts);
@@ -623,10 +623,10 @@ static void *ui_thread_func(void *p)
 						if (0) {
 							streamCount++;
 							mvprintw(streamCount + 2, 52, "PCR Drift (us): %7" PRIi64 ", %" PRIi64 " %" PRIi64 " %" PRIi64,
-								di->stats.pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us,
-								di->stats.pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us_lwm,
-								di->stats.pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us_hwm,
-								di->stats.pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us_max
+								di->stats->pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us,
+								di->stats->pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us_lwm,
+								di->stats->pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us_hwm,
+								di->stats->pids[m->programs[p].pmt.PCR_PID].clocks[ltntstools_CLOCK_PCR].drift_us_max
 								);
 						}
 

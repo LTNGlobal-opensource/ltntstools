@@ -82,6 +82,12 @@ void discovered_item_free(struct discovered_item_s *di)
 		ltntstools_probe_ltnencoder_free(di->LTNLatencyProbe);
 		di->LTNLatencyProbe = NULL;
 	}
+
+	ltntstools_pid_stats_free(di->stats);
+	ltntstools_pid_stats_free(di->statsToFileSummary);
+	ltntstools_pid_stats_free(di->statsToFileDetailed);
+	ltntstools_pid_stats_free(di->statsToUI);
+
 #if KAFKA_REPORTER
 	kafka_free(di);
 #endif
@@ -123,7 +129,10 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 
 		throughput_hires_alloc(&di->packetIntervalAverages, 20000); /* Sized for 210mbps */
 
-		ltntstools_pid_stats_reset(&di->stats);
+		ltntstools_pid_stats_alloc(&di->stats);
+		ltntstools_pid_stats_alloc(&di->statsToFileDetailed);
+		ltntstools_pid_stats_alloc(&di->statsToFileSummary);
+		ltntstools_pid_stats_alloc(&di->statsToUI);
 
 		/* Stream Model */
 		if (ltntstools_streammodel_alloc(&di->streamModel, di) < 0) {
@@ -449,11 +458,11 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 
 	json_object *fsrc = json_object_new_string(di->srcaddr);
 	json_object *fdst = json_object_new_string(di->dstaddr);
-	json_object *fmbps = json_object_new_double(ltntstools_pid_stats_stream_get_mbps(&di->stats));
+	json_object *fmbps = json_object_new_double(ltntstools_pid_stats_stream_get_mbps(di->stats));
 	json_object *ftype = json_object_new_string(payloadTypeDesc(di->payloadType));
 	json_object *nic = json_object_new_string(ctx->ifname);
-	json_object *fccerr = json_object_new_int64(di->stats.ccErrors);
-	json_object *fpkts = json_object_new_int64(di->stats.packetCount);
+	json_object *fccerr = json_object_new_int64(di->stats->ccErrors);
+	json_object *fpkts = json_object_new_int64(di->stats->packetCount);
 	json_object *fpsdrop = json_object_new_int64(ctx->pcap_stats.ps_drop);
 	json_object *fifdrop = json_object_new_int64(ctx->pcap_stats.ps_ifdrop);
 
@@ -558,15 +567,15 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	json_object *array = json_object_new_array();
 
 	for (int i = 0; i < MAX_PID; i++) {
-		if (di->stats.pids[i].enabled == 0)
+		if (di->stats->pids[i].enabled == 0)
 			continue;
 
 		char pidstr[64];
 		sprintf(pidstr, "0x%04x", i);
 		json_object *pid = json_object_new_string(pidstr);
-		json_object *pc = json_object_new_int64(di->stats.pids[i].packetCount);
-		json_object *cc = json_object_new_int64(di->stats.pids[i].ccErrors);
-		json_object *mbps = json_object_new_double(ltntstools_pid_stats_pid_get_mbps(&di->stats, i));
+		json_object *pc = json_object_new_int64(di->stats->pids[i].packetCount);
+		json_object *cc = json_object_new_int64(di->stats->pids[i].ccErrors);
+		json_object *mbps = json_object_new_double(ltntstools_pid_stats_pid_get_mbps(di->stats, i));
 
 		json_object *item = json_object_new_object();
 		json_object_object_add(item, "pid", pid);
@@ -796,17 +805,17 @@ void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discov
 	sprintf(stream + strlen(stream), " -> %s", di->dstaddr);
 
 	dprintf(fd, "   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s (%s)\n",
-		ltntstools_pid_stats_stream_get_mbps(&di->stats), stream,
+		ltntstools_pid_stats_stream_get_mbps(di->stats), stream,
 		payloadTypeDesc(di->payloadType));
 	dprintf(fd, "<---------------------------  ----------- ------------ ---Mb/ps------------------------------------------------>\n");
 	for (int i = 0; i < MAX_PID; i++) {
-		if (di->stats.pids[i].enabled) {
+		if (di->stats->pids[i].enabled) {
 			dprintf(fd, "0x%04x (%4d) %14" PRIu64 " %12" PRIu64 "%s%12" PRIu64 "   %6.2f\n", i, i,
-				di->stats.pids[i].packetCount,
-				di->stats.pids[i].ccErrors,
-				di->stats.pids[i].ccErrors != di->statsToFileSummary.pids[i].ccErrors ? "!" : " ",
-				di->stats.pids[i].teiErrors,
-				ltntstools_pid_stats_pid_get_mbps(&di->stats, i));
+				di->stats->pids[i].packetCount,
+				di->stats->pids[i].ccErrors,
+				di->stats->pids[i].ccErrors != di->statsToFileSummary->pids[i].ccErrors ? "!" : " ",
+				di->stats->pids[i].teiErrors,
+				ltntstools_pid_stats_pid_get_mbps(di->stats, i));
 		}
 	}
 	ltn_histogram_interval_print(fd, di->packetIntervals, 0);
@@ -912,23 +921,23 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 	uint32_t bps = 0;
 	double mbps = 0;
 	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS)) {
-		mbps = ltntstools_pid_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_pid_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_pid_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_pid_stats_stream_get_bps(di->stats);
 	} else
 	if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
-		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_ctp_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(di->stats);
 	} else
 	if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
-		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_ctp_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(di->stats);
 	} else
 	if (di->payloadType == PAYLOAD_A324_CTP) {
-		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_ctp_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(di->stats);
 	} else {
-		mbps = ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_bytestream_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_bytestream_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_bytestream_stats_stream_get_bps(di->stats);
 	}
 
 	/* Query the LTN encoder latency, if it exists */
@@ -963,9 +972,9 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		ctx->ifname,
 		bps,
 		mbps,
-		di->stats.packetCount,
-		di->stats.ccErrors,
-		di->stats.ccErrors != di->statsToFileDetailed.ccErrors ? "!" : "",
+		di->stats->packetCount,
+		di->stats->ccErrors,
+		di->stats->ccErrors != di->statsToFileDetailed->ccErrors ? "!" : "",
 		di->srcaddr,
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
@@ -1039,23 +1048,23 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 	uint32_t bps = 0;
 	double mbps = 0;
 	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS)) {
-		mbps = ltntstools_pid_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_pid_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_pid_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_pid_stats_stream_get_bps(di->stats);
 	} else
 	if (di->payloadType == PAYLOAD_A324_CTP) {
-		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_ctp_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(di->stats);
 	} else
 	if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
-		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_ctp_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(di->stats);
 	} else
 	if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
-		mbps = ltntstools_ctp_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_ctp_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_ctp_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_ctp_stats_stream_get_bps(di->stats);
 	} else {
-		mbps = ltntstools_bytestream_stats_stream_get_mbps(&di->stats);
-		bps = ltntstools_bytestream_stats_stream_get_bps(&di->stats);
+		mbps = ltntstools_bytestream_stats_stream_get_mbps(di->stats);
+		bps = ltntstools_bytestream_stats_stream_get_bps(di->stats);
 	}
 
 	/* Query the LTN encoder latency, if it exists */
@@ -1090,9 +1099,9 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		ctx->ifname,
 		bps,
 		mbps,
-		di->stats.packetCount,
-		di->stats.ccErrors,
-		di->stats.ccErrors != di->statsToFileSummary.ccErrors ? "!" : "",
+		di->stats->packetCount,
+		di->stats->ccErrors,
+		di->stats->ccErrors != di->statsToFileSummary->ccErrors ? "!" : "",
 		di->srcaddr,
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
@@ -1119,12 +1128,12 @@ void discovered_items_file_summary(struct tool_context_s *ctx, int write_banner)
 
 		discovered_item_file_summary(ctx, e, write_banner);
 
-		/* Implied memcpy of struct */
 		/* Cache the current stats. When we prepare
 		 * file records, of the CC counts have changed, we
 		 * do something significant in the file records.
 		 */
-		e->statsToFileSummary = e->stats;
+		ltntstools_pid_stats_free(e->statsToFileSummary);
+		e->statsToFileSummary = ltntstools_pid_stats_clone(e->stats);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -1142,12 +1151,13 @@ void discovered_items_file_detailed(struct tool_context_s *ctx, int write_banner
 			
 		discovered_item_detailed_file_summary(ctx, e, write_banner);
 
-		/* Implied memcpy of struct */
 		/* Cache the current stats. When we prepare
 		 * file records, of the CC counts have changed, we
 		 * do something significant in the file records.
 		 */
-		e->statsToFileDetailed = e->stats;
+		ltntstools_pid_stats_free(e->statsToFileDetailed);
+		e->statsToFileDetailed = ltntstools_pid_stats_clone(e->stats);
+
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -1158,7 +1168,7 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		ltntstools_pid_stats_reset(&e->stats);
+		ltntstools_pid_stats_reset(e->stats);
 		e->iat_lwm_us = 5000000;
 		e->iat_hwm_us = -1;
 		ltn_histogram_reset(e->packetIntervals);

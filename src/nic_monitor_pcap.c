@@ -220,7 +220,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 	/* If we're detected the LTN version marker, start feeding the packets into the latency detection probe. */
 	if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))
 	{
-		ltntstools_pid_stats_update(&di->stats, pkts, pktCount);
+		ltntstools_pid_stats_update(di->stats, pkts, pktCount);
 
 		if (di->isLTNEncoder) {
 			/* TODO: This will find the first timestamp in a MPTS and it will be rendered as an identical
@@ -230,34 +230,35 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 			ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
 		}
 
-		if (di->stats.ccErrors != di->statsToUI.ccErrors) {
+		if (di->stats->ccErrors != di->statsToUI->ccErrors) {
 			if (di->lastStreamCCError != now) {
 				di->lastStreamCCError = now;
 				display_doc_append_cc_error(&di->doc_stream_log, 0, NULL);
 			}
-			di->statsToUI = di->stats; /* Cache current stats so we can compare the next time around. */
+			ltntstools_pid_stats_free(di->statsToUI);
+			di->statsToUI = ltntstools_pid_stats_clone(di->stats); /* Cache current stats so we can compare the next time around. */
 		}
 
 	} else
 	if (di->payloadType == PAYLOAD_A324_CTP)
 	{
-		ltntstools_ctp_stats_update(&di->stats, pkts, lengthPayloadBytes);
+		ltntstools_ctp_stats_update(di->stats, pkts, lengthPayloadBytes);
 	} else
 	if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO)
 	{
-		ltntstools_ctp_stats_update(&di->stats, pkts, lengthPayloadBytes);
+		ltntstools_ctp_stats_update(di->stats, pkts, lengthPayloadBytes);
 	} else
 	if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO)
 	{
-		ltntstools_ctp_stats_update(&di->stats, pkts, lengthPayloadBytes);
+		ltntstools_ctp_stats_update(di->stats, pkts, lengthPayloadBytes);
 	} else
 	if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC)
 	{
-		ltntstools_ctp_stats_update(&di->stats, pkts, lengthPayloadBytes);
+		ltntstools_ctp_stats_update(di->stats, pkts, lengthPayloadBytes);
 	} else
 	if (di->payloadType == PAYLOAD_BYTE_STREAM)
 	{
-		ltntstools_bytestream_stats_update(&di->stats, pkts, lengthPayloadBytes);
+		ltntstools_bytestream_stats_update(di->stats, pkts, lengthPayloadBytes);
 	}
 }
 

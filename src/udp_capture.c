@@ -32,7 +32,7 @@ struct tool_context_s
 
 	void *hires_throughput;
 
-	struct ltntstools_stream_statistics_s stream;
+	struct ltntstools_stream_statistics_s stream; /* Urgent: Not support any more, convert to pointer */
 
 	int monitor;
 	pthread_t threadId;
