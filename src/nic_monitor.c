@@ -610,6 +610,18 @@ static void *ui_thread_func(void *p)
 							} else {
 								mvprintw(streamCount + 2, 87, "n/a");
 							}
+						} else {
+							if (ctx->measureSEILatencyAlways) {
+								/* Measure latency thorugh video transformers that strip the PMT ES encoder descriptor. */
+								streamCount++;
+
+								int64_t ms = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
+								if (ms >= 0) {
+									mvprintw(streamCount + 2, 52, "Latency: %" PRIi64 "ms", ms);
+								} else {
+									mvprintw(streamCount + 2, 52, "Latency n/a");
+								}
+							}
 						}
 
 						if (m->programs[p].program_number > 0 && m->programs[p].pmt.PCR_PID) {
@@ -1225,6 +1237,7 @@ static void usage(const char *progname)
 	printf("\n");
 	printf("  --udp-forwarder udp://a.b.c.d:port   Add up to %d url forwarders.\n", MAX_URL_FORWARDERS);
 	printf("  --danger-skip-freespace-check        Skip the Disk Free space check, don't stop recording when disk has < 10pct free.\n");
+	printf("  --measure-sei-latency-always         Look for the LTN SEI timing data, regardless of PMT version descriptoring.\n");
 	printf("  --measure-scheduling-quanta          Test the scheduling quanta for 1000us sleep granularity.\n");
 	printf("  --show-h264-metadata 0xnnnn          Analyze the given H264 PID (or detect it), show different codec stats (Experimental).\n");
 	printf("  --report-rtp-headers                 For RTP UDP/TS streams, dump each RTP header to console.\n");
@@ -1271,6 +1284,9 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		{ "show-h264-metadata",			required_argument,	0, 0 },
 		{ "http-json-reporting",		required_argument,	0, 0 },
 		{ "report-rtp-headers",			no_argument,		0, 0 },
+
+		// 25 - 29
+		{ "measure-sei-latency-always", no_argument,		0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1436,6 +1452,9 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 				break;
 			case 24: /* report-rtp-headers */
 				ctx->reportRTPHeaders = 1;
+				break;
+			case 25: /* measure-sei-latency-always */
+				ctx->measureSEILatencyAlways = 1;
 				break;
 			default:
 				usage(argv[0]);

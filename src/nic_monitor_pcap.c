@@ -228,6 +228,10 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 			 * is to have a sense of 'which video pid' the latency is associated with, and render that.
 			 */
 			ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
+		} else {
+			if (ctx->measureSEILatencyAlways) {
+				ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
+			}
 		}
 
 		if (di->stats->ccErrors != di->statsToUI->ccErrors) {

@@ -86,6 +86,7 @@ struct tool_context_s
 	int gatherH264Metadata;
 	int gatherH264MetadataPID;
 	int reportRTPHeaders;
+	int measureSEILatencyAlways;
 
 	pthread_t pcap_threadId;
 	int pcap_threadTerminate, pcap_threadRunning, pcap_threadTerminated;
