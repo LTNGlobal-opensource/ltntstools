@@ -544,6 +544,16 @@ int clock_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
+	uint64_t fileLengthBytes = 0;
+	FILE *fh = fopen(ctx->iname, "rb");
+	if (fh) {
+		fseeko(fh, 0, SEEK_END);
+		fileLengthBytes = ftello(fh);
+		fclose(fh);
+	} else {
+		progressReport = 0;
+	}
+
 	/* TODO: Replace this with avio so we can support streams. */
 	avformat_network_init();
 	AVIOContext *puc;
@@ -558,7 +568,6 @@ int clock_inspector(int argc, char *argv[])
 
 	/* TODO: Migrate this to use the source-avio.[ch] framework */
 	uint64_t filepos = 0;
-	uint64_t fileLengthBytes = 0;
 	uint64_t streamPosition = 0;
 	while (gRunning) {
 		int rlen = avio_read(puc, buf, blen);
@@ -600,7 +609,6 @@ int clock_inspector(int argc, char *argv[])
 			fprintf(stderr, "\rprocessing ... %.02f%%",
 				(double)(((double)filepos / (double)fileLengthBytes) * 100.0));
 		}
-
 	}
 	avio_close(puc);
 
