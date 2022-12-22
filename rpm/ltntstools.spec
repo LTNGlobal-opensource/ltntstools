@@ -54,12 +54,14 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   general: Slight adjustment to the tool launch process, tstools_bitrate_smoother1..X are valid binaries.
   general: libltntstools library, adjusting stats framework to issue alloc/free/clone methods (making space for new functionality)
   tstools_nic_monitor: Changed all use of library pid stats use from a static to dynamic allocations.
+  tstools_nic_monitor: Opt in new feature (measure-sei-latency-always), measure latency through a websockets/Arc relay.
   tstools_bitrate_smoother: Changed all use of library pid stats use from a static to dynamic allocations.
   tstools_nielsen_inspector: Bugfix: Compile time issue preventing ALL audio code detection.
   tstools_nielsen_inspector: Raise a sensible error and exit, if the SDK isn't found during runtime.
   tstools_scte35_inspector: During trigger reporting, show the last video pts time in a human readable time format.
   tstools_scte35_inspector: Don't hang after analyzing a file, recognize end of file and terminate cleanly.
   tstools_smpte2038_inspector: Don't hang after analyzing a file, recognize end of file and terminate cleanly.
+  tstools_pes_inspector: Don't hang after analyzing a file, recognize end of file and terminate cleanly.
 
 * Tue Nov 22 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.21.0
