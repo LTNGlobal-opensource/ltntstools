@@ -232,6 +232,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 	/* If we're detected the LTN version marker, start feeding the packets into the latency detection probe. */
 	if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))
 	{
+// SEGFAULT
 		ltntstools_pid_stats_update(di->stats, pkts, pktCount);
 
 		if (di->isLTNEncoder) {
@@ -246,13 +247,14 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 			}
 		}
 
-		if (di->stats->ccErrors != di->statsToUI->ccErrors) {
+		if (di->stats->ccErrors != di->statsToUI_ccErrors) {
 			if (di->lastStreamCCError != now) {
 				di->lastStreamCCError = now;
 				display_doc_append_cc_error(&di->doc_stream_log, 0, NULL);
 			}
-			ltntstools_pid_stats_free(di->statsToUI);
-			di->statsToUI = ltntstools_pid_stats_clone(di->stats); /* Cache current stats so we can compare the next time around. */
+// SEGFAULT
+			di->statsToUI_ccErrors = di->stats->ccErrors;
+			/* Cache current stats so we can compare the next time around. */
 		}
 
 	} else

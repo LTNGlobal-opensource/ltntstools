@@ -85,8 +85,6 @@ void discovered_item_free(struct discovered_item_s *di)
 
 	ltntstools_pid_stats_free(di->stats);
 	ltntstools_pid_stats_free(di->statsToFileSummary);
-	ltntstools_pid_stats_free(di->statsToFileDetailed);
-	ltntstools_pid_stats_free(di->statsToUI);
 
 #if KAFKA_REPORTER
 	kafka_free(di);
@@ -125,14 +123,19 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		di->iat_hwm_us = -1;
 		di->iat_cur_us = 0;
 
+		/* Each 16000ms histogram is ~ 256KB */
 		ltn_histogram_alloc_video_defaults(&di->packetIntervals, "IAT Intervals");
 
-		throughput_hires_alloc(&di->packetIntervalAverages, 20000); /* Sized for 210mbps */
-
+		/* Sized for 210mbps. Each node (20k) needs 36 bytes, so a 720KB alloc on this */
+		throughput_hires_alloc(&di->packetIntervalAverages, 20000);
+		
+		/* Each allocation  is approximately 3MB, plus an additional 2x256KB for each PCR PID.
+		 * So a single SPTS mux needs 3.5MB of RAM.
+		 * We're doing four of those.
+		 * TODO: This is too expensive on MEMORY 
+		 */
 		ltntstools_pid_stats_alloc(&di->stats);
-		ltntstools_pid_stats_alloc(&di->statsToFileDetailed);
 		ltntstools_pid_stats_alloc(&di->statsToFileSummary);
-		ltntstools_pid_stats_alloc(&di->statsToUI);
 
 		/* Stream Model */
 		if (ltntstools_streammodel_alloc(&di->streamModel, di) < 0) {
@@ -666,6 +669,7 @@ void discovered_items_housekeeping(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
 	struct discovered_item_s *f = NULL;
+	struct discovered_item_s *next = NULL;
 
 	/* Housekeeping runs only periodically. */
 	time_t now = time(NULL);
@@ -736,6 +740,41 @@ void discovered_items_housekeeping(struct tool_context_s *ctx)
 	}
 	pthread_mutex_unlock(&ctx->lock);
 
+	/* 3. Finally, delete dealloc objects more than N minutes old. */
+#define VISUALIZE_PURGE 0
+
+	pthread_mutex_lock(&ctx->lock);
+	e = NULL;
+#if VISUALIZE_PURGE
+	int numHiddenObjects = 0;
+#endif
+	xorg_list_for_each_entry_safe(e, next, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_HIDDEN) == 0)
+			continue;
+
+		if (e->lastUpdated && e->lastUpdated + (3 * 60) < now) {
+
+#if VISUALIZE_PURGE
+			char stream[128];
+			sprintf(stream, "%s", e->srcaddr);
+			sprintf(stream + strlen(stream), " -> %s", e->dstaddr);
+			printf("Purging object '%s'\n", stream);
+#endif
+			/* Object is N minutes old, destroy it. */
+			xorg_list_del(&e->list);
+			discovered_item_free(e);
+		} else {
+#if VISUALIZE_PURGE
+			numHiddenObjects++;
+#endif
+		}
+
+	}
+	pthread_mutex_unlock(&ctx->lock);
+
+#if VISUALIZE_PURGE
+	printf("%d hidden discovered objects on list.\n", numHiddenObjects);
+#endif
 }
 
 /* The one and only place we maintain di->warningIndicatorLabel */
@@ -855,7 +894,9 @@ void discovered_items_console_summary(struct tool_context_s *ctx)
 			rtp_analyzer_report_dprintf(&e->rtpAnalyzerCtx, 1);
 		}
 		discovered_item_fd_per_h264_slice_report(ctx, e, STDOUT_FILENO);
-		discovered_item_json_summary(ctx, e);
+		if (ctx->automaticallyJSONProbeStreams) {
+			discovered_item_json_summary(ctx, e);
+		}
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -969,7 +1010,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		mbps,
 		di->stats->packetCount,
 		di->stats->ccErrors,
-		di->stats->ccErrors != di->statsToFileDetailed->ccErrors ? "!" : "",
+		di->stats->ccErrors != di->statsToFileDetailed_ccErrors ? "!" : "",
 		di->srcaddr,
 		di->dstaddr,
 		ctx->pcap_stats.ps_drop,
@@ -1150,9 +1191,7 @@ void discovered_items_file_detailed(struct tool_context_s *ctx, int write_banner
 		 * file records, of the CC counts have changed, we
 		 * do something significant in the file records.
 		 */
-		ltntstools_pid_stats_free(e->statsToFileDetailed);
-		e->statsToFileDetailed = ltntstools_pid_stats_clone(e->stats);
-
+		e->statsToFileDetailed_ccErrors = e->stats->ccErrors;
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -1425,6 +1464,27 @@ void discovered_items_select_show_streammodel_toggle(struct tool_context_s *ctx)
 			discovered_item_state_clr(e, DI_STATE_SHOW_STREAMMODEL);
 		} else {
 			discovered_item_state_set(e, DI_STATE_SHOW_STREAMMODEL);
+		}
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_select_show_clocks_toggle(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+			continue;
+
+		if (discovered_item_state_get(e, DI_STATE_SHOW_CLOCKS)) {
+			discovered_item_state_clr(e, DI_STATE_SHOW_CLOCKS);
+		} else {
+			discovered_item_state_set(e, DI_STATE_SHOW_CLOCKS);
+			if (discovered_item_state_get(e, DI_STATE_SHOW_STREAMMODEL) == 0) {
+				discovered_item_state_set(e, DI_STATE_SHOW_STREAMMODEL);
+			}
 		}
 	}
 	pthread_mutex_unlock(&ctx->lock);

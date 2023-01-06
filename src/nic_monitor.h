@@ -125,6 +125,8 @@ struct tool_context_s
 	struct pcap_stat pcap_stats_startup; /* network loss and drop statistics */
 	int64_t pcap_free_miss;
 	int64_t pcap_dispatch_miss;
+	int64_t pcap_malloc_miss;
+	int64_t pcap_mangled_list_items;
 
 	/* queue rebalancing */
 	int rebalance_last_buffers_used;
@@ -179,6 +181,9 @@ struct tool_context_s
 
 	/* SRT Ingest, and packet reframing */
 	struct ltntstools_reframer_ctx_s *reframer;
+
+	/* Track tool memory usage */
+	struct statm_context_s memUsage;
 };
 
 struct json_item_s
@@ -272,6 +277,7 @@ struct discovered_item_s
 #define DI_STATE_JSON_PROBE_ACTIVE		(1 << 15)
 #define DI_STATE_SHOW_SCTE35			(1 << 16)
 #define DI_STATE_SHOW_STREAM_LOG		(1 << 17)
+#define DI_STATE_SHOW_CLOCKS			(1 << 18)
 	unsigned int state;
 
 	time_t firstSeen;
@@ -297,8 +303,8 @@ struct discovered_item_s
 	 * parsing.
 	 */
 	struct ltntstools_stream_statistics_s *statsToFileSummary;
-	struct ltntstools_stream_statistics_s *statsToFileDetailed;
-	struct ltntstools_stream_statistics_s *statsToUI;
+	uint64_t statsToFileDetailed_ccErrors;
+	uint64_t statsToUI_ccErrors;
 
 	/* File output */
 	char filename[128];
@@ -447,6 +453,7 @@ void discovered_items_select_show_pids_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_tr101290_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_processes_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_iats_toggle(struct tool_context_s *ctx);
+void discovered_items_select_show_clocks_toggle(struct tool_context_s *ctx);
 void discovered_items_select_hide(struct tool_context_s *ctx);
 void discovered_items_unhide_all(struct tool_context_s *ctx);
 void discovered_items_select_show_streammodel_toggle(struct tool_context_s *ctx);

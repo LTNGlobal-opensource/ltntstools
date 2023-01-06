@@ -296,6 +296,86 @@ static void *ui_thread_func(void *p)
 				mvprintw(streamCount + 2, 0, " -> JSON Probe Active");
 			}
 
+			if (discovered_item_state_get(di, DI_STATE_SHOW_CLOCKS)) {
+				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> Clock Report not available for SMPTE2110-20 Video streams");
+				}
+				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> Clock Report not available for SMPTE2110-30 Audio streams");
+				}
+				if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> Clock Report not available for SMPTE2110-40 Ancillary Data streams");
+				}
+				if (di->payloadType == PAYLOAD_A324_CTP) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> Clock Report not available for A/324 Studio Transmitter Link CTP streams");
+				}
+				if (di->payloadType == PAYLOAD_BYTE_STREAM) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> Clock Report not available for unidentified byte streams");
+				}
+				streamCount++;
+				mvprintw(streamCount + 2, 0, " -> Clock Report (working)");
+				int j = 0;
+				for (int i = 0; i < MAX_PID; i++) {
+					if (!di->stats->pids[i].enabled)
+						continue;
+					if (!di->stats->pids[i].hasPCR)
+						continue;
+					if (!di->stats->pids[i].pcrTickIntervals)
+						continue;
+
+					if (j++ == 0) {
+						/* Replace the provisional '(working)' line above... */
+						mvprintw(streamCount + 2, 0, " -> Clock Report for PID %04x", i);
+						streamCount++;
+					}
+					
+
+					/* The Model report starts the stream model analyzer, where the PCR pids are discovered.
+					 * This only works if the stream model view is also enabled, else no PCR pids are found.
+					 */
+
+					char *s;
+					ltn_histogram_interval_print_buf(&s, di->stats->pids[i].pcrTickIntervals, 0);
+					if (s) {
+						char *buf = s;
+
+						char *p = strtok(buf, "\n");
+						while (p) {
+							mvprintw(streamCount + 2, 4, "%s", p);
+							p = strtok(NULL, "\n");
+							if (p) {
+								streamCount++;
+							}
+						}
+						free(s);
+						s = NULL;
+						streamCount++;
+					}
+					streamCount++;
+
+					ltn_histogram_interval_print_buf(&s, di->stats->pids[i].pcrWallDrift, 0);
+					if (s) {
+						char *buf = s;
+
+						char *p = strtok(buf, "\n");
+						while (p) {
+							mvprintw(streamCount + 2, 4, "%s", p);
+							p = strtok(NULL, "\n");
+							if (p) {
+								streamCount++;
+							}
+						}
+						free(s);
+						streamCount++;
+					}
+				}
+			} /* Show clocks */
+
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
 				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
 					streamCount++;
@@ -692,6 +772,7 @@ static void *ui_thread_func(void *p)
 				ctx->recordAsTS ? "MPEG-TS" : "PCAP");
 
 			streamCount++;
+			streamCount++;
 			mvprintw(streamCount + 2, 0, "f) Freeze UI display (analysis continues)");
 			streamCount++;
 			mvprintw(streamCount + 2, 0, "h) Toggle help menu");
@@ -704,10 +785,11 @@ static void *ui_thread_func(void *p)
 			streamCount++;
 			mvprintw(streamCount + 2, 0, "H) Hide the selected stream (analysis continues)");
 			mvprintw(streamCount + 2, 0, "U) Unhide all hidden streams");
-			mvprintw(streamCount + 2 - 7, 53, "I) Toggle stream IAT histogram report");
-			mvprintw(streamCount + 2 - 6, 53, "L) Toggle stream log report");
-			mvprintw(streamCount + 2 - 5, 53, "M) Toggle stream PSIP model report");
-			mvprintw(streamCount + 2 - 4, 53, "P) Toggle stream PID traffic report");
+			mvprintw(streamCount + 2 - 8, 53, "I) Toggle stream IAT histogram report");
+			mvprintw(streamCount + 2 - 7, 53, "L) Toggle stream log report");
+			mvprintw(streamCount + 2 - 6, 53, "M) Toggle stream PSIP model report");
+			mvprintw(streamCount + 2 - 5, 53, "P) Toggle stream PID traffic report");
+			mvprintw(streamCount + 2 - 4, 53, "C) Toggle stream Clock report");
 			mvprintw(streamCount + 2 - 3, 53, "r) Reset stats counters and begin new measurement period");
 			mvprintw(streamCount + 2 - 2, 53, "R) Start/Stop stream recording");
 			mvprintw(streamCount + 2 - 1, 53, "s) Toggle process/socket report");
@@ -1623,6 +1705,9 @@ int nic_monitor(int argc, char *argv[])
 			ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
 			ctx->lastSocketReport = 0;
 		}
+		if (c == 'C') {
+			discovered_items_select_show_clocks_toggle(ctx);
+		}
 		if (c == 'D') {
 			discovered_items_select_none(ctx);
 		}
@@ -1761,6 +1846,8 @@ int nic_monitor(int argc, char *argv[])
 	if (ctx->verbose) {
 		printf("pcap_free_miss %" PRIi64 "\n", ctx->pcap_free_miss);
 		printf("pcap_dispatch_miss %" PRIi64 "\n", ctx->pcap_dispatch_miss);
+		printf("pcap_malloc_miss %" PRIi64 "\n", ctx->pcap_malloc_miss);
+		printf("pcap_mangled_list_items %" PRIi64 "\n", ctx->pcap_mangled_list_items);
 		printf("ctx->listpcapFreeDepth %d\n", ctx->listpcapFreeDepth);
 		printf("ctx->listpcapUsedDepth %d\n", ctx->listpcapUsedDepth);
 		printf("ctx->rebalance_last_buffers_used %d\n", ctx->rebalance_last_buffers_used);
