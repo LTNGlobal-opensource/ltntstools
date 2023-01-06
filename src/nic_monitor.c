@@ -332,6 +332,7 @@ static void *ui_thread_func(void *p)
 							di->stats->pids[i].ccErrors);
 					}
 				}
+
 				streamCount++;
 
 				if (di->notMultipleOfSevenError && (di->payloadType != PAYLOAD_A324_CTP) &&
@@ -401,10 +402,11 @@ static void *ui_thread_func(void *p)
 						}
 					}
 					free(s);
+					s = NULL;
 					streamCount++;
 				}
-
 			}
+
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PROCESSES)) {
 				streamCount++;
 				mvprintw(streamCount + 2, 0, " -> Socket / Process Report");
