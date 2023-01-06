@@ -217,8 +217,6 @@ int process_memory_update(struct statm_context_s *ctx, int collectInterval)
 	}
 	fclose(f);
 
-	process_memory_dprintf(1, ctx, 0);
-
 	return 0; /* Success */
 }
 
@@ -272,6 +270,40 @@ int process_memory_dprintf(int fd, struct statm_context_s *ctx, int reportSecond
 		getpid(),
 		c->size,     (((double)c->size - (double)s->size) / (double)s->size) * 100.0);
 #endif
+
+	return 0; /* Success */
+}
+
+int process_memory_sprintf(char *dst, struct statm_context_s *ctx, int reportSeconds, int includeTimestamp)
+{
+	if (!ctx->initialized)
+		return -1;
+
+	time_t now = time(NULL);
+	if (ctx->lastReportTime + reportSeconds > now) {
+		/* Too soon to consoile report */
+		return 0;
+	}
+	ctx->lastReportTime = now;
+
+	struct statm_s *s = &ctx->startup;
+	struct statm_s *c = &ctx->curr;
+
+	if (includeTimestamp) {
+		char ts[80];
+		sprintf(ts, "%s", ctime(&now));
+		ts[ strlen(ts) - 1] = 0;
+
+		/* Report current memory sizes plus and any growth since startup */
+		sprintf(dst, "%s: pid %d, size %ld (%.0f%% growth)\n",
+			ts,
+			getpid(),
+			c->size,     (((double)c->size - (double)s->size) / (double)s->size) * 100.0);
+	} else {
+		sprintf(dst, "pid %d, size %ld (%.0f%% growth)\n",
+			getpid(),
+			c->size,     (((double)c->size - (double)s->size) / (double)s->size) * 100.0);
+	}
 
 	return 0; /* Success */
 }

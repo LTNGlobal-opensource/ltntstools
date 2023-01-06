@@ -87,6 +87,7 @@ struct tool_context_s
 	int gatherH264MetadataPID;
 	int reportRTPHeaders;
 	int measureSEILatencyAlways;
+	int reportProcessMemoryUsage;
 
 	pthread_t pcap_threadId;
 	int pcap_threadTerminate, pcap_threadRunning, pcap_threadTerminated;
@@ -184,6 +185,8 @@ struct tool_context_s
 
 	/* Track tool memory usage */
 	struct statm_context_s memUsage;
+	char memUsageStatus[80];
+
 };
 
 struct json_item_s

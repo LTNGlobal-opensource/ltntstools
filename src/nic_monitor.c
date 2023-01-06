@@ -803,6 +803,15 @@ static void *ui_thread_func(void *p)
 			streamCount++;
 		}
 
+
+		if (ctx->reportProcessMemoryUsage) {
+			if (process_memory_sprintf(&ctx->memUsageStatus[0], &ctx->memUsage, 5, FALSE) == 0) {
+				streamCount++;
+				mvprintw(streamCount + 2, 0, "Memory: %s", ctx->memUsageStatus);
+				streamCount++;
+			}
+		}
+
 		attron(COLOR_PAIR(2));
 		ctx->trailerRow = streamCount + 3;
 		if (ctx->showForwardOptions) {
@@ -1327,6 +1336,7 @@ static void usage(const char *progname)
 	printf("  --report-rtp-headers                 For RTP UDP/TS streams, dump each RTP header to console.\n");
 	printf("  --http-json-reporting http://url     Send 1sec json stats reports for all discovered streams [def: disabled] (Experimental).\n");
 	printf("    Eg. http://127.0.0.1:13400/whatever_resource_name_you_want\n");
+	printf("  --report-memory-usage                Report memory usage and growth every 5 seconds.\n");
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
@@ -1371,6 +1381,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 
 		// 25 - 29
 		{ "measure-sei-latency-always", no_argument,		0, 0 },
+		{ "report-memory-usage", 		no_argument,		0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1543,6 +1554,9 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			case 25: /* measure-sei-latency-always */
 				ctx->measureSEILatencyAlways = 1;
 				break;
+			case 26: /* report-memory-usage */
+				ctx->reportProcessMemoryUsage = 1;
+				break;
 			default:
 				usage(argv[0]);
 				exit(1);
@@ -1664,8 +1678,23 @@ int nic_monitor(int argc, char *argv[])
 	signal(SIGINT, signal_handler);
 	timeout(300);
 
+	if (ctx->reportProcessMemoryUsage) {
+		/* Measure the memory used by this process */
+		process_memory_init(&ctx->memUsage);
+	}
+
 	time(&ctx->lastResetTime);
 	while (gRunning) {
+
+		if (ctx->reportProcessMemoryUsage) {
+			process_memory_update(&ctx->memUsage, 5);
+
+			if (ctx->monitor == 0) {
+				/* Report status to console */
+				process_memory_dprintf(STDOUT_FILENO, &ctx->memUsage, 5);
+			}
+		}
+
 		char c = ui_syncronized_getch(ctx);
 		if (c == 'F') {
 			ctx->showForwardOptions = 1;

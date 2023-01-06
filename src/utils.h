@@ -52,5 +52,6 @@ struct statm_context_s
 int process_memory_init(struct statm_context_s *ctx);
 int process_memory_update(struct statm_context_s *ctx, int collectInterval);
 int process_memory_dprintf(int fd, struct statm_context_s *ctx, int reportSeconds);
+int process_memory_sprintf(char *dst, struct statm_context_s *ctx, int reportSeconds, int includeTimestamp);
 
 #endif  /* LTNTOOLS_UTILS_H */
