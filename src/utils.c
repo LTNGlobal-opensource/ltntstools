@@ -4,11 +4,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 /* In string 'str', find occurences of character src and replace with character dst. */
 /* return the number of substituions occured. */
@@ -163,4 +166,112 @@ int isValidTransportFile(const char *filename)
 	}
 
 	return 0;
+}
+
+int process_memory_init(struct statm_context_s *ctx)
+{
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->initialized = 1;
+
+	return 0; /* Success */
+}
+
+int process_memory_update(struct statm_context_s *ctx, int collectInterval)
+{
+	const char *statm_path = "/proc/self/statm";
+
+	if (!ctx->initialized)
+		return -1;
+
+	time_t now = time(NULL);
+	if (ctx->lastCollectTime + collectInterval > now) {
+		/* Too soon to collect */
+		return 0;
+	}
+	ctx->lastCollectTime = now;
+
+	FILE *f = fopen(statm_path,"r");
+	if (!f){
+		return -2;
+	}
+
+	struct statm_s *s = &ctx->curr;
+
+	int ret = fscanf(f, "%ld %ld %ld %ld %ld %ld %ld",
+    	&s->size,
+		&s->resident,
+		&s->share,
+		&s->text,
+		&s->lib,
+		&s->data,
+		&s->dt);
+
+	if (ret != 7) {
+		perror(statm_path);
+		return -3;
+	}
+
+	if (ctx->startTime == 0) {
+		ctx->startTime = time(NULL);
+		ctx->startup = ctx->curr;
+	}
+	fclose(f);
+
+	process_memory_dprintf(1, ctx, 0);
+
+	return 0; /* Success */
+}
+
+int process_memory_dprintf(int fd, struct statm_context_s *ctx, int reportSeconds)
+{
+/* The columns are:
+
+              size       total program size
+                         (same as VmSize in /proc/[pid]/status)
+              resident   resident set size
+                         (same as VmRSS in /proc/[pid]/status)
+              share      shared pages (from shared mappings)
+              text       text (code)
+              lib        library (unused in Linux 2.6)
+              data       data + stack
+              dt         dirty pages (unused in Linux 2.6)
+*/
+	if (!ctx->initialized)
+		return -1;
+
+	time_t now = time(NULL);
+	if (ctx->lastReportTime + reportSeconds > now) {
+		/* Too soon to consoile report */
+		return 0;
+	}
+	ctx->lastReportTime = now;
+
+	char ts[80];
+	sprintf(ts, "%s", ctime(&now));
+	ts[ strlen(ts) - 1] = 0;
+
+	struct statm_s *s = &ctx->startup;
+	struct statm_s *c = &ctx->curr;
+
+#if 0
+	/* Report current memory sizes plus and any growth since startup */
+	dprintf(fd, "%s: pid %d, size %ld (%.0f%%), resident %ld (%.0f%%), share %ld (%.0f%%), text %ld (%.0f%%), lib %ld (%.0f%%), data %ld (%.0f%%), dt %ld (%.0f%%)\n",
+		ts,
+		getpid(),
+		c->size,     (((double)c->size - (double)s->size) / (double)s->size) * 100.0,
+		c->resident, (((double)c->resident - (double)s->resident) / (double)s->resident) * 100.0,
+		c->share,    (((double)c->share - (double)s->share) / (double)s->share) * 100.0,
+		c->text,     (((double)c->text - (double)s->text) / (double)s->text) * 100.0,
+		c->lib,      (((double)c->lib - (double)s->lib) / (double)s->lib) * 100.0,
+		c->data,     (((double)c->data - (double)s->data) / (double)s->data) * 100.0,
+		c->dt,       (((double)c->dt - (double)s->dt) / (double)s->dt) * 100.0);
+#else
+	/* Report current memory sizes plus and any growth since startup */
+	dprintf(fd, "%s: pid %d, size %ld (%.0f%% growth)\n",
+		ts,
+		getpid(),
+		c->size,     (((double)c->size - (double)s->size) / (double)s->size) * 100.0);
+#endif
+
+	return 0; /* Success */
 }
