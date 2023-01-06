@@ -309,6 +309,13 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 			/* Extra check, does no harm */
 			const struct rtp_hdr *h = (const struct rtp_hdr *)(pkts - 12);
 
+			if (di->rtpAnalyzerCtx.tsArrival == NULL) {
+				/* Initialize the rtp context regardless of stream type.
+				* We'll only push packets into this for payloadTypes we supported.
+				*/
+				rtp_analyzer_init(&di->rtpAnalyzerCtx);
+			}
+
 			if (ctx->reportRTPHeaders) {
 				char stream[128];
 				sprintf(stream, "%s", di->srcaddr);

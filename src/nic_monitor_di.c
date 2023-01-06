@@ -187,11 +187,6 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 #endif
 #endif
 
-		/* Initialize the rtp context regardless of stream type.
-		 * We'll only push packets into this for payloadTypes we supported.
-		 */
-		rtp_analyzer_init(&di->rtpAnalyzerCtx);
-
 	}
 
 	return di;
