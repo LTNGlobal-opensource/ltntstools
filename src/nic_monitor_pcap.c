@@ -68,11 +68,23 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 			ctx->pcap_free_miss++;
 			item = malloc(sizeof(*item));
 			if (!item) {
+				ctx->pcap_malloc_miss++;
 				break;
 			}
 
 			item->h = malloc(sizeof(*h));
+			if (!item->h) {
+				ctx->pcap_malloc_miss++;
+				free(item);
+				break;
+			}
 			item->pkt = malloc(h->len);
+			if (!item->pkt) {
+				ctx->pcap_malloc_miss++;
+				free(item->h);
+				free(item);
+				break;
+			}
 		} else {
 			item = xorg_list_first_entry(&ctx->listpcapFree, struct pcap_item_s, list);
 			xorg_list_del(&item->list);
@@ -675,7 +687,6 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
-				
 				src, dst,
 				ntohs(udphdr->uh_ulen),
 				ptr[0], ptr[1], ptr[2], ptr[3]);
@@ -752,8 +763,12 @@ int pcap_queue_service(struct tool_context_s *ctx)
 		item = xorg_list_first_entry(&items, struct pcap_item_s, list);
 		xorg_list_del(&item->list);
 
-		if (item->h && item->pkt) /* safety */
-			pcap_io_process(ctx, item->h, item->pkt); 
+		if (item->h && item->pkt) {
+			/* safety */
+			pcap_io_process(ctx, item->h, item->pkt);
+		} else {
+			ctx->pcap_mangled_list_items++;
+		}
 
 		/* back on the free list */
 		pthread_mutex_lock(&ctx->lockpcap);
