@@ -58,7 +58,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Move rtp analyzer initialization into RTP specific processing, reduces overall memory usage by 2.5MB
   tstools_nic_monitor: Reduce per stream memory usage by 7MB with better stats caching.
   tstools_nic_monitor: Adjust on-screen help options. 
-  tstools_nic_monitor: Implement PCR clock reporting, to measture PCR intervals and PCR jitter.
+  tstools_nic_monitor: Implement Clock reporting. Measures PCR intervals and jitter.
   tstools_nic_monitor: Added report-memory-usage option, disabled by default
   tstools_nic_monitor: Show Rx and Tx bitrate totals in the interactive UI
   tstools_bitrate_smoother: Changed all use of library pid stats use from a static to dynamic allocations.
