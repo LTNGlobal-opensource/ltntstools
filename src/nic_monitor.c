@@ -48,7 +48,7 @@ static void *ui_thread_func(void *p)
 	ctx->ui_threadTerminate = 0;
 	ctx->ui_threadTerminated = 0;
 	ctx->trailerRow = DEFAULT_TRAILERROW;
-	double totalMbps = 0;
+	double totalMbps = 0, totalRxMbps = 0, totalTxMbps = 0;
 	int totalStreams = 0;
 	struct ltntstools_proc_net_udp_item_s *items = NULL;
 	int itemCount = 0;
@@ -68,8 +68,8 @@ static void *ui_thread_func(void *p)
 	init_pair(7, COLOR_YELLOW, COLOR_BLACK);
 
 	while (!ctx->ui_threadTerminate) {
-
-		totalMbps = 0;
+		totalRxMbps = 0;
+		totalTxMbps = 0;
 		totalStreams = 0;
 		time_t now;
 		time(&now);
@@ -163,7 +163,13 @@ static void *ui_thread_func(void *p)
 			if (discovered_item_state_get(di, DI_STATE_SELECTED))
 				attron(COLOR_PAIR(5));
 
-			totalMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
+			if (di->srcOriginRemoteHost) {
+				totalRxMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
+			} else {
+				totalTxMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
+			}
+			totalMbps = totalRxMbps + totalTxMbps;
+
 			totalStreams++;
 			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
 				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
@@ -832,9 +838,9 @@ static void *ui_thread_func(void *p)
 		s[ strlen(s) - 1 ] = 0;
 		memset(tail_b, '-', sizeof(tail_b));
 		if (totalStreams == 1) {
-			sprintf(tail_a, "%s                           %7.02f / %d stream", s, totalMbps, totalStreams);
+			sprintf(tail_a, "%s       T:%7.02f R:%7.02f %7.02f / %d stream", s, totalTxMbps, totalRxMbps, totalMbps, totalStreams);
 		} else {
-			sprintf(tail_a, "%s                           %7.02f / %d streams", s, totalMbps, totalStreams);
+			sprintf(tail_a, "%s       T:%7.02f R:%7.02f %7.02f / %d streams", s, totalTxMbps, totalRxMbps, totalMbps, totalStreams);
 		}
 		sprintf(tail_c, "Since: %s", ctime(&ctx->lastResetTime));
 		blen = 112 - (strlen(tail_a) + strlen(tail_c));

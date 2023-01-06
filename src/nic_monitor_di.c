@@ -123,6 +123,15 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		di->iat_hwm_us = -1;
 		di->iat_cur_us = 0;
 
+		/* Detect if the stream originated from this host */
+		char ip[32];
+		sprintf(ip, "%s", inet_ntoa(srcaddr));
+		if (networkInterfaceExistsByAddress(ip) == 1) {
+			di->srcOriginRemoteHost = 0;
+		} else {
+			di->srcOriginRemoteHost = 1;
+		}
+
 		/* Each 16000ms histogram is ~ 256KB */
 		ltn_histogram_alloc_video_defaults(&di->packetIntervals, "IAT Intervals");
 

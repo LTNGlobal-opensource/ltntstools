@@ -82,6 +82,42 @@ int networkInterfaceExistsByName(const char *ifname)
 	return exists;
 }
 
+int networkInterfaceExistsByAddress(const char *ipaddress)
+{
+	int exists = 0;
+
+	/* Setup multicast on all IPV4 network interfaces, IPV6 interfaces are ignored */
+	struct ifaddrs *addrs;
+	int result = getifaddrs(&addrs);
+	if (result >= 0) {
+		const struct ifaddrs *cursor = addrs;
+		while (cursor != NULL) {
+			if (/* (cursor->ifa_flags & IFF_BROADCAST) && */ (cursor->ifa_flags & IFF_UP) &&
+				(cursor->ifa_addr) && 
+				(cursor->ifa_addr->sa_family == AF_INET)) {
+
+				char host[NI_MAXHOST];
+
+				int r = getnameinfo(cursor->ifa_addr,
+					cursor->ifa_addr->sa_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
+					host, NI_MAXHOST,
+					NULL, 0, NI_NUMERICHOST);
+				if (r == 0) {
+					if (strcmp(ipaddress, host) == 0) {
+						exists = 1;
+						break;
+					}
+				}
+			}
+			cursor = cursor->ifa_next;
+		}
+	}
+
+	freeifaddrs(addrs);
+
+	return exists;
+}
+
 void networkInterfaceList()
 {
 	/* Setup multicast on all IPV4 network interfaces, IPV6 interfaces are ignored */

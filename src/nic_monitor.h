@@ -317,6 +317,7 @@ struct discovered_item_s
 	char srcaddr[24];
 	char dstaddr[24];
 	uint32_t dstport;
+	uint32_t srcOriginRemoteHost; /* Is the stream transmitted from a remote or local server? */
 
 	/* IAT */
 	int iat_lwm_us; /* IAT low watermark (us), measurement of UDP receive interval */
