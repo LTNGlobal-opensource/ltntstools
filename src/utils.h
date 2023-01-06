@@ -14,7 +14,7 @@
 
 int character_replace(char *str, char src, char dst);
 void networkInterfaceList();
-int  networkInterfaceExists(const char *ifname);
+int  networkInterfaceExistsByName(const char *ifname);
 
 /* For a given src and dst ip and udp hheaders, determine
  * of they're an identical stream by matching address and port only.

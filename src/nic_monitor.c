@@ -1450,7 +1450,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 				ctx->iftype = IF_TYPE_MPEGTS_FILE;
 			} else {
 
-				if (networkInterfaceExists(ctx->ifname) == 0) {
+				if (networkInterfaceExistsByName(ctx->ifname) == 0) {
 					fprintf(stderr, "\nNo such network interface '%s', available interfaces:\n", ctx->ifname);
 					networkInterfaceList();
 					printf("\n");

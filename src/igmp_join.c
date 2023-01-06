@@ -119,7 +119,7 @@ int igmp_join(int argc, char *argv[])
 			break;
 		case 'i':
 			ctx->ifname = optarg;
-			if (!networkInterfaceExists(ctx->ifname)) {
+			if (!networkInterfaceExistsByName(ctx->ifname)) {
 				fprintf(stderr, "\nNo such network interface '%s', available interfaces:\n", ctx->ifname);
 				networkInterfaceList();
 				printf("\n");

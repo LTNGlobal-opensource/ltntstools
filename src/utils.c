@@ -29,7 +29,7 @@ int character_replace(char *str, char src, char dst)
 	return c;
 }
 
-int networkInterfaceExists(const char *ifname)
+int networkInterfaceExistsByName(const char *ifname)
 {
 	int exists = 0;
 
