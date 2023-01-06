@@ -60,6 +60,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Adjust on-screen help options. 
   tstools_nic_monitor: Implement PCR clock reporting, to measture PCR intervals and PCR jitter.
   tstools_nic_monitor: Added report-memory-usage option, disabled by default
+  tstools_nic_monitor: Show Rx and Tx bitrate totals in the interactive UI
   tstools_bitrate_smoother: Changed all use of library pid stats use from a static to dynamic allocations.
   tstools_nielsen_inspector: Bugfix: Compile time issue preventing ALL audio code detection.
   tstools_nielsen_inspector: Raise a sensible error and exit, if the SDK isn't found during runtime.
