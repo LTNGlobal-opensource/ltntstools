@@ -1305,6 +1305,9 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		case '@':
 			printf("\n");
 			printf("sizeof(struct ltntstools_stream_statistics_s) = %lu\n", sizeof(struct ltntstools_stream_statistics_s));
+			printf(" + 2x256KB for histograms per PCR pid\n");
+			printf("sizeof(struct rtp_hdr_analyzer_s) = %lu\n", sizeof(struct rtp_hdr_analyzer_s));
+			printf(" + 2x256KB for histograms\n");
 			printf("\n");
 			exit(1);
 			break;
