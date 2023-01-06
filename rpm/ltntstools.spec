@@ -54,11 +54,12 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Changed all use of library pid stats use from a static to dynamic allocations.
   tstools_nic_monitor: Opt in new feature (measure-sei-latency-always), measure latency through a websockets/Arc relay.
   tstools_nic_monitor: Adjust developer option to show a new struct size
-  tstools_nic_monitor: additional ptr safety checks around mallocs
-  tstools_nic_monitor: move rtp analyzer initialization into RTP specific processing, reduces overall memory usage by 2.5MB
+  tstools_nic_monitor: Additional ptr safety checks around mallocs (we were having random segfaults)
+  tstools_nic_monitor: Move rtp analyzer initialization into RTP specific processing, reduces overall memory usage by 2.5MB
   tstools_nic_monitor: Reduce per stream memory usage by 7MB with better stats caching.
   tstools_nic_monitor: Adjust on-screen help options. 
   tstools_nic_monitor: Implement PCR clock reporting, to measture PCR intervals and PCR jitter.
+  tstools_nic_monitor: Added report-memory-usage option, disabled by default
   tstools_bitrate_smoother: Changed all use of library pid stats use from a static to dynamic allocations.
   tstools_nielsen_inspector: Bugfix: Compile time issue preventing ALL audio code detection.
   tstools_nielsen_inspector: Raise a sensible error and exit, if the SDK isn't found during runtime.
