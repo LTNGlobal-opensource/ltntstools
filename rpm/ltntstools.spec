@@ -49,12 +49,16 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
-* Mon Dec  5 2022 Steven Toth <steven.toth@ltnglobal.com> 
+* Fri Jan  6 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.22.0
-  general: Slight adjustment to the tool launch process, tstools_bitrate_smoother1..X are valid binaries.
-  general: libltntstools library, adjusting stats framework to issue alloc/free/clone methods (making space for new functionality)
   tstools_nic_monitor: Changed all use of library pid stats use from a static to dynamic allocations.
   tstools_nic_monitor: Opt in new feature (measure-sei-latency-always), measure latency through a websockets/Arc relay.
+  tstools_nic_monitor: Adjust developer option to show a new struct size
+  tstools_nic_monitor: additional ptr safety checks around mallocs
+  tstools_nic_monitor: move rtp analyzer initialization into RTP specific processing, reduces overall memory usage by 2.5MB
+  tstools_nic_monitor: Reduce per stream memory usage by 7MB with better stats caching.
+  tstools_nic_monitor: Adjust on-screen help options. 
+  tstools_nic_monitor: Implement PCR clock reporting, to measture PCR intervals and PCR jitter.
   tstools_bitrate_smoother: Changed all use of library pid stats use from a static to dynamic allocations.
   tstools_nielsen_inspector: Bugfix: Compile time issue preventing ALL audio code detection.
   tstools_nielsen_inspector: Raise a sensible error and exit, if the SDK isn't found during runtime.
@@ -63,6 +67,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_smpte2038_inspector: Don't hang after analyzing a file, recognize end of file and terminate cleanly.
   tstools_pes_inspector: Don't hang after analyzing a file, recognize end of file and terminate cleanly.
   tstools_clock_inspector: Only report 'processing' percentage if the input is a file.
+  general: Slight adjustment to the tool launch process, tstools_bitrate_smoother1..X are valid binaries.
+  libltntstools library: rtpanalyzer: avoid freeing a histogram if it wasn't previously allocated
+  libltntstools library: stats: add pcr interval and jitter measurements for any detected PCRs
+  libltntstools library: adjusting stats framework to issue alloc/free/clone methods (making space for new functionality)
 
 * Tue Nov 22 2022 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.21.0
