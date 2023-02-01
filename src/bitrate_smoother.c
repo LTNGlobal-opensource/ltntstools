@@ -509,9 +509,6 @@ int bitrate_smoother(int argc, char *argv[])
 		ltntstools_streammodel_free(ctx->sm);
 	}
 
-	ltntstools_pid_stats_free(ctx->i_stream);
-	ltntstools_pid_stats_free(ctx->o_stream);
-
 	ret = 0;
 
 	if (ctx->iname)
@@ -544,6 +541,9 @@ int bitrate_smoother(int argc, char *argv[])
 			errCount += ctx->o_stream->pids[i].ccErrors;
 		}
 	}
+
+	ltntstools_pid_stats_free(ctx->i_stream);
+	ltntstools_pid_stats_free(ctx->o_stream);
 
 	ret = 0;
 

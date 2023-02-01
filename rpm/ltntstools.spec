@@ -49,6 +49,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
+* Wed Feb  1 2023 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.23.0
+  tstools_bitrate_smoother: Fixed segfault on exit, use after free.
+  libltntstools library: smoother_pcr: Leaking pcr objects slowly over time.
+
 * Fri Jan  6 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.22.0
   tstools_nic_monitor: Changed all use of library pid stats use from a static to dynamic allocations.
