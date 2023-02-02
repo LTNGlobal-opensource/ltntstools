@@ -53,6 +53,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 - v1.23.0
   tstools_bitrate_smoother: Fixed segfault on exit, use after free.
   libltntstools library: smoother_pcr: Leaking pcr objects slowly over time.
+  libltntstools library: smoother_pcr: Bug during PCR significant changes, leaking to output stalls, high CPU and memory growth.
+  libltntstools library: smoother_pcr: Gracefully hand the case where the PCR shifts by more than 15 seconds in either direction.
 
 * Fri Jan  6 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.22.0
