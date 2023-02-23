@@ -105,7 +105,17 @@ static int smoother_cb(void *userContext, unsigned char *buf, int byteCount,
 				time_t now = time(0);
 				sprintf(ts, "%s", ctime(&now));
 				ts[ strlen(ts) - 1] = 0;
-				printf("%s: CC Error : pid %04x -- Got 0x%x wanted 0x%x\n", ts, pidnr, cc, (pid->lastCC + 1) & 0x0f);
+				printf("%s: %s() CC Error : pid %04x -- Got 0x%x wanted 0x%x\n", ts, __func__, pidnr, cc, (pid->lastCC + 1) & 0x0f);
+				printf("scb %02x %02x %02x %02x %02x %02x %02x %02x\n",
+					*(buf + i + 0),
+					*(buf + i + 1),
+					*(buf + i + 2),
+					*(buf + i + 3),
+					*(buf + i + 4),
+					*(buf + i + 5),
+					*(buf + i + 6),
+					*(buf + i + 7)
+				);
 				pid->ccErrors++;
 			}
 		}
@@ -147,7 +157,17 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 				time_t now = time(0);
 				sprintf(ts, "%s", ctime(&now));
 				ts[ strlen(ts) - 1] = 0;
-				printf("%s: CC Error : pid %04x -- Got 0x%x wanted 0x%x\n", ts, pidnr, cc, (pid->lastCC + 1) & 0x0f);
+				printf("%s: %s() CC Error : pid %04x -- Got 0x%x wanted 0x%x\n", ts, __func__, pidnr, cc, (pid->lastCC + 1) & 0x0f);
+				printf("pcb %02x %02x %02x %02x %02x %02x %02x %02x\n",
+					*(buf + i + 0),
+					*(buf + i + 1),
+					*(buf + i + 2),
+					*(buf + i + 3),
+					*(buf + i + 4),
+					*(buf + i + 5),
+					*(buf + i + 6),
+					*(buf + i + 7)
+				);
 				pid->ccErrors++;
 			}
 		}
