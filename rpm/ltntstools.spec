@@ -49,6 +49,14 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
+* Thu Feb 23 2023 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.24.0
+  tstools_bitrate_smoother: When report CC errors, be clear if its input or output related
+  tstools_bitrate_smoother: LOS terminate didn't happen in all cases, found during testing.
+  libltntstools library: smoother_pcr: Poor IATs occured after 26.5hrs of runtime.
+  libltntstools library: smoother_pcr: Slow underrun and exhaustion of latency buffer
+  libltntstools library: smoother_pcr: Exhausted the latency buffer due to poor time scheduling in extended runtimes.
+
 * Thu Feb  2 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.23.0
   tstools_bitrate_smoother: Fixed segfault on exit, use after free.
