@@ -212,25 +212,26 @@ static void *thread_packet_rx(void *p)
 	printf("%s: Smoother starting\n", ts);
 
 	while (!ctx->ffmpeg_threadTerminate) {
+		if (ctx->terminateLOSSeconds && (lastPacketTime + ctx->terminateLOSSeconds <= now)) {
+			char ts[256];
+			time_t now = time(0);
+			sprintf(ts, "%s", ctime(&now));
+			ts[ strlen(ts) - 1] = 0;
+
+			/* We lost input packets for N seconds. Terminate cleanly. */
+			printf("%s: LOS occured for %d seconds. Terminating at %s",
+				ts,
+				ctx->terminateLOSSeconds,
+				ctime(&now));
+			exit(1);
+		}
+
 		int rlen = avio_read(ctx->i_puc, buf, sizeof(buf));
 		if (ctx->verbose & 1) {
 			printf("source received %d bytes\n", rlen);
 		}
 		now = time(0);
 		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
-			if (ctx->terminateLOSSeconds && (lastPacketTime + ctx->terminateLOSSeconds <= now)) {
-				char ts[256];
-				time_t now = time(0);
-				sprintf(ts, "%s", ctime(&now));
-				ts[ strlen(ts) - 1] = 0;
-
-				/* We lost input packets for N seconds. Terminate cleanly. */
-				printf("%s: LOS occured for %d seconds. Terminating at %s",
-					ts,
-					ctx->terminateLOSSeconds,
-					ctime(&now));
-				exit(1);
-			}
 			usleep(1 * 1000);
 			continue;
 		} else
