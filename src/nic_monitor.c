@@ -618,7 +618,7 @@ static void *ui_thread_func(void *p)
 							int x = ltntstools_descriptor_list_contains_iso639_audio_descriptor(&m->programs[p].pmt.streams[s].descr_list, &lbl[0], &audio_type);
 							if (x) {
 								sprintf(&iso639_lang[0], "'%s' Type: %s",
-									"eng",
+									lbl,
 									audio_type == 0 ? "None" :
 									audio_type == 1 ? "Clean effects" :
 									audio_type == 2 ? "Hearing impaired" :
