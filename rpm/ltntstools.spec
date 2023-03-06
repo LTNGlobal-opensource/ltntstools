@@ -49,6 +49,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
+* Mon Mar  6 2023 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.25.0
+  tstools_si_inspector: In -v mode, output the per-audio stream language descriptors.
+
 * Thu Feb 23 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.24.0
   tstools_bitrate_smoother: When report CC errors, be clear if its input or output related

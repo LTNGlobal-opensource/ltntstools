@@ -15,6 +15,7 @@
 #define VIDEO_STREAM_DR		    0xF2
 #define CA_DR			            0x09
 #define SMOOTHING_DR	            0x10
+#define ISO639_LANGUAGE_DR	    0x0A
 #define SYSTEM_CLOCK_DR		    0x0B
 #define MAX_BITRATE_DR		    0x0E
 #define STREAM_IDENTIFIER_DR	0x52
@@ -97,6 +98,20 @@ static void DumpSystemClockDescriptor(dvbpsi_system_clock_dr_t* p_clock_descript
      p_clock_descriptor->b_external_clock_ref ? "Yes" : "No",
      p_clock_descriptor->i_clock_accuracy_integer *
      pow(10.0, -(double)p_clock_descriptor->i_clock_accuracy_exponent));
+}
+
+static void DumpISO639LanguageDescriptor(dvbpsi_iso639_dr_t* p_lang_descriptor)
+{
+  for (int i = 0; i < p_lang_descriptor->i_code_count; i++) {
+    printf("iso639 '%c%c%c' type: %s\n",
+      p_lang_descriptor->code[i].iso_639_code[0],
+      p_lang_descriptor->code[i].iso_639_code[1],
+      p_lang_descriptor->code[i].iso_639_code[2],
+      p_lang_descriptor->code[i].i_audio_type == 0 ? "Undefined" :
+      p_lang_descriptor->code[i].i_audio_type == 1 ? "Clean effects" :
+      p_lang_descriptor->code[i].i_audio_type == 2 ? "Hearing impaired" :
+      p_lang_descriptor->code[i].i_audio_type == 3 ? "Visual impaired commentary" : "Reserved");
+  }
 }
 
 static void DumpStreamIdentifierDescriptor(dvbpsi_stream_identifier_dr_t* p_si_descriptor)
@@ -233,6 +248,9 @@ void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
     printf("- ");
 
     switch (p_descriptor->i_tag) {
+    case ISO639_LANGUAGE_DR:
+      DumpISO639LanguageDescriptor(dvbpsi_DecodeISO639Dr(p_descriptor));
+      break;
     case SYSTEM_CLOCK_DR:
       DumpSystemClockDescriptor(dvbpsi_DecodeSystemClockDr(p_descriptor));
       break;
