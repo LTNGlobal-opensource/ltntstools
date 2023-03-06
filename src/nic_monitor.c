@@ -611,6 +611,20 @@ static void *ui_thread_func(void *p)
 						for (int s = 0; s < m->programs[p].pmt.stream_count; s++) {
 							if (s > 0)
 								streamCount++;
+
+							char iso639_lang[6] = { 0 };
+							unsigned int audio_type = 0;
+							unsigned char lbl[16] = { 0 };
+							int x = ltntstools_descriptor_list_contains_iso639_audio_descriptor(&m->programs[p].pmt.streams[s].descr_list, &lbl[0], &audio_type);
+							if (x) {
+								sprintf(&iso639_lang[0], "'%s' Type: %s",
+									"eng",
+									audio_type == 0 ? "None" :
+									audio_type == 1 ? "Clean effects" :
+									audio_type == 2 ? "Hearing impaired" :
+									audio_type == 3 ? "Visual impaired commentary" : "Reserved");
+							}
+
 							const char *d = ltntstools_GetESPayloadTypeDescription(m->programs[p].pmt.streams[s].stream_type);
 							mvprintw(streamCount + 2, 38, "0x%04x  0x%02x  %.*s%s",
 								m->programs[p].pmt.streams[s].elementary_PID,
@@ -618,6 +632,11 @@ static void *ui_thread_func(void *p)
 								52,
 								d,
 								strlen(d) >= 52 ? "..." : "");
+
+							if (x) {
+								streamCount++;
+								mvprintw(streamCount + 2, 52, "lang: %s", iso639_lang);
+							}
 
 							if (m->programs[p].pmt.streams[s].stream_type  == 0x06 /* Private PES */) {
 								has_smpte2038 = ltntstools_descriptor_list_contains_smpte2038_registration(&m->programs[p].pmt.streams[s].descr_list);

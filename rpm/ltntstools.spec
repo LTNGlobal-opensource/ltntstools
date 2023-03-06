@@ -52,6 +52,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Mon Mar  6 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.25.0
   tstools_si_inspector: In -v mode, output the per-audio stream language descriptors.
+  tstools_nic_monitor: In Model report, show the detected audio language and type if present.
 
 * Thu Feb 23 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.24.0
