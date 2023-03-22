@@ -587,7 +587,7 @@ static void *ui_thread_func(void *p)
 						m->current_next_indicator);
 
 					streamCount++;
-					mvprintw(streamCount + 2, 4, "prog#  PMT_PID  PCR_PID  Streams  ES_PID  TYPE  Description");
+					mvprintw(streamCount + 2, 4, "prog#  PMT_PID ----->  PCR_PID ----->  Streams  ES_PID ----->  TYPE  Description");
 
 					for (int p = 0; p < m->program_count; p++) {
 
@@ -599,9 +599,11 @@ static void *ui_thread_func(void *p)
 							mvprintw(streamCount + 2, 1, "   %5d        -        -        -       -     -  Network Information Table",
 								m->programs[p].program_number);
 						} else {
-							mvprintw(streamCount + 2, 1, "   %5d   0x%04x   0x%04x      %3d",
+							mvprintw(streamCount + 2, 1, "   %5d   0x%04x (%4d)   0x%04x (%4d)      %3d",
 								m->programs[p].program_number,
 								m->programs[p].program_map_PID,
+								m->programs[p].program_map_PID,
+								m->programs[p].pmt.PCR_PID,
 								m->programs[p].pmt.PCR_PID,
 								m->programs[p].pmt.stream_count);
 
@@ -626,7 +628,8 @@ static void *ui_thread_func(void *p)
 							}
 
 							const char *d = ltntstools_GetESPayloadTypeDescription(m->programs[p].pmt.streams[s].stream_type);
-							mvprintw(streamCount + 2, 38, "0x%04x  0x%02x  %.*s%s",
+							mvprintw(streamCount + 2, 52, "0x%04x (%4d)  0x%02x  %.*s%s",
+								m->programs[p].pmt.streams[s].elementary_PID,
 								m->programs[p].pmt.streams[s].elementary_PID,
 								m->programs[p].pmt.streams[s].stream_type,
 								52,
@@ -635,7 +638,7 @@ static void *ui_thread_func(void *p)
 
 							if (x) {
 								streamCount++;
-								mvprintw(streamCount + 2, 52, "lang: %s", iso639_lang);
+								mvprintw(streamCount + 2, 54, "lang: %s", iso639_lang);
 							}
 
 							if (m->programs[p].pmt.streams[s].stream_type  == 0x06 /* Private PES */) {
@@ -662,7 +665,8 @@ static void *ui_thread_func(void *p)
 								pthread_mutex_lock(&di->h264_metadataLock);
 								if (di->h264_metadata_parser) {
 									pthread_mutex_unlock(&di->h264_metadataLock);
-									mvprintw(streamCount + 2, 64, "- %s", di->h264_video_colorspace);
+									streamCount++;
+									mvprintw(streamCount + 2, 54, "%s", di->h264_video_colorspace);
 									streamCount++;
 									mvprintw(streamCount + 2, 54, "%s", di->h264_video_format);
 								} else {
@@ -683,7 +687,8 @@ static void *ui_thread_func(void *p)
 								pthread_mutex_lock(&di->h265_metadataLock);
 								if (di->h265_metadata_parser) {
 									pthread_mutex_unlock(&di->h265_metadataLock);
-									mvprintw(streamCount + 2, 63, "- %s", di->h265_video_colorspace);
+									streamCount++;
+									mvprintw(streamCount + 2, 54, "%s", di->h265_video_colorspace);
 									streamCount++;
 									mvprintw(streamCount + 2, 54, "%s", di->h265_video_format);
 								} else {
@@ -696,9 +701,9 @@ static void *ui_thread_func(void *p)
 
 						if (m->programs[p].pmt.stream_count > 0) {
 							streamCount++;
-							mvprintw(streamCount + 2, 52, "SCTE35 Registration: %s", has_scte35 ? "Yes" : "No");
+							mvprintw(streamCount + 2, 54, "SCTE35 Registration: %s", has_scte35 ? "Yes" : "No");
 							streamCount++;
-							mvprintw(streamCount + 2, 52, "SMPTE2038 Registration: %s", has_smpte2038 ? "Yes" : "No");
+							mvprintw(streamCount + 2, 54, "SMPTE2038 Registration: %s", has_smpte2038 ? "Yes" : "No");
 						}
 
 						unsigned int major, minor, patch;
@@ -708,14 +713,14 @@ static void *ui_thread_func(void *p)
 							di->isLTNEncoder = 1;
 
 							streamCount++;
-							mvprintw(streamCount + 2, 52, "LTN Encoder S/W: %d.%d.%d / Latency: ",
+							mvprintw(streamCount + 2, 54, "LTN Encoder S/W: %d.%d.%d / Latency: ",
 								major, minor, patch);
 
 							int64_t ms = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
 							if (ms >= 0) {
-								mvprintw(streamCount + 2, 87, "%" PRIi64 "ms", ms);
+								mvprintw(streamCount + 2, 89, "%" PRIi64 "ms", ms);
 							} else {
-								mvprintw(streamCount + 2, 87, "n/a");
+								mvprintw(streamCount + 2, 89, "n/a");
 							}
 						} else {
 							if (ctx->measureSEILatencyAlways) {
@@ -724,9 +729,9 @@ static void *ui_thread_func(void *p)
 
 								int64_t ms = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
 								if (ms >= 0) {
-									mvprintw(streamCount + 2, 52, "Latency: %" PRIi64 "ms", ms);
+									mvprintw(streamCount + 2, 54, "Latency: %" PRIi64 "ms", ms);
 								} else {
-									mvprintw(streamCount + 2, 52, "Latency n/a");
+									mvprintw(streamCount + 2, 54, "Latency n/a");
 								}
 							}
 						}

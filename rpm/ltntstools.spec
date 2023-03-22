@@ -52,6 +52,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Wed Mar 22 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.26.0
   tstools_nic_monitor: In UI help menu, change text related to stream selection.
+  tstools_nic_monitor: In Model report, add decimal pids to UI view.
 
 * Mon Mar  6 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.25.0
