@@ -789,6 +789,9 @@ static void *ui_thread_func(void *p)
 
 		if (ctx->showUIOptions) {
 			streamCount++;
+			mvprintw(streamCount + 2, 0, "Stream Selection - Press right arrow key, then use up/down arrow to select individual stream");
+
+			streamCount++;
 			mvprintw(streamCount + 2, 0, "@) Record Mode: %s",
 				ctx->recordWithSegments ? "Segments" : "Single File");
 
@@ -822,9 +825,6 @@ static void *ui_thread_func(void *p)
 #if 0
 			mvprintw(streamCount + 2 - 0, 53, "3) Toggle SCTE35 report");
 #endif
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "cursor keys) Select and navigate the cursor");
-
 			streamCount++;
 		}
 

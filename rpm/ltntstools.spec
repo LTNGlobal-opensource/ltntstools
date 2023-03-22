@@ -49,6 +49,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
+* Wed Mar 22 2023 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.26.0
+  tstools_nic_monitor: In UI help menu, change text related to stream selection.
+
 * Mon Mar  6 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.25.0
   tstools_si_inspector: In -v mode, output the per-audio stream language descriptors.
