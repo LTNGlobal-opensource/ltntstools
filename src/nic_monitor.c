@@ -614,7 +614,7 @@ static void *ui_thread_func(void *p)
 							if (s > 0)
 								streamCount++;
 
-							char iso639_lang[6] = { 0 };
+							char iso639_lang[64] = { 0 };
 							unsigned int audio_type = 0;
 							unsigned char lbl[16] = { 0 };
 							int x = ltntstools_descriptor_list_contains_iso639_audio_descriptor(&m->programs[p].pmt.streams[s].descr_list, &lbl[0], &audio_type);
