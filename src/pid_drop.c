@@ -39,10 +39,13 @@ static void usage(const char *progname)
 	printf("Usage:\n");
 	printf("  -i <input.ts>\n");
 	printf("  -o <output.ts>\n");
+	printf("  -R pid 0xNNNN to be removed [def: none], multiple -R instances supported. [0x2000 all pids]\n");
+	printf("  -A pid 0xNNNN to be added [def: 0x2000], multiple -A instances supported. [0x2000 all pids]\n");
+#if 0
 	printf("  -f enable fixup the CC counters in the headers after dropping [def: disabled]\n");
-	printf("  -P pid 0xNNNN to be removed [def: none], multiple -P instances supported.\n");
 	printf("  -p <number>. Drop packets from packet <number> onwards, for -n packets. [def: 0x0]\n");
-	printf("  -n <number>. Number of packets to drop on pid -P. [def: 0x0]\n");
+	printf("  -n <number>. Number of packets to drop on pid -P. [def: 0x0]\n");	
+#endif
 }
 
 int pid_drop(int argc, char *argv[])
@@ -54,7 +57,7 @@ int pid_drop(int argc, char *argv[])
 	memset(ctx, 0, sizeof(*ctx));
 	memset(&ctx->filter[0], 1, sizeof(ctx->filter)); /* Pass all pids by default */
 
-        while ((ch = getopt(argc, argv, "?fhi:n:o:p:P:")) != -1) {
+    while ((ch = getopt(argc, argv, "?fhi:n:o:p:R:A:")) != -1) {
 		switch (ch) {
 		case 'f':
 			ctx->doFixups = 1;
@@ -71,12 +74,27 @@ int pid_drop(int argc, char *argv[])
 		case 'p':
 			ctx->pidPacketDropPosition = atoi(optarg);
 			break;
-		case 'P':
-			if ((sscanf(optarg, "0x%x", &ctx->pid) != 1) || (ctx->pid > 0x1fff)) {
+		case 'R':
+			if ((sscanf(optarg, "0x%x", &ctx->pid) != 1) || (ctx->pid > 0x2000)) {
 				usage(argv[0]);
 				exit(1);
 			}
-			ctx->filter[ ctx->pid ] = 0; /* Disable pid output */
+			if (ctx->pid == 0x2000) {
+				memset(&ctx->filter[0], 0, sizeof(ctx->filter)); /* Disable all pids by default */
+			} else {
+				ctx->filter[ ctx->pid ] = 0; /* Disable pid output */
+			}
+			break;
+		case 'A':
+			if ((sscanf(optarg, "0x%x", &ctx->pid) != 1) || (ctx->pid > 0x2000)) {
+				usage(argv[0]);
+				exit(1);
+			}
+			if (ctx->pid == 0x2000) {
+				memset(&ctx->filter[0], 1, sizeof(ctx->filter)); /* Enable all pids by default */
+			} else {
+				ctx->filter[ ctx->pid ] = 1; /* Enable pid output */
+			}
 			break;
 		default:
 			usage(argv[0]);
@@ -142,7 +160,8 @@ int pid_drop(int argc, char *argv[])
 				fwrite(p, 1, 188, ctx->ofh);
 				continue;
 			}
-
+			continue;
+#if 0
 			ctx->pidPacketReadCount++;
 
 			if (ctx->pidPacketReadCount == ctx->pidPacketDropPosition) {
@@ -169,6 +188,7 @@ int pid_drop(int argc, char *argv[])
 				fwrite(p, 1, 188, ctx->ofh);
 				ctx->pidLastCC = ltntstools_continuity_counter(p);
 			}
+#endif
 		}
 	}
 
