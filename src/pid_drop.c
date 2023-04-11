@@ -41,6 +41,10 @@ static void usage(const char *progname)
 	printf("  -o <output.ts>\n");
 	printf("  -R pid 0xNNNN to be removed [def: none], multiple -R instances supported. [0x2000 all pids]\n");
 	printf("  -A pid 0xNNNN to be added [def: 0x2000], multiple -A instances supported. [0x2000 all pids]\n");
+	printf("Examples:\n");
+	printf("    -i input.ts -o output.ts -R 0x2000 -A 0x31       - output only pids 0x31 and 0x32\n");
+	printf("    -i input.ts -o output.ts -R 0x1fff -R 0x32       - output all pids except 0x1fff and 0x32\n");
+
 #if 0
 	printf("  -f enable fixup the CC counters in the headers after dropping [def: disabled]\n");
 	printf("  -p <number>. Drop packets from packet <number> onwards, for -n packets. [def: 0x0]\n");
