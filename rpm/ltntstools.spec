@@ -56,6 +56,9 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: In UI mode with audio lang descriptors, avoid iso639 buffer overflow.
   tstools_pid_drop: Removed counter options. Added 0x2000 Add/Remove options. Overall simplifications.
   tstools_pid_drop: Added examples to console usage/help.
+  tstools_scte35_inspector: Assert/abort during parsing of specific NBA streams.
+  libltntstools library: throughput_hires: Taking more CPU time than necessary when calculating precise timing measurements.
+  libltntstools library: pes-extractor: Avoid Assert/segfault, don't parse pes frames less than 8 bytes.
 
 * Mon Mar  6 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.25.0
