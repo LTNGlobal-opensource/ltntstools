@@ -49,6 +49,14 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
+* Thu Apr 20 2023 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.27.0
+  tstools_nic_monitor: Ensure the pcap callback is not batched every 200ms. (Only occurs on later libpcap/Ubuntu releases)
+  tstools_ntt_inspector: Leverages/inherits adjusted pcap immediate mode latency.
+  tstools_scte35_inspector: Leverages/inherits adjusted pcap immediate mode latency.
+  tstools_smpte2038_inspector: Leverages/inherits adjusted pcap immediate mode latency.
+  libltntstools library: Ensure the pcap callback is not batched every 200ms. (Only occurs on later libpcap/Ubuntu releases)
+
 * Wed Apr 19 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.26.1
   tstools_nic_monitor: Attempt to detect significant sub second bitrate bursting. Calculate bitrates at 100 and 10ms intervals.
