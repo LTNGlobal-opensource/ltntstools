@@ -49,8 +49,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
-* Wed Apr 12 2023 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.26.0
+* Wed Apr 19 2023 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.26.1
   tstools_nic_monitor: Attempt to detect significant sub second bitrate bursting. Calculate bitrates at 100 and 10ms intervals.
   tstools_nic_monitor: In UI IAT report mode, show the highest bitrate measured for 100ms and 10ms bins (projected into a 1second value)
   tstools_nic_monitor: In stats file logging mode, log the highest bitrate measured for 100ms and 10ms bins (projected into a 1second value)
