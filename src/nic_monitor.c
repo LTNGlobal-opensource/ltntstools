@@ -491,6 +491,13 @@ static void *ui_thread_func(void *p)
 					s = NULL;
 					streamCount++;
 				}
+				double a = ((double)di->bitrate_hwm_us_10ms_last_nsecond * 100.0) / 1000000.0;
+				double b = ((double)di->bitrate_hwm_us_100ms_last_nsecond * 10.0) / 1000000.0;
+				mvprintw(streamCount + 2, 52, "%6.02f @ 10ms\n", a);
+				streamCount++;
+				mvprintw(streamCount + 2, 52, "%6.02f @ 100ms\n", b);
+				streamCount++;
+
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PROCESSES)) {

@@ -72,6 +72,7 @@ void discovered_item_free(struct discovered_item_s *di)
 	}
 
 	throughput_hires_free(di->packetIntervalAverages);
+	throughput_hires_free(di->packetPayloadSizeBits);
 
 	if (di->streamModel) {
 		ltntstools_streammodel_free(di->streamModel);
@@ -104,6 +105,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		memcpy(&di->ethhdr, ethhdr, sizeof(*ethhdr));
 		memcpy(&di->iphdr, iphdr, sizeof(*iphdr));
 		memcpy(&di->udphdr, udphdr, sizeof(*udphdr));
+		pthread_mutex_init(&di->bitrateBucketLock, NULL);
 
 		struct in_addr dstaddr, srcaddr;
 #ifdef __linux__
@@ -137,7 +139,10 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 
 		/* Sized for 210mbps. Each node (20k) needs 36 bytes, so a 720KB alloc on this */
 		throughput_hires_alloc(&di->packetIntervalAverages, 20000);
-		
+
+		/* Sized for 210mbps. Each node (20k) needs 36 bytes, so a 720KB alloc on this */
+		throughput_hires_alloc(&di->packetPayloadSizeBits, 20000);
+
 		/* Each allocation  is approximately 3MB, plus an additional 2x256KB for each PCR PID.
 		 * So a single SPTS mux needs 3.5MB of RAM.
 		 * We're doing four of those.
@@ -1012,7 +1017,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		ltntstools_pat_free(m);
 	}
 
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s,flags=%s,enclat=%s\n",
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat1000=%d%s,br100=%d,br10=%d,flags=%s,enclat=%s\n",
 		ts,
 		ctx->ifname,
 		bps,
@@ -1026,6 +1031,8 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		ctx->pcap_stats.ps_ifdrop,
 		di->iat_hwm_us_last_nsecond / 1000,
 		di->iat_hwm_us_last_nsecond / 1000 > ctx->iatMax ? "!" : "",
+		di->bitrate_hwm_us_10ms_last_nsecond * 100,
+		di->bitrate_hwm_us_100ms_last_nsecond * 10,
 		di->warningIndicatorLabel,
 		enclat);
 
@@ -1139,7 +1146,7 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		ltntstools_pat_free(m);
 	}
 
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat=%d%s,flags=%s,enclat=%s\n",
+	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat1000=%d%s,br100=%d,br10=%d,flags=%s,enclat=%s\n",
 		ts,
 		ctx->ifname,
 		bps,
@@ -1153,6 +1160,8 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		ctx->pcap_stats.ps_ifdrop,
 		di->iat_hwm_us_last_nsecond / 1000,
 		di->iat_hwm_us_last_nsecond / 1000 > ctx->iatMax ? "!" : "",
+		di->bitrate_hwm_us_10ms_last_nsecond * 100,
+		di->bitrate_hwm_us_100ms_last_nsecond * 10,
 		di->warningIndicatorLabel,
 		enclat);
 	write(fd, line, strlen(line));
@@ -1214,6 +1223,9 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 		ltntstools_pid_stats_reset(e->stats);
 		e->iat_lwm_us = 5000000;
 		e->iat_hwm_us = -1;
+		e->bitrate_hwm_us_10ms = 0;
+		e->bitrate_hwm_us_100ms = 0;
+
 		ltn_histogram_reset(e->packetIntervals);
 		display_doc_append_with_time(&e->doc_stream_log, "Operator manually reset statistics", NULL);
 

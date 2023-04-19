@@ -226,6 +226,60 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 			int complete;
 			ltntstools_streammodel_write(di->streamModel, pkts, pktCount, &complete);
 		}
+#if 1
+		/* Measure IAT in terms of the following additional bins 10ms and 100ms */
+		/* Work thorugh the hires list, calculate the max IAT for each period and maintain a high-watermark */
+		/* Write the number of bits and a timestamp into a hirres counter */
+		pthread_mutex_lock(&di->bitrateBucketLock);
+		throughput_hires_write_i64(di->packetPayloadSizeBits, 0, lengthPayloadBytes * 8, NULL);
+
+		struct timeval nowtv;
+		gettimeofday(&nowtv, NULL);
+
+		struct timeval then10ms;
+		timeval_subtract(&then10ms, &nowtv, 10);
+		int64_t bitrate_max_10ms = throughput_hires_sumtotal_i64(di->packetPayloadSizeBits, 0, &then10ms, &nowtv);
+		if (di->bitrate_hwm_us_10ms <= bitrate_max_10ms)
+			di->bitrate_hwm_us_10ms = bitrate_max_10ms;
+
+		/* Track max IAT for the last N seconds, it's reported in the summary/detailed logs. */
+		if (di->bitrate_hwm_us_10ms > di->bitrate_hwm_us_10ms_last_nsecond_accumulator) {
+			di->bitrate_hwm_us_10ms_last_nsecond_accumulator = bitrate_max_10ms;
+		}
+		if ((di->bitrate_hwm_us_10ms_last_nsecond_time + ctx->file_write_interval) <= now) {
+			di->bitrate_hwm_us_10ms_last_nsecond_time = now;
+			di->bitrate_hwm_us_10ms_last_nsecond = di->bitrate_hwm_us_10ms_last_nsecond_accumulator;
+			di->bitrate_hwm_us_10ms_last_nsecond_accumulator = 0;
+		}
+
+		struct timeval then100ms;
+		timeval_subtract(&then100ms, &nowtv, 100);
+		int64_t bitrate_max_100ms = throughput_hires_sumtotal_i64(di->packetPayloadSizeBits, 0, &then100ms, &nowtv);
+		if (di->bitrate_hwm_us_100ms <= bitrate_max_100ms)
+			di->bitrate_hwm_us_100ms = bitrate_max_100ms;
+
+		if (di->bitrate_hwm_us_100ms > di->bitrate_hwm_us_10ms_last_nsecond_accumulator) {
+			di->bitrate_hwm_us_100ms_last_nsecond_accumulator = bitrate_max_100ms;
+		}
+		if ((di->bitrate_hwm_us_100ms_last_nsecond_time + ctx->file_write_interval) <= now) {
+			di->bitrate_hwm_us_100ms_last_nsecond_time = now;
+			di->bitrate_hwm_us_100ms_last_nsecond = di->bitrate_hwm_us_100ms_last_nsecond_accumulator;
+			di->bitrate_hwm_us_100ms_last_nsecond_accumulator = 0;
+		}
+		pthread_mutex_unlock(&di->bitrateBucketLock);
+#endif
+#if 0
+		struct timeval then1000ms;
+		timeval_subtract(&then1000ms, &nowtv, 1000);
+		int64_t bitrate_max_1000ms = throughput_hires_sumtotal_i64(di->packetPayloadSizeBits, 0, &then1000ms, &nowtv);
+
+		double a = (double)bitrate_max_1000ms / 1000000.0;
+		double b = ((double)bitrate_max_100ms * 10) / 1000000.0;
+		double c = ((double)bitrate_max_10ms * 100) / 1000000.0;
+		printf("br: %" PRIi64 ", br100: %" PRIi64 ", br10: %" PRIi64 "     %6.02f %6.02f %6.02f\n", 
+			bitrate_max_1000ms, bitrate_max_100ms * 10, bitrate_max_10ms * 100,
+			a, b, c);
+#endif
 	}
 	di->iat_last_frame = cb_h->ts;
 
@@ -298,6 +352,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	if (now >= di->packetIntervalAveragesLastExpire + 5) {
 		di->packetIntervalAveragesLastExpire = now;
 		throughput_hires_expire(di->packetIntervalAverages, NULL); /* Expire anything older than 2 seconds. */
+		throughput_hires_expire(di->packetPayloadSizeBits, NULL); /* Expire anything older than 2 seconds. */
 	}
 
 	if (di->payloadType == PAYLOAD_RTP_TS) {

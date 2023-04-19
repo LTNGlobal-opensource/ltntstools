@@ -328,6 +328,16 @@ struct discovered_item_s
 	time_t iat_hwm_us_last_nsecond_time; /* time the per-second IAT measurement reports to. */
 	struct timeval iat_last_frame; /* Timestamp of last UDP frame for this entity. */
 
+	pthread_mutex_t bitrateBucketLock;
+	int bitrate_hwm_us_10ms; /* bitrate high watermark (us), measurement for a 10ms interval */
+	int bitrate_hwm_us_10ms_last_nsecond; /* IAT high watermark (us), for the last Nsecond, measurement of UDP receive interval */
+	int bitrate_hwm_us_10ms_last_nsecond_accumulator; /* IAT high watermark (us), for the last Nsecond, measurement of UDP receive interval */
+	time_t bitrate_hwm_us_10ms_last_nsecond_time; /* time the per-second IAT measurement reports to. */
+	int bitrate_hwm_us_100ms; /* bitrate high watermark (us), measurement for a 10ms interval */
+	int bitrate_hwm_us_100ms_last_nsecond; /* IAT high watermark (us), for the last Nsecond, measurement of UDP receive interval */
+	int bitrate_hwm_us_100ms_last_nsecond_accumulator; /* IAT high watermark (us), for the last Nsecond, measurement of UDP receive interval */
+	time_t bitrate_hwm_us_100ms_last_nsecond_time; /* time the per-second IAT measurement reports to. */
+
 	/* PCAP recording */
 	void *pcapRecorder;
 	time_t lastTimeFSFreeSpaceCheck;
@@ -342,6 +352,7 @@ struct discovered_item_s
 	struct ltn_histogram_s *packetIntervals;
 	void *packetIntervalAverages;
 	time_t packetIntervalAveragesLastExpire;
+	void *packetPayloadSizeBits;
 
 	/* PSIP Tree / Stream Model */
 	void *streamModel;

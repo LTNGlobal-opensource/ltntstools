@@ -456,6 +456,10 @@ int scte35_inspector(int argc, char *argv[])
 		ltntstools_streammodel_free(ctx->sm);
 	}
 
+	if (ctx->iname) {
+		free(ctx->iname);
+	}
+	
 	return 0;
 }
 

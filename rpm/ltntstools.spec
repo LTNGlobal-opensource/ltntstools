@@ -49,14 +49,19 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
-* Wed Mar 22 2023 Steven Toth <steven.toth@ltnglobal.com> 
+* Wed Apr 12 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.26.0
-  tstools_nic_monitor: In UI help menu, change text related to stream selection.
+  tstools_nic_monitor: Attempt to detect significant sub second bitrate bursting. Calculate bitrates at 100 and 10ms intervals.
+  tstools_nic_monitor: In UI IAT report mode, show the highest bitrate measured for 100ms and 10ms bins (projected into a 1second value)
+  tstools_nic_monitor: In stats file logging mode, log the highest bitrate measured for 100ms and 10ms bins (projected into a 1second value)
+  tstools_nic_monitor: In stats file logging mode, change the label iat= to iat1000=
+  tstools_nic_monitor: In UI help menu, change help text related to stream selection controls.
   tstools_nic_monitor: In Model report, add decimal pids to UI view.
   tstools_nic_monitor: In UI mode with audio lang descriptors, avoid iso639 buffer overflow.
   tstools_pid_drop: Removed counter options. Added 0x2000 Add/Remove options. Overall simplifications.
   tstools_pid_drop: Added examples to console usage/help.
   tstools_scte35_inspector: Assert/abort during parsing of specific NBA streams.
+  tstools_scte35_inspector: Free up on exit a one-time small memory allocation (valgrind)
   libltntstools library: throughput_hires: Taking more CPU time than necessary when calculating precise timing measurements.
   libltntstools library: pes-extractor: Avoid Assert/segfault, don't parse pes frames less than 8 bytes.
 
