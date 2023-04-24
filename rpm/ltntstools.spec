@@ -51,6 +51,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Mon Apr 24 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.27.0
+  tstools_bitrate_smoother: Add support for RTP stream smoothing.
   tstools_nic_monitor: Ensure the pcap callback is not batched every 200ms. (Only occurs on later libpcap/Ubuntu releases)
   tstools_ntt_inspector: Leverages/inherits adjusted pcap immediate mode latency.
   tstools_scte35_inspector: Leverages/inherits adjusted pcap immediate mode latency.

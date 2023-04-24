@@ -13,13 +13,14 @@
 #include <curses.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <string.h>
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 #include "kbhit.h"
 
-#define DEFAULT_FIFOSIZE 1048576
-#define DEFAULT_TRAILERROW 18
 #define DEFAULT_LATENCY 100
+
+char *strcasestr(const char *haystack, const char *needle);
 
 /* We previously had ENABLE_PIR_CORRECTOR disabled code here,
  * that demonstrated patching PIR streams.
@@ -54,15 +55,19 @@ struct tool_context_s
 	AVIOContext *o_puc;
 
 	int latencyMS;
-	int pcrPID;
+	int pcrPID;    /* UDP-TS only */
+	int isRTP;     /* Boolean. True = RTP mode, false = UDP-TS PCR mode */
 
+	/* The reframer used only in UDP-TS mode, NOT in RTP mode, to create 7*188 packet lengths. */
 	struct ltntstools_reframer_ctx_s *reframer;
 
 	void *sm; /* StreamModel Context */
 	int smcomplete;
 
+	struct rtp_hdr_analyzer_s rtp_stream_in, rtp_stream_out;
 };
 
+/* Reframer hands us 7*188 buffers, guaranteed. Send to the UDP. */
 static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
 {
 	struct tool_context_s *ctx = userContext;
@@ -70,17 +75,12 @@ static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
 	return NULL;
 }
 
-static void transmit_packets(struct tool_context_s *ctx, unsigned char *pkts, int packetCount)
-{
-	ltststools_reframer_write(ctx->reframer, pkts, packetCount * 188);
-}
-
-static int smoother_cb(void *userContext, unsigned char *buf, int byteCount,
+static int smoother_pcr_cb(void *userContext, unsigned char *buf, int byteCount,
 	struct ltntstools_pcr_position_s *array, int arrayLength)
 {
 	struct tool_context_s *ctx = userContext;
 	
-	if (ctx->verbose & 8) {
+	if (ctx->verbose & 8) { /* Output hex dump */
 		for (int i = 0; i < arrayLength; i++) {
 			struct ltntstools_pcr_position_s *e = &array[i];
 			char *ts = NULL;
@@ -137,7 +137,56 @@ static int smoother_cb(void *userContext, unsigned char *buf, int byteCount,
 		}
 	}
 
-	transmit_packets(ctx, buf, byteCount / 188);
+	ltststools_reframer_write(ctx->reframer, buf, byteCount);
+
+	return 0;
+}
+
+static void print_rtp_buffer(struct tool_context_s *ctx, const unsigned char *buf, int byteCount)
+{
+	struct rtp_hdr *hdr = (struct rtp_hdr *)buf;
+	int tspktcount = ((byteCount - 12) / 188);
+
+	char *ts = NULL;
+	ltntstools_pts_to_ascii(&ts, ntohl(hdr->ts));
+	printf("@ %s : %14" PRIu32 " -- RTP: [ ", ts, ntohl(hdr->ts));
+	free(ts);
+
+	/* Hexdump of the RTP header */
+	for (int j = 0; j < 12; j++) {
+		printf("%02x ", buf[j]);
+	}
+	printf("] = %d bytes, seq %d\n", byteCount, ntohs(hdr->seq));
+
+	/* Hexdump, beginning of each TS packet */
+	for (int i = 0; i < tspktcount; i++) {
+		printf("  -> ");
+		for (int j = 0; j < 12; j++) {
+			printf("%02x ", buf[12 + (i * 188) + j]);
+		}
+		printf("\n");
+	}
+}
+
+static int smoother_rtp_cb(void *userContext, const unsigned char *buf, int byteCount)
+{
+	struct tool_context_s *ctx = userContext;
+
+	/* No need to reframe, just output the RTP as it came from the smoother. */
+
+	/* Monitor for RTP sequence problems. */
+	rtp_hdr_write(&ctx->rtp_stream_out, (struct rtp_hdr *)buf);
+	// TODO: Analyze stats for problems
+
+	/* TODO: Monitor for CC sequence problems. */
+
+	/* In verbose mode, show the output hex. */
+	if (ctx->verbose & 2) { /* Output hex dump */
+		print_rtp_buffer(ctx, buf, byteCount);
+	}
+
+	avio_write(ctx->o_puc, buf, byteCount);
+
 	return 0;
 }
 
@@ -201,7 +250,14 @@ static void *thread_packet_rx(void *p)
 
 	pthread_detach(ctx->ffmpeg_threadId);
 
-	unsigned char buf[7 * 188];
+	unsigned char buf[(7 * 188) + 12];
+	int buflen = 7 * 188;
+	int boffset = 0;
+
+	if (ctx->isRTP) {
+		buflen += 12;
+		boffset = 12;
+	}
 
 	time_t lastPacketTime = time(0);
 
@@ -226,9 +282,9 @@ static void *thread_packet_rx(void *p)
 			exit(1);
 		}
 
-		int rlen = avio_read(ctx->i_puc, buf, sizeof(buf));
+		int rlen = avio_read(ctx->i_puc, buf, buflen);
 		if (ctx->verbose & 1) {
-			printf("source received %d bytes\n", rlen);
+			printf("source received %d bytes (EAGAIN %d ETIMEDOUT %d)\n", rlen, -EAGAIN, -ETIMEDOUT);
 		}
 		now = time(0);
 		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
@@ -247,21 +303,23 @@ static void *thread_packet_rx(void *p)
 			continue;
 		}
 
-		/* Process the payload */
-
-		if (ctx->sm == NULL && ctx->pcrPID == 0) {
+		if (ctx->isRTP == 0 && ctx->sm == NULL && ctx->pcrPID == 0) {
 			if (ltntstools_streammodel_alloc(&ctx->sm, NULL) < 0) {
 				fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
 				exit(1);
 			}
 		} else
-		if (ctx->sm == NULL && ctx->pcrPID && ctx->smoother == NULL) {
-			smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
+		if (ctx->isRTP == 0 && ctx->sm == NULL && ctx->pcrPID && ctx->smoother == NULL) {
+			smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_pcr_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
+		} else
+		if (ctx->isRTP == 1 && ctx->sm == NULL && ctx->smoother == NULL) {
+			smoother_rtp_alloc(&ctx->smoother, ctx, &smoother_rtp_cb, 5000, 12 + (7 * 188), ctx->latencyMS);
 		}
 
-		if (ctx->sm && ctx->smcomplete == 0 && ctx->pcrPID == 0) {
+		/* UDP-TS only */
+		if (ctx->isRTP == 0 && ctx->sm && ctx->smcomplete == 0 && ctx->pcrPID == 0) {
 
-			ltntstools_streammodel_write(ctx->sm, &buf[0], rlen / 188, &ctx->smcomplete);
+			ltntstools_streammodel_write(ctx->sm, &buf[boffset], rlen / 188, &ctx->smcomplete);
 
 			if (ctx->smcomplete) {
 				struct ltntstools_pat_s *pat = NULL;
@@ -301,7 +359,7 @@ static void *thread_packet_rx(void *p)
 						gRunning = 0; /* Terminate */
 						//ltntstools_pat_dprintf(pat, 0);
 					} else {
-						smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
+						smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_pcr_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
 					}
 					ltntstools_pat_free(pat);
 				}
@@ -309,9 +367,25 @@ static void *thread_packet_rx(void *p)
 		}
 
 		lastPacketTime = now;
-		packet_cb(ctx, &buf[0], rlen);
-		if (ctx->smoother) {
-			smoother_pcr_write(ctx->smoother, buf, sizeof(buf), NULL);
+
+		/* Pass the transport packets ONLY to the stats collector, don't pass RTP headers */
+		packet_cb(ctx, &buf[boffset], rlen - boffset);
+
+		if (ctx->isRTP == 0 && ctx->smoother) {
+			smoother_pcr_write(ctx->smoother, buf, rlen, NULL);
+		}
+		if (ctx->isRTP == 1 && ctx->smoother) {
+
+			/* Dump the packet hex */
+			if (ctx->verbose & 8) {
+				print_rtp_buffer(ctx, buf, rlen);
+			}
+
+			/* Monitor for RTP sequence problems. Assumes the buffer starts with the RTP header. */
+			rtp_hdr_write(&ctx->rtp_stream_in, (struct rtp_hdr *)buf);
+
+			/* Feed the smoother */
+			smoother_rtp_write(ctx->smoother, buf, rlen, NULL);
 		}
 
 	}
@@ -390,25 +464,28 @@ static void terminate_after_seconds(struct tool_context_s *ctx, int seconds)
 
 static void usage(const char *progname)
 {
-	printf("A tool to smooth input n*bps CBR bitrate to an output UDP stream.\n");
+	printf("A tool to smooth input RTP-TS and UDP-TS CBR bitrate MPEG-TS streams.\n");
 	printf("Usage:\n");
-	printf("  -i <url> Eg: udp://234.1.1.1:4160?localaddr=172.16.0.67\n");
+	printf("  -i <url> Eg: udp|rtp://234.1.1.1:4160?localaddr=172.16.0.67\n");
 	printf("           172.16.0.67 is the IP addr where we'll issue an IGMP join\n");
-	printf("  -o <url> Eg: udp://234.1.1.1:4560\n");
-	printf("  -P 0xnnnn PID containing the PCR (Optional)\n");
+	printf("  -o <url> Eg: udp|rtp://234.1.1.1:4560\n");
+	printf("  -P 0xnnnn PID containing the PCR (UDP-TS Only. Optional)\n");
 	printf("  -v # bitmask. Set level of verbosity. [def: 0]\n");
 	printf("     1 - input packet hex\n");
 	printf("     2 - output packet hex\n");
 	printf("     4 - output packet PCR data and human readable PCR clock\n");
+	printf("     8 - input packet RTP data and human readable clock\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
 #ifdef __linux__
 	printf("  -t <#seconds> Stop after N seconds [def: 0 - unlimited]\n");
 #endif
 	printf("  -L <#seconds> During input LOS, terminate software after time. [def: 0 - don't terminate]\n");
 	printf("  -h Display command line help.\n");
-	printf("\n  Example:\n");
+	printf("\n  Example UDP or RTP, don't mix'n'match:\n");
 	printf("    tstools_bitrate_smoother -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000' \\\n");
 	printf("      -o udp://227.1.20.45:4501?pkt_size=1316 -l 500\n");
+	printf("\n    tstools_bitrate_smoother -i 'rtp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000' \\\n");
+	printf("      -o rtp://227.1.20.45:4501?pkt_size=1328 -l 500\n");
 }
 
 int bitrate_smoother(int argc, char *argv[])
@@ -486,6 +563,12 @@ int bitrate_smoother(int argc, char *argv[])
 #endif
 	}
 
+	if (strcasestr(ctx->iname, "rtp:")) {
+		ctx->isRTP = 1;
+		rtp_analyzer_init(&ctx->rtp_stream_in);
+		rtp_analyzer_init(&ctx->rtp_stream_out);
+	}
+
 	avformat_network_init();
 	
 	ret = avio_open2(&ctx->i_puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
@@ -523,7 +606,12 @@ int bitrate_smoother(int argc, char *argv[])
 	avio_close(ctx->i_puc);
 	avio_close(ctx->o_puc);
 
-	smoother_pcr_free(ctx->smoother);
+	if (ctx->isRTP == 0) {
+		smoother_pcr_free(ctx->smoother);
+	} else {
+		smoother_rtp_free(ctx->smoother);
+	}
+
 	ltntstools_reframer_free(ctx->reframer);
 
 	if (ctx->sm) {
@@ -539,6 +627,10 @@ int bitrate_smoother(int argc, char *argv[])
 
 	int64_t errCount = 0;
 
+	if (ctx->isRTP) {
+		rtp_analyzer_report_dprintf(&ctx->rtp_stream_in, STDOUT_FILENO);
+	}
+
 	printf("\nI: PID   PID     PacketCount   CCErrors  TEIErrors\n");
 	printf("----------------------------  --------- ----------\n");
 	for (int i = 0; i < MAX_PID; i++) {	
@@ -551,6 +643,9 @@ int bitrate_smoother(int argc, char *argv[])
 		}
 	}
 
+	if (ctx->isRTP) {
+		rtp_analyzer_report_dprintf(&ctx->rtp_stream_out, STDOUT_FILENO);
+	}
 	printf("O: PID   PID     PacketCount   CCErrors  TEIErrors\n");
 	printf("----------------------------  --------- ----------\n");
 	for (int i = 0; i < MAX_PID; i++) {	
@@ -565,6 +660,11 @@ int bitrate_smoother(int argc, char *argv[])
 
 	ltntstools_pid_stats_free(ctx->i_stream);
 	ltntstools_pid_stats_free(ctx->o_stream);
+
+	if (ctx->isRTP) {
+		rtp_analyzer_free(&ctx->rtp_stream_in);
+		rtp_analyzer_free(&ctx->rtp_stream_out);
+	}
 
 	ret = 0;
 
