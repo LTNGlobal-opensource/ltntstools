@@ -464,6 +464,7 @@ static void usage(const char *progname)
 	printf("  -R Reorder the PTS display output to be in ascending PTS order [def: disabled]\n");
 	printf("     In this case we'll calculate the PTS intervals reliably based on picture frame display order [def: disabled]\n");
 	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
+	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 }
 
 int clock_inspector(int argc, char *argv[])
@@ -479,8 +480,9 @@ int clock_inspector(int argc, char *argv[])
 	ctx->maxAllowablePTSDTSDrift = 700;
 	ctx->scr_pid = DEFAULT_SCR_PID;
 	int progressReport = 0;
+	int stopSeconds = 0;
 
-        while ((ch = getopt(argc, argv, "?dhi:spT:D:PRS:X")) != -1) {
+        while ((ch = getopt(argc, argv, "?dhi:spt:T:D:PRS:X")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -524,6 +526,9 @@ int clock_inspector(int argc, char *argv[])
 				tm.tm_mon -= 1;
 				ctx->initial_time = mktime(&tm);
 			}
+			break;
+		case 't':
+			stopSeconds = atoi(optarg);
 			break;
 		case 'X':
 			return validateClockMath();
@@ -570,11 +575,20 @@ int clock_inspector(int argc, char *argv[])
 
 	signal(SIGINT, signal_handler);
 
+	time_t stopTime = time(NULL) + stopSeconds;
 
 	/* TODO: Migrate this to use the source-avio.[ch] framework */
 	uint64_t filepos = 0;
 	uint64_t streamPosition = 0;
 	while (gRunning) {
+
+		if (stopSeconds) {
+			time_t now = time(NULL);
+			if (now > stopTime) {
+				signal_handler(1);
+			}
+		}
+
 		int rlen = avio_read(puc, buf, blen);
 		if (rlen == -EAGAIN) {
 			usleep(1 * 1000);
