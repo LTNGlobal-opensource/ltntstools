@@ -49,6 +49,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
+* Tue Jul  4 2023 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.28.0
+  tstools_clock_inspector: Show SCR/PCR time in friendly ascii format on SCR lines.
+
 * Mon Apr 24 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.27.0
   tstools_bitrate_smoother: Add support for RTP stream smoothing.
