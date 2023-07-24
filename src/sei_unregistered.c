@@ -50,10 +50,12 @@ static void findSEIFillerPayload(unsigned char *buf, int lengthBytes, uint32_t o
 static void findSEIT35(unsigned char *buf, int lengthBytes, uint32_t offset)
 {
 	unsigned char pattern[] = { 0x00, 0x00, 0x01, 0x06, 0x04 };
+	unsigned char hevc_pattern[] = { 0x00, 0x00, 0x01, };
+	int h264_found = 0;
 
 	for (int i = 0; i < lengthBytes - 5; i++) {
 		if (memcmp(buf + i, &pattern[0], sizeof(pattern)) == 0) {
-			printf(" t.35 offset 0x%08x : ", offset + i);
+			printf("  AVC t.35 offset 0x%08x : ", offset + i);
 
 			int truncated = 0;
 			int len = 42;
@@ -72,6 +74,33 @@ static void findSEIT35(unsigned char *buf, int lengthBytes, uint32_t offset)
 			printf("\n");
 		}
 	}
+
+	if (h264_found == 1)
+		return;
+
+	/* Look for HEVC SEI captions */
+	for (int i = 0; i < lengthBytes - 10; i++) {
+		if (memcmp(buf + i, &hevc_pattern[0], sizeof(hevc_pattern)) == 0) {
+			if (((*(buf + i + 3) & 0x7e) >> 1 == 39 /* PREFIX SEI TYPE*/) || ((*(buf + i + 3) & 0x7e) >> 1 == 40 /* SIFFUX SEI TYPE*/)){
+				if (*(buf + i + 5) == 0x04 /*registered t35 */) {
+					printf(" HEVC t.35 offset 0x%08x : ", offset + i);
+					int truncated = 0;
+					int len = *(buf + i + 6) + 1;
+					if (len > (lengthBytes - i)) {
+						len = lengthBytes - i;
+						truncated = 1;
+					}
+
+					for (int j = 0; j < len; j++)
+						printf("%02x ", *(buf + i + j));
+					if (truncated)
+						printf(" ... <snip>");
+					printf("\n");
+				}
+			} 
+		}
+	}
+
 }
 
 static void findSEIUnregistered(unsigned char *buf, int lengthBytes, uint32_t offset)
