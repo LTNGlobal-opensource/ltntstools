@@ -85,7 +85,7 @@ static void findSEIT35(unsigned char *buf, int lengthBytes, uint32_t offset)
 				if (*(buf + i + 5) == 0x04 /*registered t35 */) {
 					printf(" HEVC t.35 offset 0x%08x : ", offset + i);
 					int truncated = 0;
-					int len = *(buf + i + 6) + 1;
+					int len = *(buf + i + 6) + 1 + 7;
 					if (len > (lengthBytes - i)) {
 						len = lengthBytes - i;
 						truncated = 1;

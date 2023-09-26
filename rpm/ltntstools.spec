@@ -54,6 +54,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: Show SCR/PCR time in friendly ascii format on SCR lines.
   tstools_clock_inspector: Add -t arg to shop tool after N seconds.
   tstools_sei_unregistered: Add support to -c option to find HEVC SEI caption sequences.
+  tstools_sei_unregistered: buffer search adjustment
 
 * Mon Apr 24 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.27.0
