@@ -566,7 +566,7 @@ static void _pes_packet_measure_nal_throughput(struct tool_ctx_s *ctx, struct lt
 	}
 }
 
-void *callback(void *userContext, struct ltn_pes_packet_s *pes)
+static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 {
 	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
 #if H264_IFRAME_THUMBNAILING
