@@ -176,7 +176,8 @@ int _nielsen_inspector(int argc, char **argv)
 					break;
 				}
 				/* make a note of which audio pids we want to monitor and their codec types */
-				ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, streamID, codec->codec_id, codec->format, 1 /* Enable Nielsen */);
+				//ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, streamID, codec->codec_id, codec->format, 1 /* Enable Nielsen */);
+				ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, streamID, codec->codec_id, AV_SAMPLE_FMT_S16P, 1 /* Enable Nielsen */);
 				if (ret != 0) {
 					fprintf(stderr, "Unable to add stream to decoder\n");
 				}
