@@ -1643,6 +1643,7 @@ int nic_monitor(int argc, char *argv[])
 	ctx->skipFreeSpaceCheck = 0;
 	ctx->iatMax = g_max_iat_ms;
 	ctx->iftype = IF_TYPE_PCAP;
+	ctx->startTime = time(NULL);
 	strcpy(ctx->json_http_url, "http://127.0.0.1:13400/nicmonitor");
 
 	for (int i = 0; i < 3; i++) {
@@ -1734,6 +1735,10 @@ int nic_monitor(int argc, char *argv[])
 		}
 
 		char c = ui_syncronized_getch(ctx);
+
+		if (ctx->startTime + 2 == time(NULL)) {
+			c = 'r';
+		}
 		if (c == 'F') {
 			ctx->showForwardOptions = 1;
 			while (gRunning) {

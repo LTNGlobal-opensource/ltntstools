@@ -56,6 +56,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_sei_unregistered: Add support to -c option to find HEVC SEI caption sequences.
   tstools_sei_unregistered: buffer search adjustment
   tstools_nielsen_decoder: Failed to startup, error "unable to add audio stream"
+  tstools_nic_monitor: Automatically reset all stats after startup.
 
 * Mon Apr 24 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.27.0

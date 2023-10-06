@@ -75,7 +75,7 @@ struct tool_context_s
 	char *recordingDir;
 	int verbose;
 	int monitor;
-	time_t endTime;
+	time_t startTime, endTime;
 	int iatMax;
 	int automaticallyRecordStreams;
 	int automaticallyJSONProbeStreams;
