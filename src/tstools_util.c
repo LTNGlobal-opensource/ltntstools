@@ -31,6 +31,7 @@ extern int asi2ip(int argc, char *argv[]);
 extern int smpte2038_inspector(int argc, char *argv[]);
 extern int ntt_inspector(int argc, char *argv[]);
 extern int srt_transmit(int argc, char *argv[]);
+extern int sei_latency_inspector(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
 
@@ -70,6 +71,7 @@ int main(int argc, char *argv[])
 		{ "tstools_ntt_inspector",	ntt_inspector, },
 #endif
 		{ "tstools_srt_transmit",		srt_transmit, },
+		{ "tstools_sei_latency_inspector", sei_latency_inspector, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);

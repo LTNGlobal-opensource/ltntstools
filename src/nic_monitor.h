@@ -296,6 +296,13 @@ struct discovered_item_s
 #endif
 	struct udphdr udphdr;
 
+	/* This object gets put into a quick lookup cache, using a hash
+	 * calculated form the ipadress and other things.
+	 * We need to store this in the object so we know how to remove
+	 * it form the cache when we're destroyed.
+	 */
+	uint16_t cacheHashKey;
+
 	/* PID Statistics */
 	struct ltntstools_stream_statistics_s *stats;
 
@@ -423,7 +430,7 @@ const char *payloadTypeDesc(enum payload_type_e pt);
 
 void discovered_item_free(struct discovered_item_s *di);
 void discovered_items_free(struct tool_context_s *ctx);
-struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr);
+struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr, uint16_t hashKey);
 
 struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr);

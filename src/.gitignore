@@ -24,3 +24,4 @@ tstools_asi2ip
 tstools_smpte2038_inspector
 tstools_ntt_inspector
 tstools_srt_transmit
+tstools_sei_latency_inspector

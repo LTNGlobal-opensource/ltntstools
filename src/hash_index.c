@@ -23,7 +23,7 @@ void hash_index_free(struct hash_index_s *p)
 	free(p);
 }
 
-void hash_index_set(struct hash_index_s *p, uint16_t key, void *item)
+void hash_index_add(struct hash_index_s *p, uint16_t key, void *item)
 {
 	struct hash_index_s *e = p + key;
 	e->arr = realloc(e->arr, (e->arrLength + 1) * sizeof(void *));
@@ -31,6 +31,21 @@ void hash_index_set(struct hash_index_s *p, uint16_t key, void *item)
 	*(e->arr + e->arrLength) = (void *)item;
 
 	e->arrLength++;
+}
+
+void hash_index_remove(struct hash_index_s *p, uint16_t key, void *item)
+{
+	struct hash_index_s *e = p + key;
+
+	if (e->arrLength == 0)
+		return;
+
+	for (int i = 0; i < e->arrLength; i++) {
+		if (*(e->arr + i) == item) {
+			*(e->arr + i) = (void *)0xdead; /* TODO: trim the list instead of faking a removal */
+		}
+	}
+
 }
 
 void *hash_index_get_first(struct hash_index_s *p, uint16_t key)

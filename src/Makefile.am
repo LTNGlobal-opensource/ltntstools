@@ -88,6 +88,7 @@ SRC += source-avio.c
 if NTT
 SRC += ntt_inspector.cpp
 endif
+SRC += sei_latency_inspector.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -118,6 +119,7 @@ LINKBINS += tstools_srt_transmit
 if NTT
 LINKBINS += tstools_ntt_inspector
 endif
+LINKBINS += tstools_sei_latency_inspector
 
 tstools_util_SOURCES = $(SRC)
 

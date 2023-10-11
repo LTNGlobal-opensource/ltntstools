@@ -32,7 +32,8 @@ struct hash_index_s
 
 struct hash_index_s *hash_index_alloc();
 void  hash_index_free(struct hash_index_s *p);
-void  hash_index_set(struct hash_index_s *p, uint16_t key, void *item);
+void  hash_index_add(struct hash_index_s *p, uint16_t key, void *item);
+void  hash_index_remove(struct hash_index_s *p, uint16_t key, void *item);
 
 void *hash_index_get_first(struct hash_index_s *p, uint16_t key);
 int   hash_index_get_count(struct hash_index_s *p, uint16_t key);

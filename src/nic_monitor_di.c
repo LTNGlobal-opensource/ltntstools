@@ -45,6 +45,8 @@ const char *payloadTypeDesc(enum payload_type_e pt)
 
 void discovered_item_free(struct discovered_item_s *di)
 {
+	hash_index_remove(di->ctx->hashIndex, di->cacheHashKey, di);
+
 	nic_monitor_tr101290_free(di);
 
 	rtp_analyzer_free(&di->rtpAnalyzerCtx);
@@ -94,7 +96,7 @@ void discovered_item_free(struct discovered_item_s *di)
 	free(di);
 }
 
-struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr)
+struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr, uint16_t hash)
 {
 	struct discovered_item_s *di = calloc(1, sizeof(*di));
 	if (di) {
@@ -102,6 +104,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 
 		time(&di->firstSeen);
 		di->lastUpdated = di->firstSeen;
+		di->cacheHashKey = hash;
 		memcpy(&di->ethhdr, ethhdr, sizeof(*ethhdr));
 		memcpy(&di->iphdr, iphdr, sizeof(*iphdr));
 		memcpy(&di->udphdr, udphdr, sizeof(*udphdr));
@@ -368,7 +371,7 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 		int ret = 0;
 		while (ret == 0) {
 			ret = hash_index_get_enum(ctx->hashIndex, hash, &enumerator, (void **)&item);
-			if (ret == 0 && item) {
+			if (ret == 0 && item && item != (void *)0xdead) {
 				/* Do a 100% perfect match on the ip and udp headers */
 				if (network_addr_compare(iphdr, udphdr, &item->iphdr, &item->udphdr) == 1) {
 					/* Found the perfect match in the cache */
@@ -420,10 +423,10 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 #endif
 
 	if (!found) {
-		found = discovered_item_alloc(ctx, ethhdr, iphdr, udphdr);
+		found = discovered_item_alloc(ctx, ethhdr, iphdr, udphdr, hash);
 		if (found) {
 			discovered_item_insert(ctx, found);
-			hash_index_set(ctx->hashIndex, hash, found);
+			hash_index_add(ctx->hashIndex, hash, found);
 
 			if (ctx->automaticallyRecordStreams) {
 				discovered_item_state_set(found, DI_STATE_PCAP_RECORD_START);
