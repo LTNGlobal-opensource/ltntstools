@@ -1,0 +1,606 @@
+/* Copyright LiveTimeNet, Inc. 2023. All Rights Reserved. */
+
+/* For a given pair of input streams,
+ * that are expected to contain LTN SEI timing information,
+ * extract that timing information (and other PES stats).
+ * Compute the time delta between the two SEI timing clocks
+ * and output that to a mulcicast port as a JSON object.
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <math.h>
+#include <inttypes.h>
+#include <string.h>
+#include <assert.h>
+#include <pthread.h>
+
+#include <libltntstools/ltntstools.h>
+#include "ffmpeg-includes.h"
+#include "source-avio.h"
+#include "xorg-list.h"
+
+#define DEFAULT_STREAMID 0xe0
+#define DEFAULT_PID 0x31
+#define DEFAULT_ELEMENTS (60 * 120)
+#define DEFAULT_INSTANCE_NAME "INSTANCE_NAME"
+
+static int g_running = 1;
+
+struct tool_ctx_s;
+
+struct timing_element_s
+{
+	struct xorg_list list;
+
+	uint32_t nr;
+	int64_t PTS;
+	int64_t DTS;
+
+	/* The raw SEI data */
+	uint8_t data[128];
+
+	uint32_t sei_framenumber;
+
+	struct timeval ts_seen; /* Timestamp from walltime when we saw this frame from the network */
+
+	int64_t trueLatency;
+};
+
+#define MAX_STREAM_SOURCES 2
+struct stream_s {
+	struct tool_ctx_s *ctx;
+	int nr;
+	char *iname;
+	int pid;
+	int streamId;
+	void *pe;
+
+	/* we suse libavformats udp and general AVIO input mechanism */
+	void *avio_ctx;
+	struct ltntstools_source_avio_callbacks_s avio_cbs;
+
+	/* We have a list of 'previously seen' sei ojects, for referencing over time.
+	 * A fixed length list where the oldest SEI object is at the top of the list
+	 */
+	pthread_mutex_t lockElements;
+	struct xorg_list listElements;
+	uint32_t maxListElements;
+
+	/* We use the library probe to find the SEI objects in our PES headers,
+	 * and as helpers to extract details form them.
+	 */
+	void *probe_hdl;
+	uint32_t lastFrameNumber;
+
+	/* Time is an illusion, lunchtime doubly so.... Let's measure some stream clocks vs Walltime */
+	struct ltntstools_clock_s clkPTS;
+	struct ltntstools_clock_s clkDTS;
+
+	/* Some true latency and high/low watermarks */
+	int64_t trueLatency, trueLatency_hwm, trueLatency_lwm;
+	time_t trueLatencyComputeAfter;
+
+	int64_t driftPTS_ms;
+	int64_t driftDTS_ms;
+	int64_t drift_ms;
+};
+
+struct tool_ctx_s
+{
+	struct stream_s src[MAX_STREAM_SOURCES];
+	int verbose;
+	int totalElements;
+	int compareMode;
+
+	char *instanceName;
+
+	pthread_mutex_t console_mutex;
+};
+
+/* Seach the elements in stream for e->sei_framenumber */
+void _printList(struct tool_ctx_s *ctx, struct stream_s *stream)
+{
+	struct timing_element_s *e = NULL;
+
+	int i = 0;
+	xorg_list_for_each_entry_reverse(e, &stream->listElements, list) {
+
+		printf("list 2 framenumber %d, DTS %" PRIi64 " PTS %" PRIi64 ", seen %d.%6d\n", e->sei_framenumber, e->DTS, e->PTS,
+			(uint32_t)e->ts_seen.tv_sec, (uint32_t)e->ts_seen.tv_usec);
+
+		if (i++ > 10)
+			break;
+	}
+}
+
+/* Seach the elements in stream for e->sei_framenumber */
+static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, struct timing_element_s *element)
+{
+	struct timing_element_s *e = NULL;
+
+	xorg_list_for_each_entry_reverse(e, &stream->listElements, list) {
+
+		//printf("framenumber %d, wanted %d\n", e->sei_framenumber, element->sei_framenumber);
+		if (e->sei_framenumber == element->sei_framenumber) {
+
+			struct timeval diff;
+			ltn_histogram_timeval_subtract(&diff, &element->ts_seen, &e->ts_seen);
+			int ms = ltn_histogram_timeval_to_ms(&diff);
+
+			if (ctx->verbose) {
+
+				printf("Frame %12d taking %5d ms between sampling points, P1->vPTS %13" PRIi64 ", P1->vDTS %13" PRIi64 ", P2->vPTS %13" PRIi64 ", P2->vDTS %13" PRIi64
+					", 1:%" PRIi64 " 2:%" PRIi64 "\n",
+					element->sei_framenumber,
+					ms,
+					e->PTS,
+					e->DTS,
+					element->PTS,
+					element->DTS,
+					element->trueLatency,
+					e->trueLatency);
+			}
+
+			char msg[256];
+
+			int64_t finalLatency_ms = element->trueLatency - e->trueLatency;
+
+			// { "instance": "BBC1", "upstream":{ "uri": "udp://233.1.1.1:11111", "pts":12345, "timestamp":"2023-01-02T12:23:34.12345Z" }, "downstream":{ "uri": "udp://233.1.1.2:22222", "pts":23456, "timestamp":"2023-01-02T12:23:34.22345Z" }, "latency": 1000 }
+			sprintf(msg, "{ \"instance\": \"%s\", \"upstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
+					", \"timestamp\":\"2023-01-02T12:23:34.12345Z\" }, \"downstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
+					", \"timestamp\":\"2023-01-02T12:23:34.22345Z\" }, \"latency\":%" PRIi64 " }\n",
+				ctx->instanceName,
+				ctx->src[0].iname,
+				e->PTS,
+				ctx->src[1].iname,
+				element->PTS,
+				finalLatency_ms);
+
+
+			printf("%s\n", msg);
+
+			//_printList(ctx, &ctx->src[1]);
+
+			return;
+		}
+
+	}
+
+}
+
+static void _maintain_clocks(struct stream_s *stream, struct ltn_pes_packet_s *pes, int64_t *trueLatency_ms)
+{
+	struct tool_ctx_s *ctx = stream->ctx;
+	*trueLatency_ms = -1;
+
+	/* Establish PTS vs walltime if needed, ideally on an iframe - pick a large pes to do this on. */
+	if (ltntstools_clock_is_established_wallclock(&stream->clkPTS) == 0) {
+		int sync = 0;
+
+		/* Find an iframe before we establish walltime to PTS syncronization */
+		struct ltn_nal_headers_s *narray = NULL;
+		int narray_length = 0;
+		int ret = ltn_nal_h264_find_headers(pes->data, pes->dataLengthBytes, &narray, &narray_length);
+		if (ret == 0) {
+			for (int i = 0; i < narray_length; i++) {
+				char st[256];
+				if (h264_nal_get_slice_type(&narray[i], &st[0]) != 0) {
+					st[0] = '?';
+					st[1] = 0;
+				}
+
+				if (ctx->verbose) {
+					printf("%d. %s, %s\n", i, narray[i].nalName, st);
+				}
+
+				switch(st[0]) {
+				case 'i':
+				case 'I':
+					sync = 1;
+					break;
+				}
+
+				if (sync)
+					break;
+			}
+		}
+
+		if (sync) {
+			ltntstools_clock_establish_wallclock(&stream->clkPTS, pes->PTS);
+		}
+	}
+	if (ltntstools_clock_is_established_wallclock(&stream->clkPTS)) {
+		ltntstools_clock_set_ticks(&stream->clkPTS, pes->PTS);
+	}
+
+	/* If we're expecting a DTS, and the DTS is present, establish DTS bs walltime if needed. */
+	if ((pes->PTS_DTS_flags == 3) && (pes->DTS)) {
+		if (ltntstools_clock_is_established_wallclock(&stream->clkDTS) == 0) {
+			ltntstools_clock_establish_wallclock(&stream->clkDTS, pes->DTS);
+		} else {
+			ltntstools_clock_set_ticks(&stream->clkDTS, pes->DTS);
+		}
+	}
+
+	stream->drift_ms = ltntstools_probe_ltnencoder_get_total_latency(stream->probe_hdl);
+
+	/* A positive number indicates the clock is ahead of walltime.
+	 * A negative number therefore indicates the ticks are behind walltime.
+	 */
+	stream->driftPTS_ms = ltntstools_clock_get_drift_ms(&stream->clkPTS);
+	stream->driftDTS_ms = ltntstools_clock_get_drift_ms(&stream->clkDTS);
+
+	stream->trueLatency = stream->drift_ms + stream->driftPTS_ms; /* Latency corrected by walltime to remove bursting and PTS B frame jitter. */
+
+	*trueLatency_ms = stream->trueLatency;
+}
+
+static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
+{
+	struct stream_s *stream = (struct stream_s *)userContext;
+	struct tool_ctx_s *ctx = stream->ctx;
+
+	if (ctx->verbose > 1) {
+		printf("PES Extractor callback stream %d\n", stream->nr);
+		/* Else, dump all the PES packets */
+		ltn_pes_packet_dump(pes, "");
+	}
+
+	int ret = ltntstools_probe_ltnencoder_sei_timestamp_query(stream->probe_hdl, pes->data, pes->dataLengthBytes);
+	if (ret != 0) {
+		ltn_pes_packet_free(pes);
+		return NULL; /* No timing information, skip this pes */
+	}
+
+	/* Establish walltimes vs PTS,s and keep them current. */
+	int64_t trueLatency_ms;
+	_maintain_clocks(stream, pes, &trueLatency_ms);
+
+	/* -------- */
+	/* Found the timing data, extract throw the details on a list */
+	pthread_mutex_lock(&stream->lockElements);
+	struct timing_element_s *e = xorg_list_first_entry(&stream->listElements, struct timing_element_s, list);
+	if (!e) {
+		pthread_mutex_unlock(&stream->lockElements);
+		ltn_pes_packet_free(pes);
+		return NULL; /* No items on the list. Not sure this could ever happen. */
+	}
+
+	e->trueLatency = trueLatency_ms;
+	e->PTS = pes->PTS;
+	e->DTS = pes->DTS;
+	ltntstools_probe_ltnencoder_sei_framenumber_query(stream->probe_hdl, &e->sei_framenumber);
+#if 0
+	if (stream->lastFrameNumber + 1 != e->sei_framenumber) {
+		printf("! Frame discontinuity, wanted %d got %d\n", stream->lastFrameNumber + 1, e->sei_framenumber);
+	}
+#endif
+	stream->lastFrameNumber = e->sei_framenumber;
+
+	gettimeofday(&e->ts_seen, NULL);
+
+	xorg_list_del(&e->list);
+
+
+#if 1
+	/* Search the list backwards, insert into the list but keep the list sorted by framenumber */
+	/* Order by PTS, framenumber will have dups but be correctly ordered */
+	/* Order by DTS, framenumber will have dups but be INcorrectly ordered */
+	struct timing_element_s *item = NULL;
+	xorg_list_for_each_entry_reverse(item, &stream->listElements, list) {
+		if (e->sei_framenumber >= item->sei_framenumber) {
+		//if (e->PTS >= item->PTS) {
+			__xorg_list_add(&e->list, &item->list, item->list.next);
+			break;
+		}
+	}
+#else
+	xorg_list_append(&e->list, &stream->listElements);
+#endif
+
+#if 0
+	pthread_mutex_lock(&ctx->console_mutex);
+	printf("stream#%d: nr %4d, frame %d, PTS %13" PRIi64 ", DTS %13" PRIi64 ", seen %9u.%06u\n",
+		stream->nr,
+		e->nr,
+		e->sei_framenumber,
+		pes->PTS,
+		pes->DTS,
+		(uint32_t)e->ts_seen.tv_sec,
+		(uint32_t)e->ts_seen.tv_usec);
+	pthread_mutex_unlock(&ctx->console_mutex);
+#endif
+
+	if (ctx->compareMode && stream->nr == 2) {
+		/* Comparing times between two probe stream 1 and probe stream 2 */
+
+		if (time(NULL) >= stream->trueLatencyComputeAfter) {
+
+			if (stream->trueLatency < stream->trueLatency_lwm)
+				stream->trueLatency_lwm = stream->trueLatency;
+			if (stream->trueLatency > stream->trueLatency_hwm)
+				stream->trueLatency_hwm = stream->trueLatency;
+
+			/* Lookup framenumber in cached list for stream 1 */
+			_compareStreams(ctx, &ctx->src[0], e);
+		}
+
+	} else
+	if (!ctx->compareMode && stream->nr == 1) {
+		/* Single probe measurement, from probe stream 1 */
+		
+		if (time(NULL) >= stream->trueLatencyComputeAfter) {
+			if (stream->trueLatency < stream->trueLatency_lwm)
+				stream->trueLatency_lwm = stream->trueLatency;
+			if (stream->trueLatency > stream->trueLatency_hwm)
+				stream->trueLatency_hwm = stream->trueLatency;
+
+			int64_t latencySpan = stream->trueLatency_hwm - stream->trueLatency_lwm;
+			int64_t latency =  stream->trueLatency_lwm + (latencySpan / 2);
+			printf("stream#%d: nr %4d, frame %d, bytes %7d, latency %" PRIi64 "ms +- %" PRIi64 "ms\n",
+				stream->nr,
+				e->nr,
+				e->sei_framenumber,
+				pes->dataLengthBytes,
+				latency, latencySpan / 2);
+
+		}
+
+		if (ctx->verbose)
+		{
+			printf("stream#%d: nr %4d, frame %d, bytes %7d, PTS %13" PRIi64 ", DTS %13" PRIi64 ", seen %9u.%06u, latency %6" PRIi64 "ms, PTS drift %8" PRIi64 " DTS drift %8" PRIi64 ", truelatency %" PRIi64 "ms +- %" PRIi64 "ms\n",
+				stream->nr,
+				e->nr,
+				e->sei_framenumber,
+				pes->dataLengthBytes,
+				pes->PTS,
+				pes->DTS,
+				(uint32_t)e->ts_seen.tv_sec,
+				(uint32_t)e->ts_seen.tv_usec,
+				stream->drift_ms,
+				stream->driftPTS_ms,
+				stream->driftDTS_ms, stream->trueLatency, stream->trueLatency_hwm - stream->trueLatency_lwm);			
+		}
+
+	} /* (!ctx->compareMode && stream->nr == 1) */
+
+	pthread_mutex_unlock(&stream->lockElements);
+	ltn_pes_packet_free(pes);
+
+	return NULL;
+}
+
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	struct stream_s *stream = (struct stream_s *)userContext;
+	//struct tool_ctx_s *ctx = stream->ctx;
+	
+	ltntstools_pes_extractor_write(stream->pe, pkts, packetCount);
+
+	return NULL;
+}
+
+static void *_avio_raw_callback_status(void *userContext, enum source_avio_status_e status)
+{
+	switch (status) {
+	case AVIO_STATUS_MEDIA_START:
+		printf("AVIO media starts\n");
+		break;
+	case AVIO_STATUS_MEDIA_END:
+		printf("AVIO media ends\n");
+		g_running = 0;
+		break;
+	default:
+		fprintf(stderr, "unsupported avio state %d\n", status);
+	}
+	return NULL;
+}
+
+static void usage(const char *progname)
+{
+	printf("\nA tool to extract and display PES packets from transport files or streams.\n");
+	printf("Usage:\n");
+	printf("  -i <url#1> Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
+               "             192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -I <url#2> Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
+               "             192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -v Increase level of verbosity.\n");
+	printf("  -h Display command line help.\n");
+	printf("  -n <instancename> [def: %s]\n", DEFAULT_INSTANCE_NAME);
+	printf("  -F <framecachesize> measure in frames [def: %d]\n", DEFAULT_ELEMENTS);
+	printf("  -p 0xnnnn PID containing the program elementary stream #1 [def: 0x%02x]\n", DEFAULT_PID);
+	printf("  -s PES #1 Stream Id. Eg. 0xe0 or 0xc0 [def: 0x%02x]\n", DEFAULT_STREAMID);
+	printf("  -P 0xnnnn PID containing the program elementary stream #2 [def: 0x%02x]\n", DEFAULT_PID);
+	printf("  -S PES #2 Stream Id. Eg. 0xe0 or 0xc0 [def: 0x%02x]\n", DEFAULT_STREAMID);
+}
+
+static int init_source(struct tool_ctx_s *ctx, int nr)
+{
+	if (nr > MAX_STREAM_SOURCES)
+		return -1;
+
+	struct stream_s *src = &ctx->src[nr - 1];
+
+	src->nr = nr;
+	src->ctx = ctx;
+	src->avio_cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+	src->avio_cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
+	src->streamId = DEFAULT_STREAMID;
+	src->pid = DEFAULT_PID;
+	src->maxListElements = ctx->totalElements;
+	src->trueLatency_hwm = 0;
+	src->trueLatency_lwm = 150000000; /* unfeasable huge number */
+	src->trueLatencyComputeAfter = time(NULL) + 3;
+
+	ltntstools_probe_ltnencoder_alloc(&src->probe_hdl);
+	ltntstools_probe_ltnencoder_sei_enable_cache(src->probe_hdl);
+
+	ltntstools_clock_initialize(&src->clkPTS);
+	ltntstools_clock_establish_timebase(&src->clkPTS, 90000);
+
+	ltntstools_clock_initialize(&src->clkDTS);
+	ltntstools_clock_establish_timebase(&src->clkDTS, 90000);
+
+	pthread_mutex_init(&src->lockElements, NULL);
+	xorg_list_init(&src->listElements);
+
+	pthread_mutex_lock(&src->lockElements);
+	for (int i = 0; i < src->maxListElements; i++) {
+		struct timing_element_s *e = calloc(1, sizeof(*e));
+		e->nr = i;
+		xorg_list_append(&e->list, &src->listElements);
+	}
+	pthread_mutex_unlock(&src->lockElements);
+
+	return 0;
+}
+
+static int start_source(struct tool_ctx_s *ctx, int nr)
+{
+	if (nr > MAX_STREAM_SOURCES)
+		return -1;
+
+	struct stream_s *src = &ctx->src[nr - 1];
+
+	/* PES Extractor for the first input stream */
+	if (ltntstools_pes_extractor_alloc(&src->pe, src->pid, src->streamId, (pes_extractor_callback)pe_callback, src) < 0) {
+		fprintf(stderr, "\nUnable to allocate src pes_extractor object.\n\n");
+		exit(1);
+	}
+	ltntstools_pes_extractor_set_skip_data(src->pe, 0);
+
+	int ret = ltntstools_source_avio_alloc(&src->avio_ctx, src, &src->avio_cbs, src->iname);
+	if (ret < 0) {
+		fprintf(stderr, "-i/I syntax error\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static void destroy_source(struct tool_ctx_s *ctx, int nr)
+{
+	if (nr > MAX_STREAM_SOURCES)
+		return;
+
+	struct stream_s *src = &ctx->src[nr - 1];
+
+	ltntstools_source_avio_free(src->avio_ctx);
+	ltntstools_pes_extractor_free(src->pe);
+	ltntstools_probe_ltnencoder_alloc(&src->probe_hdl);
+	free(src->iname);
+}
+
+int sei_latency_inspector(int argc, char *argv[])
+{
+	struct tool_ctx_s myctx, *ctx;
+	ctx = &myctx;
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->totalElements = DEFAULT_ELEMENTS;
+	ctx->compareMode = 0;
+	ctx->instanceName = strdup(DEFAULT_INSTANCE_NAME);
+
+	pthread_mutex_init(&ctx->console_mutex, NULL);
+
+	init_source(ctx, 1);
+	init_source(ctx, 2);
+
+	struct stream_s *src = &ctx->src[0];
+	struct stream_s *dst = &ctx->src[1];
+
+	int ch;
+	while ((ch = getopt(argc, argv, "?hvi:F:I:n:p:P:s:S:")) != -1) {
+		switch (ch) {
+		case '?':
+		case 'h':
+			usage(argv[0]);
+			exit(1);
+			break;
+		case 'i':
+			src->iname = strdup(optarg);
+			break;
+		case 'I':
+			dst->iname = strdup(optarg);
+			ctx->compareMode = 1;
+			break;
+		case 'F':
+			ctx->totalElements = atoi(optarg);
+			break;
+		case 'n':
+			free(ctx->instanceName);
+			ctx->instanceName = strdup(optarg);
+			break;
+		case 'p':
+			if ((sscanf(optarg, "0x%x", &src->pid) != 1) || (src->pid > 0x1fff)) {
+				usage(argv[0]);
+				exit(1);
+			}
+			break;
+		case 'P':
+			if ((sscanf(optarg, "0x%x", &dst->pid) != 1) || (dst->pid > 0x1fff)) {
+				usage(argv[0]);
+				exit(1);
+			}
+			break;
+		case 's':
+			if ((sscanf(optarg, "0x%x", &src->streamId) != 1) || (src->streamId > 0xff)) {
+				usage(argv[0]);
+				exit(1);
+			}
+			break;
+		case 'S':
+			if ((sscanf(optarg, "0x%x", &dst->streamId) != 1) || (dst->streamId > 0xff)) {
+				usage(argv[0]);
+				exit(1);
+			}
+			break;
+		case 'v':
+			ctx->verbose++;
+			break;
+		default:
+			usage(argv[0]);
+			exit(1);
+		}
+	}
+
+	if (src->pid == 0) {
+		usage(argv[0]);
+		fprintf(stderr, "\n-s is mandatory.\n\n");
+		exit(1);
+	}
+
+	if (src->iname == NULL) {
+		usage(argv[0]);
+		fprintf(stderr, "\n-i is mandatory.\n\n");
+		exit(1);
+	}
+
+	printf("Building a timing cache of %d frames\n", ctx->totalElements);
+
+	if (ctx->compareMode) {
+		printf("Between urls:\n");
+		printf("\t%s\n", src->iname);
+		printf("\t%s\n", dst->iname);
+	} else {
+		printf("From url to local walltime:\n");
+		printf("\t%s\n", src->iname);
+	}
+
+	start_source(ctx, 1);
+
+	if (ctx->compareMode)
+		start_source(ctx, 2);
+
+	while (g_running) {
+		usleep(50 * 1000);
+	}
+
+	destroy_source(ctx, 1);
+	destroy_source(ctx, 2);
+
+	return 0;
+}
