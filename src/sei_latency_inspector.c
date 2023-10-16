@@ -24,6 +24,7 @@
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
 #include "xorg-list.h"
+#include "utils.h"
 
 #define DEFAULT_STREAMID 0xe0
 #define DEFAULT_PID 0x31
@@ -137,7 +138,9 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 		if (e->sei_framenumber == element->sei_framenumber) {
 
 			struct timeval diff;
-			ltn_histogram_timeval_subtract(&diff, &element->ts_seen, &e->ts_seen);
+			struct timeval x = element->ts_seen;
+			struct timeval y = e->ts_seen;
+			ltn_histogram_timeval_subtract(&diff, &x, &y);
 			int ms = ltn_histogram_timeval_to_ms(&diff);
 
 			if (ctx->verbose) {
@@ -158,18 +161,26 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 
 			int64_t finalLatency_ms = element->trueLatency - e->trueLatency;
 
+			char *t1, *t2;
+			ISO8601_UTC_CreateTimestamp(&e->ts_seen, &t1);
+			ISO8601_UTC_CreateTimestamp(&element->ts_seen, &t2);
+
 			// { "instance": "BBC1", "upstream":{ "uri": "udp://233.1.1.1:11111", "pts":12345, "timestamp":"2023-01-02T12:23:34.12345Z" }, "downstream":{ "uri": "udp://233.1.1.2:22222", "pts":23456, "timestamp":"2023-01-02T12:23:34.22345Z" }, "latency": 1000 }
 			sprintf(msg, "{ \"instance\": \"%s\", \"upstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
-					", \"timestamp\":\"2023-01-02T12:23:34.12345Z\" }, \"downstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
-					", \"timestamp\":\"2023-01-02T12:23:34.22345Z\" }, \"latency\":%" PRIi64 " }\n",
+					", \"timestamp\":\"%s\" }, \"downstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
+					", \"timestamp\":\"%s\" }, \"latency\":%" PRIi64 " }\n",
 				ctx->instanceName,
 				ctx->src[0].iname,
 				e->PTS,
+				t1,
 				ctx->src[1].iname,
 				element->PTS,
+				t2,
 				finalLatency_ms);
 
-			printf("%s", msg);
+			if (ctx->verbose) {
+				printf("%s", msg);
+			}
 
 			if (ctx->udpOutput) {
 				if (sendto(ctx->tx_skt, msg, strlen(msg), 0, (struct sockaddr *)&ctx->tx_sa, sizeof(ctx->tx_sa)) < 0) {
@@ -178,6 +189,8 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 			}
 
 			free(msg);
+			free(t1);
+			free(t2);
 
 			//_printList(ctx, &ctx->src[1]);
 
