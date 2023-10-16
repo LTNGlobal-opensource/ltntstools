@@ -44,12 +44,13 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_smpte2038_inspector
 /usr/local/bin/tstools_srt_transmit
 /usr/local/bin/tstools_ntt_inspector
+/usr/local/bin/tstools_sei_latency_inspector
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 
 %changelog
-* Wed Oct 11 2023 Steven Toth <steven.toth@ltnglobal.com> 
+* Mon Oct 16 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.28.0
   tstools_clock_inspector: Show SCR/PCR time in friendly ascii format on SCR lines.
   tstools_clock_inspector: Add -t arg to stop tool after N seconds.
