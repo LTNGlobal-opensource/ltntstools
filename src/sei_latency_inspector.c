@@ -17,6 +17,7 @@
 #include <string.h>
 #include <assert.h>
 #include <pthread.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
@@ -110,6 +111,11 @@ struct tool_ctx_s
 	char tx_ip[32];
 	int tx_port;	
 };
+
+static void signal_handler(int signum)
+{
+	g_running = 0;
+}
 
 /* Seach the elements in stream for e->sei_framenumber */
 void _printList(struct tool_ctx_s *ctx, struct stream_s *stream)
@@ -648,10 +654,13 @@ int sei_latency_inspector(int argc, char *argv[])
 		ctx->tx_sa.sin_port = htons(ctx->tx_port);
 	}
 
+	signal(SIGINT, signal_handler);
+
 	start_source(ctx, 1);
 
 	if (ctx->compareMode)
 		start_source(ctx, 2);
+
 
 	while (g_running) {
 		usleep(50 * 1000);
