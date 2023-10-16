@@ -533,9 +533,17 @@ static void destroy_source(struct tool_ctx_s *ctx, int nr)
 
 	struct stream_s *src = &ctx->src[nr - 1];
 
+	pthread_mutex_lock(&src->lockElements);
+	while(!xorg_list_is_empty(&src->listElements)) {
+		struct timing_element_s *e = xorg_list_first_entry(&src->listElements, struct timing_element_s, list);
+		xorg_list_del(&e->list);
+		free(e);
+	}
+	pthread_mutex_unlock(&src->lockElements);
+
 	ltntstools_source_avio_free(src->avio_ctx);
 	ltntstools_pes_extractor_free(src->pe);
-	ltntstools_probe_ltnencoder_alloc(&src->probe_hdl);
+	ltntstools_probe_ltnencoder_free(src->probe_hdl);
 	free(src->iname);
 }
 
@@ -672,5 +680,8 @@ int sei_latency_inspector(int argc, char *argv[])
 	if (ctx->udpOutput) {
 		close(ctx->tx_skt);
 	}
+
+	free(ctx->instanceName);
+
 	return 0;
 }
