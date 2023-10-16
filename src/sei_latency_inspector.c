@@ -258,6 +258,9 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 	int ret = ltntstools_probe_ltnencoder_sei_timestamp_query(stream->probe_hdl, pes->data, pes->dataLengthBytes);
 	if (ret != 0) {
+		if (ctx->verbose) {
+			printf("PES Extractor callback stream %d, no timestamp found - skipping\n", stream->nr);
+		}
 		ltn_pes_packet_free(pes);
 		return NULL; /* No timing information, skip this pes */
 	}
