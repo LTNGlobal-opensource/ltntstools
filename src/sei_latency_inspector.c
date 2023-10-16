@@ -145,7 +145,7 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 					e->trueLatency);
 			}
 
-			char msg[256];
+			char *msg = malloc(512);
 
 			int64_t finalLatency_ms = element->trueLatency - e->trueLatency;
 
@@ -161,7 +161,8 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 				finalLatency_ms);
 
 
-			printf("%s\n", msg);
+			printf("%s", msg);
+			free(msg);
 
 			//_printList(ctx, &ctx->src[1]);
 
