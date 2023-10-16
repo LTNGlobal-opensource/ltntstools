@@ -57,7 +57,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_sei_unregistered: buffer search adjustment
   tstools_nielsen_decoder: Failed to startup, error "unable to add audio stream"
   tstools_nic_monitor: Automatically reset all stats after startup.
-  tstools_sei_latency_inspector: New tool to calculate video processing latency between sampling points.
+  tstools_sei_latency_inspector: Experimental tool to calculate video processing latency between sampling points.
   tstools_nic_monitor: segfault with extreme low bitrate non video streams, when using 'multicast' filter.
 
 * Mon Apr 24 2023 Steven Toth <steven.toth@ltnglobal.com> 

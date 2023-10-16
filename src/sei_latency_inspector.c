@@ -17,6 +17,8 @@
 #include <string.h>
 #include <assert.h>
 #include <pthread.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
@@ -99,6 +101,13 @@ struct tool_ctx_s
 	char *instanceName;
 
 	pthread_mutex_t console_mutex;
+
+	/* UDP transmit output */
+	int udpOutput;
+	int tx_skt;
+	struct sockaddr_in tx_sa;
+	char tx_ip[32];
+	int tx_port;	
 };
 
 /* Seach the elements in stream for e->sei_framenumber */
@@ -160,8 +169,14 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 				element->PTS,
 				finalLatency_ms);
 
-
 			printf("%s", msg);
+
+			if (ctx->udpOutput) {
+				if (sendto(ctx->tx_skt, msg, strlen(msg), 0, (struct sockaddr *)&ctx->tx_sa, sizeof(ctx->tx_sa)) < 0) {
+					fprintf(stderr, "Error transmitting to UDP\n");
+				}
+			}
+
 			free(msg);
 
 			//_printList(ctx, &ctx->src[1]);
@@ -425,6 +440,7 @@ static void usage(const char *progname)
 	printf("  -s PES #1 Stream Id. Eg. 0xe0 or 0xc0 [def: 0x%02x]\n", DEFAULT_STREAMID);
 	printf("  -P 0xnnnn PID containing the program elementary stream #2 [def: 0x%02x]\n", DEFAULT_PID);
 	printf("  -S PES #2 Stream Id. Eg. 0xe0 or 0xc0 [def: 0x%02x]\n", DEFAULT_STREAMID);
+	printf("  -U <udp://addr:port> Push timing messages to a UDP destination [def: disabled]\n");
 }
 
 static int init_source(struct tool_ctx_s *ctx, int nr)
@@ -521,8 +537,8 @@ int sei_latency_inspector(int argc, char *argv[])
 	struct stream_s *src = &ctx->src[0];
 	struct stream_s *dst = &ctx->src[1];
 
-	int ch;
-	while ((ch = getopt(argc, argv, "?hvi:F:I:n:p:P:s:S:")) != -1) {
+	int ch, ret;
+	while ((ch = getopt(argc, argv, "?hvi:F:I:n:p:P:s:S:U:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -567,6 +583,14 @@ int sei_latency_inspector(int argc, char *argv[])
 				exit(1);
 			}
 			break;
+		case 'U':
+			ret = sscanf(optarg, "udp://%99[^:]:%99d", &ctx->tx_ip[0], &ctx->tx_port);
+			if (ret != 2) {
+				fprintf(stderr, "Error parsing -U args, aborting ret %d\n", ret);
+				exit(1);
+			}
+			ctx->udpOutput = 1;
+			break;
 		case 'v':
 			ctx->verbose++;
 			break;
@@ -599,6 +623,18 @@ int sei_latency_inspector(int argc, char *argv[])
 		printf("\t%s\n", src->iname);
 	}
 
+	if (ctx->udpOutput) {
+		ctx->tx_skt = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		if(ctx->tx_skt < 0){
+        	fprintf(stderr, "Error creating UDP output socket\n");
+        	return -1;
+    	}
+
+		ctx->tx_sa.sin_family = AF_INET;
+		ctx->tx_sa.sin_addr.s_addr = inet_addr(ctx->tx_ip);
+		ctx->tx_sa.sin_port = htons(ctx->tx_port);
+	}
+
 	start_source(ctx, 1);
 
 	if (ctx->compareMode)
@@ -611,5 +647,8 @@ int sei_latency_inspector(int argc, char *argv[])
 	destroy_source(ctx, 1);
 	destroy_source(ctx, 2);
 
+	if (ctx->udpOutput) {
+		close(ctx->tx_skt);
+	}
 	return 0;
 }
