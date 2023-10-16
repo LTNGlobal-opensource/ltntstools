@@ -12,6 +12,9 @@
 #define iphdr ip
 #endif
 
+/* Caller must free the return object */
+int ISO8601_UTC_CreateTimestamp(struct timeval *tv, char **dst);
+
 int character_replace(char *str, char src, char dst);
 void networkInterfaceList();
 int  networkInterfaceExistsByName(const char *ifname);

@@ -359,3 +359,24 @@ void timeval_subtract(struct timeval *result, struct timeval *now, unsigned int 
 	result->tv_usec -= (ms * 1000);
 }
 
+int ISO8601_UTC_CreateTimestamp(struct timeval *tv, char **dst)
+{
+    struct timeval curTime;
+	if (tv)
+		curTime = *tv;
+	else
+		gettimeofday(&curTime, NULL);
+
+	if (dst == NULL)
+		return -1;
+
+	int x = curTime.tv_usec / 1000;
+
+	char *buf = malloc(sizeof "2023-10-16T07:07:09.000Z    ");
+	char *p = buf + strftime(buf, sizeof("2023-10-16T07:07:09.000Z    "), "%FT%T", gmtime(&curTime.tv_sec));
+	sprintf(p, ".%03dZ", x);
+
+	*dst = buf;
+
+    return 0;
+}
