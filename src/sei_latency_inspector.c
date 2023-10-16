@@ -445,7 +445,7 @@ static void *_avio_raw_callback_status(void *userContext, enum source_avio_statu
 
 static void usage(const char *progname)
 {
-	printf("\nA tool to extract and display PES packets from transport files or streams.\n");
+	printf("\nA tool to extract LTN SEI timing information from live transport streams, measuring the overall latency.\n");
 	printf("Usage:\n");
 	printf("  -i <url#1> Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
                "             192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
