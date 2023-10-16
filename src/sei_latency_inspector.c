@@ -316,7 +316,6 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 	e->trueLatency = trueLatency_ms;
 	e->PTS = pes->PTS;
 	e->DTS = pes->DTS;
-	ltntstools_probe_ltnencoder_sei_framenumber_query(stream->probe_hdl, &e->sei_framenumber);
 #if 0
 	if (stream->lastFrameNumber + 1 != e->sei_framenumber) {
 		printf("! Frame discontinuity, wanted %d got %d\n", stream->lastFrameNumber + 1, e->sei_framenumber);
@@ -481,7 +480,6 @@ static int init_source(struct tool_ctx_s *ctx, int nr)
 	src->trueLatencyComputeAfter = time(NULL) + 3;
 
 	ltntstools_probe_ltnencoder_alloc(&src->probe_hdl);
-	ltntstools_probe_ltnencoder_sei_enable_cache(src->probe_hdl);
 
 	ltntstools_clock_initialize(&src->clkPTS);
 	ltntstools_clock_establish_timebase(&src->clkPTS, 90000);
