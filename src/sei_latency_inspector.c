@@ -212,7 +212,12 @@ static void _maintain_clocks(struct stream_s *stream, struct ltn_pes_packet_s *p
 		if (sync) {
 			ltntstools_clock_establish_wallclock(&stream->clkPTS, pes->PTS);
 		}
+		if (narray) {
+			free(narray);
+			narray = NULL;
+		}
 	}
+	
 	if (ltntstools_clock_is_established_wallclock(&stream->clkPTS)) {
 		ltntstools_clock_set_ticks(&stream->clkPTS, pes->PTS);
 	}
