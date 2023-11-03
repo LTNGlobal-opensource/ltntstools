@@ -36,6 +36,8 @@ static int g_running = 1;
 
 struct tool_ctx_s;
 
+char *strcasestr(const char *haystack, const char *needle);
+
 struct timing_element_s
 {
 	struct xorg_list list;
@@ -67,6 +69,9 @@ struct stream_s {
 	void *avio_ctx;
 	struct ltntstools_source_avio_callbacks_s avio_cbs;
 
+	void *src_pcap; /* Source-pcap context */
+	char *pcap_filter;
+
 	/* We have a list of 'previously seen' sei ojects, for referencing over time.
 	 * A fixed length list where the oldest SEI object is at the top of the list
 	 */
@@ -91,6 +96,12 @@ struct stream_s {
 	int64_t driftPTS_ms;
 	int64_t driftDTS_ms;
 	int64_t drift_ms;
+
+#define MODE_SOURCE_AVIO 0
+#define MODE_SOURCE_PCAP 1
+	int mode;
+
+	int isRTP;
 };
 
 struct tool_ctx_s
@@ -442,6 +453,108 @@ static void *_avio_raw_callback_status(void *userContext, enum source_avio_statu
 	return NULL;
 }
 
+
+#ifdef __APPLE__
+#define iphdr ip
+#endif
+
+static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr, const u_char *pkt)
+{
+	struct stream_s *src = (struct stream_s *)userContext;
+	struct tool_ctx_s *ctx = src->ctx;
+
+	if (hdr->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
+		return NULL;
+
+	struct ether_header *ethhdr = (struct ether_header *)pkt;
+	if (ntohs(ethhdr->ether_type) == ETHERTYPE_IP) {
+		struct iphdr *iphdr = (struct iphdr *)((u_char *)ethhdr + sizeof(struct ether_header));
+
+#ifdef __APPLE__
+		if (iphdr->ip_p != IPPROTO_UDP)
+			return NULL;
+#endif
+#ifdef __linux__
+		if (iphdr->protocol != IPPROTO_UDP)
+			return NULL;
+#endif
+
+		struct udphdr *udphdr = (struct udphdr *)((u_char *)iphdr + sizeof(struct iphdr));
+		uint8_t *ptr = (uint8_t *)((uint8_t *)udphdr + sizeof(struct udphdr));
+
+		if (ctx->verbose > 2) {
+			struct in_addr dstaddr, srcaddr;
+#ifdef __APPLE__
+			srcaddr.s_addr = iphdr->ip_src.s_addr;
+			dstaddr.s_addr = iphdr->ip_dst.s_addr;
+#endif
+#ifdef __linux__
+			srcaddr.s_addr = iphdr->saddr;
+			dstaddr.s_addr = iphdr->daddr;
+#endif
+
+			char src[24], dst[24];
+			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+
+			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
+				
+				src, dst,
+				ntohs(udphdr->uh_ulen),
+				ptr[0], ptr[1], ptr[2], ptr[3]);
+		}
+
+		int lengthPayloadBytes = ntohs(udphdr->uh_ulen) - sizeof(struct udphdr);
+		
+		if ((lengthPayloadBytes > 12) && ((lengthPayloadBytes - 12) % 188 == 0)) {
+			/* It's RTP */
+			ptr += 12;
+			lengthPayloadBytes -= 12;
+		}
+
+		ltntstools_pes_extractor_write(src->pe, ptr, lengthPayloadBytes / 188);
+	}
+
+	return NULL;
+}
+
+static struct ltntstools_source_pcap_callbacks_s pcap_callbacks = 
+{
+    .raw = (ltntstools_source_pcap_raw_callback)source_pcap_raw_cb,
+};
+
+static void process_pcap_input(struct stream_s *src)
+{
+	//struct tool_ctx_s *ctx = src->ctx;
+
+	if (ltntstools_source_pcap_alloc(&src->src_pcap, src, &pcap_callbacks, src->iname, src->pcap_filter) < 0) {
+		fprintf(stderr, "Failed to open source_pcap interface, check permissions (sudo) or syntax.\n");
+		return;
+	}
+
+}
+
+static void process_avio_input(struct stream_s *src)
+{
+	//struct tool_ctx_s *ctx = src->ctx;
+
+	if (strcasestr(src->iname, "rtp://")) {
+		src->isRTP = 1;
+	}
+
+	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
+	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+	cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
+
+	void *srcctx = NULL;
+	int ret = ltntstools_source_avio_alloc(&srcctx, src, &cbs, src->iname);
+	if (ret < 0) {
+		fprintf(stderr, "-i syntax error\n");
+		return;
+	}
+
+}
+
 static void usage(const char *progname)
 {
 	printf("\nA tool to extract LTN SEI timing information from live transport streams, measuring the overall latency.\n");
@@ -453,12 +566,21 @@ static void usage(const char *progname)
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -n <instancename> [def: %s]\n", DEFAULT_INSTANCE_NAME);
-	printf("  -F <framecachesize> measure in frames [def: %d]\n", DEFAULT_ELEMENTS);
+	printf("  -N <framecachesize> measure in frames [def: %d]\n", DEFAULT_ELEMENTS);
 	printf("  -p 0xnnnn PID containing the program elementary stream #1 [def: 0x%02x]\n", DEFAULT_PID);
 	printf("  -s PES #1 Stream Id. Eg. 0xe0 or 0xc0 [def: 0x%02x]\n", DEFAULT_STREAMID);
 	printf("  -P 0xnnnn PID containing the program elementary stream #2 [def: 0x%02x]\n", DEFAULT_PID);
 	printf("  -S PES #2 Stream Id. Eg. 0xe0 or 0xc0 [def: 0x%02x]\n", DEFAULT_STREAMID);
-	printf("  -U <udp://addr:port> Push timing messages to a UDP destination [def: disabled]\n");
+	printf("  -U <udp://addr:port> Push timing messages to a UDP destination [def: disabled]\n\n");
+	printf("  -f exact pcap filter. Eg 'host 227.1.20.80 && udp port 4001'\n");
+	printf("  -F exact pcap filter. Eg 'host 227.1.20.90 && udp port 4100'\n");
+	printf("     DON'T PASS A FILTER WITH MPTS or something with multiple different streams - be very specific, one stream one program\n");
+	printf("\nExample:\n");
+	printf("  sudo ./tstools_sei_latency_inspector -i eno2 \\ \n"
+		   "     -i  net2.401 \\ \n"
+		   "     -f 'host 227.1.20.80 && udp port 4001' -p 0x31  -s 0xe0 \\ \n"
+		   "     -F 'host 227.1.20.90 && udp port 4100' -P 0x101 -S 0xe0 \\ \n"
+		);
 }
 
 static int init_source(struct tool_ctx_s *ctx, int nr)
@@ -478,6 +600,7 @@ static int init_source(struct tool_ctx_s *ctx, int nr)
 	src->trueLatency_hwm = 0;
 	src->trueLatency_lwm = 150000000; /* unfeasable huge number */
 	src->trueLatencyComputeAfter = time(NULL) + 3;
+	src->mode = MODE_SOURCE_AVIO;
 
 	ltntstools_probe_ltnencoder_alloc(&src->probe_hdl);
 
@@ -515,10 +638,13 @@ static int start_source(struct tool_ctx_s *ctx, int nr)
 	}
 	ltntstools_pes_extractor_set_skip_data(src->pe, 0);
 
-	int ret = ltntstools_source_avio_alloc(&src->avio_ctx, src, &src->avio_cbs, src->iname);
-	if (ret < 0) {
-		fprintf(stderr, "-i/I syntax error\n");
-		return -1;
+	if (src->mode == MODE_SOURCE_AVIO) {
+		printf("Mode: AVIO\n");
+		process_avio_input(src);
+	} else
+	if (src->mode == MODE_SOURCE_PCAP) {
+		printf("Mode: PCAP\n");
+		process_pcap_input(src);
 	}
 
 	return 0;
@@ -531,6 +657,13 @@ static void destroy_source(struct tool_ctx_s *ctx, int nr)
 
 	struct stream_s *src = &ctx->src[nr - 1];
 
+	if (src->mode == MODE_SOURCE_AVIO) {
+		ltntstools_source_avio_free(src->avio_ctx);
+	} else
+	if (src->mode == MODE_SOURCE_PCAP) {
+		ltntstools_source_pcap_free(src->src_pcap);
+	}
+
 	pthread_mutex_lock(&src->lockElements);
 	while(!xorg_list_is_empty(&src->listElements)) {
 		struct timing_element_s *e = xorg_list_first_entry(&src->listElements, struct timing_element_s, list);
@@ -539,7 +672,6 @@ static void destroy_source(struct tool_ctx_s *ctx, int nr)
 	}
 	pthread_mutex_unlock(&src->lockElements);
 
-	ltntstools_source_avio_free(src->avio_ctx);
 	ltntstools_pes_extractor_free(src->pe);
 	ltntstools_probe_ltnencoder_free(src->probe_hdl);
 	free(src->iname);
@@ -563,7 +695,7 @@ int sei_latency_inspector(int argc, char *argv[])
 	struct stream_s *dst = &ctx->src[1];
 
 	int ch, ret;
-	while ((ch = getopt(argc, argv, "?hvi:F:I:n:p:P:s:S:U:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hvi:f:F:I:n:N:p:P:s:S:U:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -577,8 +709,16 @@ int sei_latency_inspector(int argc, char *argv[])
 			dst->iname = strdup(optarg);
 			ctx->compareMode = 1;
 			break;
-		case 'F':
+		case 'N':
 			ctx->totalElements = atoi(optarg);
+			break;
+		case 'f':
+			src->pcap_filter = strdup(optarg);
+			src->mode = MODE_SOURCE_PCAP;
+			break;
+		case 'F':
+			dst->pcap_filter = strdup(optarg);
+			dst->mode = MODE_SOURCE_PCAP;
 			break;
 		case 'n':
 			free(ctx->instanceName);
@@ -637,6 +777,12 @@ int sei_latency_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
+	if (getuid() == 0 && getenv("SUDO_UID") && getenv("SUDO_GID") && src->mode != MODE_SOURCE_PCAP) {
+		usage(argv[0]);
+		fprintf(stderr, "\n**** Don't use SUDO against file or udp socket sources, ONLY nic/pcap sources ****.\n\n");
+		exit(1);
+	}
+	
 	printf("Building a timing cache of %d frames\n", ctx->totalElements);
 
 	if (ctx->compareMode) {
@@ -664,16 +810,19 @@ int sei_latency_inspector(int argc, char *argv[])
 
 	start_source(ctx, 1);
 
-	if (ctx->compareMode)
+	if (ctx->compareMode) {
 		start_source(ctx, 2);
-
+	}
 
 	while (g_running) {
 		usleep(50 * 1000);
 	}
 
 	destroy_source(ctx, 1);
-	destroy_source(ctx, 2);
+
+	if (ctx->compareMode) {
+		destroy_source(ctx, 2);
+	}
 
 	if (ctx->udpOutput) {
 		close(ctx->tx_skt);

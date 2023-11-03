@@ -53,6 +53,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Fri Nov  3 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.29.0
   tstools_clock_inspector: Histogram (right side) percentages after reset were inaccurate
+  tstools_sei_latency_inspector: Added support for PCAP inputs.
 
 * Mon Oct 16 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.28.0
