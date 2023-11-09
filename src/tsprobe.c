@@ -543,6 +543,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 
 		// 10 - 14
 		{ "verbose",					no_argument,		0, 'v' },
+                { "ui",                                                 no_argument,            0, 'M' },
 		{ "danger-skip-freespace-check", no_argument,		0, 0 },
 		{ "pcap-record-dir",			required_argument,	0, 'D' },
 		{ "record-single-file",			no_argument,		0, 'E' },
@@ -649,6 +650,8 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		case 'v':
 			ctx->verbose++;
 			break;
+                case 'M':
+                        break;
 		case 'D':
 			free(ctx->recordingDir);
 			ctx->recordingDir = strdup(optarg);
@@ -854,7 +857,7 @@ int tsprobe(int argc, char *argv[])
 			process_memory_update(&ctx->memUsage, 5);
 		}
 
-		char c = getch(ctx);
+		char c = getch();
 
 		if (ctx->startTime + 2 == time(NULL)) {
 			c = 'r';
@@ -862,7 +865,7 @@ int tsprobe(int argc, char *argv[])
 		if (c == 'F') {
 			ctx->showForwardOptions = 1;
 			while (gRunning) {
-				char c = getch(ctx);
+				char c = getch();
 				if (c == '7') {
 					/* Forward to location slot 7 */
 					discovered_items_select_forward_toggle(ctx, 7);
@@ -949,9 +952,9 @@ int tsprobe(int argc, char *argv[])
 #endif
 		/* Cursor key support */
 		if (c == 0x1b) {
-			c = getch(ctx);
+			c = getch();
 			if (c == 0x5b) {
-				c = getch(ctx);
+				c = getch();
 				if (c == 0x41) { /* Up */
 					discovered_items_select_prev(ctx);
 				} else
