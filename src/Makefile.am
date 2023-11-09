@@ -4,7 +4,7 @@ GIT_VERSION := $(shell git describe --abbrev=8 --dirty --always --tags)
 
 AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_OFFSET_BITS=64 \
 	-D_BSD_SOURCE \
-	-DGIT_VERSION=\"$(GIT_VERSION)\"
+	-DGIT_VERSION=\"$(GIT_VERSION)\" -DZMQ=\"$(USE_ZMQ)\"
 
 LDADD = -lpthread -lz -lm -lltntstools -lklvanc
 
@@ -15,6 +15,10 @@ endif
 if APPLE
   AM_LDFLAGS := -lavformat -lm -lbz2 -lz -Wl,-framework,CoreFoundation -Wl,-framework,Security
   AM_LDFLAGS += -framework VideoToolbox -framework CoreFoundation -framework CoreVideo -framework CoreMedia
+endif
+
+if ZMQ
+LDADD += -lzmq
 endif
 
 AM_CFLAGS += -I../../target-root/usr/include -g
@@ -55,6 +59,9 @@ SRC += si_inspector.c
 SRC += pcap2ts.c
 SRC += clock_inspector.c
 SRC += pid_drop.c
+if ZMQ
+SRC += tsprobe.c
+endif
 SRC += nic_monitor.c
 SRC += nic_monitor_di.c
 SRC += nic_monitor_pcap.c
@@ -97,6 +104,9 @@ LINKBINS += tstools_si_inspector
 LINKBINS += tstools_pcap2ts
 LINKBINS += tstools_clock_inspector
 LINKBINS += tstools_pid_drop
+if ZMQ
+LINKBINS += tstools_tsprobe
+endif
 LINKBINS += tstools_nic_monitor
 LINKBINS += tstools_rtmp_analyzer
 LINKBINS += tstools_tr101290_analyzer

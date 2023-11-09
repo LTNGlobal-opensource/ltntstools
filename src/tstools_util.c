@@ -14,6 +14,7 @@ extern int pcap2ts(int argc, char *argv[]);
 extern int clock_inspector(int argc, char *argv[]);
 extern int pid_drop(int argc, char *argv[]);
 extern int nic_monitor(int argc, char *argv[]);
+extern int tsprobe(int argc, char *argv[]);
 extern int rtmp_analyzer(int argc, char *argv[]);
 extern int tr101290_analyzer(int argc, char *argv[]);
 extern int si_streammodel(int argc, char *argv[]);
@@ -50,6 +51,9 @@ int main(int argc, char *argv[])
 		{ "tstools_clock_inspector",	clock_inspector, },
 		{ "tstools_pid_drop",			pid_drop, },
 		{ "tstools_nic_monitor",		nic_monitor, },
+#ifdef HAVE_ZMQ
+		{ "tstools_tsprobe",		        tsprobe, },
+#endif
 		{ "tstools_rtmp_analyzer",		rtmp_analyzer, },
 		{ "tstools_tr101290_analyzer",	tr101290_analyzer, },
 		{ "tstools_si_streammodel",		si_streammodel, },

@@ -91,5 +91,20 @@ AM_CONDITIONAL(NTT, test x"$ntt" = x"true")
 AM_COND_IF(NTT,
     AC_DEFINE(HAVE_NTT, 1, [Define to 1 if NBA Tissot Timing support included]),)
 
+# Add ZeroMQ ZMQ
+AC_ARG_ENABLE(zmq,
+  AS_HELP_STRING(
+    [--enable-zmq],
+    [enable zmq, default: yes]),
+    [case "${enableval}" in
+      yes) zmq=true ;;
+      no)  zmq=false ;;
+      *)   AC_MSG_ERROR([bad value ${enableval} for --enable-zmq]) ;;
+    esac],
+    [dtapi=true])
+AM_CONDITIONAL(ZMQ, test x"$zmq" = x"true")
+AM_COND_IF(ZMQ,
+    AC_DEFINE(HAVE_ZMQ, 1, [Define to 1 if zmq support included]),)
+
 AC_CONFIG_FILES([Makefile src/Makefile])
 AC_OUTPUT
