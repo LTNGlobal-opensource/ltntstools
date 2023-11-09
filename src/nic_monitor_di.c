@@ -620,7 +620,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	struct json_item_s *qi = json_item_alloc(ctx, 65536);
 	if (qi) {
 		/* double crlf, keep the cheap base64encoder happy. */
-		sprintf((char *)qi->buf, "%s\n\n", json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PRETTY));
+		sprintf((char *)qi->buf, "%s\n\n", json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PLAIN));
 		qi->lengthBytes = strlen((char *)qi->buf);	
 		json_queue_push(ctx, qi);
 	}
