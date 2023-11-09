@@ -33,19 +33,6 @@ extern int ltnpthread_setname_np(pthread_t thread, const char *name);
 void *zmq_context = NULL;
 void *zmq_publisher = NULL;
 
-/* Seeing some crashes inside getch, five leves deep related to dorefresh
- * in ncurses. Make sure we don't call getch without ensuring
- * the ui thread isn't refreshing the display.
- */
-static char ui_syncronized_getch(struct tool_context_s *ctx)
-{
-	pthread_mutex_lock(&ctx->ui_threadLock);
-	char c = getch();
-	pthread_mutex_unlock(&ctx->ui_threadLock);
-
-	return c;
-}
-
 // Initialization function for ZMQ, call this in initialization routine
 void initialize_zmq_publisher(struct tool_context_s *ctx) {
     zmq_context = zmq_ctx_new();
@@ -497,7 +484,7 @@ static void *pcap_thread_func(void *p)
 
 static void signal_handler(int signum)
 {
-	if (!ctx->monitor && signum == SIGINT)
+	if (signum == SIGINT)
 		printf("\nUser requested terminate.\n");
 
 	gRunning = 0;
@@ -556,7 +543,6 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 
 		// 10 - 14
 		{ "verbose",					no_argument,		0, 'v' },
-		{ "ui",							no_argument,		0, 'M' },
 		{ "danger-skip-freespace-check", no_argument,		0, 0 },
 		{ "pcap-record-dir",			required_argument,	0, 'D' },
 		{ "record-single-file",			no_argument,		0, 'E' },
@@ -628,13 +614,6 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			if (strstr(ctx->ifname, "srt://")) {
 				ctx->iftype = IF_TYPE_MPEGTS_AVDEVICE;
 			} else
-#if 0
-			if (strstr(ctx->ifname, "http://")) {
-				ctx->iftype = IF_TYPE_MPEGTS_AVDEVICE;
-				printf("We have an HTTP input!!!\n");
-				We might need to pcr the pcr and rate limit it, for example for a HTTP faster than realtime source
-			} else
-#endif
 			if (strstr(ctx->ifname, ":loop")) {
 				ctx->fileLoops = 1;
 				ctx->ifname[strlen (ctx->ifname) - 5] = 0;
@@ -669,9 +648,6 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			break;
 		case 'v':
 			ctx->verbose++;
-			break;
-		case 'M':
-			ctx->monitor = 1;
 			break;
 		case 'D':
 			free(ctx->recordingDir);
@@ -776,7 +752,6 @@ int tsprobe(int argc, char *argv[])
 	pthread_mutex_init(&ctx->lock, NULL);
 	xorg_list_init(&ctx->list);
 
-	pthread_mutex_init(&ctx->ui_threadLock, NULL);
 	pthread_mutex_init(&ctx->lockpcap, NULL);
 	xorg_list_init(&ctx->listpcapFree);
 	xorg_list_init(&ctx->listpcapUsed);
@@ -877,14 +852,9 @@ int tsprobe(int argc, char *argv[])
 
 		if (ctx->reportProcessMemoryUsage) {
 			process_memory_update(&ctx->memUsage, 5);
-
-			if (ctx->monitor == 0) {
-				/* Report status to console */
-				process_memory_dprintf(STDOUT_FILENO, &ctx->memUsage, 5);
-			}
 		}
 
-		char c = ui_syncronized_getch(ctx);
+		char c = getch(ctx);
 
 		if (ctx->startTime + 2 == time(NULL)) {
 			c = 'r';
@@ -892,7 +862,7 @@ int tsprobe(int argc, char *argv[])
 		if (c == 'F') {
 			ctx->showForwardOptions = 1;
 			while (gRunning) {
-				char c = ui_syncronized_getch(ctx);
+				char c = getch(ctx);
 				if (c == '7') {
 					/* Forward to location slot 7 */
 					discovered_items_select_forward_toggle(ctx, 7);
@@ -972,9 +942,6 @@ int tsprobe(int argc, char *argv[])
 		if (c == '@') {
 			ctx->recordWithSegments = (ctx->recordWithSegments + 1) & 0x1;
 		}
-		if (c == 'h') {
-			ctx->showUIOptions = ~ctx->showUIOptions;
-		}
 #if 0
 		if (c == '3') {
 			discovered_items_select_scte35_toggle(ctx);
@@ -982,9 +949,9 @@ int tsprobe(int argc, char *argv[])
 #endif
 		/* Cursor key support */
 		if (c == 0x1b) {
-			c = ui_syncronized_getch(ctx);
+			c = getch(ctx);
 			if (c == 0x5b) {
-				c = ui_syncronized_getch(ctx);
+				c = getch(ctx);
 				if (c == 0x41) { /* Up */
 					discovered_items_select_prev(ctx);
 				} else
@@ -1017,7 +984,6 @@ int tsprobe(int argc, char *argv[])
 	time_t periodEnds = time(NULL);
 
 	/* Shutdown stats collection */
-	ctx->ui_threadTerminate = 1;
 	ctx->pcap_threadTerminate = 1;
 	ctx->stats_threadTerminate = 1;
 	ctx->json_threadTerminate = 1;
@@ -1027,15 +993,6 @@ int tsprobe(int argc, char *argv[])
 		usleep(50 * 1000);
 	while (!ctx->json_threadTerminated)
 		usleep(50 * 1000);
-
-	/* Shutdown ui */
-	if (ctx->monitor) {
-		while (!ctx->ui_threadTerminated) {
-			usleep(50 * 1000);
-			printf("Blocked on ui\n");
-		}
-		endwin();
-	}
 
 	/* Prepare stats window messages for later print. */
 	char ts_b[64];
