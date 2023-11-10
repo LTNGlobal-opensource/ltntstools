@@ -62,8 +62,13 @@ int publish_json_message(const char *json_message) {
 
 int zmq_item_send(struct tool_context_s *ctx, struct json_item_s *item)
 {
-        printf("sending json to %s:\n%s\n", ctx->json_http_url, item->buf);
-        return publish_json_message((const char *)item->buf);
+	if (ctx->verbose)
+		printf("sending json to %s:\n%s\n", ctx->json_http_url, item->buf);
+	else
+		fprintf(stderr, ".");
+		fflush(stderr);
+
+	return publish_json_message((const char *)item->buf);
 }
 
 static void *json_thread_func(void *p)
@@ -100,7 +105,7 @@ static void *json_thread_func(void *p)
 			/* Look at the queue, take everything off it, issue zmq send. */
 			int failed = 0;
 			struct json_item_s *item = json_queue_peek(ctx);
-			int loop = 0;
+			int retry = 0;
 			while (item && ctx->json_threadTerminate == 0) {
 				if (zmq_item_send(ctx, item) == 0) {
 					/* Success, remove the item from the list */
@@ -125,7 +130,8 @@ static void *json_thread_func(void *p)
 				/* Success, take this of the queue and destroy it */
 				item = json_queue_peek(ctx);
 
-				fprintf(stdout, "json loop count: %d\n", ++loop);
+				if (retry > 0)
+					fprintf(stdout, "json retry count: %d\n", ++retry);
 			}
 		}
 
