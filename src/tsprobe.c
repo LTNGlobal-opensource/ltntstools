@@ -33,139 +33,6 @@ extern int ltnpthread_setname_np(pthread_t thread, const char *name);
 void *zmq_context = NULL;
 void *zmq_publisher = NULL;
 
-static void *tsprobe_thread_func(void *p)
-{
-	struct tool_context_s *ctx = p;
-	ctx->ui_threadRunning = 1;
-	ctx->ui_threadTerminate = 0;
-	ctx->ui_threadTerminated = 0;
-	ctx->trailerRow = DEFAULT_TRAILERROW;
-	double totalMbps = 0, totalRxMbps = 0, totalTxMbps = 0;
-	int totalStreams = 0;
-	struct ltntstools_proc_net_udp_item_s *items = NULL;
-	int itemCount = 0;
-
-	ltnpthread_setname_np(ctx->ui_threadId, "tstools-tsprobe");
-	pthread_detach(pthread_self());
-
-	while (!ctx->ui_threadTerminate) {
-		totalRxMbps = 0;
-		totalTxMbps = 0;
-		totalStreams = 0;
-		time_t now;
-		time(&now);
-
-		pthread_mutex_lock(&ctx->ui_threadLock);
-
-		// Main part of thread here
-		int streamCount = 1;
-		struct discovered_item_s *di = NULL;
-		pthread_mutex_lock(&ctx->lock);
-		xorg_list_for_each_entry(di, &ctx->list, list) {
-
-			if (discovered_item_state_get(di, DI_STATE_HIDDEN))
-				continue;
-
-			time_t now;
-			time(&now);
-
-			/* Deal with cases were output bitrate on a udp stream is low low, that we're unable to
-			 * detect its stream type.
-			 */
-			if (di->firstSeen + 2 <= now && di->payloadType == PAYLOAD_UNDEFINED) {
-				di->payloadType = PAYLOAD_BYTE_STREAM;
-			}
-
-			if (di->stats->ccErrors)
-				discovered_item_state_set(di, DI_STATE_CC_ERROR);
-			else
-				discovered_item_state_clr(di, DI_STATE_CC_ERROR);
-
-			if (discovered_item_state_get(di, DI_STATE_CC_ERROR) || di->iat_hwm_us / 1000 > ctx->iatMax)			
-				attron(COLOR_PAIR(3));
-
-			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
-				attron(COLOR_PAIR(4));
-
-			if (discovered_item_state_get(di, DI_STATE_SELECTED))
-				attron(COLOR_PAIR(5));
-
-			if (di->srcOriginRemoteHost) {
-				totalRxMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
-			} else {
-				totalTxMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
-			}
-			totalMbps = totalRxMbps + totalTxMbps;
-
-			totalStreams++;
-			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
-					payloadTypeDesc(di->payloadType),
-					di->srcaddr,
-					di->dstaddr,
-					ltntstools_pid_stats_stream_get_mbps(di->stats),
-					di->stats->packetCount,
-					di->stats->ccErrors,
-					di->iat_hwm_us / 1000,
-					di->warningIndicatorLabel);
-			} else
-			if (di->payloadType == PAYLOAD_A324_CTP) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
-					payloadTypeDesc(di->payloadType),
-					di->srcaddr,
-					di->dstaddr,
-					ltntstools_ctp_stats_stream_get_mbps(di->stats),
-					di->stats->packetCount,
-					di->stats->ccErrors,
-					di->iat_hwm_us / 1000,
-					di->warningIndicatorLabel);
-				totalMbps += ltntstools_ctp_stats_stream_get_mbps(di->stats);
-			} else
-			if ((di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) ||
-				(di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) ||
-				(di->payloadType == PAYLOAD_SMPTE2110_40_ANC)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
-					payloadTypeDesc(di->payloadType),
-					di->srcaddr,
-					di->dstaddr,
-					ltntstools_ctp_stats_stream_get_mbps(di->stats),
-					di->stats->packetCount,
-					di->stats->ccErrors,
-					di->iat_hwm_us / 1000,
-					di->warningIndicatorLabel);
-				totalMbps += ltntstools_ctp_stats_stream_get_mbps(di->stats);
-			} else
-			if (di->payloadType == PAYLOAD_BYTE_STREAM) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %4d  %s",
-					payloadTypeDesc(di->payloadType),
-					di->srcaddr,
-					di->dstaddr,
-					ltntstools_bytestream_stats_stream_get_mbps(di->stats),
-					di->stats->packetCount,
-					"-",
-					di->iat_hwm_us / 1000,
-					di->warningIndicatorLabel);
-				totalMbps += ltntstools_bytestream_stats_stream_get_mbps(di->stats);
-			}
-		}
-		pthread_mutex_unlock(&ctx->lock);
-
-		pthread_mutex_unlock(&ctx->ui_threadLock);
-
-		usleep(200 * 1000);
-	}
-
-	if (items) {
-		ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);
-		items = NULL;
-	}
-
-	ctx->ui_threadTerminated = 1;
-
-	pthread_exit(NULL);
-	return 0;
-}
-
 // Initialization function for ZMQ, call this in initialization routine
 void initialize_zmq_publisher(struct tool_context_s *ctx) {
     zmq_context = zmq_ctx_new();
@@ -188,8 +55,9 @@ int publish_json_message(const char *json_message) {
     int rc = zmq_send(zmq_publisher, json_message, strlen(json_message), 0);
     if (rc == -1) {
         fprintf(stderr, "Error occurred during zmq_send of %s: %s\n", json_message, zmq_strerror(errno));
+		return -1;
     }
-    return rc;
+    return 0;
 }
 
 int zmq_item_send(struct tool_context_s *ctx, struct json_item_s *item)
@@ -217,8 +85,8 @@ static void *json_thread_func(void *p)
 	int json_post_interval = 1; /* Seconds */
 	time_t json_next_post_time = 0;
 
-        /* Initialize ZeroMQ */
-        initialize_zmq_publisher(ctx);
+	/* Initialize ZeroMQ */
+	initialize_zmq_publisher(ctx);
 
 	int workdone = 0;
 	while (!ctx->json_threadTerminate) {
@@ -232,6 +100,7 @@ static void *json_thread_func(void *p)
 			/* Look at the queue, take everything off it, issue zmq send. */
 			int failed = 0;
 			struct json_item_s *item = json_queue_peek(ctx);
+			int loop = 0;
 			while (item && ctx->json_threadTerminate == 0) {
 				if (zmq_item_send(ctx, item) == 0) {
 					/* Success, remove the item from the list */
@@ -241,6 +110,7 @@ static void *json_thread_func(void *p)
 
 					failed = 0;
 				} else {
+					fprintf(stderr, "json send failed, retrying in 250ms\n");
 					usleep(250 * 1000); /* Natural rate limit if the post fails */
 					failed += 250;
 				}
@@ -254,6 +124,8 @@ static void *json_thread_func(void *p)
 
 				/* Success, take this of the queue and destroy it */
 				item = json_queue_peek(ctx);
+
+				fprintf(stdout, "json loop count: %d\n", ++loop);
 			}
 		}
 
@@ -263,8 +135,8 @@ static void *json_thread_func(void *p)
 	}
 	ctx->json_threadTerminated = 1;
 
-        /* Cleanup ZeroMQ */
-        cleanup_zmq_publisher();
+	/* Cleanup ZeroMQ */
+	cleanup_zmq_publisher();
 
 	pthread_exit(NULL);
 	return 0;
@@ -974,147 +846,30 @@ int tsprobe(int argc, char *argv[])
 	/* Framework to track the /proc/net/udp socket buffers stats - primarily for loss */
 	ltntstools_proc_net_udp_alloc(&ctx->procNetUDPContext);
 
-	pthread_create(&ctx->ui_threadId, 0, tsprobe_thread_func, ctx);
+	ctx->monitor = 1;
+	discovered_items_select_all(ctx);
+	discovered_items_unhide_all(ctx);
 
 	/* Start any threads, main loop processes keybaord. */
 	signal(SIGINT, signal_handler);
 	timeout(300);
 
-	if (ctx->reportProcessMemoryUsage) {
-		/* Measure the memory used by this process */
-		process_memory_init(&ctx->memUsage);
-	}
+	/* Measure the memory used by this process */
+	process_memory_init(&ctx->memUsage);
 
 	time(&ctx->lastResetTime);
 	while (gRunning) {
 
-		if (ctx->reportProcessMemoryUsage) {
-			process_memory_update(&ctx->memUsage, 5);
-		}
-
-		char c = getch();
+		process_memory_update(&ctx->memUsage, 5);
 
 		if (ctx->startTime + 2 == time(NULL)) {
-			c = 'r';
-		}
-		if (c == 'F') {
-			ctx->showForwardOptions = 1;
-			while (gRunning) {
-				char c = getch();
-				if (c == '7') {
-					/* Forward to location slot 7 */
-					discovered_items_select_forward_toggle(ctx, 7);
-					break;
-				} else
-				if (c == '8') {
-					discovered_items_select_forward_toggle(ctx, 8);
-					break;
-				} else
-				if (c == '9') {
-					discovered_items_select_forward_toggle(ctx, 9);
-					break;
-				} else
-				if (c == 'q') {
-					break;
-				} else {
-					usleep(50 * 1000);
-					continue;
-				}
-			}
-			ctx->showForwardOptions = 0;
-		}
-
-		if (c == 'q')
-			break;
-		if (c == 'f') {
-			ctx->freezeDisplay++;
-		}
-		if (c == 'r') {
 			time(&ctx->lastResetTime);
 			discovered_items_stats_reset(ctx);
 			ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
 			ctx->lastSocketReport = 0;
 		}
-		if (c == 'C') {
-			discovered_items_select_show_clocks_toggle(ctx);
-		}
-		if (c == 'D') {
-			discovered_items_select_none(ctx);
-		}
-		if (c == 'S') {
-			discovered_items_select_all(ctx);
-		}
-		if (c == 'T') {
-			discovered_items_select_show_tr101290_toggle(ctx);
-		}
-		if (c == 'R') {
-			discovered_items_select_record_toggle(ctx);
-		}
-		if (c == 's') {
-			discovered_items_select_show_processes_toggle(ctx);
-		}
-		if (c == 'P') {
-			discovered_items_select_show_pids_toggle(ctx);
-		}
-		if (c == 'I') {
-			discovered_items_select_show_iats_toggle(ctx);
-		}
-		if (c == 'J') {
-			discovered_items_select_json_probe_toggle(ctx);
-		}
-		if (c == 'L') {
-			discovered_items_select_show_stream_log_toggle(ctx);
-		}
-		if (c == 'H') {
-			discovered_items_select_hide(ctx);
-		}
-		if (c == 'U') {
-			discovered_items_unhide_all(ctx);
-		}
-		if (c == 'M') {
-			discovered_items_select_show_streammodel_toggle(ctx);
-		}
-		if (c == '$') {
-			ctx->recordAsTS = (ctx->recordAsTS + 1) & 0x1;
-		}
-		if (c == '@') {
-			ctx->recordWithSegments = (ctx->recordWithSegments + 1) & 0x1;
-		}
-#if 0
-		if (c == '3') {
-			discovered_items_select_scte35_toggle(ctx);
-		}
-#endif
-		/* Cursor key support */
-		if (c == 0x1b) {
-			c = getch();
-			if (c == 0x5b) {
-				c = getch();
-				if (c == 0x41) { /* Up */
-					discovered_items_select_prev(ctx);
-				} else
-				if (c == 0x42) { /* Down */
-					discovered_items_select_next(ctx);
-				} else
-				if (c == 0x43) { /* Right */
-					discovered_items_select_first(ctx);
-				} else
-				if (c == 0x44) { /* Left */
-					discovered_items_select_none(ctx);
-				}
-				else
-				if (c == 0x35) { /* Page Up */
-					//printf("0x%02x up\n", c);
-					discovered_items_select_show_stream_log_pageup(ctx);
-				} else
-				if (c == 0x36) { /* Page Down */
-					//printf("0x%02x dn\n", c);
-					discovered_items_select_show_stream_log_pagedown(ctx);
-				}
-			}
-		}
 
-		usleep(50 * 1000);
+		usleep(1000 * 1000);
 	}
 
 	discovered_items_abort(ctx);
@@ -1122,7 +877,6 @@ int tsprobe(int argc, char *argv[])
 	time_t periodEnds = time(NULL);
 
 	/* Shutdown stats collection */
-	ctx->ui_threadTerminate = 1;
 	ctx->pcap_threadTerminate = 1;
 	ctx->stats_threadTerminate = 1;
 	ctx->json_threadTerminate = 1;
@@ -1132,13 +886,6 @@ int tsprobe(int argc, char *argv[])
 		usleep(50 * 1000);
 	while (!ctx->json_threadTerminated)
 		usleep(50 * 1000);
-
-	/* Shutdown ui */
-	while (!ctx->ui_threadTerminated) {
-		usleep(50 * 1000);
-		printf("Blocked on ui\n");
-	}
-	endwin();
 
 	/* Prepare stats window messages for later print. */
 	char ts_b[64];
@@ -1184,19 +931,20 @@ int tsprobe(int argc, char *argv[])
 			ctx->ifname, ctx->pcap_stats.ps_drop, ctx->pcap_stats.ps_ifdrop);
 	}
 
-	pcap_queue_free(ctx);
-
-	printf("Flushing the streams and recorders...\n");
-	//discovered_items_free(ctx);
-
 	printf("\nStats window:\n");
 	printf("  from %s -> %s\n", ts_b, ts_e);
 	printf("  duration %02d:%02d:%02d (HH:MM:SS)\n\n", diff.tm_hour, diff.tm_min, diff.tm_sec);
+
+	printf("Flushing the streams and recorders...\n");
+	discovered_items_free(ctx);
 
 	free(ctx->file_prefix);
 	free(ctx->detailed_file_prefix);
 
 	ltntstools_reframer_free(ctx->reframer);
+
+	/* free memory */
+	pcap_queue_free(ctx);
 
 	return 0;
 }
