@@ -509,28 +509,16 @@ static void usage(const char *progname)
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
-	printf("  -M Display an interactive console with stats.\n");
-	printf("  -D <dir> Write any PCAP recordings in this target directory prefix. [def: %s else /tmp]\n", DEFAULT_STORAGE_LOCATION);
-	printf("  -d <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
-	printf("  -w <dir> Write detailed per pid stats per stream in this target directory prefix, every -n seconds.\n");
-	printf("  -n <seconds> Interval to update -d file based stats [def: %d]\n", FILE_WRITE_INTERVAL);
 	printf("  -F '<string>' Use a custom pcap filter. [def: '%s']\n", DEFAULT_PCAP_FILTER);
 	printf("  -S <number> Packet buffer size [def: %d] (min: 2048)\n", g_snaplen_default);
 	printf("  -B <number> Buffer size [def: %d]\n", g_buffer_size_default);
-	printf("  -R Automatically record all discovered streams\n");
-	printf("  -E Record in a single file, don't segment into 60sec files\n");
-	printf("  -T Record int a TS format where possible [default is PCAP]\n");
 	printf("  -I <#> (ms) max allowable IAT measured in ms [def: %d]\n", g_max_iat_ms);
 	printf("\n");
-	printf("  --udp-forwarder udp://a.b.c.d:port   Add up to %d url forwarders.\n", MAX_URL_FORWARDERS);
-	printf("  --danger-skip-freespace-check        Skip the Disk Free space check, don't stop recording when disk has < 10pct free.\n");
 	printf("  --measure-sei-latency-always         Look for the LTN SEI timing data, regardless of PMT version descriptoring.\n");
 	printf("  --measure-scheduling-quanta          Test the scheduling quanta for 1000us sleep granularity.\n");
 	printf("  --show-h264-metadata 0xnnnn          Analyze the given H264 PID (or detect it), show different codec stats (Experimental).\n");
-	printf("  --report-rtp-headers                 For RTP UDP/TS streams, dump each RTP header to console.\n");
 	printf("  --zmq-json-send tcp://url            Send 1sec json stats reports for all discovered streams [def: disabled] (Experimental).\n");
 	printf("    Eg. tcp://127.0.0.1:1000\n");
-	printf("  --report-memory-usage                Report memory usage and growth every 5 seconds.\n");
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
@@ -661,8 +649,8 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		case 'v':
 			ctx->verbose++;
 			break;
-                case 'M':
-                        break;
+		case 'M':
+				break;
 		case 'D':
 			free(ctx->recordingDir);
 			ctx->recordingDir = strdup(optarg);
