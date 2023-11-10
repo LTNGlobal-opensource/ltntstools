@@ -33,6 +33,139 @@ extern int ltnpthread_setname_np(pthread_t thread, const char *name);
 void *zmq_context = NULL;
 void *zmq_publisher = NULL;
 
+static void *tsprobe_thread_func(void *p)
+{
+	struct tool_context_s *ctx = p;
+	ctx->ui_threadRunning = 1;
+	ctx->ui_threadTerminate = 0;
+	ctx->ui_threadTerminated = 0;
+	ctx->trailerRow = DEFAULT_TRAILERROW;
+	double totalMbps = 0, totalRxMbps = 0, totalTxMbps = 0;
+	int totalStreams = 0;
+	struct ltntstools_proc_net_udp_item_s *items = NULL;
+	int itemCount = 0;
+
+	ltnpthread_setname_np(ctx->ui_threadId, "tstools-tsprobe");
+	pthread_detach(pthread_self());
+
+	while (!ctx->ui_threadTerminate) {
+		totalRxMbps = 0;
+		totalTxMbps = 0;
+		totalStreams = 0;
+		time_t now;
+		time(&now);
+
+		pthread_mutex_lock(&ctx->ui_threadLock);
+
+		// Main part of thread here
+		int streamCount = 1;
+		struct discovered_item_s *di = NULL;
+		pthread_mutex_lock(&ctx->lock);
+		xorg_list_for_each_entry(di, &ctx->list, list) {
+
+			if (discovered_item_state_get(di, DI_STATE_HIDDEN))
+				continue;
+
+			time_t now;
+			time(&now);
+
+			/* Deal with cases were output bitrate on a udp stream is low low, that we're unable to
+			 * detect its stream type.
+			 */
+			if (di->firstSeen + 2 <= now && di->payloadType == PAYLOAD_UNDEFINED) {
+				di->payloadType = PAYLOAD_BYTE_STREAM;
+			}
+
+			if (di->stats->ccErrors)
+				discovered_item_state_set(di, DI_STATE_CC_ERROR);
+			else
+				discovered_item_state_clr(di, DI_STATE_CC_ERROR);
+
+			if (discovered_item_state_get(di, DI_STATE_CC_ERROR) || di->iat_hwm_us / 1000 > ctx->iatMax)			
+				attron(COLOR_PAIR(3));
+
+			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
+				attron(COLOR_PAIR(4));
+
+			if (discovered_item_state_get(di, DI_STATE_SELECTED))
+				attron(COLOR_PAIR(5));
+
+			if (di->srcOriginRemoteHost) {
+				totalRxMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
+			} else {
+				totalTxMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
+			}
+			totalMbps = totalRxMbps + totalTxMbps;
+
+			totalStreams++;
+			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
+					payloadTypeDesc(di->payloadType),
+					di->srcaddr,
+					di->dstaddr,
+					ltntstools_pid_stats_stream_get_mbps(di->stats),
+					di->stats->packetCount,
+					di->stats->ccErrors,
+					di->iat_hwm_us / 1000,
+					di->warningIndicatorLabel);
+			} else
+			if (di->payloadType == PAYLOAD_A324_CTP) {
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
+					payloadTypeDesc(di->payloadType),
+					di->srcaddr,
+					di->dstaddr,
+					ltntstools_ctp_stats_stream_get_mbps(di->stats),
+					di->stats->packetCount,
+					di->stats->ccErrors,
+					di->iat_hwm_us / 1000,
+					di->warningIndicatorLabel);
+				totalMbps += ltntstools_ctp_stats_stream_get_mbps(di->stats);
+			} else
+			if ((di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) ||
+				(di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) ||
+				(di->payloadType == PAYLOAD_SMPTE2110_40_ANC)) {
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
+					payloadTypeDesc(di->payloadType),
+					di->srcaddr,
+					di->dstaddr,
+					ltntstools_ctp_stats_stream_get_mbps(di->stats),
+					di->stats->packetCount,
+					di->stats->ccErrors,
+					di->iat_hwm_us / 1000,
+					di->warningIndicatorLabel);
+				totalMbps += ltntstools_ctp_stats_stream_get_mbps(di->stats);
+			} else
+			if (di->payloadType == PAYLOAD_BYTE_STREAM) {
+				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %4d  %s",
+					payloadTypeDesc(di->payloadType),
+					di->srcaddr,
+					di->dstaddr,
+					ltntstools_bytestream_stats_stream_get_mbps(di->stats),
+					di->stats->packetCount,
+					"-",
+					di->iat_hwm_us / 1000,
+					di->warningIndicatorLabel);
+				totalMbps += ltntstools_bytestream_stats_stream_get_mbps(di->stats);
+			}
+		}
+		pthread_mutex_unlock(&ctx->lock);
+
+		pthread_mutex_unlock(&ctx->ui_threadLock);
+
+		usleep(200 * 1000);
+	}
+
+	if (items) {
+		ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);
+		items = NULL;
+	}
+
+	ctx->ui_threadTerminated = 1;
+
+	pthread_exit(NULL);
+	return 0;
+}
+
 // Initialization function for ZMQ, call this in initialization routine
 void initialize_zmq_publisher(struct tool_context_s *ctx) {
     zmq_context = zmq_ctx_new();
@@ -841,6 +974,8 @@ int tsprobe(int argc, char *argv[])
 	/* Framework to track the /proc/net/udp socket buffers stats - primarily for loss */
 	ltntstools_proc_net_udp_alloc(&ctx->procNetUDPContext);
 
+	pthread_create(&ctx->ui_threadId, 0, tsprobe_thread_func, ctx);
+
 	/* Start any threads, main loop processes keybaord. */
 	signal(SIGINT, signal_handler);
 	timeout(300);
@@ -987,6 +1122,7 @@ int tsprobe(int argc, char *argv[])
 	time_t periodEnds = time(NULL);
 
 	/* Shutdown stats collection */
+	ctx->ui_threadTerminate = 1;
 	ctx->pcap_threadTerminate = 1;
 	ctx->stats_threadTerminate = 1;
 	ctx->json_threadTerminate = 1;
@@ -996,6 +1132,13 @@ int tsprobe(int argc, char *argv[])
 		usleep(50 * 1000);
 	while (!ctx->json_threadTerminated)
 		usleep(50 * 1000);
+
+	/* Shutdown ui */
+	while (!ctx->ui_threadTerminated) {
+		usleep(50 * 1000);
+		printf("Blocked on ui\n");
+	}
+	endwin();
 
 	/* Prepare stats window messages for later print. */
 	char ts_b[64];
