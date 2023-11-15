@@ -13,8 +13,9 @@
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
+#include "../../ffmpeg/libavutil/internal.h"
 
-#define H264_IFRAME_THUMBNAILING 0
+#define H264_IFRAME_THUMBNAILING 1
 
 #if H264_IFRAME_THUMBNAILING
 
@@ -300,7 +301,7 @@ static int ltntstools_h264_iframe_thumbnailer_avframe_scale_to_N(struct ltntstoo
 	int ret = av_image_alloc(&ofrm->data[0], &ofrm->linesize[0], ofrm->width, ofrm->height, ofrm->format, 1);
 	if (ret < 0) {
 		fprintf(stderr, "%s() Failed allocating image\n", __func__);
-		av_frame_free(&frm);
+		av_frame_free(&ofrm);
 		return -1;
 	}
 
@@ -316,8 +317,8 @@ static int ltntstools_h264_iframe_thumbnailer_avframe_scale_to_N(struct ltntstoo
 			av_get_pix_fmt_name(infrm->format), infrm->width, infrm->height,
 			av_get_pix_fmt_name(infrm->format), dst_w, dst_h);
 
-		av_freep(&frm->data[0]);
-		av_frame_free(&frm);
+		av_freep(&infrm->data[0]);
+		av_frame_free(&infrm);
 		sws_freeContext(sws_ctx);
 		return -1;
 	}
