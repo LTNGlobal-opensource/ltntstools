@@ -192,11 +192,11 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		}
 #endif
 
-#if 0
+#if 1
 		if (nic_monitor_tr101290_alloc(di) < 0) {
 			fprintf(stderr, "\nUnable to allocate tr101290 analyzer, it's safe to continue.\n\n");
 		}
-		discovered_item_state_set(di, DI_STATE_SHOW_TR101290);
+		//discovered_item_state_set(di, DI_STATE_SHOW_TR101290);
 #endif
 
 #if KAFKA_REPORTER
