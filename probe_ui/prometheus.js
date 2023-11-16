@@ -3,6 +3,8 @@ const express = require('express');
 const promClient = require('prom-client');
 
 const app = express();
+const kafka = new Kafka({ clientId: 'vma', brokers: ['sun:9092'] });
+const consumer = kafka.consumer({ groupId: 'prometheus' });
 
 // Create Prometheus Metrics
 const createGauge = (name, help, labelNames = []) => new promClient.Gauge({ name, help, labelNames });
@@ -16,14 +18,15 @@ const metrics = {
     iat1Min: createGauge('kafka_iat1_min', 'Minimum IAT1', ['dst']),
     iat1Max: createGauge('kafka_iat1_max', 'Maximum IAT1', ['dst']),
     iat1Avg: createGauge('kafka_iat1_avg', 'Average IAT1', ['dst']),
+// "tr101290":{"p1":{"tssyncloss":"OK ","syncbyte":"OK ","pat":"OK ","pat2":"OK ","cc":"OK ","pmt":"OK ","pmt2":"OK ","pid":"BAD"},"p2":{"transport":"OK
+//  ","crc":"OK ","pcr":"OK ","pcrrep":"OK ","cat":"OK "},"p3":{}}
     // ... Additional metrics definitions ...
 };
 
+const serviceStreamCount = createGauge('kafka_service_stream_count', 'Number of streams per service', ['dst', 'service_index']);
+
 // Kafka Consumer and Metrics Updater
 const run = async () => {
-    const serviceStreamCount = createGauge('kafka_service_stream_count', 'Number of streams per service', ['dst', 'service_index']);
-    const kafka = new Kafka({ clientId: 'test', brokers: ['sun:9092'] });
-    const consumer = kafka.consumer({ groupId: 'prometheus' });
     await consumer.connect();
     await consumer.subscribe({ topic: 'test', fromBeginning: false });
 
@@ -31,7 +34,7 @@ const run = async () => {
         eachMessage: async ({ topic, partition, message }) => {
             try {
                 let messageStr = message.value.toString();
-    
+
                 // Validate and Clean Message
                 if (messageStr.indexOf('^posting html json:$') === 0) {
                     messageStr = messageStr.substring(20);
@@ -40,10 +43,10 @@ const run = async () => {
                     console.error('Invalid message:', messageStr);
                     return;
                 }
-    
+
                 const data = JSON.parse(messageStr);
                 const dst = data.dst.replace(':', '_');
-    
+
                 // Check if pids is defined and is an array
                 if (Array.isArray(data.pids)) {
                     // Update PID Metrics
@@ -55,7 +58,7 @@ const run = async () => {
                 } else {
                     console.error('Invalid or missing pids:', data.pids);
                 }
-    
+
                 // Update Stats Metrics
                 metrics.statsMpbs.labels(dst).set(data.stats.mbps);
                 metrics.la1.labels(dst).set(data.la1);
@@ -65,7 +68,7 @@ const run = async () => {
                 metrics.iat1Min.labels(dst).set(data.stats.iat1_min);
                 metrics.iat1Max.labels(dst).set(data.stats.iat1_max);
                 metrics.iat1Avg.labels(dst).set(data.stats.iat1_avg);
-        
+
                 // Handle Services Metrics
                 // Check if services is defined and is an array
                 if (Array.isArray(data.services)) {
@@ -77,12 +80,12 @@ const run = async () => {
                 } else {
                     console.error('Invalid or missing services:', data.services);
                 }
-    
+
             } catch (e) {
                 console.error(`Failed to process message: ${message.value.toString()}`, e);
             }
         },
-    });    
+    });
 };
 
 // Utility Functions
