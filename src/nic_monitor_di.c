@@ -441,6 +441,151 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	return found;
 }
 
+/* 
+* Get TR101290 alarms.
+* This function is called from the json thread
+*	int p1col = 10;
+*	int p2col = 45;
+*	int p3col = 75;
+*/
+void json_add_tr101290(struct discovered_item_s *di, json_object *feed)
+{
+	if (!di->trHandle)
+		return;
+		
+	/* Prevent our 101290 callback avoe from touching this while we're rendering results. */
+	pthread_mutex_lock(&di->trLock);
+
+	struct ltntstools_tr101290_summary_item_s *items;
+	int itemCount;
+	if (ltntstools_tr101290_summary_get(di->trHandle, &items, &itemCount) < 0) {
+		pthread_mutex_unlock(&di->trLock);
+		return;
+	}
+
+	/* Everything RED until further notice */
+
+	char *stateDesc[] = { "OK ", "BAD" };
+
+	/* tr101290 json */
+	json_object *tr101290 = json_object_new_object();
+	json_object *p1 = json_object_new_object();
+	json_object *p2 = json_object_new_object();
+	json_object *p3 = json_object_new_object();
+
+	json_object_object_add(tr101290, "p1", p1);
+	json_object_object_add(tr101290, "p2", p2);
+	json_object_object_add(tr101290, "p3", p3);
+
+	json_object_object_add(feed, "tr101290", tr101290);
+
+	json_object *p1tssyncloss = NULL;
+	json_object *p1syncbyte = NULL;
+	json_object *p1pat = NULL;
+	json_object *p1pat2 = NULL;
+	json_object *p1cc = NULL;
+	json_object *p1pmt = NULL;
+	json_object *p1pmt2 = NULL;
+	json_object *p1pid = NULL;
+	json_object *p2transport = NULL;
+	json_object *p2crc = NULL;
+	json_object *p2pcr = NULL;
+	json_object *p2pcrrep = NULL;
+	json_object *p2pcracc = NULL;
+	json_object *p2pts = NULL;
+	json_object *p2cat = NULL;
+	char statstr[64];
+
+	for (int i = 0; i < itemCount; i++) {
+		struct ltntstools_tr101290_summary_item_s *item = &items[i];
+		if (item->enabled == 0)
+			continue;
+
+		char *sl = stateDesc[0];
+
+		if (item->raised) {
+			sl = stateDesc[1];
+		}
+		//int priority = item->priorityNr;
+
+		switch (item->id) {
+		case E101290_P1_1__TS_SYNC_LOSS:
+			p1tssyncloss = json_object_new_string(sl);
+			json_object_object_add(p1, "tssyncloss", p1tssyncloss);
+			break;
+		case E101290_P1_2__SYNC_BYTE_ERROR:
+			p1syncbyte = json_object_new_string(sl);
+			json_object_object_add(p1, "syncbyte", p1syncbyte);
+			break;
+		case E101290_P1_3__PAT_ERROR:
+			p1pat = json_object_new_string(sl);
+			json_object_object_add(p1, "pat", p1pat);
+			break;
+		case E101290_P1_3a__PAT_ERROR_2:
+			p1pat2 = json_object_new_string(sl);
+			json_object_object_add(p1, "pat2", p1pat2);
+			break;
+		case E101290_P1_4__CONTINUITY_COUNTER_ERROR:
+			p1cc = json_object_new_string(sl);
+			json_object_object_add(p1, "cc", p1cc);
+			break;
+		case E101290_P1_5__PMT_ERROR:
+			p1pmt = json_object_new_string(sl);
+			json_object_object_add(p1, "pmt", p1pmt);
+			break;
+		case E101290_P1_5a__PMT_ERROR_2:
+			p1pmt2 = json_object_new_string(sl);
+			json_object_object_add(p1, "pmt2", p1pmt2);
+			break;
+		case E101290_P1_6__PID_ERROR:
+			sprintf(statstr, "%s %s", sl, item->arg);
+			p1pid = json_object_new_string(statstr);
+			json_object_object_add(p1, "pid", p1pid);
+			break;
+		case E101290_P2_1__TRANSPORT_ERROR:
+			p2transport = json_object_new_string(sl);
+			json_object_object_add(p2, "transport", p2transport);
+			break;
+		case E101290_P2_2__CRC_ERROR:
+			sprintf(statstr, "%s %s", sl, item->arg);
+			p2crc = json_object_new_string(statstr);
+			json_object_object_add(p2, "crc", p2crc);
+			break;
+		case E101290_P2_3__PCR_ERROR:
+			sprintf(statstr, "%s %s", sl, item->arg);
+			p2pcr = json_object_new_string(statstr);
+			json_object_object_add(p2, "pcr", p2pcr);
+			break;
+		case E101290_P2_3a__PCR_REPETITION_ERROR:
+			sprintf(statstr, "%s %s", sl, item->arg);
+			p2pcrrep = json_object_new_string(statstr);
+			json_object_object_add(p2, "pcrrep", p2pcrrep);
+			break;
+		case E101290_P2_4__PCR_ACCURACY_ERROR:
+			p2pcracc = json_object_new_string(sl);
+			json_object_object_add(p2, "pcracc", p2pcracc);
+			break;
+		case E101290_P2_5__PTS_ERROR:
+			p2pts = json_object_new_string(sl);
+			json_object_object_add(p2, "pts", p2pts);
+			break;
+		case E101290_P2_6__CAT_ERROR:
+			p2cat = json_object_new_string(sl);
+			json_object_object_add(p2, "cat", p2cat);
+			break;
+		default:
+			//mvprintw(streamCount + 2, col, "%s %s", ltntstools_tr101290_event_name_ascii(ae->id), ae->description);
+			fprintf(stderr, "Unknown TR101290 event %d\n", item->id);
+			break;
+		}
+	}
+	if (items) {
+		free(items);
+	}
+	
+	pthread_mutex_unlock(&di->trLock);
+}
+
 /* See prometheus integration:
  *  https://github.com/prometheus-community/json_exporter
  */
@@ -575,6 +720,10 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 		}
 		json_object_object_add(feed, "services", services);
 	}
+
+	/* TR101290 */
+	json_add_tr101290(di, feed);
+
 	ltntstools_pat_free(m);
 	m = NULL;
 
