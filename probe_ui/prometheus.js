@@ -29,7 +29,7 @@ function convertToNumeric(status) {
         console.error('Status is undefined or null');
         return 1; // Default to 1 (error state) if status is undefined or null
     }
-    console.log('status:', status);
+    //console.log('status:', status);
     return status.substring(0, 2) === 'OK' ? 0 : 1;
 }
 
