@@ -180,32 +180,6 @@ const run = async () => {
                 metrics.iat1Max.labels(dst).set(data.stats.iat1_max);
                 metrics.iat1Avg.labels(dst).set(data.stats.iat1_avg);
 
-                // Handle Stream Metrics
-                // Check if streams is defined and is an array
-                if (Array.isArray(data.streams)) {
-                    // Update metrics related to streams
-                    data.streams.forEach(stream => {
-                        // Additional metrics for streams can be handled here
-                       /*
-                       "streams":[{"pid":"0x0031",
-                        "type":"0x1b",
-                        "desc":"H.264 Video"},
-                        {"pid":"0x0032",
-                        "type":"0x04",
-                        "desc":"ISO\/IEC 13818-3 Audio"},
-                        {"pid":"0x0033",
-                        "type":"0x86",
-                        "desc":"User Private"}]}],
-                        */
-                        // create a metric for each stream by pid using hex value
-                        const pid = parseInt(stream.pid, 16);
-                        metrics.streams.labels(dst, stream.pid, stream.type, stream.desc).set(pid);
-                    });
-                } else {
-                    //console.error('Invalid or missing streams:', data.streams);
-                    console.error('Invalid or missing streams:', data)
-                }
-
                 // Handle Services Metrics
                 // Check if services is defined and is an array
                 if (Array.isArray(data.services)) {
@@ -225,6 +199,32 @@ const run = async () => {
                         // convert service.program string from hex as 0xNN string to an integer
                         const program = parseInt(service.program, 16);
                         metrics.services.labels(dst, service.program, service.pmtpid, service.pcrpid, service.escount).set(program);
+
+                        // Handle Stream Metrics
+                        // Check if streams is defined and is an array
+                        if (Array.isArray(service.streams)) {
+                            // Update metrics related to streams
+                            service.streams.forEach(stream => {
+                                // Additional metrics for streams can be handled here
+                            /*
+                            "streams":[{"pid":"0x0031",
+                                "type":"0x1b",
+                                "desc":"H.264 Video"},
+                                {"pid":"0x0032",
+                                "type":"0x04",
+                                "desc":"ISO\/IEC 13818-3 Audio"},
+                                {"pid":"0x0033",
+                                "type":"0x86",
+                                "desc":"User Private"}]}],
+                                */
+                                // create a metric for each stream by pid using hex value
+                                const pid = parseInt(stream.pid, 16);
+                                metrics.streams.labels(dst, stream.pid, stream.type, stream.desc).set(pid);
+                            });
+                        } else {
+                            //console.error('Invalid or missing streams:', data.streams);
+                            console.error('Invalid or missing streams:', data)
+                        }
                     });
                 } else {
                     console.error('Invalid or missing services:', data.services);
