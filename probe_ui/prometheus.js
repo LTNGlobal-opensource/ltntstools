@@ -18,34 +18,18 @@ const metrics = {
     iat1Min: createGauge('kafka_iat1_min', 'Minimum IAT1', ['dst']),
     iat1Max: createGauge('kafka_iat1_max', 'Maximum IAT1', ['dst']),
     iat1Avg: createGauge('kafka_iat1_avg', 'Average IAT1', ['dst']),
-    // "tr101290":{"p1":{"tssyncloss":"OK ","syncbyte":"OK ","pat":"OK ","pat2":"OK ","cc":"OK ","pmt":"OK ","pmt2":"OK ","pid":"BAD"},"p2":{"transport":"OK
-    //  ","crc":"OK ","pcr":"OK ","pcrrep":"OK ","cat":"OK "},"p3":{}}
+    tr101290: createGauge('kafka_tr101290', 'TR101290 Status', ['dst', 'p', 'metric'])
     // ... Additional metrics definitions ...
-};
-
-// Prometheus Metrics for tr101290 P1 and P2
-const tr101290P1Metrics = {
-    tssyncloss: createGauge('tr101290_p1_tssyncloss', 'TR101290 P1 TS Sync Loss', ['dst']),
-    syncbyte: createGauge('tr101290_p1_syncbyte', 'TR101290 P1 Sync Byte', ['dst']),
-    pat: createGauge('tr101290_p1_pat', 'TR101290 P1 PAT', ['dst']),
-    pat2: createGauge('tr101290_p1_pat2', 'TR101290 P1 PAT2', ['dst']),
-    cc: createGauge('tr101290_p1_cc', 'TR101290 P1 CC', ['dst']),
-    pmt: createGauge('tr101290_p1_pmt', 'TR101290 P1 PMT', ['dst']),
-    pmt2: createGauge('tr101290_p1_pmt2', 'TR101290 P1 PMT2', ['dst']),
-    pid: createGauge('tr101290_p1_pid', 'TR101290 P1 PID', ['dst'])
-};
-
-const tr101290P2Metrics = {
-    transport: createGauge('tr101290_p2_transport', 'TR101290 P2 Transport', ['dst']),
-    crc: createGauge('tr101290_p2_crc', 'TR101290 P2 CRC', ['dst']),
-    pcr: createGauge('tr101290_p2_pcr', 'TR101290 P2 PCR', ['dst']),
-    pcrrep: createGauge('tr101290_p2_pcrrep', 'TR101290 P2 PCR Repetition', ['dst']),
-    cat: createGauge('tr101290_p2_cat', 'TR101290 P2 CAT', ['dst'])
 };
 
 // Utility function to convert TR101290 status to numeric
 function convertToNumeric(status) {
-    console.log('status:', status)
+    // Check if status is undefined or null
+    if (!status) {
+        console.error('Status is undefined or null');
+        return 1; // Default to 1 (error state) if status is undefined or null
+    }
+    console.log('status:', status);
     return status.substring(0, 2) === 'OK' ? 0 : 1;
 }
 
@@ -107,17 +91,21 @@ const run = async () => {
                     console.error('Invalid or missing services:', data.services);
                 }
 
-                // Handle tr101290 P1 Metrics
-                if (data.tr101290 && data.tr101290.p1) {
-                    Object.keys(tr101290P1Metrics).forEach(metric => {
-                        tr101290P1Metrics[metric].labels(dst).set(convertToNumeric(data.tr101290.p1[metric]));
-                    });
-                }
-
-                // Handle tr101290 P2 Metrics
-                if (data.tr101290 && data.tr101290.p2) {
-                    Object.keys(tr101290P2Metrics).forEach(metric => {
-                        tr101290P2Metrics[metric].labels(dst).set(convertToNumeric(data.tr101290.p2[metric]));
+                /*
+                {"host":"vma-dev02","timestamp":"2023-11-17 05:55:54.000","type":"UDP","src":"192.168.50.13:62628","dst":"224.0.0.200:10000","la1":0.10000000000000001,"la5":0.050000000000000003,"la15":0.050000000000000003,"stats":{"mbps":9.9910720000000008,"ccerrors":0,"packetcount":152369,"nic":"eth0","pcap_ifdrop":0,"pcap_psdrop":0,"iat1_min":0,"iat1_max":0,"iat1_avg":-1,"warning_indicators":"---T"},"services":[{"program":1,"pmtpid":"0x0030","pcrpid":"0x0031","escount":3,"streams":[{"pid":"0x0031","type":"0x1b","desc":"H.264 Video"},{"pid":"0x0032","type":"0x04","desc":"ISO\/IEC 13818-3 Audio"},{"pid":"0x0033","type":"0x86","desc":"User Private"}]}],"tr101290":{"p1":{"tssyncloss":"BAD","syncbyte":"OK ","pat":"OK ","pat2":"OK ","cc":"OK ","pmt":"OK ","pmt2":"OK ","pid":"BAD 0x0033 "},"p2":{"transport":"OK ","crc":"OK  ","pcr":"OK  ","pcrrep":"OK  ","cat":"OK "},"p3":{}},"pids":[{"pid":"0x0000","packetcount":241,"ccerrors":0,"mbps":0.01504},{"pid":"0x0030","packetcount":241,"ccerrors":0,"mbps":0.01504},{"pid":"0x0031","packetcount":135093,"ccerrors":0,"mbps":9.2601279999999999},{"pid":"0x0032","packetcount":4058,"ccerrors":0,"mbps":0.266208},{"pid":"0x1fff","packetcount":12736,"ccerrors":0,"mbps":0.452704}]}
+                */
+                // Handle tr101290 Metrics
+                if (data.tr101290) {
+                    Object.keys(data.tr101290).forEach(p => {
+                        const pMetrics = data.tr101290[p];
+                        if (!pMetrics) {
+                            console.error(`Invalid or missing tr101290 ${p}:`, pMetrics);
+                        } else {
+                            Object.keys(pMetrics).forEach(metric => {
+                                const value = convertToNumeric(pMetrics[metric]);
+                                metrics.tr101290.labels(dst, p, metric).set(value);
+                            });
+                        }
                     });
                 }
             } catch (e) {
