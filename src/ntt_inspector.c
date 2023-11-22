@@ -373,6 +373,13 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 		process_transport_buffer(ctx, &buf[0], rlen);
 	}
 	avio_close(puc);
+
+        char *json_stats = tissot_stats_json(ctx->tissot_ctx);
+        if (json_stats != NULL) {
+            printf("%s\n", json_stats);
+            fflush(stdout);
+            free(json_stats);
+        }
 }
 
 static void tissot_log_cb(void *p, int level, const char *fmt, ...)
