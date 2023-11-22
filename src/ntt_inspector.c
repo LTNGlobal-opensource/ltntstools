@@ -125,9 +125,9 @@ static void parse_evertzserial(struct tool_ctx_s *ctx, const uint8_t *buf, int d
       Byte 0: always 0x18
       Byte 1: target serial port number (0-3)
       Byte 2: baud rate, parity, data bits
-      Byte 3: always 0x00
+      Byte 3: bitmask of currently active GPI pins
     */
-    if (buf[0] != 0x18 || buf[3] != 0x00) {
+    if (buf[0] != 0x18) {
         /* This is not a valid Evertz 7721DE4 VANC packet */
         printf("Invalid Evertz packet %02x %02x %02x %02x\n",
                buf[0], buf[1], buf[2], buf[3]);
