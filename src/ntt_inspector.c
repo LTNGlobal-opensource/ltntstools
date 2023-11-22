@@ -117,7 +117,7 @@ static void parse_evertzserial(struct tool_ctx_s *ctx, const uint8_t *buf, int d
        three bytes indicate serial parameters such as baud rate, stop bits, etc */
 
     if (data_count < 4) {
-        printf("Invalid Evertz packet (length=%d)", data_count);
+        printf("Invalid Evertz packet (length=%d)\n", data_count);
         return;
     }
 
@@ -129,7 +129,7 @@ static void parse_evertzserial(struct tool_ctx_s *ctx, const uint8_t *buf, int d
     */
     if (buf[0] != 0x18 || buf[3] != 0x00) {
         /* This is not a valid Evertz 7721DE4 VANC packet */
-        printf("Invalid Evertz packet %02x %02x %02x %02x",
+        printf("Invalid Evertz packet %02x %02x %02x %02x\n",
                buf[0], buf[1], buf[2], buf[3]);
         return;
     }
