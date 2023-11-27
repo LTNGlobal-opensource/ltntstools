@@ -31,6 +31,7 @@ struct tool_ctx_s
 
 	void *sm; /* StreamModel Context */
 	int smcomplete;
+	int show_timecodes;
 
 #define MODE_SOURCE_AVIO 0
 #define MODE_SOURCE_PCAP 1
@@ -38,6 +39,9 @@ struct tool_ctx_s
 
 	struct tissot_context *tissot_ctx;
 	int last_report_time;
+
+	/* For decoding S12-2 timecodes */
+	struct klvanc_context_s *vanchdl;
 };
 
 static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount);
@@ -117,7 +121,7 @@ static void parse_evertzserial(struct tool_ctx_s *ctx, const uint8_t *buf, int d
        three bytes indicate serial parameters such as baud rate, stop bits, etc */
 
     if (data_count < 4) {
-        printf("Invalid Evertz packet (length=%d)", data_count);
+        printf("Invalid Evertz packet (length=%d)\n", data_count);
         return;
     }
 
@@ -125,11 +129,11 @@ static void parse_evertzserial(struct tool_ctx_s *ctx, const uint8_t *buf, int d
       Byte 0: always 0x18
       Byte 1: target serial port number (0-3)
       Byte 2: baud rate, parity, data bits
-      Byte 3: always 0x00
+      Byte 3: bitmask of currently active GPI pins
     */
-    if (buf[0] != 0x18 || buf[3] != 0x00) {
+    if (buf[0] != 0x18) {
         /* This is not a valid Evertz 7721DE4 VANC packet */
-        printf("Invalid Evertz packet %02x %02x %02x %02x",
+        printf("Invalid Evertz packet %02x %02x %02x %02x\n",
                buf[0], buf[1], buf[2], buf[3]);
         return;
     }
@@ -149,6 +153,19 @@ static void parse_evertzserial(struct tool_ctx_s *ctx, const uint8_t *buf, int d
 }
 
 #define sanitizeWord(word) ((word) & 0xff)
+
+static int cb_SMPTE_12_2(void *callback_context, struct klvanc_context_s *ctx,
+			 struct klvanc_packet_smpte_12_2_s *pkt)
+{
+	printf("{ \"smpte_timecode\" : \"%02d:%02d:%02d:%02d\" }\n", pkt->hours, pkt->minutes,
+               pkt->seconds, pkt->frames);
+	return 0;
+}
+
+static struct klvanc_callbacks_s vanc_callbacks =
+{
+	.smpte_12_2	= cb_SMPTE_12_2,
+};
 
 static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 {
@@ -193,6 +210,10 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 				parse_evertzserial(ctx, buf, data_count);
 			}
 
+			if (ctx->show_timecodes && klvanc_packet_parse(ctx->vanchdl, l->line_number, words, wordCount) < 0) {
+				fprintf(stderr, "Failed to parse the packet\n");
+			}
+
 			free(words); /* Caller must free the resource */
 		}
 
@@ -217,6 +238,7 @@ static void usage(const char *progname)
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -P 0xnnnn PID containing the SMPTE2038 messages (Optional)\n");
+	printf("  -t Show SMPTE 12-2 timecodes if found in SMPTE 2038 stream\n");
 	printf("  -F exact pcap filter. Eg 'host 227.1.20.80 && udp port 4001'\n");
 	printf("     DON'T PASS A FILTER WITH MPTS or something with multiple different streams - be very specific, one stream one program\n");
 	printf("\nExample:\n");
@@ -373,6 +395,13 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 		process_transport_buffer(ctx, &buf[0], rlen);
 	}
 	avio_close(puc);
+
+        char *json_stats = tissot_stats_json(ctx->tissot_ctx);
+        if (json_stats != NULL) {
+            printf("%s\n", json_stats);
+            fflush(stdout);
+            free(json_stats);
+        }
 }
 
 static void tissot_log_cb(void *p, int level, const char *fmt, ...)
@@ -410,9 +439,16 @@ int ntt_inspector(int argc, char *argv[])
 	ctx->tissot_ctx->user_cb = tissot_cb;
 	ctx->tissot_ctx->log_cb = tissot_log_cb;
 
+	if (klvanc_context_create(&ctx->vanchdl) < 0) {
+		fprintf(stderr, "Error initializing klvanc library context\n");
+		exit(1);
+	}
+	ctx->vanchdl->verbose = 0;
+	ctx->vanchdl->callbacks = &vanc_callbacks;
+
 	int ch;
 
-	while ((ch = getopt(argc, argv, "?hvi:F:P:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hvti:F:P:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -421,6 +457,9 @@ int ntt_inspector(int argc, char *argv[])
 			break;
 		case 'i':
 			ctx->iname = strdup(optarg);
+			break;
+		case 't':
+			ctx->show_timecodes = 1;
 			break;
 		case 'F':
 			ctx->pcap_filter = strdup(optarg);
@@ -471,6 +510,7 @@ int ntt_inspector(int argc, char *argv[])
 	}
 
 	tissot_free(ctx->tissot_ctx);
+	klvanc_context_destroy(ctx->vanchdl);
 
 	return 0;
 }
