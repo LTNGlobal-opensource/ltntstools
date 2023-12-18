@@ -55,6 +55,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: Histogram (right side) percentages after reset were inaccurate
   tstools_sei_latency_inspector: Added support for PCAP inputs.
   tstools_pes_inspector: Changed typo in command line help from H.266 to H.265
+  tstools_pes_inspector: Added -F option to write H.265 NALS to disk
 
 * Mon Oct 16 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.28.0
