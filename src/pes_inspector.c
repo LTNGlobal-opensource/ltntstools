@@ -699,7 +699,7 @@ static void usage(const char *progname)
 #endif
 	printf("  -H Show PES headers only, don't parse payload. [def: disabled, payload shown]\n");
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
-	printf("  -5 dump H.266 NAL headers (live stream only) and measure per-NAL throughput\n");
+	printf("  -5 dump H.265 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -E write H.264 PES ES Nals to individual sequences files [def: no]\n");
 	printf("     Eg. 00000000046068-es-pid-0064-streamId-e0-nal-06-name-SEI.bin\n"
            "         00000000046067-es-pid-0064-streamId-e0-nal-06-name-SEI.bin\n"
