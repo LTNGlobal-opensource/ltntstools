@@ -1931,10 +1931,10 @@ int nic_monitor(int argc, char *argv[])
 			ctx->ifname, ctx->pcap_stats.ps_drop, ctx->pcap_stats.ps_ifdrop);
 	}
 
-	pcap_queue_free(ctx);
-
 	printf("Flushing the streams and recorders...\n");
 	discovered_items_free(ctx);
+
+	pcap_queue_free(ctx);
 
 	printf("\nStats window:\n");
 	printf("  from %s -> %s\n", ts_b, ts_e);
