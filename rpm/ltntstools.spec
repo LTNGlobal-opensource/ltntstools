@@ -57,6 +57,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_pes_inspector: Changed typo in command line help from H.266 to H.265
   tstools_pes_inspector: Added -F option to write H.265 NALS to disk
   tstools_nic_monitor: Segfault on shutdown, use after free relating to the object hash/cache.
+  tstools_nic_monitor: Bugfix with -i option when using ts file input. non 7*188 frames were discarded and created errors.
 
 * Mon Oct 16 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.28.0
