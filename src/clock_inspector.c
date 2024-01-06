@@ -569,7 +569,7 @@ int clock_inspector(int argc, char *argv[])
 	AVIOContext *puc;
 	int ret = avio_open2(&puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 	if (ret < 0) {
-		fprintf(stderr, "-i syntax error\n");
+		fprintf(stderr, "-i error, unable to open file or url\n");
 		return 1;
 	}
 
