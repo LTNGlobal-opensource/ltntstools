@@ -250,13 +250,15 @@ static void *thread_packet_rx(void *p)
 
 	pthread_detach(ctx->ffmpeg_threadId);
 
-	unsigned char buf[(7 * 188) + 12];
-	int buflen = 7 * 188;
+	int buflen = 188 * 1024;
+	unsigned char *buf = malloc(buflen);
 	int boffset = 0;
 
 	if (ctx->isRTP) {
-		buflen += 12;
-		boffset = 12;
+		printf("RTP IS CURRENT DISABLED, DO NOT USE FOR RTP, aborting\n");
+		exit(0);
+//		buflen += 12;
+//		boffset = 12;
 	}
 
 	time_t lastPacketTime = time(0);
@@ -390,6 +392,7 @@ static void *thread_packet_rx(void *p)
 
 	}
 	ctx->ffmpeg_threadTerminated = 1;
+	free(buf);
 
 	pthread_exit(0);
 	return 0;
