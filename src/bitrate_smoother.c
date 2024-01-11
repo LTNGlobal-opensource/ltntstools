@@ -610,10 +610,17 @@ int bitrate_smoother(int argc, char *argv[])
 	avio_close(ctx->o_puc);
 
 	if (ctx->isRTP == 0) {
-		smoother_pcr_free(ctx->smoother);
+		if (ctx->smoother) {
+			smoother_pcr_free(ctx->smoother);
+			ctx->smoother = 0;
+		}
 	} else {
-		smoother_rtp_free(ctx->smoother);
+		if (ctx->smoother) {
+			smoother_rtp_free(ctx->smoother);
+			ctx->smoother = 0;
+		}
 	}
+	ctx->smoother = 0;
 
 	ltntstools_reframer_free(ctx->reframer);
 

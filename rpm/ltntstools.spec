@@ -62,6 +62,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Bugfix with -i option when using ts file input. non 7*188 frames were discarded and created errors.
   tstools_nic_monitor: Histogram (right side) percentages after reset were inaccurate
   tstools_bitrate_smoother: Disabled RTP processing short term - to work around an Ops performance issue.
+  tstools_bitrate_smoother: Segfault when terminating tool if no input packets were received.
 
 * Mon Oct 16 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.28.0
