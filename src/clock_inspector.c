@@ -324,8 +324,8 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	ctx->pids[pid].scr = scr;
 
 	if (ctx->scr_linenr++ == 0) {
-		printf("+SCR Timing        filepos ------------>                   SCR  <--- SCR-DIFF ------>\n");
-		printf("+SCR Timing            Hex           Dec   PID       27MHz VAL       TICKS         uS  Timestamp                 SCR\n");
+		printf("+SCR Timing         filepos ------------>                   SCR  <--- SCR-DIFF ------>\n");
+		printf("+SCR Timing             Hex           Dec   PID       27MHz VAL       TICKS         uS  Timestamp                 SCR\n");
 	}
 
 	if (ctx->scr_linenr > 24)
@@ -344,7 +344,7 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	ltntstools_pcr_to_ascii(&scr_ascii, scr);
 
 	ctx->pids[pid].scr_updateCount++;
-	printf("SCR #%09" PRIu64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s\n",
+	printf("SCR #%09" PRIu64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s\n",
 		ctx->pids[pid].scr_updateCount,
 		filepos,
 		filepos,

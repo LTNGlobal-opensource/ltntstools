@@ -53,12 +53,15 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Fri Nov  3 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.29.0
   tstools_clock_inspector: Change error warning on commandline when -i is used, to be more helpful.
+  tstools_clock_inspector: Adjust SCR report header to tidy up whitespace.
+  tstools_clock_inspector: Adjust SCR report line for file hexposition to support 9 digits
   tstools_sei_latency_inspector: Added support for PCAP inputs.
   tstools_pes_inspector: Changed typo in command line help from H.266 to H.265
   tstools_pes_inspector: Added -F option to write H.265 NALS to disk
   tstools_nic_monitor: Segfault on shutdown, use after free relating to the object hash/cache.
   tstools_nic_monitor: Bugfix with -i option when using ts file input. non 7*188 frames were discarded and created errors.
   tstools_nic_monitor: Histogram (right side) percentages after reset were inaccurate
+  tstools_bitrate_smoother: Disabled RTP processing short term - to work around an Ops performance issue.
 
 * Mon Oct 16 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.28.0
