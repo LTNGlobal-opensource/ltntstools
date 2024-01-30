@@ -448,6 +448,34 @@ static int validateClockMath()
 	return 0;
 }
 
+static void kernel_check_socket_sizes(AVIOContext *i)
+{
+	printf("Kernel configured default/max socket buffer sizes:\n");
+
+	char line[256];
+	int val;
+	FILE *fh = fopen("/proc/sys/net/core/rmem_default", "r");
+	if (fh) {
+		fread(&line[0], 1, sizeof(line), fh);
+		val = atoi(line);
+		printf("/proc/sys/net/core/rmem_default = %d\n", val);
+		fclose(fh);
+	}
+
+	fh = fopen("/proc/sys/net/core/rmem_max", "r");
+	if (fh) {
+		fread(&line[0], 1, sizeof(line), fh);
+		val = atoi(line);
+		printf("/proc/sys/net/core/rmem_max = %d\n", val);
+		if (i->buffer_size > val) {
+			fprintf(stderr, "buffer_size %d exceeds rmem_max %d, aborting\n", i->buffer_size, val);
+			exit(1);
+		}
+		fclose(fh);
+	}
+
+}
+
 static void usage(const char *progname)
 {
 	printf("A tool to extract PCR/SCR PTS/DTS clocks from all pids in a MPEGTS file, or stream.\n");
@@ -576,6 +604,8 @@ int clock_inspector(int argc, char *argv[])
 		fprintf(stderr, "-i error, unable to open file or url\n");
 		return 1;
 	}
+
+	kernel_check_socket_sizes(puc);
 
 	signal(SIGINT, signal_handler);
 
