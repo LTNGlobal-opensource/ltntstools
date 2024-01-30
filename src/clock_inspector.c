@@ -518,7 +518,7 @@ int clock_inspector(int argc, char *argv[])
 	int progressReport = 0;
 	int stopSeconds = 0;
 
-        while ((ch = getopt(argc, argv, "?dhi:spt:T:D:PRS:X")) != -1) {
+    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:PRS:X")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
