@@ -466,6 +466,7 @@ static void usage(const char *progname)
 	printf("  -D Max allowable PTS/DTS clock drift value in ms. [def: 700]\n");
 	printf("  -R Reorder the PTS display output to be in ascending PTS order [def: disabled]\n");
 	printf("     In this case we'll calculate the PTS intervals reliably based on picture frame display order [def: disabled]\n");
+	printf("     This mode casuses all PES headers to be cached (growing memory usage over time), it's memory expensive.\n");
 	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 }
