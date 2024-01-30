@@ -131,7 +131,7 @@ static void ordered_clock_dump(struct xorg_list *list, unsigned short pid)
 			printf("+PTS/DTS #             Hex           Dec   PID       90KHz VAL       TICKS         MS\n");
 		}
 
-		printf("PTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f\n",
+		printf("PTS #%09" PRIi64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f\n",
 			i->nr,
 			i->filepos,
 			i->filepos,
@@ -233,7 +233,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if (!ctx->order_asc_pts_output) {
 			printf("PTS #%09" PRIi64
-				" -- %08" PRIx64
+				" -- %09" PRIx64
 				" %13" PRIu64
 				"  %04x  "
 				"%14" PRIi64
@@ -290,7 +290,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		printf("DTS #%09" PRIi64 " -- %08" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIu64 "\n",
+		printf("DTS #%09" PRIi64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIu64 "\n",
 			p->dts_count,
 			filepos,
 			filepos,
@@ -502,7 +502,7 @@ static void usage(const char *progname)
 	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("\n  Example UDP or RTP:\n");
-	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000' -S 0x31 -p\n");
+	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
 }
 
 int clock_inspector(int argc, char *argv[])
