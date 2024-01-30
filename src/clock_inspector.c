@@ -347,7 +347,9 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	ltntstools_pcr_to_ascii(&scr_ascii, scr);
 
 	ctx->pids[pid].scr_updateCount++;
-	printf("SCR #%09" PRIu64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s\n",
+	struct timeval ts;
+	gettimeofday(&ts, NULL);
+	printf("SCR #%09" PRIu64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s, walltime %08d.%03d\n",
 		ctx->pids[pid].scr_updateCount,
 		filepos,
 		filepos,
@@ -356,7 +358,9 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 		scr_diff,
 		scr_diff / 27,
 		str,
-		scr_ascii);
+		scr_ascii,
+		ts.tv_sec,
+		ts.tv_usec / 1000);
 
 	free(scr_ascii);
 }
