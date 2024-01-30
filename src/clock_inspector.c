@@ -502,7 +502,7 @@ static void usage(const char *progname)
 	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("\n  Example UDP or RTP:\n");
-	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
+	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
 }
 
 int clock_inspector(int argc, char *argv[])
