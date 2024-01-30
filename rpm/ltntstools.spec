@@ -52,6 +52,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Fri Nov  3 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.29.0
+  tstools_clock_inspector: Output console help when no args are specified
+  tstools_clock_inspector: Output console examples of commands
   tstools_clock_inspector: Output seconds and ms of walltime on each SCR report to console.
   tstools_clock_inspector: Output to console kernel socket buffer sizes on startup.
   tstools_clock_inspector: Memory usage continually grows when when -R (time ordered lists) isn't required.

@@ -501,6 +501,8 @@ static void usage(const char *progname)
 	printf("     This mode casuses all PES headers to be cached (growing memory usage over time), it's memory expensive.\n");
 	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
+	printf("\n  Example UDP or RTP:\n");
+	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000' -S 0x31 -p\n");
 }
 
 int clock_inspector(int argc, char *argv[])
@@ -579,7 +581,8 @@ int clock_inspector(int argc, char *argv[])
 	}
 
 	if (ctx->iname == 0) {
-		fprintf(stderr, "-i is mandatory\n");
+		usage(argv[0]);
+		fprintf(stderr, "\nError, -i is mandatory, aborting\n\n");
 		exit(1);
 	}
 
