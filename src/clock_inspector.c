@@ -253,14 +253,17 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				d_pts_minus_scr_ticks);
 		}
 
-		if (p->pts_count == 1)
-			ordered_clock_init(&p->ordered_pts_list);
-
-		struct ordered_clock_item_s item;
-		item.nr = p->pts_count;
-		item.clock = p->pes.PTS;
-		item.filepos = filepos;
-		ordered_clock_insert(&p->ordered_pts_list, &item);
+		if (ctx->order_asc_pts_output) {
+			if (p->pts_count == 1) {
+				ordered_clock_init(&p->ordered_pts_list);
+			}
+			
+			struct ordered_clock_item_s item;
+			item.nr = p->pts_count;
+			item.clock = p->pes.PTS;
+			item.filepos = filepos;
+			ordered_clock_insert(&p->ordered_pts_list, &item);
+		}
 
 	}
 	/* Process a DTS if present. */
