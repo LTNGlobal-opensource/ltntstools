@@ -50,7 +50,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
-* Fri Nov  3 2023 Steven Toth <steven.toth@ltnglobal.com> 
+* Tue Feb  6 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.29.0
   tstools_clock_inspector: Output console help when no args are specified
   tstools_clock_inspector: Output console examples of commands
