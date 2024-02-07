@@ -50,6 +50,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
+* Wed Feb  7 2024 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.30.0
+  tstools_si_inspector: Support for decoding and showing Teletext/WST PMT stream descriptors
+
 * Tue Feb  6 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.29.0
   tstools_clock_inspector: Output console help when no args are specified
