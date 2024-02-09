@@ -1,3 +1,28 @@
+/*
+ * The clock inspector extracts and plots differnt clocks from a MPEG-TS stream and
+ * performs some lightweight math to measure distances, intervals, timeliness.
+ *
+ * In file input mode, measurements such as 'walltime drift' or Timestamp often make
+ * no sense because the input stream is arriving faster than realtime.
+ * 
+ * In stream/udp input cases, values such ed 'filepos' make no real sense but instead
+ * represents bytes received.
+ * 
+ * If you ignore small nuances like this, the tool is meaningfull in many ways.
+ *
+ * When using the -s mode to report PCR timing, it's important that the correct PCR
+ * pid value is passed using -S. WIthout this, the PCR is assumed to be on a default pid
+ * and some of the SCR reported data will be incorrect, even though most of it gets
+ * autotected. **** make sure you have the -S option set of you care about reading
+ * the SCR reports.
+ * 
+ * SCR (PCR) reporting
+ * +SCR Timing         filepos ------------>                   SCR  <--- SCR-DIFF ------>  SCR             Walltime ----------------------------->  Drift
+ * +SCR Timing             Hex           Dec   PID       27MHz VAL       TICKS         uS  Timecode        Now                      secs               ms
+ * SCR #000000003 -- 000056790        354192  0031    959636022118      944813      34993  0.09:52:22.074  Fri Feb  9 09:13:52 2024 1707488033.067      0
+ *                                                                       (since last PCR)                 
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdint.h>
@@ -75,6 +100,8 @@ struct tool_context_s
 	int order_asc_pts_output;
 
 	int scr_pid;
+
+	struct ltntstools_stream_statistics_s *libstats;
 };
 
 static int gRunning = 1;
@@ -327,8 +354,8 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	ctx->pids[pid].scr = scr;
 
 	if (ctx->scr_linenr++ == 0) {
-		printf("+SCR Timing         filepos ------------>                   SCR  <--- SCR-DIFF ------>\n");
-		printf("+SCR Timing             Hex           Dec   PID       27MHz VAL       TICKS         uS  Timestamp                 SCR\n");
+		printf("+SCR Timing         filepos ------------>                   SCR  <--- SCR-DIFF ------>  SCR             Walltime ----------------------------->  Drift\n");
+		printf("+SCR Timing             Hex           Dec   PID       27MHz VAL       TICKS         uS  Timecode        Now                      secs               ms\n");
 	}
 
 	if (ctx->scr_linenr > 24)
@@ -347,9 +374,18 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	ltntstools_pcr_to_ascii(&scr_ascii, scr);
 
 	ctx->pids[pid].scr_updateCount++;
+
+	char walltimePCRReport[32] = { 0 };
+	int64_t PCRWalltimeDriftMs = 0;
+	if (ltntstools_pid_stats_pid_get_pcr_walltime_driftms(ctx->libstats, pid, &PCRWalltimeDriftMs) == 0) {
+		sprintf(walltimePCRReport, "%5" PRIi64, PCRWalltimeDriftMs);
+	} else {
+		sprintf(walltimePCRReport, "    NA");
+	}
+
 	struct timeval ts;
 	gettimeofday(&ts, NULL);
-	printf("SCR #%09" PRIu64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s, walltime %08d.%03d\n",
+	printf("SCR #%09" PRIu64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s %08d.%03d %6s\n",
 		ctx->pids[pid].scr_updateCount,
 		filepos,
 		filepos,
@@ -357,10 +393,11 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 		scr,
 		scr_diff,
 		scr_diff / 27,
-		str,
 		scr_ascii,
-		ts.tv_sec,
-		ts.tv_usec / 1000);
+		str,
+		(int)ts.tv_sec,
+		(int)ts.tv_usec / 1000,
+		walltimePCRReport);
 
 	free(scr_ascii);
 }
@@ -520,6 +557,9 @@ int clock_inspector(int argc, char *argv[])
 	int progressReport = 0;
 	int stopSeconds = 0;
 
+	/* We use this specifically for tracking PCR walltime drift */
+	ltntstools_pid_stats_alloc(&ctx->libstats);
+
     while ((ch = getopt(argc, argv, "?dhi:spt:T:D:PRS:X")) != -1) {
 		switch (ch) {
 		case 'd':
@@ -542,6 +582,7 @@ int clock_inspector(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
+			ltntstools_pid_stats_pid_set_contains_pcr(ctx->libstats, ctx->scr_pid);
 			break;
 		case 'D':
 			ctx->maxAllowablePTSDTSDrift = atoi(optarg);
@@ -640,6 +681,9 @@ int clock_inspector(int argc, char *argv[])
 
 		streamPosition += rlen;
 
+		/* Push the entire stream into the stats layer - so we can compyte walltime */
+		ltntstools_pid_stats_update(ctx->libstats, buf, rlen / 188);
+
 		for (int i = 0; i < rlen; i += 188) {
 
 			filepos = (streamPosition - rlen) + i;
@@ -678,6 +722,11 @@ int clock_inspector(int argc, char *argv[])
 
 	printf("\n");
 	pidReport(ctx);
+
+	if (ctx->libstats) {
+		ltntstools_pid_stats_free(ctx->libstats);
+		ctx->libstats = NULL;
+	}
 
 	free(buf);
 
