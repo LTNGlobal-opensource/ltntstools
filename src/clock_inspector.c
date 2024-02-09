@@ -65,12 +65,16 @@ struct pid_s
 	struct ltn_pes_packet_s pts_last;
 	int64_t pts_diff_ticks;
 	uint64_t pts_last_scr; /* When we captured the last packet, this reflects the SCR at the time. */
+	struct ltntstools_clock_s clk_pts;
+	int clk_pts_initialized;
 
 	/* DTS */
 	uint64_t dts_count;
 	struct ltn_pes_packet_s dts_last;
 	int64_t dts_diff_ticks;
 	uint64_t dts_last_scr; /* When we captured the last packet, this reflects the SCR at the time. */
+	struct ltntstools_clock_s clk_dts;
+	int clk_dts_initialized;
 
 	/* Working data for PTS / DTS */
 	struct ltn_pes_packet_s pes;
@@ -192,9 +196,26 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	struct pid_s *p = &ctx->pids[pid];
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 		ltn_pes_packet_copy(&p->pts_last, &p->pes);
+
+		if (p->clk_pts_initialized == 0) {
+			p->clk_pts_initialized = 1;
+			ltntstools_clock_initialize(&p->clk_pts);
+			ltntstools_clock_establish_timebase(&p->clk_pts, 90000);
+			ltntstools_clock_establish_wallclock(&p->clk_pts, p->pes.PTS);
+		}
+		ltntstools_clock_set_ticks(&p->clk_pts, p->pes.PTS);
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
 		ltn_pes_packet_copy(&p->dts_last, &p->pes);
+
+		if (p->clk_dts_initialized == 0) {
+			p->clk_dts_initialized = 1;
+			ltntstools_clock_initialize(&p->clk_dts);
+			ltntstools_clock_establish_timebase(&p->clk_dts, 90000);
+			ltntstools_clock_establish_wallclock(&p->clk_dts, p->pes.DTS);
+		}
+		ltntstools_clock_set_ticks(&p->clk_dts, p->pes.DTS);
+
 	}
 
 	struct klbs_context_s pbs, *bs = &pbs;
@@ -222,14 +243,19 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	}
 
 	if (ctx->pts_linenr++ == 0) {
-		printf("+PTS/DTS Timing    filepos ------------>               PTS/DTS  <------- DIFF ------> <---- SCR <--PTS*300\n");
-		printf("+PTS/DTS Timing        Hex           Dec   PID       90KHz VAL       TICKS         MS   Diff MS  minus SCR\n");
+		printf("+PTS/DTS Timing     filepos ------------>               PTS/DTS  <------- DIFF ------> <---- SCR <--PTS*300--------->  Walltime ----------------------------->  Drift\n");
+		printf("+PTS/DTS Timing         Hex           Dec   PID       90KHz VAL       TICKS         MS   Diff MS  minus SCR        ms  Now                      secs               ms\n");
 	}
 	if (ctx->pts_linenr > 24)
 		ctx->pts_linenr = 0;
 
 	/* Process a PTS if present. */
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
+
+		int64_t ptsWalltimeDriftMs = 0;
+		if (p->clk_pts_initialized) {
+			ptsWalltimeDriftMs = ltntstools_clock_get_drift_ms(&p->clk_pts);
+		}
 
 		/* Calculate the offset between the PTS and the last good SCR, assumed to be on pid DEFAULR_SCR_PID. */
 		int64_t pts_minus_scr_ticks = ltntstools_scr_diff(ctx->pids[ctx->scr_pid].scr, p->pes.PTS * 300);
@@ -258,6 +284,14 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
+		char time_str[64];
+		struct timeval ts;
+		gettimeofday(&ts, NULL);
+
+		time_t now = time(NULL);
+		sprintf(time_str, "%s", ctime(&now));
+		time_str[ strlen(time_str) - 1] = 0;
+
 		if (!ctx->order_asc_pts_output) {
 			printf("PTS #%09" PRIi64
 				" -- %09" PRIx64
@@ -267,7 +301,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				"  %10" PRIi64
 				" %10.2f %9" PRIi64
 				" %10" PRIi64
-				" -- %9.2f\n",
+				" %9.2f  %s %08d.%03d %6" PRIi64 "\n",
 				p->pts_count,
 				filepos,
 				filepos,
@@ -277,7 +311,11 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				(double)p->pts_diff_ticks / 90,
 				pts_scr_diff_ms,
 				pts_minus_scr_ticks,
-				d_pts_minus_scr_ticks);
+				d_pts_minus_scr_ticks,
+				time_str,
+				(int)ts.tv_sec,
+				(int)ts.tv_usec / 1000,
+				ptsWalltimeDriftMs);
 		}
 
 		if (ctx->order_asc_pts_output) {
@@ -295,6 +333,14 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	}
 	/* Process a DTS if present. */
 	if (p->pes.PTS_DTS_flags == 3) {
+
+#if 0
+		/* Disabled for now, TODO */
+		int64_t dtsWalltimeDriftMs = 0;
+		if (p->clk_dts_initialized) {
+			dtsWalltimeDriftMs = ltntstools_clock_get_drift_ms(&p->clk_dts);
+		}
+#endif
 		if ((PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
