@@ -19,6 +19,7 @@
 #define SYSTEM_CLOCK_DR		    0x0B
 #define MAX_BITRATE_DR		    0x0E
 #define STREAM_IDENTIFIER_DR	0x52
+#define TELETEXT_DR		    0x56
 #define SUBTITLING_DR		      0x59
 #define CUE_IDENTIFICATION_DR 0x8a
 #define REGISTRATION_DR       0x05
@@ -118,6 +119,39 @@ static void DumpStreamIdentifierDescriptor(dvbpsi_stream_identifier_dr_t* p_si_d
 {
   printf("Component tag: %d\n",
      p_si_descriptor->i_component_tag);
+}
+
+static char *teletextTypeASCII(int nr)
+{
+  switch(nr) {
+    case 1: return "initial";
+    case 2: return "subtitle";
+    case 3: return "additional info";
+    case 4: return "programme schedule";
+    case 5: return "subtitle hearing imparied";
+    default: return "reserved";
+  }
+}
+
+static void DumpTeletextDescriptor(dvbpsi_teletext_dr_t* p_ttx_descriptor)
+{
+  for (int i = 0; i < p_ttx_descriptor->i_pages_number; i++) {
+    int pagenr = p_ttx_descriptor->p_pages[i].i_teletext_page_number;
+    if (p_ttx_descriptor->p_pages[i].i_teletext_magazine_number == 0) {
+        pagenr |= 0x800;
+    } else {
+        pagenr |= (p_ttx_descriptor->p_pages[i].i_teletext_magazine_number << 8);
+    }
+    printf("Teletext: lang %c%c%c, magazine %d, page 0x%x [%3x], type 0x%x [ %s ]\n",
+        p_ttx_descriptor->p_pages[i].i_iso6392_language_code[0],
+        p_ttx_descriptor->p_pages[i].i_iso6392_language_code[1],
+        p_ttx_descriptor->p_pages[i].i_iso6392_language_code[2],
+        p_ttx_descriptor->p_pages[i].i_teletext_magazine_number,
+        p_ttx_descriptor->p_pages[i].i_teletext_page_number,
+        pagenr,
+        p_ttx_descriptor->p_pages[i].i_teletext_type,
+        teletextTypeASCII(p_ttx_descriptor->p_pages[i].i_teletext_type));
+  }
 }
 
 static void DumpSubtitleDescriptor(dvbpsi_subtitling_dr_t* p_subtitle_descriptor)
@@ -259,6 +293,9 @@ void tstools_DumpDescriptors(const char* str, dvbpsi_descriptor_t* p_descriptor)
       break;
     case STREAM_IDENTIFIER_DR:
       DumpStreamIdentifierDescriptor(dvbpsi_DecodeStreamIdentifierDr(p_descriptor));
+      break;
+    case TELETEXT_DR:
+      DumpTeletextDescriptor(dvbpsi_DecodeTeletextDr(p_descriptor));
       break;
     case SUBTITLING_DR:
       DumpSubtitleDescriptor(dvbpsi_DecodeSubtitlingDr(p_descriptor));

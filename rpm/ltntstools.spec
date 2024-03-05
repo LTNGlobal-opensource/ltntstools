@@ -50,10 +50,34 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
-* Fri Nov  3 2023 Steven Toth <steven.toth@ltnglobal.com> 
+* Wed Feb  7 2024 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.30.0
+  tstools_si_inspector: Support for decoding and showing Teletext/WST PMT stream descriptors
+  libltntstools: stats improvements for how we measure pcr walltime, new API to retieive last drift measurement.
+  libltntstools: stats improvements - PCR jitter histogram now makes it clear the value is absolute
+  tstools_clock_inspector: Added support to calculate (for live streams) SCR vs walltime drift (ms)
+  tstools_clock_inspector: Added support to calculate (for live streams) PTS vs walltime drift (ms)
+  tstools_clock_inspector: Adjusted SCR column headers for easier reading.
+
+* Tue Feb  6 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.29.0
-  tstools_clock_inspector: Histogram (right side) percentages after reset were inaccurate
+  tstools_clock_inspector: Output console help when no args are specified
+  tstools_clock_inspector: Output console examples of commands
+  tstools_clock_inspector: Output seconds and ms of walltime on each SCR report to console.
+  tstools_clock_inspector: Output to console kernel socket buffer sizes on startup.
+  tstools_clock_inspector: Memory usage continually grows when when -R (time ordered lists) isn't required.
+  tstools_clock_inspector: Change error warning on commandline when -i is used, to be more helpful.
+  tstools_clock_inspector: Adjust SCR report header to tidy up whitespace.
+  tstools_clock_inspector: Adjust SCR report line for file hexposition to support 9 digits
   tstools_sei_latency_inspector: Added support for PCAP inputs.
+  tstools_pes_inspector: Changed typo in command line help from H.266 to H.265
+  tstools_pes_inspector: Added -F option to write H.265 NALS to disk
+  tstools_nic_monitor: Segfault on shutdown, use after free relating to the object hash/cache.
+  tstools_nic_monitor: Bugfix with -i option when using ts file input. non 7*188 frames were discarded and created errors.
+  tstools_nic_monitor: Histogram (right side) percentages after reset were inaccurate
+  tstools_bitrate_smoother: Disabled RTP processing short term - to work around an Ops performance issue.
+  tstools_bitrate_smoother: Segfault when terminating tool if no input packets were received.
+  tstools_bitrate_smoother: Added option to drop one or more pids via -R
 
 * Mon Oct 16 2023 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.28.0

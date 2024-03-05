@@ -65,6 +65,11 @@ struct tool_context_s
 	int smcomplete;
 
 	struct rtp_hdr_analyzer_s rtp_stream_in, rtp_stream_out;
+
+	/* Pid filter */
+	unsigned char filter[8192];
+	unsigned int pid;
+
 };
 
 /* Reframer hands us 7*188 buffers, guaranteed. Send to the UDP. */
@@ -250,13 +255,15 @@ static void *thread_packet_rx(void *p)
 
 	pthread_detach(ctx->ffmpeg_threadId);
 
-	unsigned char buf[(7 * 188) + 12];
-	int buflen = 7 * 188;
+	int buflen = 188 * 1024;
+	unsigned char *buf = malloc(buflen);
 	int boffset = 0;
 
 	if (ctx->isRTP) {
-		buflen += 12;
-		boffset = 12;
+		printf("RTP IS CURRENT DISABLED, DO NOT USE FOR RTP, aborting\n");
+		exit(0);
+//		buflen += 12;
+//		boffset = 12;
 	}
 
 	time_t lastPacketTime = time(0);
@@ -303,6 +310,18 @@ static void *thread_packet_rx(void *p)
 			continue;
 		}
 
+		/* Pid filter, convery any blocked pids into null packets */
+		for (int i = 0; i < rlen; i += 188) {
+			unsigned char *p = buf + i;
+			uint16_t pidnr = ltntstools_pid(buf + i);
+
+			/* If the pid is blocked from passing, convert it into a null packet
+			 * before it enters the smoother
+			 */
+			if (ctx->filter[pidnr] == 0) {
+				ltntstools_generateNullPacket(p);
+			}
+		}
 		if (ctx->isRTP == 0 && ctx->sm == NULL && ctx->pcrPID == 0) {
 			if (ltntstools_streammodel_alloc(&ctx->sm, NULL) < 0) {
 				fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
@@ -390,6 +409,7 @@ static void *thread_packet_rx(void *p)
 
 	}
 	ctx->ffmpeg_threadTerminated = 1;
+	free(buf);
 
 	pthread_exit(0);
 	return 0;
@@ -475,6 +495,7 @@ static void usage(const char *progname)
 	printf("     2 - output packet hex\n");
 	printf("     4 - output packet PCR data and human readable PCR clock\n");
 	printf("     8 - input packet RTP data and human readable clock\n");
+	printf("  -R pid 0xNNNN to be removed [def: none], multiple -R instances supported. [0x2000 all pids]\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
 #ifdef __linux__
 	printf("  -t <#seconds> Stop after N seconds [def: 0 - unlimited]\n");
@@ -496,13 +517,15 @@ int bitrate_smoother(int argc, char *argv[])
 	struct tool_context_s tctx, *ctx;
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
+	memset(&ctx->filter[0], 1, sizeof(ctx->filter)); /* Pass all pids by default */
+
 	ctx->latencyMS = DEFAULT_LATENCY;
 	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
 
 	ltntstools_pid_stats_alloc(&ctx->i_stream);
 	ltntstools_pid_stats_alloc(&ctx->o_stream);
 
-	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:v:t:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:R:v:t:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -528,6 +551,17 @@ int bitrate_smoother(int argc, char *argv[])
 			if ((sscanf(optarg, "0x%x", &ctx->pcrPID) != 1) || (ctx->pcrPID > 0x1fff)) {
 					usage(argv[0]);
 					exit(1);
+			}
+			break;
+		case 'R':
+			if ((sscanf(optarg, "0x%x", &ctx->pid) != 1) || (ctx->pid > 0x2000)) {
+				usage(argv[0]);
+				exit(1);
+			}
+			if (ctx->pid == 0x2000) {
+				memset(&ctx->filter[0], 0, sizeof(ctx->filter)); /* Disable all pids by default */
+			} else {
+				ctx->filter[ ctx->pid ] = 0; /* Disable pid output */
 			}
 			break;
 #ifdef __linux__
@@ -587,6 +621,22 @@ int bitrate_smoother(int argc, char *argv[])
 
 	kernel_check_socket_sizes(ctx->i_puc);
 
+	if (ctx->pid != 0) {
+		int cnt = 0;
+		for (int i = 0; i < 8192; i++) {
+			if (ctx->filter[i] == 0) {
+				cnt++;
+			}
+		}
+		printf("\nBlocking %d pids:\n", cnt);
+		for (int i = 0; i < 8192; i++) {
+			if (ctx->filter[i] == 0) {
+				printf("0x%04x (%05d), ", i, i);
+			}
+		}
+		printf("\n\n");
+
+	}
 	/* Preallocate enough throughput measures for approx a 40mbit stream */
 	signal(SIGINT, signal_handler);
 	gRunning = 1;
@@ -607,10 +657,17 @@ int bitrate_smoother(int argc, char *argv[])
 	avio_close(ctx->o_puc);
 
 	if (ctx->isRTP == 0) {
-		smoother_pcr_free(ctx->smoother);
+		if (ctx->smoother) {
+			smoother_pcr_free(ctx->smoother);
+			ctx->smoother = 0;
+		}
 	} else {
-		smoother_rtp_free(ctx->smoother);
+		if (ctx->smoother) {
+			smoother_rtp_free(ctx->smoother);
+			ctx->smoother = 0;
+		}
 	}
+	ctx->smoother = 0;
 
 	ltntstools_reframer_free(ctx->reframer);
 

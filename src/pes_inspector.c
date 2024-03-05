@@ -469,7 +469,8 @@ struct tool_ctx_s
 	int pid;
 	int streamId;
 	void *pe;
-	int writeES;
+	int writeES_h264;
+	int writeES_h265;
 	int writeThumbnails;
 	uint64_t esSeqNr;
 
@@ -586,7 +587,34 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 		ltn_pes_packet_dump(pes, "");
 	}
 
-	if (ctx->writeThumbnails || ctx->writeES) {
+	if (ctx->writeES_h265) {
+		int arrayLength = 0;
+		struct ltn_nal_headers_s *array = NULL;
+		if (ltn_nal_h265_find_headers(pes->data, pes->dataLengthBytes, &array, &arrayLength) == 0) {
+
+			for (int i = 0; i < arrayLength; i++) {
+				struct ltn_nal_headers_s *e = array + i;
+
+				char fn[256];
+				sprintf(&fn[0], "%014" PRIu64 "-es-pid-%04x-streamId-%02x-nal-%02x-name-%s.bin",
+					ctx->esSeqNr++,
+					ctx->pid,
+					ctx->streamId,
+					e->nalType,
+					e->nalName);
+				printf("Writing %s length %9d bytes\n", fn, e->lengthBytes);
+				FILE *fh = fopen(fn, "wb");
+				if (fh) {
+					fwrite(e->ptr, 1, e->lengthBytes, fh);
+					fclose(fh);
+				}
+			}
+
+		} /* if find headers */
+
+	}
+
+	if (ctx->writeThumbnails || ctx->writeES_h264) {
 
 		int arrayLength = 0;
 		struct ltn_nal_headers_s *array = NULL;
@@ -595,7 +623,7 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 			for (int i = 0; i < arrayLength; i++) {
 				struct ltn_nal_headers_s *e = array + i;
 
-				if (ctx->writeES) {
+				if (ctx->writeES_h264) {
 					char fn[256];
 					sprintf(&fn[0], "%014" PRIu64 "-es-pid-%04x-streamId-%02x-nal-%02x-name-%s.bin",
 						ctx->esSeqNr++,
@@ -700,7 +728,8 @@ static void usage(const char *progname)
 #endif
 	printf("  -H Show PES headers only, don't parse payload. [def: disabled, payload shown]\n");
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
-	printf("  -5 dump H.266 NAL headers (live stream only) and measure per-NAL throughput\n");
+	printf("  -5 dump H.265 NAL headers (live stream only) and measure per-NAL throughput\n");
+	printf("  -F write H.265 PES ES Nals to individual sequences files [def: no]\n");
 	printf("  -E write H.264 PES ES Nals to individual sequences files [def: no]\n");
 	printf("     Eg. 00000000046068-es-pid-0064-streamId-e0-nal-06-name-SEI.bin\n"
            "         00000000046067-es-pid-0064-streamId-e0-nal-06-name-SEI.bin\n"
@@ -727,7 +756,7 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "45?EHhvi:P:S:T")) != -1) {
+	while ((ch = getopt(argc, argv, "45?EFHhvi:P:S:T")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -743,7 +772,12 @@ int pes_inspector(int argc, char *argv[])
 			ctx->doH265NalThroughput = 1;
 			break;
 		case 'E':
-			ctx->writeES = 1;
+			ctx->writeES_h264 = 1;
+			ctx->writeES_h265 = 0;
+			break;
+		case 'F':
+			ctx->writeES_h264 = 0;
+			ctx->writeES_h265 = 1;
 			break;
 		case 'H':
 			headersOnly = 1;

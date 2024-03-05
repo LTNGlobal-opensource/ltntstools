@@ -288,6 +288,14 @@ static void _maintain_clocks(struct stream_s *stream, struct ltn_pes_packet_s *p
 	stream->trueLatency = stream->drift_ms + stream->driftPTS_ms; /* Latency corrected by walltime to remove bursting and PTS B frame jitter. */
 
 	*trueLatency_ms = stream->trueLatency;
+
+#if 1
+	printf("stream%d: drift_ms %6" PRIi64 ", driftPTS_ms %6" PRIi64 ", trueLatency %6" PRIi64 "\n",
+		stream->nr,
+		stream->drift_ms,
+		stream->driftPTS_ms,
+		stream->trueLatency);
+#endif
 }
 
 static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
@@ -345,6 +353,7 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 	/* Order by DTS, framenumber will have dups but be INcorrectly ordered */
 	struct timing_element_s *item = NULL;
 	xorg_list_for_each_entry_reverse(item, &stream->listElements, list) {
+		/* TODO: THis fails when the frame number wraps */
 		if (e->sei_framenumber >= item->sei_framenumber) {
 		//if (e->PTS >= item->PTS) {
 			__xorg_list_add(&e->list, &item->list, item->list.next);

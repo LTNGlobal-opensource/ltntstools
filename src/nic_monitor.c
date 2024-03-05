@@ -1084,43 +1084,51 @@ static void *sm_cb_pos(void *userContext, uint64_t pos, uint64_t max, double pct
 	return NULL;
 }
 
-static void * sm_cb_raw(void *userContext, const uint8_t *pkts, int packetCount)
+static void reformat_to_pcap(struct tool_context_s *ctx, const uint8_t *pkts, int packetCount)
 {
-	struct tool_context_s *ctx = userContext;
-
 	/* Convert a series of packets into a PCAP like structure */
-	if (packetCount == 7) {
-		gettimeofday(&file_pkthdr.ts, NULL);
-		file_pkthdr.caplen = 42 + (packetCount * 188);
-		file_pkthdr.len = file_pkthdr.caplen;
-
-		memcpy(&file_pktdata[42], pkts, packetCount * 188);
-		file_pktdata[26] = 192;
-		file_pktdata[27] = 168;
-		file_pktdata[28] = 1;
-		file_pktdata[29] = 1;
-		file_pktdata[30] = 227;
-		file_pktdata[31] = 1;
-		file_pktdata[32] = 1;
-		file_pktdata[33] = 1;
-		file_pktdata[34] = 6502 >> 8;
-		file_pktdata[35] = 6502 & 0xff;
-		pcap_callback((u_char *)ctx, &file_pkthdr, (const u_char *)&file_pktdata[0]);
-	} else {
+	if (packetCount != 7) {
 		/* Should never happen.
 		 * Of the two possible callers:
 		 * RCTS reframes to guarantee to 7 packets.
 		 * SRT AVcodec reframes to guarantee to 7 packets.
 		 */
+		printf("nic_monitor: file input, packetcount != 7, got %d, reframing not working.\n", packetCount);
 	}
 
+	gettimeofday(&file_pkthdr.ts, NULL);
+	file_pkthdr.caplen = 42 + (packetCount * 188);
+	file_pkthdr.len = file_pkthdr.caplen;
+
+	memset(&file_pktdata[42], 0, 7 * 188);
+	memcpy(&file_pktdata[42], pkts, packetCount * 188);
+	file_pktdata[26] = 192;
+	file_pktdata[27] = 168;
+	file_pktdata[28] = 1;
+	file_pktdata[29] = 1;
+	file_pktdata[30] = 227;
+	file_pktdata[31] = 1;
+	file_pktdata[32] = 1;
+	file_pktdata[33] = 1;
+	file_pktdata[34] = 6502 >> 8;
+	file_pktdata[35] = 6502 & 0xff;
+	pcap_callback((u_char *)ctx, &file_pkthdr, (const u_char *)&file_pktdata[0]);
+}
+
+static void * sm_cb_raw(void *userContext, const uint8_t *pkts, int packetCount)
+{
+	struct tool_context_s *ctx = userContext;
+
+	/* push to reframer */
+	ltststools_reframer_write(ctx->reframer, pkts, packetCount * 188);
+	
 	return NULL;
 }
 
 static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
 {
 	struct tool_context_s *ctx = userContext;
-	sm_cb_raw(ctx, buf, lengthBytes / 188);
+	reformat_to_pcap(ctx, buf, lengthBytes / 188);
 
 	return NULL;
 }
@@ -1931,10 +1939,10 @@ int nic_monitor(int argc, char *argv[])
 			ctx->ifname, ctx->pcap_stats.ps_drop, ctx->pcap_stats.ps_ifdrop);
 	}
 
-	pcap_queue_free(ctx);
-
 	printf("Flushing the streams and recorders...\n");
 	discovered_items_free(ctx);
+
+	pcap_queue_free(ctx);
 
 	printf("\nStats window:\n");
 	printf("  from %s -> %s\n", ts_b, ts_e);
