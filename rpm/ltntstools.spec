@@ -53,6 +53,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 * Wed Feb  7 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.30.0
   tstools_si_inspector: Support for decoding and showing Teletext/WST PMT stream descriptors
+  tstools_si_inspector: Print correct stream type for JPEG-XS
   libltntstools: stats improvements for how we measure pcr walltime, new API to retieive last drift measurement.
   libltntstools: stats improvements - PCR jitter histogram now makes it clear the value is absolute
   tstools_clock_inspector: Added support to calculate (for live streams) SCR vs walltime drift (ms)

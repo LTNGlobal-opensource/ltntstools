@@ -65,6 +65,7 @@ char *tstools_GetTypeName(uint8_t type)
     case 0x0E: return "ISO/IEC 13818-1 auxillary";
     case 0x0F: return "ISO/IEC 13818-7 Audio with ADTS transport syntax - usually AAC";
     case 0x1B: return "H.264 Video";
+    case 0x32: return "JPEG-XS Video";
     case 0x81: return "ATSC AC-3 Audio";
     default:
       if (type < 0x80)
