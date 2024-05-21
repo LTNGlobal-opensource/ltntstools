@@ -956,19 +956,13 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 	time(&now);
 	localtime_r(&now, &tm);
 
-	char line[256];
-	char ts[24];
-        sprintf(ts, "%04d%02d%02d-%02d%02d%02d",
-                tm.tm_year + 1900,
-                tm.tm_mon  + 1,
-                tm.tm_mday,
-                tm.tm_hour,
-                tm.tm_min,
-                tm.tm_sec);
+	char ts_date[16] = {0};
+	char ts_time[16] = {0};
+	strftime(ts_date, sizeof ts_date, "%Y-%m-%d", &tm);
+	strftime(ts_time, sizeof ts_time, "%H:%M:%S", &tm);
 
 	if (write_banner) {
-		sprintf(line, "@Report begins %s\n", ts);
-		write(fd, line, strlen(line));
+		dprintf(fd, "@Report begins %s %s\n", ts_date, ts_time);
 	}
 
 	uint32_t bps = 0;
@@ -1020,8 +1014,9 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		ltntstools_pat_free(m);
 	}
 
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat1000=%d%s,br100=%d,br10=%d,flags=%s,enclat=%s\n",
-		ts,
+	dprintf(fd, "date=%s,time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat1000=%d%s,br100=%d,br10=%d,flags=%s,enclat=%s\n",
+		ts_date,
+		ts_time,
 		ctx->ifname,
 		bps,
 		mbps,
@@ -1038,8 +1033,6 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 		di->bitrate_hwm_us_100ms_last_nsecond * 10,
 		di->warningIndicatorLabel,
 		enclat);
-
-	write(fd, line, strlen(line));
 
 	/* Write out the entire PID state. */
 	discovered_item_fd_per_pid_report(ctx, di, fd);
@@ -1085,19 +1078,13 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 	time(&now);
 	localtime_r(&now, &tm);
 
-	char line[256];
-	char ts[24];
-        sprintf(ts, "%04d%02d%02d-%02d%02d%02d",
-                tm.tm_year + 1900,
-                tm.tm_mon  + 1,
-                tm.tm_mday,
-                tm.tm_hour,
-                tm.tm_min,
-                tm.tm_sec);
+	char ts_date[16] = {0};
+	char ts_time[16] = {0};
+	strftime(ts_date, sizeof ts_date, "%Y-%m-%d", &tm);
+	strftime(ts_time, sizeof ts_time, "%H:%M:%S", &tm);
 
 	if (write_banner) {
-		sprintf(line, "@Report begins %s\n", ts);
-		write(fd, line, strlen(line));
+		dprintf(fd, "@Report begins %s %s\n", ts_date, ts_time);
 	}
 
 	uint32_t bps = 0;
@@ -1149,8 +1136,9 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		ltntstools_pat_free(m);
 	}
 
-	sprintf(line, "time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat1000=%d%s,br100=%d,br10=%d,flags=%s,enclat=%s\n",
-		ts,
+	dprintf(fd, "date=%s,time=%s,nic=%s,bps=%d,mbps=%.2f,tspacketcount=%" PRIu64 ",ccerrors=%" PRIu64 "%s,src=%s,dst=%s,dropped=%d/%d,iat1000=%d%s,br100=%d,br10=%d,flags=%s,enclat=%s\n",
+		ts_date,
+		ts_time,
 		ctx->ifname,
 		bps,
 		mbps,
@@ -1167,7 +1155,6 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 		di->bitrate_hwm_us_100ms_last_nsecond * 10,
 		di->warningIndicatorLabel,
 		enclat);
-	write(fd, line, strlen(line));
 
 	close(fd);
 }
