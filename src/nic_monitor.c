@@ -1559,7 +1559,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 					fprintf(stderr, "\nError, too many forwarders defined, max is %d\n", MAX_URL_FORWARDERS);
 					exit(1);
 				}
-				if (sscanf(optarg, "udp://%99[^:]:%d",
+				if (sscanf(optarg, "udp://%63[^:]:%d",
 					&ctx->url_forwards[forwarder_idx].addr[0],
 					&ctx->url_forwards[forwarder_idx].port) != 2)
 				{

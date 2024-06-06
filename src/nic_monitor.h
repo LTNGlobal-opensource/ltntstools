@@ -177,7 +177,7 @@ struct tool_context_s
 	struct {
 		char addr[64];
 		int port;
-		char uilabel[64];
+		char uilabel[80];
 	} url_forwards[MAX_URL_FORWARDERS];
 
 	/* SRT Ingest, and packet reframing */
