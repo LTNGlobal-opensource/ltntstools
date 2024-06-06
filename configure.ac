@@ -16,6 +16,8 @@ AC_PROG_CXX
 AC_PROG_RANLIB
 AC_PROG_LIBTOOL
 
+AC_C_INLINE
+
 AM_CONDITIONAL(LINUX, test `uname -s` = "Linux")
 AM_CONDITIONAL(APPLE, test `uname -s` = "Darwin")
 
