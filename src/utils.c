@@ -346,7 +346,7 @@ int process_memory_sprintf(char *dst, struct statm_context_s *ctx, int reportSec
 
 /* Subtract N ms from a timestamp, to find a time prior to now */
 /* Never pass a value in ms more than one second */
-void timeval_subtract(struct timeval *result, struct timeval *now, unsigned int ms)
+void subtract_ms_from_timeval(struct timeval *result, struct timeval *now, unsigned int ms)
 {
 	result->tv_sec = now->tv_sec;
 	result->tv_usec = now->tv_usec;

@@ -1573,12 +1573,11 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 				break;
 			case 21: /* measure-scheduling-quanta */
 				{
-					struct timeval a, b, r;
+					struct timeval a, b;
 					gettimeofday(&a, NULL);
 					usleep(1000);
 					gettimeofday(&b, NULL);
-					ltn_histogram_timeval_subtract(&r, &b, &a);
-					uint32_t diffUs = ltn_histogram_timeval_to_us(&r);
+					uint32_t diffUs = ltn_timeval_subtract_us(&b, &a);
 					printf("\nSlept for 1000us, woke to find we'd spent %dus asleep.\n\n", diffUs);
 					exit(1);
 				}

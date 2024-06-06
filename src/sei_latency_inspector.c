@@ -153,12 +153,7 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 
 		//printf("framenumber %d, wanted %d\n", e->sei_framenumber, element->sei_framenumber);
 		if (e->sei_framenumber == element->sei_framenumber) {
-
-			struct timeval diff;
-			struct timeval x = element->ts_seen;
-			struct timeval y = e->ts_seen;
-			ltn_histogram_timeval_subtract(&diff, &x, &y);
-			int ms = ltn_histogram_timeval_to_ms(&diff);
+			int ms = ltn_timeval_subtract_ms(&element->ts_seen, &e->ts_seen);
 
 			if (ctx->verbose) {
 
