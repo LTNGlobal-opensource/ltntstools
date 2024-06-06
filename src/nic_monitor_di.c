@@ -989,9 +989,9 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 
 	/* Query the LTN encoder latency, if it exists */
 	struct ltntstools_pat_s *m = NULL;
-	char enclat[8];
+	char enclat[32];
 	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
-		
+
 		for (int p = 0; p < m->program_count; p++) {
 
 			unsigned int major, minor, patch;
@@ -1111,9 +1111,9 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 
 	/* Query the LTN encoder latency, if it exists */
 	struct ltntstools_pat_s *m = NULL;
-	char enclat[8];
+	char enclat[32];
 	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
-		
+
 		for (int p = 0; p < m->program_count; p++) {
 
 			unsigned int major, minor, patch;
