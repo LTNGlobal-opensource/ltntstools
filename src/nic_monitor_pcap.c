@@ -199,10 +199,8 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 {
 	time_t now = time(NULL);
 
-	struct timeval diff;
 	if (di->iat_last_frame.tv_sec) {
-		ltn_histogram_timeval_subtract(&diff, (struct timeval *)&cb_h->ts, &di->iat_last_frame);
-		di->iat_cur_us = ltn_histogram_timeval_to_us(&diff);
+		di->iat_cur_us = ltn_timeval_subtract_us((struct timeval *)&cb_h->ts, &di->iat_last_frame);
 		if (di->iat_cur_us <= di->iat_lwm_us)
 			di->iat_lwm_us = di->iat_cur_us;
 		if (di->iat_cur_us >= di->iat_hwm_us)
@@ -237,7 +235,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		gettimeofday(&nowtv, NULL);
 
 		struct timeval then10ms;
-		timeval_subtract(&then10ms, &nowtv, 10);
+		subtract_ms_from_timeval(&then10ms, &nowtv, 10);
 		int64_t bitrate_max_10ms = throughput_hires_sumtotal_i64(di->packetPayloadSizeBits, 0, &then10ms, &nowtv);
 		if (di->bitrate_hwm_us_10ms <= bitrate_max_10ms)
 			di->bitrate_hwm_us_10ms = bitrate_max_10ms;
@@ -253,7 +251,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		}
 
 		struct timeval then100ms;
-		timeval_subtract(&then100ms, &nowtv, 100);
+		subtract_ms_from_timeval(&then100ms, &nowtv, 100);
 		int64_t bitrate_max_100ms = throughput_hires_sumtotal_i64(di->packetPayloadSizeBits, 0, &then100ms, &nowtv);
 		if (di->bitrate_hwm_us_100ms <= bitrate_max_100ms)
 			di->bitrate_hwm_us_100ms = bitrate_max_100ms;
@@ -270,7 +268,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 #endif
 #if 0
 		struct timeval then1000ms;
-		timeval_subtract(&then1000ms, &nowtv, 1000);
+		subtract_ms_from_timeval(&then1000ms, &nowtv, 1000);
 		int64_t bitrate_max_1000ms = throughput_hires_sumtotal_i64(di->packetPayloadSizeBits, 0, &then1000ms, &nowtv);
 
 		double a = (double)bitrate_max_1000ms / 1000000.0;

@@ -3,7 +3,7 @@ AUTOMAKE_OPTIONS = foreign
 GIT_VERSION := $(shell git describe --abbrev=8 --dirty --always --tags)
 
 AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_OFFSET_BITS=64 \
-	-D_BSD_SOURCE \
+	-D_DEFAULT_SOURCE \
 	-DGIT_VERSION=\"$(GIT_VERSION)\"
 
 LDADD = -lpthread -lz -lm -lltntstools -lklvanc

@@ -58,13 +58,12 @@ struct ts_stream_s
 void destroyPID(struct ts_pid_s *pid);
 void freeStream(struct ts_stream_s *strm);
 int  allocStream(struct ts_stream_s **strm, void *userctx);
-__inline__ struct ts_pid_s *findPID(struct ts_stream_s *strm, uint16_t pid);
 void updateStream(struct ts_stream_s *strm, const uint8_t *buf, unsigned int len);
 
 static int gVerbose = 0;
 static int gDumpAll = 0;
 
-__inline__ struct ts_pid_s *findPID(struct ts_stream_s *strm, uint16_t pid)
+static inline struct ts_pid_s *findPID(struct ts_stream_s *strm, uint16_t pid)
 {
 	assert(pid < MAX_PIDS);
 	return &strm->pids[pid];
