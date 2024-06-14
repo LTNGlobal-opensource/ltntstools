@@ -1383,6 +1383,7 @@ static void usage(const char *progname)
 	printf("  --http-json-reporting http://url     Send 1sec json stats reports for all discovered streams [def: disabled] (Experimental).\n");
 	printf("    Eg. http://127.0.0.1:13400/whatever_resource_name_you_want\n");
 	printf("  --report-memory-usage                Report memory usage and growth every 5 seconds.\n");
+	printf("  --measure-scheduling-stalls          Test the scheduling system for 1000us sleeps that lasted more than 3000us.\n");
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
@@ -1428,6 +1429,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		// 25 - 29
 		{ "measure-sei-latency-always", no_argument,		0, 0 },
 		{ "report-memory-usage", 		no_argument,		0, 0 },
+		{ "measure-scheduling-stalls", 		no_argument,		0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1601,6 +1603,23 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 				break;
 			case 26: /* report-memory-usage */
 				ctx->reportProcessMemoryUsage = 1;
+				break;
+			case 27: /* measure-scheduling-stalls */
+				{
+					struct timeval a, b;
+					while (1) {
+						gettimeofday(&a, NULL);
+						usleep(1000);
+						gettimeofday(&b, NULL);
+						uint32_t diffUs = ltn_timeval_subtract_us(&b, &a);
+						if (diffUs >= 3000) {
+							char ts[128];
+							libltntstools_getTimestamp(&ts[0], sizeof(ts), NULL);
+							printf("%s: Slept for 1000us, woke to find we'd spent %dus asleep.\n", ts, diffUs);
+						}
+					}
+					exit(1);
+				}
 				break;
 			default:
 				usage(argv[0]);
