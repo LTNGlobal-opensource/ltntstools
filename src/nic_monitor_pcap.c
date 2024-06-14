@@ -354,7 +354,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	}
 
 	if (di->payloadType == PAYLOAD_RTP_TS) {
-		if (ntohs(udphdr->uh_ulen) - 8 - 12 != (7 * 188)) {
+		if (ntohs(udphdr->len) - 8 - 12 != (7 * 188)) {
         		di->notMultipleOfSevenError++;
         		time(&di->notMultipleOfSevenErrorLastEvent);
 		}
@@ -390,7 +390,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		}
 
 	} else {
-		if (ntohs(udphdr->uh_ulen) - 8 != (7 * 188)) {
+		if (ntohs(udphdr->len) - 8 != (7 * 188)) {
         		di->notMultipleOfSevenError++;
         		time(&di->notMultipleOfSevenErrorLastEvent);
 		}
@@ -676,14 +676,14 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 #endif
 
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->uh_sport));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->uh_dport));
+			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->source));
+			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->dest));
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
 				src, dst,
-				ntohs(udp->uh_ulen),
+				ntohs(udp->len),
 				ptr[0], ptr[1], ptr[2], ptr[3]);
-			//if (ntohs(udp->uh_dport) == 4100)
+			//if (ntohs(udp->dest) == 4100)
 			{
 				for (int i = 0; i < 40; i++)
 					printf("%02x ", ptr[i]);
@@ -703,8 +703,8 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
-		int pktCount = ntohs(udp->uh_ulen) / 188;
-		int lengthBytes = ntohs(udp->uh_ulen);
+		int pktCount = ntohs(udp->len) / 188;
+		int lengthBytes = ntohs(udp->len);
 		_processPackets_IO(ctx, eth, ip, udp, ptr, pktCount, isRTP, h, pkt, lengthBytes);
 	}
 }
@@ -745,12 +745,12 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 #endif
 
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
+			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
 				src, dst,
-				ntohs(udphdr->uh_ulen),
+				ntohs(udphdr->len),
 				ptr[0], ptr[1], ptr[2], ptr[3]);
 		}
 
@@ -764,11 +764,11 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		 */
 		di->lastUpdated = time(NULL);
 
-		int lengthPayloadBytes = ntohs(udphdr->uh_ulen) - sizeof(struct udphdr);
+		int lengthPayloadBytes = ntohs(udphdr->len) - sizeof(struct udphdr);
 #if 0
 		/* Mangle incoming stream so we can check our payload detection code */
 		/* Trash anything on port 4011 */
-		if (ntohs(udphdr->uh_dport) == 4011) {
+		if (ntohs(udphdr->dest) == 4011) {
 			ptr += 5;
 			lengthPayloadBytes -= 5;
 		}

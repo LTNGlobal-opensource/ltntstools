@@ -60,6 +60,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: Added support to calculate (for live streams) PTS vs walltime drift (ms)
   tstools_clock_inspector: Adjusted SCR column headers for easier reading.
   tstools_nic_monitor: Added measure-scheduling-stalls feature to check scheduler performance on questionable servers.
+  codebase: compiler redefined UDP header source, lots of tools needed structure field name references adjusted.
 
 * Tue Feb  6 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.29.0

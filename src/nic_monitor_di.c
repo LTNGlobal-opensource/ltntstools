@@ -20,7 +20,7 @@ static uint16_t _compute_stream_hash(struct iphdr *iphdr, struct udphdr *udphdr)
 #ifdef __linux__
 	uint32_t dstaddr = ntohl(iphdr->daddr);
 #endif
-	uint16_t dstport = ntohs(udphdr->uh_dport);
+	uint16_t dstport = ntohs(udphdr->dest);
 	return hash_index_cal_hash(dstaddr, dstport);
 }
 
@@ -120,9 +120,9 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		dstaddr.s_addr = di->iphdr.ip_dst.s_addr;
 #endif
 
-		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
-		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
-		di->dstport = ntohs(di->udphdr.uh_dport);
+		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.source));
+		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.dest));
+		di->dstport = ntohs(di->udphdr.dest);
 
 		di->iat_lwm_us = 50000000;
 		di->iat_hwm_us = -1;
@@ -227,9 +227,9 @@ static int is_di_duplicate(struct discovered_item_s *x, struct discovered_item_s
 		return 0;
 	if (x->iphdr.daddr != y->iphdr.daddr)
 		return 0;
-	if (x->udphdr.uh_sport != y->udphdr.uh_sport)
+	if (x->udphdr.source != y->udphdr.source)
 		return 0;
-	if (x->udphdr.uh_dport != y->udphdr.uh_dport)
+	if (x->udphdr.dest != y->udphdr.dest)
 		return 0;
 
 #endif
@@ -238,9 +238,9 @@ static int is_di_duplicate(struct discovered_item_s *x, struct discovered_item_s
 		return 0;
 	if (x->iphdr.ip_dst.s_addr != y->iphdr.ip_dst.s_addr)
 		return 0;
-	if (x->udphdr.uh_sport != y->udphdr.uh_sport)
+	if (x->udphdr.source != y->udphdr.source)
 		return 0;
-	if (x->udphdr.uh_dport != y->udphdr.uh_dport)
+	if (x->udphdr.dest != y->udphdr.dest)
 		return 0;
 #endif
 
@@ -251,17 +251,17 @@ static int is_di_dst_duplicate(struct discovered_item_s *x, struct discovered_it
 {
 #ifdef __linux__
 	uint64_t a = (uint64_t)ntohl(x->iphdr.daddr) << 16;
-	a |= (x->udphdr.uh_dport);
+	a |= (x->udphdr.dest);
 
 	uint64_t b = (uint64_t)ntohl(y->iphdr.daddr) << 16;
-	b |= (y->udphdr.uh_dport);
+	b |= (y->udphdr.dest);
 #endif
 #ifdef __APPLE__
 	uint64_t a = (uint64_t)ntohl(x->iphdr.ip_dst.s_addr) << 16;
-	a |= (x->udphdr.uh_dport);
+	a |= (x->udphdr.dest);
 
 	uint64_t b = (uint64_t)ntohl(y->iphdr.ip_dst.s_addr) << 16;
-	b |= (y->udphdr.uh_dport);
+	b |= (y->udphdr.dest);
 #endif
 
 	if (a == b)
@@ -279,17 +279,17 @@ static void discovered_item_insert(struct tool_context_s *ctx, struct discovered
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 #ifdef __linux__
 		uint64_t a = (uint64_t)ntohl(e->iphdr.daddr) << 16;
-		a |= (e->udphdr.uh_dport);
+		a |= (e->udphdr.dest);
 
 		uint64_t b = (uint64_t)ntohl(di->iphdr.daddr) << 16;
-		b |= (di->udphdr.uh_dport);
+		b |= (di->udphdr.dest);
 #endif
 #ifdef __APPLE__
 		uint64_t a = (uint64_t)ntohl(e->iphdr.ip_dst.s_addr) << 16;
-		a |= (e->udphdr.uh_dport);
+		a |= (e->udphdr.dest);
 
 		uint64_t b = (uint64_t)ntohl(di->iphdr.ip_dst.s_addr) << 16;
-		b |= (di->udphdr.uh_dport);
+		b |= (di->udphdr.dest);
 #endif
 		if (a < b)
 			continue;

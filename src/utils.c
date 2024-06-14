@@ -163,9 +163,9 @@ int network_addr_compare(
 	if (src_iphdr->daddr != dst_iphdr->daddr)
 		return 0;
 #endif
-	if (src_udphdr->uh_sport != dst_udphdr->uh_sport)
+	if (src_udphdr->source != dst_udphdr->source)
 		return 0;
-	if (src_udphdr->uh_dport != dst_udphdr->uh_dport)
+	if (src_udphdr->dest != dst_udphdr->dest)
 		return 0;
 
 	return 1; /* Success, matched */
@@ -184,8 +184,8 @@ char *network_stream_ascii(struct iphdr *iphdr, struct udphdr *udphdr)
 #endif
 
 	char *str = malloc(256);
-	sprintf(str, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
-	sprintf(str + strlen(str), " -> %s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+	sprintf(str, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
+	sprintf(str + strlen(str), " -> %s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
 
 	return str;
 }
