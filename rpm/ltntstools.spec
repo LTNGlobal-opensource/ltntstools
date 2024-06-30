@@ -51,6 +51,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Wed Feb  7 2024 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.31.0 dev release
+  tstools_nic_monitor: bugfix. Curl http post mechanism would leak sockets
+
+* Wed Feb  7 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.30.0
   tstools_si_inspector: Support for decoding and showing Teletext/WST PMT stream descriptors
   tstools_si_inspector: Print correct stream type for JPEG-XS
