@@ -128,11 +128,11 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	CURLcode res = curl_easy_perform(curl);
 	if (res != CURLE_OK) {
 		fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-		curl_easy_cleanup(curl);
 	} else {
 		ret = 0; /* Success */
 	}
 	curl_slist_free_all(headers);
+	curl_easy_cleanup(curl);
 	curl_global_cleanup();
 
 	return ret;
