@@ -17,6 +17,7 @@
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 #include "kbhit.h"
+#include "utils.h"
 
 #define DEFAULT_LATENCY 100
 
@@ -270,6 +271,7 @@ static void *thread_packet_rx(void *p)
 
 	char ts[256];
 	time_t now = time(0);
+	time_t bannerPrint = 0;
 	sprintf(ts, "%s", ctime(&now));
 	ts[ strlen(ts) - 1] = 0;
 	printf("%s: Smoother starting\n", ts);
@@ -294,6 +296,10 @@ static void *thread_packet_rx(void *p)
 			printf("source received %d bytes (EAGAIN %d ETIMEDOUT %d)\n", rlen, -EAGAIN, -ETIMEDOUT);
 		}
 		now = time(0);
+		if (bannerPrint + (60 * 60 * 24) < now) {
+			bannerPrint = now;
+			printToolBanner("tstools_bitrate_smoother", GIT_VERSION);
+		}
 		if ((rlen == -EAGAIN) || (rlen == -ETIMEDOUT)) {
 			usleep(1 * 1000);
 			continue;
