@@ -60,4 +60,6 @@ int process_memory_sprintf(char *dst, struct statm_context_s *ctx, int reportSec
 
 void subtract_ms_from_timeval(struct timeval *result, struct timeval *now, unsigned int ms);
 
+void printToolBanner(char *toolname, char *version);
+
 #endif  /* LTNTOOLS_UTILS_H */

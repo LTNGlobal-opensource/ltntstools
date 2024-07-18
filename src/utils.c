@@ -12,6 +12,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 /* In string 'str', find occurences of character src and replace with character dst. */
 /* return the number of substituions occured. */
@@ -379,4 +382,26 @@ int ISO8601_UTC_CreateTimestamp(struct timeval *tv, char **dst)
 	*dst = buf;
 
     return 0;
+}
+
+void printToolBanner(char *toolname, char *version)
+{
+	char ts[256];
+	time_t now = time(0);
+	sprintf(ts, "%s", ctime(&now));
+	ts[ strlen(ts) - 1] = 0;
+
+	printf("%s: %s %s\n", ts, toolname, version);
+
+	char *name = (char *)malloc(4096);
+	int fd = open("/proc/self/cmdline", O_RDONLY);
+	int size = read(fd, name, 4096);
+	close(fd);
+	
+	for(int i = 0 ; i < size; i++) {
+		if (!name[i])
+			name[i] = ' ';
+	}
+
+	printf("%s: %s\n", ts, name);
 }
