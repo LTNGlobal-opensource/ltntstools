@@ -472,6 +472,7 @@ struct tool_ctx_s
 	int writeES_h265;
 	int writeThumbnails;
 	uint64_t esSeqNr;
+	int dumpPICTIMING;
 
 	struct nal_throughput_s throughput;
 
@@ -611,6 +612,29 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 		} /* if find headers */
 
+	}
+
+	if (ctx->dumpPICTIMING) {
+		int arrayLength = 0;
+		struct ltn_nal_headers_s *array = NULL;
+		if (ltn_nal_h264_find_headers(pes->data, pes->dataLengthBytes, &array, &arrayLength) == 0) {
+
+			for (int i = 0; i < arrayLength; i++) {
+				struct ltn_nal_headers_s *e = array + i;
+
+				if ((e->ptr[0] == 0x00) && (e->ptr[1] == 0x00) && (e->ptr[2] == 0x01) && (e->ptr[3] == 0x06) && (e->ptr[4] == 0x01))
+				{
+					/* Quick basic PIC timing parsing, we're assuming pic_struct_present is true, and CpbDpbDelaysPresentFlag is false */
+					int frame = e->ptr[8] & 0x1f;
+					int seconds = e->ptr[9] >> 2;
+					int minutes = (e->ptr[9] << 4 | e->ptr[10] >> 4) & 0x3f;
+					int hours = (e->ptr[10] << 1 | e->ptr[11] >> 7) & 0x1f;
+					int discontinuit_flag = (e->ptr[8] >> 6) & 1;
+					printf("\tPIC TIMING: %02d:%02d:%02d.%02d %s\n",
+						hours, minutes, seconds, frame, discontinuit_flag ? "D" : " ");
+				}
+			}
+		}
 	}
 
 	if (ctx->writeThumbnails || ctx->writeES_h264) {
@@ -755,7 +779,7 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "45?EFHhvi:P:S:T")) != -1) {
+	while ((ch = getopt(argc, argv, "45?EFHhvi:P:S:Tt")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -801,6 +825,9 @@ int pes_inspector(int argc, char *argv[])
 			ctx->writeThumbnails = 1;
 			break;
 #endif
+		case 't':
+			ctx->dumpPICTIMING = 1;
+			break;
 		case 'v':
 			ctx->verbose++;
 			break;
