@@ -624,7 +624,9 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 				if ((e->ptr[0] == 0x00) && (e->ptr[1] == 0x00) && (e->ptr[2] == 0x01) && (e->ptr[3] == 0x06) && (e->ptr[4] == 0x01))
 				{
-					/* Quick basic PIC timing parsing, we're assuming pic_struct_present is true, and CpbDpbDelaysPresentFlag is false */
+					/* Quick basic PIC timing parsing, we're assuming pic_struct_present is true,
+					 * and CpbDpbDelaysPresentFlag is false, and we'll only look at the first clock in any stream.
+					 */
 					int frame = e->ptr[8] & 0x1f;
 					int seconds = e->ptr[9] >> 2;
 					int minutes = (e->ptr[9] << 4 | e->ptr[10] >> 4) & 0x3f;
