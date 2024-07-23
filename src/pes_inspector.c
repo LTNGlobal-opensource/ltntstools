@@ -626,14 +626,27 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 				{
 					/* Quick basic PIC timing parsing, we're assuming pic_struct_present is true,
 					 * and CpbDpbDelaysPresentFlag is false, and we'll only look at the first clock in any stream.
+					 Tested against the LTN Encoder.
 					 */
-					int frame = e->ptr[8] & 0x1f;
+					int ct_type = (e->ptr[6] >> 1) & 0x03;
+					int nuit_field_based_flag = (e->ptr[6] >> 0) & 1;
+
+					int counting_type = (e->ptr[7] >> 3) & 1;
+					int full_timestamp_flag = (e->ptr[7] >> 2) & 1;
+					int discontinuity_flag = (e->ptr[7] >> 1) & 1;
+					int cnt_dropped_flag = (e->ptr[7] >> 0) & 1;
+
+					int frame = e->ptr[8];
+
 					int seconds = e->ptr[9] >> 2;
 					int minutes = (e->ptr[9] << 4 | e->ptr[10] >> 4) & 0x3f;
 					int hours = (e->ptr[10] << 1 | e->ptr[11] >> 7) & 0x1f;
-					int discontinuit_flag = (e->ptr[8] >> 6) & 1;
-					printf("\tPIC TIMING: %02d:%02d:%02d.%02d %s\n",
-						hours, minutes, seconds, frame, discontinuit_flag ? "D" : " ");
+
+					printf("\tPIC TIMING %02d:%02d:%02d.%02d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
+						hours, minutes, seconds, frame, discontinuity_flag,
+						ct_type, counting_type, nuit_field_based_flag,
+						full_timestamp_flag,
+						cnt_dropped_flag);
 				}
 			}
 		}
