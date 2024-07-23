@@ -55,8 +55,9 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: bugfix. Curl http post mechanism would leak sockets
   tstools_tr101290_analyzer: Added PCAP support
   tstools_bitrate_smoother: Print Tool version and command line args every 24hrs.
+  tstools_bitrate_smoother: Fixed unwanted additional latency of (typically) 30ms.
   tstools_pes_inspector: Optional arg whjich finds PIC TIMING structs and does a basic parse.
-  variaious JAN fixes to libltntstools - describe these
+  libltntstools: various fixes to libltntstools, code safety, small cleanups
 
 * Wed Feb  7 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.30.0
