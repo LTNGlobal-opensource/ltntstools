@@ -58,6 +58,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_bitrate_smoother: Fixed unwanted additional latency of (typically) 30ms.
   tstools_pes_inspector: Optional arg whjich finds PIC TIMING structs and does a basic parse.
   libltntstools: various fixes to libltntstools, code safety, small cleanups
+  tstools_clock_inspector: Add support for DTS vs walltime drift measurement
 
 * Wed Feb  7 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.30.0

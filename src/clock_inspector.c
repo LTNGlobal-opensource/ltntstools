@@ -193,6 +193,14 @@ static void pidReport(struct tool_context_s *ctx)
 
 static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx, uint64_t filepos)
 {
+	char time_str[64];
+	struct timeval ts;
+	gettimeofday(&ts, NULL);
+
+	time_t now = time(NULL);
+	sprintf(time_str, "%s", ctime(&now));
+	time_str[ strlen(time_str) - 1] = 0;
+
 	struct pid_s *p = &ctx->pids[pid];
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 		ltn_pes_packet_copy(&p->pts_last, &p->pes);
@@ -284,14 +292,6 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		char time_str[64];
-		struct timeval ts;
-		gettimeofday(&ts, NULL);
-
-		time_t now = time(NULL);
-		sprintf(time_str, "%s", ctime(&now));
-		time_str[ strlen(time_str) - 1] = 0;
-
 		if (!ctx->order_asc_pts_output) {
 			printf("PTS #%09" PRIi64
 				" -- %09" PRIx64
@@ -334,13 +334,12 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	/* Process a DTS if present. */
 	if (p->pes.PTS_DTS_flags == 3) {
 
-#if 0
 		/* Disabled for now, TODO */
 		int64_t dtsWalltimeDriftMs = 0;
 		if (p->clk_dts_initialized) {
 			dtsWalltimeDriftMs = ltntstools_clock_get_drift_ms(&p->clk_dts);
 		}
-#endif
+
 		if ((PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
@@ -363,7 +362,8 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		printf("DTS #%09" PRIi64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIu64 "\n",
+		printf("DTS #%09" PRIi64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIu64
+			"                       %s %08d.%03d %6" PRIi64 "\n",
 			p->dts_count,
 			filepos,
 			filepos,
@@ -371,7 +371,11 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			p->pes.DTS,
 			p->dts_diff_ticks,
 			(double)p->dts_diff_ticks / 90, // MMM
-			dts_scr_diff_ms);
+			dts_scr_diff_ms,
+			time_str,
+			(int)ts.tv_sec,
+			(int)ts.tv_usec / 1000,
+			dtsWalltimeDriftMs);
 	}
 
 	if (len > 0 && ctx->doPESStatistics > 1) {
