@@ -13,6 +13,7 @@
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
+#include "golomb.h"
 
 #define H264_IFRAME_THUMBNAILING 0
 
@@ -479,6 +480,8 @@ struct tool_ctx_s
 #if H264_IFRAME_THUMBNAILING
 	void *h264Thumbnailer;
 #endif
+
+	GetBitContext gb;
 };
 
 static void _pes_packet_measure_nal_throughput(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes, struct nal_throughput_s *s)
@@ -579,6 +582,14 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 	if (ctx->verbose > 1) {
 		printf("PES Extractor callback\n");
 	}
+
+	if (pes->dataLengthBytes == 0) {
+		/* Else, dump all the PES packets */
+		ltn_pes_packet_dump(pes, "");
+		ltn_pes_packet_free(pes);
+		return NULL;		
+	}
+
 	/* If we're analyzing NALs then ONLY do this.... */
 	if (ctx->doH264NalThroughput || ctx->doH265NalThroughput) {
 		_pes_packet_measure_nal_throughput(ctx, pes, &ctx->throughput);
@@ -609,6 +620,7 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 					fclose(fh);
 				}
 			}
+			free(array);
 
 		} /* if find headers */
 
@@ -622,33 +634,142 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 			for (int i = 0; i < arrayLength; i++) {
 				struct ltn_nal_headers_s *e = array + i;
 
-				if ((e->ptr[0] == 0x00) && (e->ptr[1] == 0x00) && (e->ptr[2] == 0x01) && (e->ptr[3] == 0x06) && (e->ptr[4] == 0x01))
+				/* Search for NAL SEI PIC-TIMING Header */
+				if ((e->ptr[0] == 0x00) && (e->ptr[1] == 0x00) && (e->ptr[2] == 0x01) &&
+					(e->ptr[3] == 0x06) && (e->ptr[4] == 0x01))
 				{
 					/* Quick basic PIC timing parsing, we're assuming pic_struct_present is true,
 					 * and CpbDpbDelaysPresentFlag is false, and we'll only look at the first clock in any stream.
 					 Tested against the LTN Encoder.
 					 */
-					int ct_type = (e->ptr[6] >> 1) & 0x03;
-					int nuit_field_based_flag = (e->ptr[6] >> 0) & 1;
 
-					int counting_type = (e->ptr[7] >> 3) & 1;
-					int full_timestamp_flag = (e->ptr[7] >> 2) & 1;
-					int discontinuity_flag = (e->ptr[7] >> 1) & 1;
-					int cnt_dropped_flag = (e->ptr[7] >> 0) & 1;
+/*
+3 - SEI NAL (6)
+4 - payloadType (1 = pic timing)
+*/      
 
-					int frame = e->ptr[8];
+/*           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+PIC_TIMING: 00 00 01 06 01 08 02 60 80 90 41 fd 12 7c 80 00 
+	PIC TIMING 15:18:52.31 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_dropped:0
+PIC_TIMING: 00 00 01 06 01 08 02 80 20 90 41 dd 12 7c 80 00 
+PIC_TIMING: 00 00 01 06 01 08 02 a0 20 90 41 ed 12 7c 80 00 
+PIC_TIMING: 00 00 01 06 01 08 02 c0 80 90 42 2d 12 7c 80 00 
+	PIC TIMING 15:18:52.34 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_dropped:0
+PIC_TIMING: 00 00 01 06 01 08 02 e0 20 90 42 0d 12 7c 80 00 
+PIC_TIMING: 00 00 01 06 01 08 03 00 20 90 42 1d 12 7c 80 00 
+PIC_TIMING: 00 00 01 06 01 08 03 20 80 90 42 5d 12 7c 80 00 
+	PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_dropped:0
+*/
 
-					int seconds = e->ptr[9] >> 2;
-					int minutes = (e->ptr[9] << 4 | e->ptr[10] >> 4) & 0x3f;
-					int hours = (e->ptr[10] << 1 | e->ptr[11] >> 7) & 0x1f;
+#if LOCAL_DEBUG
+					printf("PIC_TIMING: ");
+					for (int z = 0; z < e->lengthBytes; z++) {
+						printf("%02x ", e->ptr[z]);
+					}
+					printf("\n");
+#endif
 
-					printf("\tPIC TIMING %02d:%02d:%02d.%02d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
-						hours, minutes, seconds, frame, discontinuity_flag,
-						ct_type, counting_type, nuit_field_based_flag,
-						full_timestamp_flag,
-						cnt_dropped_flag);
+					init_get_bits8(&ctx->gb, &e->ptr[5], (e->lengthBytes - 5) * 8);
+					int CpbDpbDelaysPresentFlag = 1; /* When NAL HRD present = 1 */
+					int pic_struct_present_flag = 1;
+					int clock_timestamp_flag[8];
+					int cpb_removal_delay_length = 15; /* Video Engine - hardcoded */
+					int dpb_removal_delay_length = 11; /* Video Engine - hardcoded */
+					int time_offset_length = 0;
+
+					if (CpbDpbDelaysPresentFlag) {
+						/* int cpb_removal_delay = */ get_bits_long(&ctx->gb, cpb_removal_delay_length);
+						/* int dpb_removal_delay = */ get_bits_long(&ctx->gb, dpb_removal_delay_length);
+#if LOCAL_DEBUG
+						printf("TIMING: cpb_removal_delay %d, dpb_removal_delay %d\n", cpb_removal_delay, dpb_removal_delay);
+#endif
+					}
+
+					if (pic_struct_present_flag) {
+						int NumClocksTS = 0;
+						int pic_struct = get_bits(&ctx->gb, 4);
+						pic_struct = 8;
+						switch(pic_struct) {
+						case 0:
+						case 1:
+						case 2:
+							NumClocksTS = 1;
+							break;
+						case 3:
+						case 4:
+						case 7:
+							NumClocksTS = 2;
+							break;
+						case 5:
+						case 6:
+						case 8:
+							NumClocksTS = 3;
+							break;
+						default:
+							NumClocksTS = 0;
+							break;
+						}
+#if LOCAL_DEBUG
+						printf("TIMING: pic_struct %d NumClocksTS %d\n", pic_struct, NumClocksTS);
+#endif
+
+						for (int i = 0; i < NumClocksTS; i++) {
+							clock_timestamp_flag[i] = get_bits(&ctx->gb, 1);
+							if (clock_timestamp_flag[i]) {
+								int ct_type               = get_bits(&ctx->gb, 2);
+								int nuit_field_based_flag = get_bits(&ctx->gb, 1);
+								int counting_type         = get_bits(&ctx->gb, 5);
+								int full_timestamp_flag   = get_bits(&ctx->gb, 1);
+								int discontinuity_flag    = get_bits(&ctx->gb, 1);
+								int cnt_dropped_flag      = get_bits(&ctx->gb, 1);
+								int n_frames              = get_bits(&ctx->gb, 8);
+
+								if (full_timestamp_flag) {
+									int seconds = get_bits(&ctx->gb, 6);
+									int minutes = get_bits(&ctx->gb, 6);
+									int hours   = get_bits(&ctx->gb, 5);
+
+									printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
+										hours, minutes, seconds, n_frames,
+										pic_struct,
+										discontinuity_flag,
+										ct_type, counting_type, nuit_field_based_flag,
+										full_timestamp_flag,
+										cnt_dropped_flag);
+
+								} else {
+									int seconds = 0;
+									int minutes = 0;
+									int hours   = 0;
+									int seconds_flag = get_bits(&ctx->gb, 1);
+									if (seconds_flag) {
+										seconds = get_bits(&ctx->gb, 6);
+										int minutes_flag  = get_bits(&ctx->gb, 1);
+										if (minutes_flag) {
+											minutes = get_bits(&ctx->gb, 6);
+											int hours_flag    = get_bits(&ctx->gb, 1);
+											if (hours_flag) {
+												hours = get_bits(&ctx->gb, 5);
+											}
+										}
+									}
+									printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
+										hours, minutes, seconds, n_frames,
+										pic_struct,
+										discontinuity_flag,
+										ct_type, counting_type, nuit_field_based_flag,
+										full_timestamp_flag,
+										cnt_dropped_flag);
+								}
+								if (time_offset_length > 0) {
+									/* int time_offset = */ get_bits_long(&ctx->gb, time_offset_length);
+								}
+							}
+						}
+					} /* if (pic_struct_present_flag) */
 				}
-			}
+			} /* for (int i = 0; i < arrayLength; i++) */
+			free(array);
 		}
 	}
 
@@ -767,7 +888,7 @@ static void usage(const char *progname)
 	printf("  -H Show PES headers only, don't parse payload. [def: disabled, payload shown]\n");
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -5 dump H.265 NAL headers (live stream only) and measure per-NAL throughput\n");
-	printf("  -t dump H.264 PIC TIMING headers (experimental) [def: disabled]\n");
+	printf("  -t dump H.264 PIC TIMING headers (experimental with PTS reordering) [def: disabled]\n");
 	printf("  -F write H.265 PES ES Nals to individual sequences files [def: no]\n");
 	printf("  -E write H.264 PES ES Nals to individual sequences files [def: no]\n");
 	printf("     Eg. 00000000046068-es-pid-0064-streamId-e0-nal-06-name-SEI.bin\n"
@@ -881,6 +1002,11 @@ int pes_inspector(int argc, char *argv[])
 	}
 	
 	ltntstools_pes_extractor_set_skip_data(ctx->pe, headersOnly);
+
+	if (ctx->dumpPICTIMING) {
+		/* We want the PIC decoding in the correct temporal order */
+		ltntstools_pes_extractor_set_ordered_output(ctx->pe, 1);
+	}
 
 	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
 	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
