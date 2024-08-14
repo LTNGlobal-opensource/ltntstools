@@ -627,7 +627,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 
 		int pic_struct = get_bits(&ctx->gb, 4);
 		pic_struct = 8; /* Hardcoded - Video Engine */
-		
+
 		int NumClocksTS = clocks[ pic_struct ];
 
 #if LOCAL_DEBUG
@@ -659,18 +659,18 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 						cnt_dropped_flag);
 
 				} else {
-					int seconds = 0;
-					int minutes = 0;
-					int hours   = 0;
-					int seconds_flag = get_bits(&ctx->gb, 1);
+					int seconds               = 0;
+					int minutes               = 0;
+					int hours                 = 0;
+					int seconds_flag          = get_bits(&ctx->gb, 1);
 					if (seconds_flag) {
-						seconds = get_bits(&ctx->gb, 6);
-						int minutes_flag  = get_bits(&ctx->gb, 1);
+						seconds               = get_bits(&ctx->gb, 6);
+						int minutes_flag      = get_bits(&ctx->gb, 1);
 						if (minutes_flag) {
-							minutes = get_bits(&ctx->gb, 6);
+							minutes           = get_bits(&ctx->gb, 6);
 							int hours_flag    = get_bits(&ctx->gb, 1);
 							if (hours_flag) {
-								hours = get_bits(&ctx->gb, 5);
+								hours         = get_bits(&ctx->gb, 5);
 							}
 						}
 					}
@@ -685,8 +685,8 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 				if (time_offset_length > 0) {
 					/* int time_offset = */ get_bits_long(&ctx->gb, time_offset_length);
 				}
-			}
-		}
+			} /* if (clock_timestamp_flag[i]) */
+		} /* for (int i = 0; i < NumClocksTS; i++) */
 	} /* if (pic_struct_present_flag) */
 }
 
