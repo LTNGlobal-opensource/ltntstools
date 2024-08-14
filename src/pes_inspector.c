@@ -623,29 +623,13 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 	}
 
 	if (pic_struct_present_flag) {
-		int NumClocksTS = 0;
+		int clocks[16] = { 1, 1, 1, 2, 2, 3, 3, 2, 3, 0, 0, 0, 0, 0, 0 };
+
 		int pic_struct = get_bits(&ctx->gb, 4);
-		pic_struct = 8;
-		switch(pic_struct) {
-		case 0:
-		case 1:
-		case 2:
-			NumClocksTS = 1;
-			break;
-		case 3:
-		case 4:
-		case 7:
-			NumClocksTS = 2;
-			break;
-		case 5:
-		case 6:
-		case 8:
-			NumClocksTS = 3;
-			break;
-		default:
-			NumClocksTS = 0;
-			break;
-		}
+		pic_struct = 8; /* Hardcoded - Video Engine */
+		
+		int NumClocksTS = clocks[ pic_struct ];
+
 #if LOCAL_DEBUG
 		printf("TIMING: pic_struct %d NumClocksTS %d\n", pic_struct, NumClocksTS);
 #endif
