@@ -32,6 +32,9 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 {
 	for (int i = 0; i < packetCount; i++) {
 		if (ltntstools_pid(pkts + (i * 188)) == gi_pmt_pid) {
+			if (gVerbose > 1) {
+				ltntstools_hexdump((unsigned char *)pkts + (i * 188), 188, 32 + 1);
+			}
 			dvbpsi_packet_push(gp_dvbpsi, (uint8_t *)pkts + (i * 188));
 		}
 	}
@@ -85,7 +88,7 @@ int pmt_inspector(int argc, char *argv[])
 			}
 			break;
 		case 'v':
-			gVerbose = 1;
+			gVerbose++;
 			break;
 		default:
 			usage(argv[0]);
