@@ -62,6 +62,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   libltntstools: PES_EXTARCTOR: Add API top reorder callbacks by PTS ascending order
   tstools_clock_inspector: Add support for DTS vs walltime drift measurement
   tstools_pmt_inspector: Dump PMT packet in hex in verbose level 2 or higher.
+  tstools_nic_monitor: Added support for -i udp://address:port multicast inputs
 
 * Wed Feb  7 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.30.0

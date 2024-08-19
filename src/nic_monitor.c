@@ -1480,6 +1480,9 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			if (strstr(ctx->ifname, "srt://")) {
 				ctx->iftype = IF_TYPE_MPEGTS_AVDEVICE;
 			} else
+			if (strstr(ctx->ifname, "udp://")) {
+				ctx->iftype = IF_TYPE_MPEGTS_AVDEVICE;
+			} else
 #if 0
 			if (strstr(ctx->ifname, "http://")) {
 				ctx->iftype = IF_TYPE_MPEGTS_AVDEVICE;
