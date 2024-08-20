@@ -50,8 +50,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 
 %changelog
-* Wed Feb  7 2024 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.31.0 dev release
+* Wed Aug 20 2024 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.31.1
   tstools_nic_monitor: bugfix. Curl http post mechanism would leak sockets
   tstools_tr101290_analyzer: Added PCAP support
   tstools_bitrate_smoother: Print Tool version and command line args every 24hrs.
