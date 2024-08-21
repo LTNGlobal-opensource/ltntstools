@@ -15,7 +15,28 @@
 #include "source-avio.h"
 #include "golomb.h"
 
+#define LOCAL_DEBUG 0
 #define H264_IFRAME_THUMBNAILING 0
+
+/* TODO: Move this into the libltntstools once we're completely happy with it.
+ * See ISO-14496-10:2004 section 7.3.1 NAL unit Syntax.
+ */
+static void ltn_nal_h264_strip_emulation_prevention(struct ltn_nal_headers_s *h)
+{
+	int dropped = 0;
+	for (int i = 1; i < h->lengthBytes; i++) {
+		if (i + 2 < h->lengthBytes &&
+			h->ptr[i + 0] == 0x00 &&
+			h->ptr[i + 1] == 0x00 &&
+			h->ptr[i + 2] == 0x03)
+		{
+				/* Convert 00 00 03 to 00 00 */
+				memcpy((unsigned char *)&h->ptr[i + 2], &h->ptr[i + 3], h->lengthBytes - i - 3);
+				dropped++;
+		}
+	}
+	h->lengthBytes -= dropped;
+}
 
 #if H264_IFRAME_THUMBNAILING
 
@@ -494,7 +515,6 @@ static void _pes_packet_measure_nal_throughput(struct tool_ctx_s *ctx, struct lt
     int offset = -1, lastOffset = 0;
 	unsigned int nalType = 0;
 	int ret;
-#define LOCAL_DEBUG 0
 #if LOCAL_DEBUG		
 	const char *nalName = NULL;
 #endif
@@ -614,11 +634,17 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 	int dpb_removal_delay_length = 11; /* Video Engine - hardcoded */
 	int time_offset_length = 0;
 
+	if (ctx->pid == 0x31) {
+		/* Hardcoded - LTN Encoder */
+		cpb_removal_delay_length = 8;
+		dpb_removal_delay_length = 0;
+	}
+
 	if (CpbDpbDelaysPresentFlag) {
 		/* int cpb_removal_delay = */ get_bits_long(&ctx->gb, cpb_removal_delay_length);
 		/* int dpb_removal_delay = */ get_bits_long(&ctx->gb, dpb_removal_delay_length);
 #if LOCAL_DEBUG
-		printf("TIMING: cpb_removal_delay %d, dpb_removal_delay %d\n", cpb_removal_delay, dpb_removal_delay);
+		//printf("TIMING: cpb_removal_delay %d, dpb_removal_delay %d\n", cpb_removal_delay, dpb_removal_delay);
 #endif
 	}
 
@@ -626,7 +652,25 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 		int clocks[16] = { 1, 1, 1, 2, 2, 3, 3, 2, 3, 0, 0, 0, 0, 0, 0 };
 
 		int pic_struct = get_bits(&ctx->gb, 4);
-		pic_struct = 8; /* Hardcoded - Video Engine */
+#if LOCAL_DEBUG
+		printf("TIMING: pic_struct %d (stream))\n", pic_struct);
+#endif
+
+		if (ctx->pid == 0x100) {
+			pic_struct = 8; /* Hardcoded - Video Engine */
+		}
+
+//
+//  PIC_TIMING: 00 00 01 06 01 09 3b 34 18 ef b0 00 00 03 00 20 80
+//        PIC TIMING 00:59:59.24 struct:3 disc:0 ct:1 counting_type:6 nuit:1 full_timestamp:1 cnt_dropped:0
+//  PIC_TIMING: 00 00 01 06 01 09 3b 34 00 00 03 00 80 00 00 20 80
+//        PIC TIMING 06:00:00.00 struct:3 disc:0 ct:1 counting_type:6 nuit:1 full_timestamp:1 cnt_dropped:0
+//
+//    
+//      PPPP C CC N           TTTT T F D F          NNNN|NNNN        SSSS|SSMM      MMMM|HHHH      H...|....      ....|.... 
+//      0011 1 01 1    (3b)   0011 0 1 0 0    (34)  0000 0000   (00) 0000 0000 (00) 0000 0011 (03) 0000 0000 (00) 0000 1000 (08)     06:00:00.00
+//      0011 1 01 1    (3b)   0011 0 1 0 0    (34)  0000 0000   (00) 0000 0000 (00) 0000 0000 (00) 0000 1000 (08)                    06:00:00.00
+//
 
 		int NumClocksTS = clocks[ pic_struct ];
 
@@ -754,6 +798,7 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 			for (int i = 0; i < arrayLength; i++) {
 				struct ltn_nal_headers_s *e = array + i;
 				if (e->nalType == 0x6 /* SEI */ && e->ptr[4] == 0x01 /* SEI PAYLOAD_TYPE == PIC_TIMING */) {
+					ltn_nal_h264_strip_emulation_prevention(e);
 					_parse_PIC_TIMING(ctx, e);
 				}
 			} /* for (int i = 0; i < arrayLength; i++) */
