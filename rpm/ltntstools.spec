@@ -48,8 +48,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
-
 %changelog
+* Wed Aug 21 2024 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.32.0 - DEVELOPMENT ONLY
+  tstools_nic_monitor: bugfix. Log report page down segfault.
+
 * Wed Aug 20 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.31.1
   tstools_nic_monitor: bugfix. Curl http post mechanism would leak sockets

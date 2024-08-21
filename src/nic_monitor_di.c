@@ -1764,6 +1764,9 @@ void display_doc_page_down(struct display_doc_s *doc)
 	doc->displayLineFrom += doc->pageSize;
 	if (doc->displayLineFrom + doc->pageSize >= doc->lineCount)
 		doc->displayLineFrom = doc->lineCount - doc->pageSize - 1;
+
+	if (doc->displayLineFrom < 0)
+		doc->displayLineFrom = 0;
 		
 	return;
 }
