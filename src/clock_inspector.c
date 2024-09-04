@@ -518,22 +518,58 @@ static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 
 static int validateClockMath()
 {
-	/* Setup a PCR */
+	/* Setup a PCR measurement unit as a 27MHz clock.
+	 * We're going to simulate it moving forward in time and
+	 * observe how we measure it as ir naturally wraps around
+	 * it's upper value limit.
+	 * */
 	struct ltntstools_clock_s pcrclk;
-
 	ltntstools_clock_initialize(&pcrclk);
 	ltntstools_clock_establish_timebase(&pcrclk, 27 * 1e6);
 
-	int i = 1;
+	int64_t pcr_increment = 27 * 1e6; /* 1 second in a 27MHz clock */
+	int64_t pcr = MAX_SCR_VALUE - (pcr_increment * 6); /* Start the PCR N frames behind the wrap */
+	int64_t elapsed_us = 0;
+	struct timeval t1, t2;
+
 	while (1) {
+		gettimeofday(&t1, NULL);
+
 		if (ltntstools_clock_is_established_wallclock(&pcrclk) == 0) {
-			ltntstools_clock_establish_wallclock(&pcrclk, 1 * 27000000);
+			/* Associate the current walltime to this PCR time (1 * 27), minus 10 frames of 59.94 */
+			ltntstools_clock_establish_wallclock(&pcrclk, pcr);
 		}
-		sleep(1);
-		i++;
-		ltntstools_clock_set_ticks(&pcrclk, (i * (27 * 1e6)) + 2000);
+
+		/* PCR wraps across maximum value */
+		ltntstools_clock_set_ticks(&pcrclk, pcr);
+
 		int64_t us = ltntstools_clock_get_drift_us(&pcrclk);
-		printf("drift us: %" PRIi64 "\n", us);
+
+		/* Negative drift indicates PCR falling behind walltime */
+		char *s = NULL;
+		ltntstools_pcr_to_ascii(&s, pcr);
+		printf("pcr %13" PRIi64 " '%s', drift us: %5" PRIi64 ", sleep processing elapsed %7" PRIi64 "\n",
+			pcr,
+			s,
+			us, elapsed_us);
+		free(s);
+
+		if (pcr >= MAX_SCR_VALUE) {
+			printf("PCR has wrapped\n");
+			pcr -= MAX_SCR_VALUE;
+		}
+
+		sleep(1);
+		gettimeofday(&t2, NULL);
+
+		elapsed_us = ltn_timeval_subtract_us(&t2, &t1);
+		pcr += (elapsed_us * 27); /* one second in 27MHz clock */
+
+		/* The PCR willnaturally fall behind wall time by 1 us every few seconds, 
+		 * because all of this non-timed processing isn't accounted for, such as 
+		 * subtarction, getting the time itself etc.
+		 */
+
 	}
 
 	return 0;
