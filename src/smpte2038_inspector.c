@@ -296,13 +296,13 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 				}
 
 				if (ctx->verbose > 1) {
-					ltntstools_pat_dprintf(pat, 0);
+					ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 				}
 
 				if (smpte2038pid == 0) {
 					printf("\nNo SMPTE2038 PID detected, terminating\n\n");
 					signal_handler(0); /* Terminate */
-					//ltntstools_pat_dprintf(pat, 0);
+					//ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 				}
 				ltntstools_pat_free(pat);
 			}
