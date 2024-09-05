@@ -57,6 +57,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   library: ltn_packet_pes_parse() more robustness checks against reading past the end of the bitstream
   tstools_clock_inspector: bitstream reader abort with BBC-NA feeds, randomly.
   tstools_tr101290_analyzer: only print the event report in verbose mode
+  tstools_tr101290_analyzer: change event report printing to stdout.
 
 * Wed Aug 20 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.31.1
