@@ -56,7 +56,9 @@ void *cb_notify(void *userContext, struct ltntstools_tr101290_alarm_s *array, in
 	free((struct ltntstools_tr101290_alarm_s *)array);
 
 	/* For fun, collect the entire summary in txt format. */
-	ltntstools_tr101290_summary_report_dprintf(ctx->trhdl, 0);
+	if (ctx->verbose > 1) {
+		ltntstools_tr101290_summary_report_dprintf(ctx->trhdl, 1);
+	}
 
 	return NULL;
 }
