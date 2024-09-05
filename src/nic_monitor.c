@@ -545,7 +545,7 @@ static void *ui_thread_func(void *p)
 						}
 					}
 					
-					//ltntstools_proc_net_udp_item_dprintf(ctx->procNetUDPContext, 0, items, itemCount);
+					//ltntstools_proc_net_udp_item_dprintf(ctx->procNetUDPContext, STDOUT_FILENO, items, itemCount);
 				}
 			}
 
@@ -1936,7 +1936,7 @@ int nic_monitor(int argc, char *argv[])
 	if (ltntstools_proc_net_udp_item_query(ctx->procNetUDPContext, &items, &itemCount) == 0) {
 		printf("System wide UDP socket buffers\n");
 		printf("-------------------------------------------------------------------------------------------->\n");
-		ltntstools_proc_net_udp_item_dprintf(ctx->procNetUDPContext, 0, items, itemCount);
+		ltntstools_proc_net_udp_item_dprintf(ctx->procNetUDPContext, STDOUT_FILENO, items, itemCount);
 		printf("\n");
 
 		ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);

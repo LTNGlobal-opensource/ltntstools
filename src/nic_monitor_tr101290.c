@@ -20,7 +20,7 @@ static void *tr101290_cb(void *userContext, struct ltntstools_tr101290_alarm_s *
 
 	for (int i = 0; i < count; i++) {
 		struct ltntstools_tr101290_alarm_s *ae = &array[i];
-		//ltntstools_tr101290_event_dprintf(0, ae);
+		//ltntstools_tr101290_event_dprintf(STDOUT_FILENO, ae);
 		display_doc_append(&di->doc_stream_log, &ae->description[0]);
 	}
 

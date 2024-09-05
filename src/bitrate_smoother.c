@@ -376,13 +376,13 @@ static void *thread_packet_rx(void *p)
 					}
 
 					if (ctx->verbose > 1) {
-						ltntstools_pat_dprintf(pat, 0);
+						ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 					}
 
 					if (ctx->pcrPID == 0) {
 						printf("\nNo VIDEO/PCR_PID PID detected, terminating\n\n");
 						gRunning = 0; /* Terminate */
-						//ltntstools_pat_dprintf(pat, 0);
+						//ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 					} else {
 						smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_pcr_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
 					}

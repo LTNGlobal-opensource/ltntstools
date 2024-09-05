@@ -397,7 +397,7 @@ static int _findFirstPCR(struct tool_context_s *ctx)
 			if (ltntstools_streammodel_query_model(streamModel, &pat) == 0) {
 
 				if (ctx->verbose) {
-					ltntstools_pat_dprintf(pat, 0);
+					ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 				}
 
 				if (ltntstools_streammodel_is_model_mpts(streamModel, pat)) {

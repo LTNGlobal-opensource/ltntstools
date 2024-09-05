@@ -228,7 +228,7 @@ int sei_unregistered(int argc, char *argv[])
 	ltntstools_source_avio_free(srcctx);
 
 	if (nalfinder) {
-		h264_slice_counter_dprintf(nalfinder, 1, 1);
+		h264_slice_counter_dprintf(nalfinder, STDOUT_FILENO, 1);
 		h264_slice_counter_free(nalfinder);
 	}
 

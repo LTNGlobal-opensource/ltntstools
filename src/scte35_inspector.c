@@ -213,7 +213,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 					break; /* TODO: We only support ehf first SCTE35 pid (SPTS) */
 				}
 
-				//ltntstools_pat_dprintf(pat, 0);
+				//ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 				ltntstools_pat_free(pat);
 			}
 		}

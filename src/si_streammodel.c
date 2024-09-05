@@ -32,7 +32,7 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 
 		struct ltntstools_pat_s *pat = NULL;
 		if (ltntstools_streammodel_query_model(g_sm, &pat) == 0) {
-			ltntstools_pat_dprintf(pat, 1);
+			ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 			ltntstools_pat_free(pat);
 		}
 	}
@@ -92,7 +92,7 @@ int si_streammodel(int argc, char *argv[])
 		fprintf(stderr, "Error parsing stream, no model found.\n");
 	}
 
-	ltntstools_pat_dprintf(pat, 0);
+	ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 	ltntstools_pat_free(pat);
 	return 0;
 #else
@@ -121,11 +121,11 @@ int si_streammodel(int argc, char *argv[])
 
 	struct ltntstools_pat_s *pat = NULL;
 	if (ltntstools_streammodel_query_model(g_sm, &pat) == 0) {
-		ltntstools_pat_dprintf(pat, 0);
+		ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 		ltntstools_pat_free(pat);
 	}
 
-//	ltntstools_streammodel_dprintf(g_sm, 0);
+//	ltntstools_streammodel_dprintf(g_sm, STDOUT_FILENO);
 
 	ltntstools_streammodel_free(g_sm);
 #endif
