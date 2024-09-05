@@ -50,14 +50,14 @@ void *cb_notify(void *userContext, struct ltntstools_tr101290_alarm_s *array, in
 
 	for (int i = 0; i < count; i++) {
 		struct ltntstools_tr101290_alarm_s *ae = &array[i];
-		ltntstools_tr101290_event_dprintf(0, ae);
+		ltntstools_tr101290_event_dprintf(STDOUT_FILENO, ae);
 	}
 
 	free((struct ltntstools_tr101290_alarm_s *)array);
 
 	/* For fun, collect the entire summary in txt format. */
 	if (ctx->verbose > 1) {
-		ltntstools_tr101290_summary_report_dprintf(ctx->trhdl, 1);
+		ltntstools_tr101290_summary_report_dprintf(ctx->trhdl, STDOUT_FILENO);
 	}
 
 	return NULL;
