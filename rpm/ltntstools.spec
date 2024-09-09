@@ -60,6 +60,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_tr101290_analyzer: change event report printing to stdout.
   tstools_(all_tools): switched dprintf() calls from stdin to stdout
   tstools_clock_inspector: adjust SCR report to show walltime as a string, not STREAM TIME as a string
+  tstools_clock_inspector: Added -Z to supress NEW timing violation messages
 
 * Wed Aug 20 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.31.1
