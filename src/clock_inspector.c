@@ -84,6 +84,7 @@ struct pid_s
 
 struct tool_context_s
 {
+	int enableNonTimingConformantMessages;
 	int dumpHex;
 	const char *iname;
 	time_t initial_time;
@@ -628,6 +629,7 @@ static void usage(const char *progname)
 	printf("     In this case we'll calculate the PTS intervals reliably based on picture frame display order [def: disabled]\n");
 	printf("     This mode casuses all PES headers to be cached (growing memory usage over time), it's memory expensive.\n");
 	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
+	printf("  -Z Suppress any warnings relating to non-conformant stream timing issues [def: warnings are output]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("\n  Example UDP or RTP:\n");
 	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
@@ -645,13 +647,14 @@ int clock_inspector(int argc, char *argv[])
 	ctx->doPESStatistics = 0;
 	ctx->maxAllowablePTSDTSDrift = 700;
 	ctx->scr_pid = DEFAULT_SCR_PID;
+	ctx->enableNonTimingConformantMessages = 1;
 	int progressReport = 0;
 	int stopSeconds = 0;
 
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&ctx->libstats);
 
-    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:PRS:X")) != -1) {
+    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:PRS:X:Z")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -701,7 +704,15 @@ int clock_inspector(int argc, char *argv[])
 			stopSeconds = atoi(optarg);
 			break;
 		case 'X':
-			return validateClockMath();
+			if (atoi(optarg) == 1) {
+				return validateClockMath();
+			} else
+			if (atoi(optarg) == 2) {
+				return validateLinearTrend();
+			}
+		case 'Z':
+			ctx->enableNonTimingConformantMessages = 0;
+			break;
 		default:
 			usage(argv[0]);
 			exit(1);
