@@ -69,6 +69,7 @@ struct pid_s
 	struct ltntstools_clock_s clk_pts;
 	struct kllineartrend_context_s *ptsToScrTicksDeltaTrend;
 	time_t last_ptsToScrTicksDeltaTrend;
+	time_t last_ptsToScrTicksDeltaTrendReport; /* Recall whenever we've output a trend report */
 	double counter;
 	int clk_pts_initialized;
 
@@ -89,6 +90,7 @@ struct pid_s
 struct tool_context_s
 {
 	int enableNonTimingConformantMessages;
+	int enableTrendReport;
 	int dumpHex;
 	const char *iname;
 	time_t initial_time;
@@ -295,11 +297,14 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			if (p->counter > 1) {
 				kllineartrend_add(p->ptsToScrTicksDeltaTrend, p->counter, d_pts_minus_scr_ticks);
 
-				kllineartrend_printf(p->ptsToScrTicksDeltaTrend);
+				if (ctx->enableTrendReport && (now >= p->last_ptsToScrTicksDeltaTrendReport)) {
+					p->last_ptsToScrTicksDeltaTrendReport = now + 60;
+					kllineartrend_printf(p->ptsToScrTicksDeltaTrend);
 
-				double slope, intersect, deviation;
-				kllineartrend_calculate(p->ptsToScrTicksDeltaTrend, &slope, &intersect, &deviation);
-				printf(" *******************                           Slope %15.5f Deviation is %12.2f\n", slope, deviation);
+					double slope, intersect, deviation;
+					kllineartrend_calculate(p->ptsToScrTicksDeltaTrend, &slope, &intersect, &deviation);
+					printf("Trend Slope %15.5f, Deviation is %12.2f\n", slope, deviation);
+				}
 			}
 		}
 
@@ -695,6 +700,7 @@ static void usage(const char *progname)
 	printf("     This mode casuses all PES headers to be cached (growing memory usage over time), it's memory expensive.\n");
 	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
 	printf("  -Z Suppress any warnings relating to non-conformant stream timing issues [def: warnings are output]\n");
+	printf("  -L Enable printing of PTS to SCR linear trend report [def: no]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("\n  Example UDP or RTP:\n");
 	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
@@ -719,7 +725,7 @@ int clock_inspector(int argc, char *argv[])
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&ctx->libstats);
 
-    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:PRS:X:Z")) != -1) {
+    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:LPRS:X:Z")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -730,6 +736,9 @@ int clock_inspector(int argc, char *argv[])
 		case 'p':
 			ctx->doSCRStatistics = 1; /* We need SCR stats also, because some of the PES stats make reference to the SCR */
 			ctx->doPESStatistics++;
+			break;
+		case 'L':
+			ctx->enableTrendReport = 1;
 			break;
 		case 'P':
 			progressReport = 1;
@@ -822,6 +831,9 @@ int clock_inspector(int argc, char *argv[])
 	}
 
 	kernel_check_socket_sizes(puc);
+	if (ctx->enableTrendReport) {
+		printf("Enabled Linear Trend reporting for PTS to SCR deltas\n");
+	}
 
 	signal(SIGINT, signal_handler);
 
