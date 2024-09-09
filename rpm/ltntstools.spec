@@ -50,7 +50,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Mon Sep  9 2024 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.32.0
+- v1.32.1
   tstools_nic_monitor: bugfix. Log report page down segfault.
   tstools_pes_inspector: Further enhancements to the pic timing extraction experimental tooling.
   tstools_clock_inspector: Adjustment to calculations to compensate for clock wrap when computing long-running overall drift
