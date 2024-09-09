@@ -433,9 +433,14 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 		sprintf(walltimePCRReport, "    NA");
 	}
 
+	time_t now = time(NULL);
+	char time_str[64];
+	sprintf(time_str, "%s", ctime(&now));
+	time_str[ strlen(time_str) - 1] = 0;
+
 	struct timeval ts;
 	gettimeofday(&ts, NULL);
-	printf("SCR #%09" PRIu64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s %08d.%03d %6s\n",
+	printf("SCR #%09" PRIu64 " -- %011" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s %08d.%03d %6s\n",
 		ctx->pids[pid].scr_updateCount,
 		filepos,
 		filepos,
@@ -444,7 +449,7 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 		scr_diff,
 		scr_diff / 27,
 		scr_ascii,
-		str,
+		time_str,
 		(int)ts.tv_sec,
 		(int)ts.tv_usec / 1000,
 		walltimePCRReport);
