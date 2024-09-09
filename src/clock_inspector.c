@@ -251,6 +251,9 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 		p->pts_diff_ticks = ltntstools_pts_diff(p->pts_last.PTS, p->pes.PTS);
+		if (p->pts_diff_ticks > (10 * 90000)) {
+			p->pts_diff_ticks -= MAX_PTS_VALUE;
+		}
 		p->pts_count++;
 		//p->scr = ctx->pids[ctx->scr_pid].scr;
 		pts_scr_diff_ms = ltntstools_scr_diff(p->pts_last_scr, p->scr) / 27000;
@@ -264,8 +267,8 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	}
 
 	if (ctx->pts_linenr++ == 0) {
-		printf("+PTS/DTS Timing     filepos ------------>               PTS/DTS  <------- DIFF ------> <---- SCR <--PTS*300--------->  Walltime ----------------------------->  Drift\n");
-		printf("+PTS/DTS Timing         Hex           Dec   PID       90KHz VAL       TICKS         MS   Diff MS  minus SCR        ms  Now                      secs               ms\n");
+		printf("+PTS/DTS Timing       filepos ------------>               PTS/DTS  <------- DIFF ------> <---- SCR <--PTS*300--------->  Walltime ----------------------------->  Drift\n");
+		printf("+PTS/DTS Timing           Hex           Dec   PID       90KHz VAL       TICKS         MS   Diff MS  minus SCR        ms  Now                      secs               ms\n");
 	}
 	if (ctx->pts_linenr > 24)
 		ctx->pts_linenr = 0;
@@ -333,7 +336,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if (!ctx->order_asc_pts_output) {
 			printf("PTS #%09" PRIi64
-				" -- %09" PRIx64
+				" -- %011" PRIx64
 				" %13" PRIu64
 				"  %04x  "
 				"%14" PRIi64
@@ -401,7 +404,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				str);
 		}
 
-		printf("DTS #%09" PRIi64 " -- %09" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIu64
+		printf("DTS #%09" PRIi64 " -- %011" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIu64
 			"                       %s %08d.%03d %6" PRIi64 "\n",
 			p->dts_count,
 			filepos,
@@ -443,8 +446,8 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	ctx->pids[pid].scr = scr;
 
 	if (ctx->scr_linenr++ == 0) {
-		printf("+SCR Timing         filepos ------------>                   SCR  <--- SCR-DIFF ------>  SCR             Walltime ----------------------------->  Drift\n");
-		printf("+SCR Timing             Hex           Dec   PID       27MHz VAL       TICKS         uS  Timecode        Now                      secs               ms\n");
+		printf("+SCR Timing           filepos ------------>                   SCR  <--- SCR-DIFF ------>  SCR             Walltime ----------------------------->  Drift\n");
+		printf("+SCR Timing               Hex           Dec   PID       27MHz VAL       TICKS         uS  Timecode        Now                      secs               ms\n");
 	}
 
 	if (ctx->scr_linenr > 24)
