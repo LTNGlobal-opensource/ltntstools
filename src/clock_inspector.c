@@ -563,6 +563,30 @@ static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	}
 }
 
+static int validateLinearTrend()
+{
+	//double vals[8] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0 };
+	//double vals[8] = { 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0 };
+	//double vals[8] = { 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08 };
+	double vals[8] = { 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0 };
+
+	struct kllineartrend_context_s *tc = kllineartrend_alloc(60 * 60 * 60, "linear trend test");
+
+	double counter = 0;
+	for (int i = 0; i < 8; i++) {
+		kllineartrend_add(tc, ++counter, vals[i]);
+	}
+
+	kllineartrend_printf(tc);
+
+	double slope, intersect, deviation;
+	kllineartrend_calculate(tc, &slope, &intersect, &deviation);
+	printf("Slope %15.5f Deviation is %12.2f\n", slope, deviation);
+
+
+	return -1;
+}
+
 static int validateClockMath()
 {
 	/* Setup a PCR measurement unit as a 27MHz clock.
@@ -704,6 +728,7 @@ int clock_inspector(int argc, char *argv[])
 			ctx->iname = optarg;
 			break;
 		case 'p':
+			ctx->doSCRStatistics = 1; /* We need SCR stats also, because some of the PES stats make reference to the SCR */
 			ctx->doPESStatistics++;
 			break;
 		case 'P':
