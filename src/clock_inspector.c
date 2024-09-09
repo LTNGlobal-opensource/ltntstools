@@ -36,6 +36,7 @@
 #include <libltntstools/ltntstools.h>
 #include "xorg-list.h"
 #include "ffmpeg-includes.h"
+#include "kl-lineartrend.h"
 
 #define DEFAULT_SCR_PID 0x31
 
@@ -66,6 +67,9 @@ struct pid_s
 	int64_t pts_diff_ticks;
 	uint64_t pts_last_scr; /* When we captured the last packet, this reflects the SCR at the time. */
 	struct ltntstools_clock_s clk_pts;
+	struct kllineartrend_context_s *ptsToScrTicksDeltaTrend;
+	time_t last_ptsToScrTicksDeltaTrend;
+	double counter;
 	int clk_pts_initialized;
 
 	/* DTS */
@@ -203,6 +207,14 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	time_str[ strlen(time_str) - 1] = 0;
 
 	struct pid_s *p = &ctx->pids[pid];
+
+	/* Initialize the trend if needed */
+	if (p->ptsToScrTicksDeltaTrend == NULL) {
+		char label[64];
+		sprintf(&label[0], "PTS 0x%04x to SCR ticket Delta", pid);
+		p->ptsToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
+	}
+
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 		ltn_pes_packet_copy(&p->pts_last, &p->pes);
 
@@ -267,9 +279,35 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		}
 
 		/* Calculate the offset between the PTS and the last good SCR, assumed to be on pid DEFAULR_SCR_PID. */
-		int64_t pts_minus_scr_ticks = ltntstools_scr_diff(ctx->pids[ctx->scr_pid].scr, p->pes.PTS * 300);
-		double d_pts_minus_scr_ticks = ltntstools_scr_diff(ctx->pids[ctx->scr_pid].scr, p->pes.PTS * 300);
-		d_pts_minus_scr_ticks /= 27000;
+		int64_t pts_minus_scr_ticks = (p->pes.PTS * 300) - ctx->pids[ctx->scr_pid].scr;
+		double d_pts_minus_scr_ticks = pts_minus_scr_ticks;
+		d_pts_minus_scr_ticks /= 27000.0;
+
+		/* Update the PTS/SCR linear trend, once per 10 second(s).
+		 * Once per minute, show the trend calculations.
+         */
+		if (now > (p->last_ptsToScrTicksDeltaTrend + 0)) {
+			p->last_ptsToScrTicksDeltaTrend = now;
+			p->counter++;
+			if (p->counter > 1) {
+				kllineartrend_add(p->ptsToScrTicksDeltaTrend, p->counter, d_pts_minus_scr_ticks);
+
+				kllineartrend_printf(p->ptsToScrTicksDeltaTrend);
+
+				double slope, intersect, deviation;
+				kllineartrend_calculate(p->ptsToScrTicksDeltaTrend, &slope, &intersect, &deviation);
+				printf(" *******************                           Slope %15.5f Deviation is %12.2f\n", slope, deviation);
+			}
+		}
+
+		if (d_pts_minus_scr_ticks < 0 && ctx->enableNonTimingConformantMessages) {
+			char str[64];
+			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			str[ strlen(str) - 1] = 0;
+			printf("!PTS #%09" PRIi64 " Error. The PTS is arriving BEHIND the PCR, the PTS is late. The stream is not timing conformant @ %s\n",
+				p->pts_count,
+				str);
+		}
 
 		if ((PTS_TICKS_TO_MS(p->pts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];

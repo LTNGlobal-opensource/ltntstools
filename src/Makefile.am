@@ -91,6 +91,7 @@ if NTT
 SRC += ntt_inspector.cpp
 endif
 SRC += sei_latency_inspector.c
+SRC += kl-lineartrend.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -134,6 +135,7 @@ noinst_HEADERS += nic_monitor.h
 noinst_HEADERS += utils.h
 noinst_HEADERS += hash_index.h
 noinst_HEADERS += source-avio.h
+noinst_HEADERS += kl-lineartrend.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)
