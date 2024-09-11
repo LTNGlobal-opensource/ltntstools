@@ -218,7 +218,7 @@ static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllinear
 	sprintf(t, "%s", ctime(&now));
 	t[ strlen(t) - 1] = 0;
 
-	printf("PID 0x%04x - Trend '%s', %d entries, Slope %15.5f, Deviation is %12.2f @ %s\n",
+	printf("PID 0x%04x - Trend '%s', %7d entries, Slope %15.5f, Deviation is %12.2f @ %s\n",
 		pid,
 		trend->name,
 		trend->count,
@@ -261,7 +261,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		/* Initialize the trend if needed */
 		if (p->trend_pts.clkToScrTicksDeltaTrend == NULL) {
 			char label[64];
-			sprintf(&label[0], "PTS 0x%04x to SCR ticket Delta", pid);
+			sprintf(&label[0], "PTS 0x%04x to SCR tick delta", pid);
 			p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
 		}
 	}
@@ -278,7 +278,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if (p->trend_dts.clkToScrTicksDeltaTrend == NULL) {
 			char label[64];
-			sprintf(&label[0], "DTS 0x%04x to SCR ticket Delta", pid);
+			sprintf(&label[0], "DTS 0x%04x to SCR tick delta", pid);
 			p->trend_dts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
 		}
 	}
@@ -339,7 +339,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.counter, d_pts_minus_scr_ticks);
 
 			if (ctx->enableTrendReport && (now >= p->trend_pts.last_clkToScrTicksDeltaTrendReport)) {
-				p->trend_pts.last_clkToScrTicksDeltaTrendReport = now + 60;
+				p->trend_pts.last_clkToScrTicksDeltaTrendReport = now + 15;
 				printTrend(ctx, pid, p->trend_pts.clkToScrTicksDeltaTrend);
 			}
 		}
@@ -437,7 +437,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			kllineartrend_add(p->trend_dts.clkToScrTicksDeltaTrend, p->trend_dts.counter, d_dts_minus_scr_ticks);
 
 			if (ctx->enableTrendReport && (now >= p->trend_dts.last_clkToScrTicksDeltaTrendReport)) {
-				p->trend_dts.last_clkToScrTicksDeltaTrendReport = now + 60;
+				p->trend_dts.last_clkToScrTicksDeltaTrendReport = now + 15;
 				printTrend(ctx, pid, p->trend_dts.clkToScrTicksDeltaTrend);
 			}
 		}
