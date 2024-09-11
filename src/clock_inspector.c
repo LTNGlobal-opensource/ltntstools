@@ -286,25 +286,21 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		double d_pts_minus_scr_ticks = pts_minus_scr_ticks;
 		d_pts_minus_scr_ticks /= 27000.0;
 
-		/* Update the PTS/SCR linear trend, once per 10 second(s).
-		 * Once per minute, show the trend calculations.
-         */
-		if (now > (p->last_ptsToScrTicksDeltaTrend + 0)) {
-			p->last_ptsToScrTicksDeltaTrend = now;
-			p->counter++;
-			if (p->counter > 1) {
-				kllineartrend_add(p->ptsToScrTicksDeltaTrend, p->counter, d_pts_minus_scr_ticks);
+		/* Update the PTS/SCR linear trends. */
+		p->last_ptsToScrTicksDeltaTrend = now;
+		p->counter++;
+		if (p->counter > 1) {
+			kllineartrend_add(p->ptsToScrTicksDeltaTrend, p->counter, d_pts_minus_scr_ticks);
 
-				if (ctx->enableTrendReport && (now >= p->last_ptsToScrTicksDeltaTrendReport)) {
-					p->last_ptsToScrTicksDeltaTrendReport = now + 60;
-					kllineartrend_printf(p->ptsToScrTicksDeltaTrend);
+			if (ctx->enableTrendReport && (now >= p->last_ptsToScrTicksDeltaTrendReport)) {
+				p->last_ptsToScrTicksDeltaTrendReport = now + 60;
+				kllineartrend_printf(p->ptsToScrTicksDeltaTrend);
 
-					double slope, intersect, deviation;
-					kllineartrend_calculate(p->ptsToScrTicksDeltaTrend, &slope, &intersect, &deviation);
-					printf("PID 0x%04x - Trend: %d entries, Slope %15.5f, Deviation is %12.2f\n",
-						p->ptsToScrTicksDeltaTrend->count,
-						pid, slope, deviation);
-				}
+				double slope, intersect, deviation;
+				kllineartrend_calculate(p->ptsToScrTicksDeltaTrend, &slope, &intersect, &deviation);
+				printf("PID 0x%04x - Trend: %d entries, Slope %15.5f, Deviation is %12.2f\n",
+					p->ptsToScrTicksDeltaTrend->count,
+					pid, slope, deviation);
 			}
 		}
 
