@@ -198,6 +198,27 @@ static void pidReport(struct tool_context_s *ctx)
 	}
 }
 
+static void printTrend(uint16_t pid, struct kllineartrend_context_s *trend)
+{
+	kllineartrend_printf(trend);
+
+	double slope, intersect, deviation;
+	kllineartrend_calculate(trend, &slope, &intersect, &deviation);
+
+	printf("PID 0x%04x - Trend: %d entries, Slope %15.5f, Deviation is %12.2f\n",
+		trend->count,
+		pid, slope, deviation);
+}
+
+static void trendReport(struct tool_context_s *ctx)
+{
+	for (int i = 0; i <= 0x1fff; i++) {
+		if (ctx->pids[i].ptsToScrTicksDeltaTrend) {
+			printTrend(i, ctx->pids[i].ptsToScrTicksDeltaTrend);
+		}
+	}
+}
+
 static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx, uint64_t filepos, struct timeval ts)
 {
 	char time_str[64];
@@ -294,13 +315,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 			if (ctx->enableTrendReport && (now >= p->last_ptsToScrTicksDeltaTrendReport)) {
 				p->last_ptsToScrTicksDeltaTrendReport = now + 60;
-				kllineartrend_printf(p->ptsToScrTicksDeltaTrend);
-
-				double slope, intersect, deviation;
-				kllineartrend_calculate(p->ptsToScrTicksDeltaTrend, &slope, &intersect, &deviation);
-				printf("PID 0x%04x - Trend: %d entries, Slope %15.5f, Deviation is %12.2f\n",
-					p->ptsToScrTicksDeltaTrend->count,
-					pid, slope, deviation);
+				printTrend(pid, p->ptsToScrTicksDeltaTrend);
 			}
 		}
 
@@ -899,6 +914,9 @@ int clock_inspector(int argc, char *argv[])
 
 	printf("\n");
 	pidReport(ctx);
+	if (ctx->enableTrendReport) {
+		trendReport(ctx);
+	}
 
 	if (ctx->libstats) {
 		ltntstools_pid_stats_free(ctx->libstats);
