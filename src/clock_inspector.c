@@ -457,7 +457,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				dts_scr_diff_ms,
 				str);
 		}
-#if 1
+		
 		printf("DTS #%09" PRIi64
 			" -- %011" PRIx64
 			" %13" PRIu64
@@ -481,22 +481,6 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			(int)ts.tv_sec,
 			(int)ts.tv_usec / 1000,
 			dtsWalltimeDriftMs);
-#else
-		printf("DTS #%09" PRIi64 " -- %011" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIu64
-			"                       %s %08d.%03d %6" PRIi64 "\n",
-			p->dts_count,
-			filepos,
-			filepos,
-			pid,
-			p->pes.DTS,
-			p->dts_diff_ticks,
-			(double)p->dts_diff_ticks / 90, // MMM
-			dts_scr_diff_ms,
-			time_str,
-			(int)ts.tv_sec,
-			(int)ts.tv_usec / 1000,
-			dtsWalltimeDriftMs);
-#endif
 	}
 
 	if (len > 0 && ctx->doPESStatistics > 1) {
