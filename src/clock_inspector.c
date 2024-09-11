@@ -204,7 +204,12 @@ static void pidReport(struct tool_context_s *ctx)
 static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllineartrend_context_s *trend)
 {
 	if (ctx->enableTrendReport >= 2) {
-		/* If the caller passes -L twice or more, print the entire data set on every print.
+		/* If the caller passes -L twice or more, save data set on every print.
+		 */
+		kllineartrend_save_csv(trend, trend->name);
+	}
+	if (ctx->enableTrendReport >= 3) {
+		/* If the caller passes -L three times or more, print the entire data set on every print.
 		 * expensive console processing. Choose wisely my friend.
 		 */
 		kllineartrend_printf(trend);
@@ -648,7 +653,7 @@ static int validateLinearTrend()
 
 	double slope, intersect, deviation;
 	kllineartrend_calculate(tc, &slope, &intersect, &deviation);
-	printf("Slope %15.5f Deviation is %12.2f\n", slope, deviation);
+	printf("Slope %17.8f Deviation is %12.2f\n", slope, deviation);
 
 
 	return -1;
@@ -781,6 +786,7 @@ int clock_inspector(int argc, char *argv[])
 	ctx->maxAllowablePTSDTSDrift = 700;
 	ctx->scr_pid = DEFAULT_SCR_PID;
 	ctx->enableNonTimingConformantMessages = 1;
+	ctx->enableTrendReport = 0;
 	int progressReport = 0;
 	int stopSeconds = 0;
 
