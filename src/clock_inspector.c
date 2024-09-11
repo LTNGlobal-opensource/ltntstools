@@ -303,7 +303,9 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 					double slope, intersect, deviation;
 					kllineartrend_calculate(p->ptsToScrTicksDeltaTrend, &slope, &intersect, &deviation);
-					printf("Trend Slope %15.5f, Deviation is %12.2f\n", slope, deviation);
+					printf("PID 0x%04x - Trend: %d entries, Slope %15.5f, Deviation is %12.2f\n",
+						p->ptsToScrTicksDeltaTrend->count,
+						pid, slope, deviation);
 				}
 			}
 		}
