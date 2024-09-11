@@ -67,6 +67,13 @@ void kllineartrend_printf(struct kllineartrend_context_s *ctx);
 
 void kllineartrend_calculate(struct kllineartrend_context_s *ctx, double *slope, double *intercept, double *deviation);
 
+/**
+ * @brief	Release and de-allocate any memory resources associated with object.
+ * @param[in]	struct kllineartrend_context_s *ctx - Object.
+ * @param[in]	const char *fn - Output filename, will be truncated then written to.
+ */
+int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn);
+
 #ifdef __cplusplus
 }
 #endif

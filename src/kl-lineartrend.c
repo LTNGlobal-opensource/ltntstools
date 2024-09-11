@@ -8,6 +8,10 @@
  *  https://stackoverflow.com/questions/43224/how-do-i-calculate-a-trendline-for-a-graph
  */
 #include <kl-lineartrend.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #define SANITIZE(ctx, val) ((val) % ctx->maxCount)
 
@@ -63,6 +67,50 @@ void kllineartrend_printf(struct kllineartrend_context_s *ctx)
 		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
 		printf("%6d: %12.2f %12.2f\n", ptr, e->x, e->y);
 	}
+}
+
+int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn)
+{
+	int a = ctx->idx;
+	int b = 0;
+
+	if (ctx->count < ctx->maxCount) {
+		a = 0;
+		b = ctx->count;
+	} else
+	if (ctx->count == ctx->maxCount) {
+		a = ctx->idx;
+		b = a + ctx->maxCount;
+	}
+
+	int fd = open(fn, O_CREAT | O_RDWR | O_TRUNC, 0644);
+	if (fd < 0) {
+		return -1;
+	}
+
+	double slope, intersect, deviation;
+	kllineartrend_calculate(ctx, &slope, &intersect, &deviation);
+
+	char t[64];
+	time_t now = time(NULL);
+	sprintf(t, "%s", ctime(&now));
+	t[ strlen(t) - 1] = 0;
+
+	dprintf(fd, "# Created %s\n", t);
+	dprintf(fd, "# Trend '%s', %7d entries, Slope %15.5f, Deviation is %12.2f\n",
+		ctx->name,
+		ctx->count,
+		slope, deviation);
+
+	for (int i = a; i < b; i++) {
+		int ptr = SANITIZE(ctx, i);
+		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
+		dprintf(fd, "%8d,%18.5f,%12.2f,\n", ptr, e->x, e->y);
+	}
+
+	close(fd);
+
+	return 0; /* Ssccess */
 }
 
 void kllineartrend_calculate(struct kllineartrend_context_s *ctx, double *slope, double *intercept, double *deviation)
