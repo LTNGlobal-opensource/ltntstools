@@ -201,9 +201,14 @@ static void pidReport(struct tool_context_s *ctx)
 	}
 }
 
-static void printTrend(uint16_t pid, struct kllineartrend_context_s *trend)
+static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllineartrend_context_s *trend)
 {
-	kllineartrend_printf(trend);
+	if (ctx->enableTrendReport >= 2) {
+		/* If the caller passes -L twice or more, print the entire data set on every print.
+		 * expensive console processing. Choose wisely my friend.
+		 */
+		kllineartrend_printf(trend);
+	}
 
 	double slope, intersect, deviation;
 	kllineartrend_calculate(trend, &slope, &intersect, &deviation);
@@ -223,10 +228,10 @@ static void trendReport(struct tool_context_s *ctx)
 {
 	for (int i = 0; i <= 0x1fff; i++) {
 		if (ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend) {
-			printTrend(i, ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend);
+			printTrend(ctx, i, ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend);
 		}
 		if (ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend) {
-			printTrend(i, ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend);
+			printTrend(ctx, i, ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend);
 		}
 	}
 }
@@ -334,7 +339,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 			if (ctx->enableTrendReport && (now >= p->trend_pts.last_clkToScrTicksDeltaTrendReport)) {
 				p->trend_pts.last_clkToScrTicksDeltaTrendReport = now + 60;
-				printTrend(pid, p->trend_pts.clkToScrTicksDeltaTrend);
+				printTrend(ctx, pid, p->trend_pts.clkToScrTicksDeltaTrend);
 			}
 		}
 
@@ -432,7 +437,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 			if (ctx->enableTrendReport && (now >= p->trend_dts.last_clkToScrTicksDeltaTrendReport)) {
 				p->trend_dts.last_clkToScrTicksDeltaTrendReport = now + 60;
-				printTrend(pid, p->trend_dts.clkToScrTicksDeltaTrend);
+				printTrend(ctx, pid, p->trend_dts.clkToScrTicksDeltaTrend);
 			}
 		}
 
@@ -457,7 +462,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				dts_scr_diff_ms,
 				str);
 		}
-		
+
 		printf("DTS #%09" PRIi64
 			" -- %011" PRIx64
 			" %13" PRIu64
@@ -794,7 +799,7 @@ int clock_inspector(int argc, char *argv[])
 			ctx->doPESStatistics++;
 			break;
 		case 'L':
-			ctx->enableTrendReport = 1;
+			ctx->enableTrendReport++;
 			break;
 		case 'P':
 			progressReport = 1;
