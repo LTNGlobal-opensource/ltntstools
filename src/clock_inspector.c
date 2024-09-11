@@ -68,9 +68,9 @@ struct pid_s
 	uint64_t pts_last_scr; /* When we captured the last packet, this reflects the SCR at the time. */
 	struct ltntstools_clock_s clk_pts;
 	struct {
-		struct kllineartrend_context_s *ptsToScrTicksDeltaTrend;
-		time_t last_ptsToScrTicksDeltaTrend;
-		time_t last_ptsToScrTicksDeltaTrendReport; /* Recall whenever we've output a trend report */
+		struct kllineartrend_context_s *clkToScrTicksDeltaTrend;
+		time_t last_clkToScrTicksDeltaTrend;
+		time_t last_clkToScrTicksDeltaTrendReport; /* Recall whenever we've output a trend report */
 		double counter;
 	} trend_pts, trend_dts;
 
@@ -216,11 +216,11 @@ static void printTrend(uint16_t pid, struct kllineartrend_context_s *trend)
 static void trendReport(struct tool_context_s *ctx)
 {
 	for (int i = 0; i <= 0x1fff; i++) {
-		if (ctx->pids[i].trend_pts.ptsToScrTicksDeltaTrend) {
-			printTrend(i, ctx->pids[i].trend_pts.ptsToScrTicksDeltaTrend);
+		if (ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend) {
+			printTrend(i, ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend);
 		}
-		if (ctx->pids[i].trend_dts.ptsToScrTicksDeltaTrend) {
-			printTrend(i, ctx->pids[i].trend_dts.ptsToScrTicksDeltaTrend);
+		if (ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend) {
+			printTrend(i, ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend);
 		}
 	}
 }
@@ -236,15 +236,15 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	struct pid_s *p = &ctx->pids[pid];
 
 	/* Initialize the trend if needed */
-	if (p->trend_pts.ptsToScrTicksDeltaTrend == NULL) {
+	if (p->trend_pts.clkToScrTicksDeltaTrend == NULL) {
 		char label[64];
 		sprintf(&label[0], "PTS 0x%04x to SCR ticket Delta", pid);
-		p->trend_pts.ptsToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
+		p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
 	}
-	if (p->trend_dts.ptsToScrTicksDeltaTrend == NULL) {
+	if (p->trend_dts.clkToScrTicksDeltaTrend == NULL) {
 		char label[64];
 		sprintf(&label[0], "DTS 0x%04x to SCR ticket Delta", pid);
-		p->trend_dts.ptsToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
+		p->trend_dts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
 	}
 
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
@@ -319,16 +319,16 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		d_pts_minus_scr_ticks /= 27000.0;
 
 		/* Update the PTS/SCR linear trends. */
-		p->trend_pts.last_ptsToScrTicksDeltaTrend = now;
+		p->trend_pts.last_clkToScrTicksDeltaTrend = now;
 		p->trend_pts.counter++;
 		if (p->trend_pts.counter > 16) {
 			/* allow the first few samples to flow through the model and be ignored.
 			 */
-			kllineartrend_add(p->trend_pts.ptsToScrTicksDeltaTrend, p->trend_pts.counter, d_pts_minus_scr_ticks);
+			kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.counter, d_pts_minus_scr_ticks);
 
-			if (ctx->enableTrendReport && (now >= p->trend_pts.last_ptsToScrTicksDeltaTrendReport)) {
-				p->trend_pts.last_ptsToScrTicksDeltaTrendReport = now + 60;
-				printTrend(pid, p->trend_pts.ptsToScrTicksDeltaTrend);
+			if (ctx->enableTrendReport && (now >= p->trend_pts.last_clkToScrTicksDeltaTrendReport)) {
+				p->trend_pts.last_clkToScrTicksDeltaTrendReport = now + 60;
+				printTrend(pid, p->trend_pts.clkToScrTicksDeltaTrend);
 			}
 		}
 
@@ -417,16 +417,16 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		d_dts_minus_scr_ticks /= 27000.0;
 
 		/* Update the DTS/SCR linear trends. */
-		p->trend_dts.last_ptsToScrTicksDeltaTrend = now;
+		p->trend_dts.last_clkToScrTicksDeltaTrend = now;
 		p->trend_dts.counter++;
 		if (p->trend_dts.counter > 16) {
 			/* allow the first few samples to flow through the model and be ignored.
 			 */
-			kllineartrend_add(p->trend_dts.ptsToScrTicksDeltaTrend, p->trend_dts.counter, d_dts_minus_scr_ticks);
+			kllineartrend_add(p->trend_dts.clkToScrTicksDeltaTrend, p->trend_dts.counter, d_dts_minus_scr_ticks);
 
-			if (ctx->enableTrendReport && (now >= p->trend_dts.last_ptsToScrTicksDeltaTrendReport)) {
-				p->trend_dts.last_ptsToScrTicksDeltaTrendReport = now + 60;
-				printTrend(pid, p->trend_dts.ptsToScrTicksDeltaTrend);
+			if (ctx->enableTrendReport && (now >= p->trend_dts.last_clkToScrTicksDeltaTrendReport)) {
+				p->trend_dts.last_clkToScrTicksDeltaTrendReport = now + 60;
+				printTrend(pid, p->trend_dts.clkToScrTicksDeltaTrend);
 			}
 		}
 
