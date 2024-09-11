@@ -208,9 +208,14 @@ static void printTrend(uint16_t pid, struct kllineartrend_context_s *trend)
 	double slope, intersect, deviation;
 	kllineartrend_calculate(trend, &slope, &intersect, &deviation);
 
-	printf("PID 0x%04x - Trend: %d entries, Slope %15.5f, Deviation is %12.2f\n",
+	char t[64];
+	time_t now = time(NULL);
+	sprintf(t, "%s", ctime(&now));
+	t[ strlen(t) - 1] = 0;
+
+	printf("PID 0x%04x - Trend: %d entries, Slope %15.5f, Deviation is %12.2f @ %s\n",
 		trend->count,
-		pid, slope, deviation);
+		pid, slope, deviation, t);
 }
 
 static void trendReport(struct tool_context_s *ctx)

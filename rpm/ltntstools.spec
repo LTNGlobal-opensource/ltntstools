@@ -58,6 +58,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: Print and linear trends to console on exit, if enabled.
   tstools_clock_inspector: DTS, output the difference when measured to SCR to the console.
   tstools_clock_inspector: DTS, add a linear thrend to print it, as needed.
+  tstools_clock_inspector: When printing a linear trend, show date and time for easier scripting.
 
 * Mon Sep  9 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.32.1
