@@ -198,11 +198,9 @@ static void pidReport(struct tool_context_s *ctx)
 	}
 }
 
-static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx, uint64_t filepos)
+static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx, uint64_t filepos, struct timeval ts)
 {
 	char time_str[64];
-	struct timeval ts;
-	gettimeofday(&ts, NULL);
 
 	time_t now = time(NULL);
 	sprintf(time_str, "%s", ctime(&now));
@@ -434,7 +432,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	return len;
 }
 
-static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos)
+static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts)
 {
 	uint16_t pid = ltntstools_pid(pkt);
 
@@ -487,8 +485,6 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	sprintf(time_str, "%s", ctime(&now));
 	time_str[ strlen(time_str) - 1] = 0;
 
-	struct timeval ts;
-	gettimeofday(&ts, NULL);
 	printf("SCR #%09" PRIu64 " -- %011" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s %08d.%03d %6s\n",
 		ctx->pids[pid].scr_updateCount,
 		filepos,
@@ -506,7 +502,7 @@ static void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	free(scr_ascii);
 }
 
-static void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos)
+static void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts)
 {
 	uint16_t pid = ltntstools_pid(pkt);
 	ctx->pids[pid].pkt_count++;
@@ -555,7 +551,7 @@ static void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_
 	ctx->pids[pid].cc = cc;
 }
 
-static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos)
+static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts)
 {
 	uint16_t pid = ltntstools_pid(pkt);
 	int peshdr = ltntstools_payload_unit_start_indicator(pkt);
@@ -566,7 +562,7 @@ static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 	}
 
 	if (peshdr && pesoffset >= 0 && pid > 0) {
-		processPESHeader(pkt + 4 + pesoffset, 188 - 4 - pesoffset, pid, ctx, filepos);
+		processPESHeader(pkt + 4 + pesoffset, 188 - 4 - pesoffset, pid, ctx, filepos, ts);
 	}
 }
 
@@ -872,12 +868,15 @@ int clock_inspector(int argc, char *argv[])
 
 			uint8_t *p = (buf + i);
 
+			struct timeval ts;
+			gettimeofday(&ts, NULL);
+
 			if (ctx->doPacketStatistics) {
-				processPacketStats(ctx, p, filepos);
+				processPacketStats(ctx, p, filepos, ts);
 			}
 
 			if (ctx->doSCRStatistics) {
-				processSCRStats(ctx, p, filepos);
+				processSCRStats(ctx, p, filepos, ts);
 			}
 
 			if (ctx->doPESStatistics) {
@@ -885,7 +884,7 @@ int clock_inspector(int argc, char *argv[])
 				 * somewhere (anywhere) in this single packet, and we only parse
 				 * enough bytes to extract PTS and DTS.
 				 */
-				processPESStats(ctx, p, filepos);
+				processPESStats(ctx, p, filepos, ts);
 			}
 
 			ctx->ts_total_packets++;
