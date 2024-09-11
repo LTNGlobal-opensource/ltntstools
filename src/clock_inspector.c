@@ -67,10 +67,13 @@ struct pid_s
 	int64_t pts_diff_ticks;
 	uint64_t pts_last_scr; /* When we captured the last packet, this reflects the SCR at the time. */
 	struct ltntstools_clock_s clk_pts;
-	struct kllineartrend_context_s *ptsToScrTicksDeltaTrend;
-	time_t last_ptsToScrTicksDeltaTrend;
-	time_t last_ptsToScrTicksDeltaTrendReport; /* Recall whenever we've output a trend report */
-	double counter;
+	struct {
+		struct kllineartrend_context_s *ptsToScrTicksDeltaTrend;
+		time_t last_ptsToScrTicksDeltaTrend;
+		time_t last_ptsToScrTicksDeltaTrendReport; /* Recall whenever we've output a trend report */
+		double counter;
+	} trend_pts, trend_dts;
+
 	int clk_pts_initialized;
 
 	/* DTS */
@@ -213,8 +216,11 @@ static void printTrend(uint16_t pid, struct kllineartrend_context_s *trend)
 static void trendReport(struct tool_context_s *ctx)
 {
 	for (int i = 0; i <= 0x1fff; i++) {
-		if (ctx->pids[i].ptsToScrTicksDeltaTrend) {
-			printTrend(i, ctx->pids[i].ptsToScrTicksDeltaTrend);
+		if (ctx->pids[i].trend_pts.ptsToScrTicksDeltaTrend) {
+			printTrend(i, ctx->pids[i].trend_pts.ptsToScrTicksDeltaTrend);
+		}
+		if (ctx->pids[i].trend_dts.ptsToScrTicksDeltaTrend) {
+			printTrend(i, ctx->pids[i].trend_dts.ptsToScrTicksDeltaTrend);
 		}
 	}
 }
@@ -230,10 +236,15 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	struct pid_s *p = &ctx->pids[pid];
 
 	/* Initialize the trend if needed */
-	if (p->ptsToScrTicksDeltaTrend == NULL) {
+	if (p->trend_pts.ptsToScrTicksDeltaTrend == NULL) {
 		char label[64];
 		sprintf(&label[0], "PTS 0x%04x to SCR ticket Delta", pid);
-		p->ptsToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
+		p->trend_pts.ptsToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
+	}
+	if (p->trend_dts.ptsToScrTicksDeltaTrend == NULL) {
+		char label[64];
+		sprintf(&label[0], "DTS 0x%04x to SCR ticket Delta", pid);
+		p->trend_dts.ptsToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
 	}
 
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
@@ -308,14 +319,16 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		d_pts_minus_scr_ticks /= 27000.0;
 
 		/* Update the PTS/SCR linear trends. */
-		p->last_ptsToScrTicksDeltaTrend = now;
-		p->counter++;
-		if (p->counter > 1) {
-			kllineartrend_add(p->ptsToScrTicksDeltaTrend, p->counter, d_pts_minus_scr_ticks);
+		p->trend_pts.last_ptsToScrTicksDeltaTrend = now;
+		p->trend_pts.counter++;
+		if (p->trend_pts.counter > 16) {
+			/* allow the first few samples to flow through the model and be ignored.
+			 */
+			kllineartrend_add(p->trend_pts.ptsToScrTicksDeltaTrend, p->trend_pts.counter, d_pts_minus_scr_ticks);
 
-			if (ctx->enableTrendReport && (now >= p->last_ptsToScrTicksDeltaTrendReport)) {
-				p->last_ptsToScrTicksDeltaTrendReport = now + 60;
-				printTrend(pid, p->ptsToScrTicksDeltaTrend);
+			if (ctx->enableTrendReport && (now >= p->trend_pts.last_ptsToScrTicksDeltaTrendReport)) {
+				p->trend_pts.last_ptsToScrTicksDeltaTrendReport = now + 60;
+				printTrend(pid, p->trend_pts.ptsToScrTicksDeltaTrend);
 			}
 		}
 
@@ -398,6 +411,25 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			dtsWalltimeDriftMs = ltntstools_clock_get_drift_ms(&p->clk_dts);
 		}
 
+		/* Calculate the offset between the DTS and the last good SCR, assumed to be on pid DEFAULT_SCR_PID. */
+		int64_t dts_minus_scr_ticks = (p->pes.DTS * 300) - ctx->pids[ctx->scr_pid].scr;
+		double d_dts_minus_scr_ticks = dts_minus_scr_ticks;
+		d_dts_minus_scr_ticks /= 27000.0;
+
+		/* Update the DTS/SCR linear trends. */
+		p->trend_dts.last_ptsToScrTicksDeltaTrend = now;
+		p->trend_dts.counter++;
+		if (p->trend_dts.counter > 16) {
+			/* allow the first few samples to flow through the model and be ignored.
+			 */
+			kllineartrend_add(p->trend_dts.ptsToScrTicksDeltaTrend, p->trend_dts.counter, d_dts_minus_scr_ticks);
+
+			if (ctx->enableTrendReport && (now >= p->trend_dts.last_ptsToScrTicksDeltaTrendReport)) {
+				p->trend_dts.last_ptsToScrTicksDeltaTrendReport = now + 60;
+				printTrend(pid, p->trend_dts.ptsToScrTicksDeltaTrend);
+			}
+		}
+
 		if ((PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
 			sprintf(str, "%s", ctime(&ctx->current_stream_time));
@@ -419,7 +451,31 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				dts_scr_diff_ms,
 				str);
 		}
-
+#if 1
+		printf("DTS #%09" PRIi64
+			" -- %011" PRIx64
+			" %13" PRIu64
+			"  %04x  "
+			"%14" PRIi64
+			"  %10" PRIi64
+			" %10.2f %9" PRIi64
+			" %10" PRIi64
+			" %9.2f  %s %08d.%03d %6" PRIi64 "\n",
+			p->pts_count,
+			filepos,
+			filepos,
+			pid,
+			p->pes.DTS,
+			p->dts_diff_ticks,
+			(double)p->dts_diff_ticks / 90,
+			dts_scr_diff_ms,
+			dts_minus_scr_ticks,
+			d_dts_minus_scr_ticks,
+			time_str,
+			(int)ts.tv_sec,
+			(int)ts.tv_usec / 1000,
+			dtsWalltimeDriftMs);
+#else
 		printf("DTS #%09" PRIi64 " -- %011" PRIx64 " %13" PRIu64 "  %04x  %14" PRIi64 "  %10" PRIi64 " %10.2f %9" PRIu64
 			"                       %s %08d.%03d %6" PRIi64 "\n",
 			p->dts_count,
@@ -434,6 +490,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			(int)ts.tv_sec,
 			(int)ts.tv_usec / 1000,
 			dtsWalltimeDriftMs);
+#endif
 	}
 
 	if (len > 0 && ctx->doPESStatistics > 1) {
