@@ -214,8 +214,9 @@ static void printTrend(uint16_t pid, struct kllineartrend_context_s *trend)
 	t[ strlen(t) - 1] = 0;
 
 	printf("PID 0x%04x - Trend: %d entries, Slope %15.5f, Deviation is %12.2f @ %s\n",
+		pid,
 		trend->count,
-		pid, slope, deviation, t);
+		slope, deviation, t);
 }
 
 static void trendReport(struct tool_context_s *ctx)
@@ -240,18 +241,6 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 	struct pid_s *p = &ctx->pids[pid];
 
-	/* Initialize the trend if needed */
-	if (p->trend_pts.clkToScrTicksDeltaTrend == NULL) {
-		char label[64];
-		sprintf(&label[0], "PTS 0x%04x to SCR ticket Delta", pid);
-		p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
-	}
-	if (p->trend_dts.clkToScrTicksDeltaTrend == NULL) {
-		char label[64];
-		sprintf(&label[0], "DTS 0x%04x to SCR ticket Delta", pid);
-		p->trend_dts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
-	}
-
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 		ltn_pes_packet_copy(&p->pts_last, &p->pes);
 
@@ -262,6 +251,13 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			ltntstools_clock_establish_wallclock(&p->clk_pts, p->pes.PTS);
 		}
 		ltntstools_clock_set_ticks(&p->clk_pts, p->pes.PTS);
+
+		/* Initialize the trend if needed */
+		if (p->trend_pts.clkToScrTicksDeltaTrend == NULL) {
+			char label[64];
+			sprintf(&label[0], "PTS 0x%04x to SCR ticket Delta", pid);
+			p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
+		}
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
 		ltn_pes_packet_copy(&p->dts_last, &p->pes);
@@ -274,6 +270,11 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		}
 		ltntstools_clock_set_ticks(&p->clk_dts, p->pes.DTS);
 
+		if (p->trend_dts.clkToScrTicksDeltaTrend == NULL) {
+			char label[64];
+			sprintf(&label[0], "DTS 0x%04x to SCR ticket Delta", pid);
+			p->trend_dts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
+		}
 	}
 
 	struct klbs_context_s pbs, *bs = &pbs;
