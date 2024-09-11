@@ -32,9 +32,9 @@ struct kllineartrend_context_s
 {
 	char name[128];
 
-	int idx;
-	int count;
-	int maxCount;
+	uint32_t idx;
+	uint32_t count;
+	uint32_t maxCount;
 	struct kllineartrend_item_s *list;
 
 };
