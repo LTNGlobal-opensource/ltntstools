@@ -97,7 +97,7 @@ int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn)
 	t[ strlen(t) - 1] = 0;
 
 	dprintf(fd, "# Created %s\n", t);
-	dprintf(fd, "# Trend '%s', %7d entries, Slope %15.5f, Deviation is %12.2f\n",
+	dprintf(fd, "# Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f\n",
 		ctx->name,
 		ctx->count,
 		slope, deviation);
@@ -105,7 +105,7 @@ int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn)
 	for (int i = a; i < b; i++) {
 		int ptr = SANITIZE(ctx, i);
 		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
-		dprintf(fd, "%8d,%18.5f,%12.2f,\n", ptr, e->x, e->y);
+		dprintf(fd, "%8d,%18.8f,%12.2f,\n", ptr, e->x, e->y);
 	}
 
 	close(fd);

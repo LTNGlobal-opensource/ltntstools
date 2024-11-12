@@ -223,7 +223,7 @@ static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllinear
 	sprintf(t, "%s", ctime(&now));
 	t[ strlen(t) - 1] = 0;
 
-	printf("PID 0x%04x - Trend '%s', %7d entries, Slope %15.5f, Deviation is %12.2f @ %s\n",
+	printf("PID 0x%04x - Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f @ %s\n",
 		pid,
 		trend->name,
 		trend->count,
