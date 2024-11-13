@@ -316,7 +316,7 @@ static void *thread_packet_rx(void *p)
 			continue;
 		}
 
-		/* Pid filter, convery any blocked pids into null packets */
+		/* Pid filter, convert any blocked pids into null packets */
 		for (int i = 0; i < rlen; i += 188) {
 			unsigned char *p = buf + i;
 			uint16_t pidnr = ltntstools_pid(buf + i);
