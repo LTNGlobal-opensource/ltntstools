@@ -386,7 +386,11 @@ int ISO8601_UTC_CreateTimestamp(struct timeval *tv, char **dst)
 
 void printToolBanner(char *toolname, char *version)
 {
-	char ts[256];
+	if ((!toolname) || (!version))
+		return;
+
+	char ts[256] = { 0 };
+
 	time_t now = time(0);
 	sprintf(ts, "%s", ctime(&now));
 	ts[ strlen(ts) - 1] = 0;
@@ -394,8 +398,15 @@ void printToolBanner(char *toolname, char *version)
 	printf("%s: %s %s\n", ts, toolname, version);
 
 	char *name = (char *)malloc(4096);
-	name[0] = 0;
+	if (!name)
+		return;
+
 	int fd = open("/proc/self/cmdline", O_RDONLY);
+	if (fd == -1) {
+		free(name);
+		return;
+	}
+
 	int size = read(fd, name, 4096);
 	close(fd);
 	
@@ -405,4 +416,6 @@ void printToolBanner(char *toolname, char *version)
 	}
 
 	printf("%s: %s\n", ts, name);
+
+	free(name);
 }
