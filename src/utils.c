@@ -394,6 +394,7 @@ void printToolBanner(char *toolname, char *version)
 	printf("%s: %s %s\n", ts, toolname, version);
 
 	char *name = (char *)malloc(4096);
+	name[0] = 0;
 	int fd = open("/proc/self/cmdline", O_RDONLY);
 	int size = read(fd, name, 4096);
 	close(fd);
