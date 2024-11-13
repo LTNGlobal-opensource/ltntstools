@@ -397,7 +397,7 @@ void printToolBanner(char *toolname, char *version)
 
 	printf("%s: %s %s\n", ts, toolname, version);
 
-	char *name = (char *)malloc(4096);
+	char *name = (char *)calloc(1, 4096);
 	if (!name)
 		return;
 
