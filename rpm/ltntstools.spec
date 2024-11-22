@@ -51,7 +51,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Mon Sep  9 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.33.1 - DEVELOPMENT
-  tstools_clock_inspector: When reporting slop, print the number of entries in the trend and the PID (easier scripting).
+  tstools_clock_inspector: When reporting slope, print the number of entries in the trend and the PID (easier scripting).
   tstools_clock_inspector: Assign a wingle walltime to a packet so all walltime reports don't including processing drift.
   tstools_clock_inspector: convert some var storage from int to uint - be consistent
   tstools_clock_inspector: Put every pts-to-scr diff sample into the trend, not just once a second.
