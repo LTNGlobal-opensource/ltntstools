@@ -653,7 +653,7 @@ static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 		pesoffset = ltntstools_contains_pes_header(pkt + 4, 188 - 4);
 
 		/* Calculate how long the PREVIOUS PES took to arrive in SCR ticks. */
-		prior_pes_delivery_ticks = ctx->pids[ctx->scr_pid].scr - p->scr_at_pes_unit_header;
+		prior_pes_delivery_ticks = p->scr_last_seen - p->scr_at_pes_unit_header;
 		prior_pes_delivery_us = ltn_timeval_subtract_us(&p->scr_last_seen_ts, &p->scr_at_pes_unit_header_ts);
 
 		p->scr_at_pes_unit_header = ctx->pids[ctx->scr_pid].scr;
