@@ -416,7 +416,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				(int)ts.tv_usec / 1000,
 				ptsWalltimeDriftMs);
 
-			printf("!PTS #%09" PRIi64 "                              %04x took %" PRIi64 " SCR ticks to arrive, or %.03f ms, %" PRIi64 " uS walltime %s\n",
+			printf("!PTS #%09" PRIi64 "                              %04x took %10" PRIi64 " SCR ticks to arrive, or %9.03f ms, %9" PRIi64 " uS walltime %s\n",
 				p->pts_count - 1,
 				pid,
 				prior_pes_delivery_ticks,
