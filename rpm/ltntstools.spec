@@ -66,7 +66,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: bugfix when computing PCR interval per pes.
   tstools_clock_inspector: Hide new feature 'PES took X ms' behind the -Y command line option, default disabled.
   tstools_pes_inspector: Added option -G to save ES payload to seperate files.
-  tstools_bitrate_smoother: Added option -Z to re-0write PMT to reflect removed pids.
+  tstools_bitrate_smoother: Added option -Z to re-write PMT to reflect removed pids.
 
 * Mon Sep  9 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.32.1
