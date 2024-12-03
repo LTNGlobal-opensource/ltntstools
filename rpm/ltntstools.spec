@@ -49,8 +49,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Mon Sep  9 2024 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.33.1 - DEVELOPMENT
+* Tue Dec  3 2024 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.33.1
   tstools_clock_inspector: When reporting slope, print the number of entries in the trend and the PID (easier scripting).
   tstools_clock_inspector: Assign a wingle walltime to a packet so all walltime reports don't including processing drift.
   tstools_clock_inspector: convert some var storage from int to uint - be consistent
@@ -67,6 +67,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: Hide new feature 'PES took X ms' behind the -Y command line option, default disabled.
   tstools_pes_inspector: Added option -G to save ES payload to seperate files.
   tstools_bitrate_smoother: Added option -Z to re-write PMT to reflect removed pids.
+  libltntstools: bitrate smoother library adjustment help with smoother the ltn mux (regression)
 
 * Mon Sep  9 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.32.1
@@ -81,7 +82,6 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: adjust SCR report to show walltime as a string, not STREAM TIME as a string
   tstools_clock_inspector: Added -Z to supress NEW timing violation messages
   tstools_clock_inspector: Added -L to optional product PTS to SCR linear trending report.
-  libltntstools: bitrate smoother library adjustment help with smoother the ltn mux (regression)
 
 * Wed Aug 20 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.31.1
