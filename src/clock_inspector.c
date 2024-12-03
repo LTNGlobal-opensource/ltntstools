@@ -103,6 +103,7 @@ struct tool_context_s
 {
 	int enableNonTimingConformantMessages;
 	int enableTrendReport;
+	int enablePESDeliveryReport;
 	int dumpHex;
 	const char *iname;
 	time_t initial_time;
@@ -416,13 +417,15 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				(int)ts.tv_usec / 1000,
 				ptsWalltimeDriftMs);
 
-			printf("!PTS #%09" PRIi64 "                              %04x took %10" PRIi64 " SCR ticks to arrive, or %9.03f ms, %9" PRIi64 " uS walltime %s\n",
-				p->pts_count - 1,
-				pid,
-				prior_pes_delivery_ticks,
-				(double)prior_pes_delivery_ticks / 27000.0,
-				prior_pes_delivery_us,
-				prior_pes_delivery_ticks == 0 ? "(probably delivered in a single SCR interval period, so basically no ticks measured)" : "");
+			if (ctx->enablePESDeliveryReport) {
+				printf("!PTS #%09" PRIi64 "                              %04x took %10" PRIi64 " SCR ticks to arrive, or %9.03f ms, %9" PRIi64 " uS walltime %s\n",
+					p->pts_count - 1,
+					pid,
+					prior_pes_delivery_ticks,
+					(double)prior_pes_delivery_ticks / 27000.0,
+					prior_pes_delivery_us,
+					prior_pes_delivery_ticks == 0 ? "(probably delivered in a single SCR interval period, so basically no ticks measured)" : "");
+			}
 		}
 
 		if (ctx->order_asc_pts_output) {
@@ -802,6 +805,7 @@ static void usage(const char *progname)
 	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
 	printf("  -Z Suppress any warnings relating to non-conformant stream timing issues [def: warnings are output]\n");
 	printf("  -L Enable printing of PTS to SCR linear trend report [def: no]\n");
+	printf("  -Y Enable printing of 'PES took x ms' walltime and tick delivery times within a stream [def: no]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("\n  Example UDP or RTP:\n");
 	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
@@ -827,7 +831,7 @@ int clock_inspector(int argc, char *argv[])
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&ctx->libstats);
 
-    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:LPRS:X:Z")) != -1) {
+    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:LPRS:X:YZ")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -876,6 +880,9 @@ int clock_inspector(int argc, char *argv[])
 				tm.tm_mon -= 1;
 				ctx->initial_time = mktime(&tm);
 			}
+			break;
+		case 'Y':
+			ctx->enablePESDeliveryReport = 1;
 			break;
 		case 't':
 			stopSeconds = atoi(optarg);
