@@ -461,8 +461,17 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 #if 0
 	libltntstools_getTimestamp(&ts[0], sizeof(ts), NULL);
 #else
+	memset(ts, 0, sizeof(ts));
 	time_t now = time(NULL);
-	strftime(ts, sizeof(ts), "%F %T.000", localtime(&now));
+	struct tm *timeinfo = localtime(&now);
+	strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S%z", timeinfo);
+
+	/* Open search wants a colon -05:00, strftime doesn't support
+	 * "timestamp": "2025-01-03T13:56:50-05:00"
+	 */
+	ts[24] = ts[23];
+	ts[23] = ts[22];
+	ts[22] = ':';
 #endif
 
 	json_object *fts = json_object_new_string(ts);
