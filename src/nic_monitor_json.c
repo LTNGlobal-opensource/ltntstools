@@ -124,6 +124,7 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, item->lengthBytes);
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcrp/0.1");
 
+	/* Opensearch lives at https: url and needs credentials to authorize */
 	char *rootCA = getenv("NICMON_CURL_ROOTCA");
 	curl_easy_setopt(curl, CURLOPT_CAINFO, rootCA ? rootCA : "/storage/dev/ltntstools-build-environment/ltntstools/src/kubernetes-rootCA.crt");
 	char *userAuth = getenv("NICMON_CURL_USERAUTH");
