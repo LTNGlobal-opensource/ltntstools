@@ -466,7 +466,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	struct tm *timeinfo = localtime(&now);
 	strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S%z", timeinfo);
 
-	/* Open search wants a colon -05:00, strftime doesn't support
+	/* Open search wants a ISO8601 colon -05:00, strftime doesn't support
 	 * "timestamp": "2025-01-03T13:56:50-05:00"
 	 */
 	ts[24] = ts[23];
