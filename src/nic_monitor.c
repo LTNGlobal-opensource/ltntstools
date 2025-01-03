@@ -886,7 +886,7 @@ static void *ui_thread_func(void *p)
 		refresh();
 		pthread_mutex_unlock(&ctx->ui_threadLock);
 
-		usleep(200 * 1000);
+		usleep(50 * 1000);
 	}
 
 	if (items) {
