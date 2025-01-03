@@ -653,6 +653,8 @@ void discovered_items_json_summary(struct tool_context_s *ctx)
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		if (discovered_item_state_get(e, DI_STATE_JSON_PROBE_ACTIVE) == 0)
 			continue;
+		if (discovered_item_state_get(e, DI_STATE_HIDDEN))
+			continue;
 		discovered_item_json_summary(ctx, e);
 	}
 	pthread_mutex_unlock(&ctx->lock);
