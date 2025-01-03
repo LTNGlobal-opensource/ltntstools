@@ -94,12 +94,9 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 {
 	int ret = -1;
 
-#if 1
-	printf("posting html json:\n%s\n", item->buf);
-	return 0; /* Success */
-#endif
-//	return 0; /* Success */
-
+	if (ctx->verbose) {
+		printf("posting html json:\n%s\n", item->buf);
+	}
 #if 0
 	size_t input_size = item->lengthBytes;
 	char * encoded_data = base64_encode((const unsigned char *)item->buf, input_size, &input_size);
