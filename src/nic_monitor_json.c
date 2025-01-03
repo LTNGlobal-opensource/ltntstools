@@ -63,7 +63,9 @@ void json_item_free(struct tool_context_s *ctx, struct json_item_s *item)
 /* Send the item to a remote server. */
 int json_item_post_socket(struct tool_context_s *ctx, struct json_item_s *item)
 {
-	printf("posting json: '%s'\n", item->buf);
+	if (ctx->verbose) {
+		printf("posting json: '%s'\n", item->buf);
+	}
 
 	if (ctx->jsonSocket < 0) {
 		if (json_initialize(ctx) < 0)
@@ -117,24 +119,31 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	headers = curl_slist_append(headers, "charset: utf-8");
 
 	//curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:13300/nicmonitor/01");
+	//curl_easy_setopt(curl, CURLOPT_URL, "http://server:9200/probeUUID/_doc"); // Opensearch
 	curl_easy_setopt(curl, CURLOPT_URL, ctx->json_http_url);
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, item->buf);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, item->lengthBytes);
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcrp/0.1");
+
+	char *rootCA = getenv("NICMON_CURL_ROOTCA");
+	curl_easy_setopt(curl, CURLOPT_CAINFO, rootCA ? rootCA : "/storage/dev/ltntstools-build-environment/ltntstools/src/kubernetes-rootCA.crt");
+	char *userAuth = getenv("NICMON_CURL_USERAUTH");
+	curl_easy_setopt(curl, CURLOPT_USERPWD, userAuth ? userAuth : "admin:admin");
 //	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
 	CURLcode res = curl_easy_perform(curl);
 	if (res != CURLE_OK) {
 		fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 	} else {
+		printf("\n"); /* opensearch returns some stuff, make it easier to read on the console */
 		ret = 0; /* Success */
 	}
 	curl_slist_free_all(headers);
 	curl_easy_cleanup(curl);
 	curl_global_cleanup();
-
+	
 	return ret;
 #endif
 
