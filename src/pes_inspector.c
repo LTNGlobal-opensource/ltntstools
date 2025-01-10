@@ -492,6 +492,7 @@ struct tool_ctx_s
 	void *pe;
 	int writeES_h264;
 	int writeES_h265;
+	int writeES_payload;
 	int writeThumbnails;
 	uint64_t esSeqNr;
 	int dumpPICTIMING;
@@ -503,6 +504,9 @@ struct tool_ctx_s
 #endif
 
 	GetBitContext gb;
+
+	struct ltn_pes_packet_writer_ctx writer_ctx;
+
 };
 
 static void _pes_packet_measure_nal_throughput(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes, struct nal_throughput_s *s)
@@ -746,6 +750,12 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 		printf("PES Extractor callback\n");
 	}
 
+	if (ctx->writeES_payload) {
+		ltn_pes_packet_save_es(&ctx->writer_ctx, pes);
+		ltn_pes_packet_free(pes);
+		return NULL;
+	}
+
 	/* Avoid segfaults if the user has elected for Headers Only */
 	if (pes->dataLengthBytes == 0) {
 		/* Else, dump all the PES packets */
@@ -923,6 +933,8 @@ static void usage(const char *progname)
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -5 dump H.265 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -t dump H.264 PIC TIMING headers (experimental with PTS reordering) [def: disabled]\n");
+	printf("  -G <dirname> write ES payload to individual sequences files [def: no]\n"
+	       "     Eg. seq00000000000000-pts00000000000000-dts00000000000000-len00000000-crc00000000\n");
 	printf("  -F write H.265 PES ES Nals to individual sequences files [def: no]\n");
 	printf("  -E write H.264 PES ES Nals to individual sequences files [def: no]\n");
 	printf("     Eg. 00000000046068-es-pid-0064-streamId-e0-nal-06-name-SEI.bin\n"
@@ -941,6 +953,8 @@ int pes_inspector(int argc, char *argv[])
 	ctx = &myctx;
 	memset(ctx, 0, sizeof(*ctx));
 
+	ltn_pes_packet_writer_init(&ctx->writer_ctx, "./");
+
 	nal_throughput_init(&ctx->throughput);
 
 	ctx->streamId = DEFAULT_STREAMID;
@@ -950,7 +964,7 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "45?EFHhvi:P:S:Tt")) != -1) {
+	while ((ch = getopt(argc, argv, "45?EFG:Hhvi:P:S:Tt")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -972,6 +986,10 @@ int pes_inspector(int argc, char *argv[])
 		case 'F':
 			ctx->writeES_h264 = 0;
 			ctx->writeES_h265 = 1;
+			break;
+		case 'G':
+			ctx->writeES_payload = 1;
+			ltn_pes_packet_writer_init(&ctx->writer_ctx, optarg);
 			break;
 		case 'H':
 			headersOnly = 1;

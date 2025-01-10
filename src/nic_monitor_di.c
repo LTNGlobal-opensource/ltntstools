@@ -461,8 +461,17 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 #if 0
 	libltntstools_getTimestamp(&ts[0], sizeof(ts), NULL);
 #else
+	memset(ts, 0, sizeof(ts));
 	time_t now = time(NULL);
-	strftime(ts, sizeof(ts), "%F %T.000", localtime(&now));
+	struct tm *timeinfo = localtime(&now);
+	strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S%z", timeinfo);
+
+	/* Open search wants a ISO8601 colon -05:00, strftime doesn't support
+	 * "timestamp": "2025-01-03T13:56:50-05:00"
+	 */
+	ts[24] = ts[23];
+	ts[23] = ts[22];
+	ts[22] = ':';
 #endif
 
 	json_object *fts = json_object_new_string(ts);
@@ -652,6 +661,8 @@ void discovered_items_json_summary(struct tool_context_s *ctx)
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
 		if (discovered_item_state_get(e, DI_STATE_JSON_PROBE_ACTIVE) == 0)
+			continue;
+		if (discovered_item_state_get(e, DI_STATE_HIDDEN))
 			continue;
 		discovered_item_json_summary(ctx, e);
 	}

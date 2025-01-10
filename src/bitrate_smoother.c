@@ -71,6 +71,11 @@ struct tool_context_s
 	unsigned char filter[8192];
 	unsigned int pid;
 
+	/* PMT replacement in a SPTS */
+	unsigned int spts_pmt_pid;             /* PID where we expect to fine a PMT in the input stream, what we're replacing. */
+	unsigned char spts_pmt_pkt_new[188];   /* New PMT that gets create IF we're dropping pids. */
+	struct ltntstools_pat_s *spts_pmt_sm;  /* deconstructed PMT object. */
+
 };
 
 /* Reframer hands us 7*188 buffers, guaranteed. Send to the UDP. */
@@ -316,7 +321,7 @@ static void *thread_packet_rx(void *p)
 			continue;
 		}
 
-		/* Pid filter, convery any blocked pids into null packets */
+		/* Pid filter, convert any blocked pids into null packets */
 		for (int i = 0; i < rlen; i += 188) {
 			unsigned char *p = buf + i;
 			uint16_t pidnr = ltntstools_pid(buf + i);
@@ -327,6 +332,49 @@ static void *thread_packet_rx(void *p)
 			if (ctx->filter[pidnr] == 0) {
 				ltntstools_generateNullPacket(p);
 			}
+			/* If an SPTS PMT needs to be replaced, and we've previously constructed it - replace it here */
+			if (ctx->spts_pmt_pid && ctx->spts_pmt_pid == pidnr && ctx->spts_pmt_pkt_new[0] == 0x47) {
+				if (ctx->verbose) {
+					printf("Patching PMT on pid 0x%04x\n", pidnr);
+				}
+				ctx->spts_pmt_pkt_new[3] &= 0xf0; /* Strip previous CC field */
+				ctx->spts_pmt_pkt_new[3] |= (*(buf + i + 3) & 0x0f); /* Clone the CC field from current. */
+				memcpy(buf + i, &ctx->spts_pmt_pkt_new[0], 188);
+			} else
+			if (ctx->spts_pmt_pid && ctx->spts_pmt_pid == pidnr) {
+				if (ctx->spts_pmt_sm && ctx->spts_pmt_pkt_new[0] != 0x47) {
+					/* If a stream model has been established then create a new PMT packet,
+					 * strip any ES's pids as needed.
+					 */
+					int e = 0;
+					struct ltntstools_pmt_s *pmtptr = NULL;
+					while (ltntstools_pat_enum_services(ctx->spts_pmt_sm, &e, ctx->spts_pmt_pid, &pmtptr) == 0) {
+						/* Patch the PMT */
+ 
+						/* remove any filtered pids, from the pmt object */
+						for (int i = 0; i < 0x2000; i++) {
+							if (ctx->filter[i] == 0) {
+								ltntstools_pmt_remove_es_for_pid(pmtptr, i);
+							}
+						}
+
+						if (ctx->verbose & 32) {
+							printf("New patched streammodel, after pids removed:\n");
+							ltntstools_pat_dprintf(ctx->spts_pmt_sm, STDOUT_FILENO);
+						}
+
+						/* Convert he PMT object into a fully formed transport packet. A one-time cost. */
+						int cc = ltntstools_continuity_counter(buf + i);
+						ltntstools_pmt_create_packet_ts(pmtptr, ctx->spts_pmt_pid, cc, &ctx->spts_pmt_pkt_new[0], 188);
+						if (ctx->verbose & 32) {
+							printf("Newly created PMT transport packet:\n");
+							ltntstools_hexdump(&ctx->spts_pmt_pkt_new[0], 188, 32);
+						}
+						break;
+					}
+				}
+			}
+
 		}
 		if (ctx->isRTP == 0 && ctx->sm == NULL && ctx->pcrPID == 0) {
 			if (ltntstools_streammodel_alloc(&ctx->sm, NULL) < 0) {
@@ -387,6 +435,9 @@ static void *thread_packet_rx(void *p)
 					} else {
 						smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_pcr_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
 					}
+
+					ctx->spts_pmt_sm = ltntstools_pat_clone(pat);
+
 					ltntstools_pat_free(pat);
 				}
 			}
@@ -502,7 +553,9 @@ static void usage(const char *progname)
 	printf("     2 - output packet hex\n");
 	printf("     4 - output packet PCR data and human readable PCR clock\n");
 	printf("     8 - input packet RTP data and human readable clock\n");
+	printf("    32 - PMT re-writing and PID removal\n");
 	printf("  -R pid 0xNNNN to be removed [def: none], multiple -R instances supported. [0x2000 all pids]\n");
+	printf("  -Z pid 0xNNNN Update this PID PMT to reflect any removed ES pids [def: disabled]\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
 #ifdef __linux__
 	printf("  -t <#seconds> Stop after N seconds [def: 0 - unlimited]\n");
@@ -532,7 +585,7 @@ int bitrate_smoother(int argc, char *argv[])
 	ltntstools_pid_stats_alloc(&ctx->i_stream);
 	ltntstools_pid_stats_alloc(&ctx->o_stream);
 
-	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:R:v:t:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:R:v:t:Z:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -576,6 +629,12 @@ int bitrate_smoother(int argc, char *argv[])
 			ctx->stopAfterSeconds = atoi(optarg);
 			break;
 #endif
+		case 'Z':
+			if ((sscanf(optarg, "0x%x", &ctx->spts_pmt_pid) != 1) || (ctx->spts_pmt_pid >= 0x2000)) {
+				usage(argv[0]);
+				exit(1);
+			}
+			break;
 		default:
 			usage(argv[0]);
 			exit(1);
@@ -728,6 +787,11 @@ int bitrate_smoother(int argc, char *argv[])
 	if (ctx->isRTP) {
 		rtp_analyzer_free(&ctx->rtp_stream_in);
 		rtp_analyzer_free(&ctx->rtp_stream_out);
+	}
+
+	if (ctx->spts_pmt_sm) {
+		ltntstools_pat_free(ctx->spts_pmt_sm);
+		ctx->spts_pmt_sm = NULL;
 	}
 
 	ret = 0;

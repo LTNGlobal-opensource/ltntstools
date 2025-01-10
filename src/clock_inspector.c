@@ -61,6 +61,15 @@ struct pid_s
 	uint64_t scr;
 	uint64_t scr_updateCount;
 
+	/* Four vars that track when each TS packet arrives, and what SCR timestamp was during
+	 * arrival. We use this to broadly measure the walltime an entire pess took to arrive,
+	 * and the SCR ticket it took.
+	 */
+	uint64_t scr_at_pes_unit_header;
+	uint64_t scr_last_seen; /* last scr when this pid was seen. Avoiding change 'scr' pid for now, risky? */
+	struct timeval scr_at_pes_unit_header_ts;
+	struct timeval scr_last_seen_ts;
+
 	/* PTS */
 	uint64_t pts_count;
 	struct ltn_pes_packet_s pts_last;
@@ -94,6 +103,7 @@ struct tool_context_s
 {
 	int enableNonTimingConformantMessages;
 	int enableTrendReport;
+	int enablePESDeliveryReport;
 	int dumpHex;
 	const char *iname;
 	time_t initial_time;
@@ -223,7 +233,7 @@ static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllinear
 	sprintf(t, "%s", ctime(&now));
 	t[ strlen(t) - 1] = 0;
 
-	printf("PID 0x%04x - Trend '%s', %7d entries, Slope %15.5f, Deviation is %12.2f @ %s\n",
+	printf("PID 0x%04x - Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f @ %s\n",
 		pid,
 		trend->name,
 		trend->count,
@@ -242,7 +252,9 @@ static void trendReport(struct tool_context_s *ctx)
 	}
 }
 
-static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx, uint64_t filepos, struct timeval ts)
+static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx, uint64_t filepos, struct timeval ts,
+	int64_t prior_pes_delivery_ticks,
+	int64_t prior_pes_delivery_us)
 {
 	char time_str[64];
 
@@ -404,6 +416,16 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				(int)ts.tv_sec,
 				(int)ts.tv_usec / 1000,
 				ptsWalltimeDriftMs);
+
+			if (ctx->enablePESDeliveryReport) {
+				printf("!PTS #%09" PRIi64 "                              %04x took %10" PRIi64 " SCR ticks to arrive, or %9.03f ms, %9" PRIi64 " uS walltime %s\n",
+					p->pts_count - 1,
+					pid,
+					prior_pes_delivery_ticks,
+					(double)prior_pes_delivery_ticks / 27000.0,
+					prior_pes_delivery_us,
+					prior_pes_delivery_ticks == 0 ? "(probably delivered in a single SCR interval period, so basically no ticks measured)" : "");
+			}
 		}
 
 		if (ctx->order_asc_pts_output) {
@@ -623,15 +645,30 @@ static void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_
 static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts)
 {
 	uint16_t pid = ltntstools_pid(pkt);
+	struct pid_s *p = &ctx->pids[pid];
+	int64_t prior_pes_delivery_ticks;
+	int64_t prior_pes_delivery_us;
+
 	int peshdr = ltntstools_payload_unit_start_indicator(pkt);
 
 	int pesoffset = 0;
 	if (peshdr) {
 		pesoffset = ltntstools_contains_pes_header(pkt + 4, 188 - 4);
+
+		/* Calculate how long the PREVIOUS PES took to arrive in SCR ticks. */
+		prior_pes_delivery_ticks = p->scr_last_seen - p->scr_at_pes_unit_header;
+		prior_pes_delivery_us = ltn_timeval_subtract_us(&p->scr_last_seen_ts, &p->scr_at_pes_unit_header_ts);
+
+		p->scr_at_pes_unit_header = ctx->pids[ctx->scr_pid].scr;
+		p->scr_at_pes_unit_header_ts = ts;
+	} else {
+		/* make a note of the last user SCR for this packet on this pid */
+		p->scr_last_seen = ctx->pids[ctx->scr_pid].scr;
+		p->scr_last_seen_ts = ts;
 	}
 
 	if (peshdr && pesoffset >= 0 && pid > 0) {
-		processPESHeader(pkt + 4 + pesoffset, 188 - 4 - pesoffset, pid, ctx, filepos, ts);
+		processPESHeader(pkt + 4 + pesoffset, 188 - 4 - pesoffset, pid, ctx, filepos, ts, prior_pes_delivery_ticks, prior_pes_delivery_us);
 	}
 }
 
@@ -768,6 +805,7 @@ static void usage(const char *progname)
 	printf("  -P Show progress indicator as a percentage when processing large files [def: disabled]\n");
 	printf("  -Z Suppress any warnings relating to non-conformant stream timing issues [def: warnings are output]\n");
 	printf("  -L Enable printing of PTS to SCR linear trend report [def: no]\n");
+	printf("  -Y Enable printing of 'PES took x ms' walltime and tick delivery times within a stream [def: no]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("\n  Example UDP or RTP:\n");
 	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
@@ -793,7 +831,7 @@ int clock_inspector(int argc, char *argv[])
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&ctx->libstats);
 
-    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:LPRS:X:Z")) != -1) {
+    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:LPRS:X:YZ")) != -1) {
 		switch (ch) {
 		case 'd':
 			ctx->dumpHex++;
@@ -842,6 +880,9 @@ int clock_inspector(int argc, char *argv[])
 				tm.tm_mon -= 1;
 				ctx->initial_time = mktime(&tm);
 			}
+			break;
+		case 'Y':
+			ctx->enablePESDeliveryReport = 1;
 			break;
 		case 't':
 			stopSeconds = atoi(optarg);
