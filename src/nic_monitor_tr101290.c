@@ -92,8 +92,11 @@ ssize_t nic_monitor_tr101290_write(struct discovered_item_s *di, const uint8_t *
 {
 	if (!di->trHandle)
 		return -1;
+
+        struct timeval nowtv;
+        gettimeofday(&nowtv, NULL);
 		
-	return ltntstools_tr101290_write(di->trHandle, pkts, packetCount);
+	return ltntstools_tr101290_write(di->trHandle, pkts, packetCount, &nowtv);
 }
 
 void nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *sc, int p1col, int p2col)

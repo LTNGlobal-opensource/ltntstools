@@ -69,7 +69,10 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 		printf("tr101290 sending %d bytes\n", byteCount);
 	}
 
-	ssize_t s = ltntstools_tr101290_write(ctx->trhdl, buf, byteCount / 188);
+        struct timeval nowtv;
+        gettimeofday(&nowtv, NULL);
+
+	ssize_t s = ltntstools_tr101290_write(ctx->trhdl, buf, byteCount / 188, &nowtv);
 	if (s) { }
 }
 
@@ -144,7 +147,7 @@ static struct ltntstools_source_pcap_callbacks_s pcap_callbacks =
 
 static void process_pcap_input(struct tool_ctx_s *ctx)
 {
-	if (ltntstools_source_pcap_alloc(&ctx->src_pcap, ctx, &pcap_callbacks, ctx->iname, ctx->pcap_filter) < 0) {
+	if (ltntstools_source_pcap_alloc(&ctx->src_pcap, ctx, &pcap_callbacks, ctx->iname, ctx->pcap_filter, (1024 * 1024 * 4)) < 0) {
 		fprintf(stderr, "Failed to open source_pcap interface, check permissions (sudo) or syntax.\n");
 		return;
 	}

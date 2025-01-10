@@ -32,7 +32,7 @@ struct tools_ctx_s
 };
 
 
-static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
+static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount, struct timeval *capture_time)
 {
 	struct tools_ctx_s *ctx = (struct tools_ctx_s *)userContext;
 
@@ -97,7 +97,7 @@ int _nielsen_inspector(int argc, char **argv)
 
 	if (ltntstools_audioanalyzer_has_feature_nielsen(NULL) == 0) {
 		printf("No Nielsen audio decoder detected, this build does not includie Nielsen support, aborting.\n");
-		exit(1);
+		//exit(1);
 	}
 
 	printf("\nEnabling the Nielsen decoder\n\n");
@@ -172,12 +172,12 @@ int _nielsen_inspector(int argc, char **argv)
 					break;
 				default:
 				case AV_CODEC_ID_AAC:
-					streamID = 0xBD;
+					streamID = 0xC0;
 					break;
 				}
 				/* make a note of which audio pids we want to monitor and their codec types */
-				//ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, streamID, codec->codec_id, codec->format, 1 /* Enable Nielsen */);
-				ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, streamID, codec->codec_id, AV_SAMPLE_FMT_S16P, 1 /* Enable Nielsen */);
+				ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, streamID, codec->codec_id, codec->format, 0 /* Enable Nielsen */);
+				//ret = ltntstools_audioanalyzer_stream_add(ctx->aa, s->id, streamID, codec->codec_id, AV_SAMPLE_FMT_S16P, 0 /* Enable Nielsen */);
 				if (ret != 0) {
 					fprintf(stderr, "Unable to add stream to decoder\n");
 				}

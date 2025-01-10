@@ -219,10 +219,13 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		ltn_histogram_interval_update_with_value(di->packetIntervals, di->iat_cur_us / 1000);
 		throughput_hires_write_i64(di->packetIntervalAverages, 0, di->iat_cur_us / 1000, NULL);
 		
+		struct timeval nowtv;
+		gettimeofday(&nowtv, NULL);
+
 		if (di->streamModel &&
 			((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))) {
 			int complete;
-			ltntstools_streammodel_write(di->streamModel, pkts, pktCount, &complete);
+			ltntstools_streammodel_write(di->streamModel, pkts, pktCount, &complete, &nowtv);
 		}
 #if 1
 		/* Measure IAT in terms of the following additional bins 10ms and 100ms */
@@ -230,9 +233,6 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		/* Write the number of bits and a timestamp into a hirres counter */
 		pthread_mutex_lock(&di->bitrateBucketLock);
 		throughput_hires_write_i64(di->packetPayloadSizeBits, 0, lengthPayloadBytes * 8, NULL);
-
-		struct timeval nowtv;
-		gettimeofday(&nowtv, NULL);
 
 		struct timeval then10ms;
 		subtract_ms_from_timeval(&then10ms, &nowtv, 10);

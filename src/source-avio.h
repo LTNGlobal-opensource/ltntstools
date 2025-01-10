@@ -30,7 +30,7 @@ enum source_avio_status_e
     AVIO_STATUS_MEDIA_END,
 };
 
-typedef void (*ltntstools_source_avio_raw_callback)(void *userContext, const uint8_t *pkts, int packetCount);
+typedef void (*ltntstools_source_avio_raw_callback)(void *userContext, const uint8_t *pkts, int packetCount, struct timeval *capture_time);
 typedef void (*ltntstools_source_avio_raw_callback_status)(void *userContext, enum source_avio_status_e status);
 
 struct ltntstools_source_avio_callbacks_s

@@ -343,8 +343,9 @@ static void *thread_packet_rx(void *p)
 
 		/* UDP-TS only */
 		if (ctx->isRTP == 0 && ctx->sm && ctx->smcomplete == 0 && ctx->pcrPID == 0) {
-
-			ltntstools_streammodel_write(ctx->sm, &buf[boffset], rlen / 188, &ctx->smcomplete);
+                        struct timeval nowtv;
+                        gettimeofday(&nowtv, NULL);
+			ltntstools_streammodel_write(ctx->sm, &buf[boffset], rlen / 188, &ctx->smcomplete, &nowtv);
 
 			if (ctx->smcomplete) {
 				struct ltntstools_pat_s *pat = NULL;
