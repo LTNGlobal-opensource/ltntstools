@@ -269,7 +269,9 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 	}
 
 	if (ctx->sm && ctx->smcomplete == 0 && ctx->smpte2038PID == 0) {
-		ltntstools_streammodel_write(ctx->sm, &buf[0], byteCount / 188, &ctx->smcomplete);
+		struct timeval nowtv;
+		gettimeofday(&nowtv, NULL);
+		ltntstools_streammodel_write(ctx->sm, &buf[0], byteCount / 188, &ctx->smcomplete, &nowtv);
 
 		if (ctx->smcomplete) {
 			struct ltntstools_pat_s *pat = NULL;
@@ -319,7 +321,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 
 	if (ctx->smpte2038PID && ctx->pe == NULL) {
 		if (ltntstools_pes_extractor_alloc(&ctx->pe, ctx->smpte2038PID, 0xBD,
-				(pes_extractor_callback)pe_callback, ctx) < 0) {
+				(pes_extractor_callback)pe_callback, ctx, (1024 * 1024), (1024 * 1024)) < 0) {
 			fprintf(stderr, "\nUnable to allocate pes_extractor object.\n\n");
 			exit(1);
 		}
@@ -333,7 +335,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 
 static void process_pcap_input(struct tool_ctx_s *ctx)
 {
-	if (ltntstools_source_pcap_alloc(&ctx->src_pcap, ctx, &pcap_callbacks, ctx->iname, ctx->pcap_filter) < 0) {
+	if (ltntstools_source_pcap_alloc(&ctx->src_pcap, ctx, &pcap_callbacks, ctx->iname, ctx->pcap_filter, (1024 * 1024 * 4)) < 0) {
 		fprintf(stderr, "Failed to open source_pcap interface, check permissions (sudo) or syntax.\n");
 		return;
 	}
