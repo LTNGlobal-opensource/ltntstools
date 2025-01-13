@@ -40,6 +40,7 @@
 
 #define DEFAULT_SCR_PID 0x31
 #define DEFAULT_TREND_SIZE (60 * 60 * 60) /* 1hr */
+#define DEFAULT_TREND_REPORT_PERIOD 15
 
 struct ordered_clock_item_s {
 	struct xorg_list list;
@@ -111,6 +112,7 @@ struct tool_context_s
 	int enablePESDeliveryReport;
 	int dumpHex;
 	int trendSize;
+	int reportPeriod;
 	const char *iname;
 	time_t initial_time;
 	time_t current_stream_time;
@@ -305,7 +307,7 @@ void *trend_report_thread(void *tool_context)
     struct tool_context_s *ctx = tool_context;
 	pthread_detach(ctx->trendThreadId);
 
-	time_t next = time(NULL) + 15;
+	time_t next = time(NULL) + ctx->reportPeriod;
     while (ctx->enableTrendReport && gRunning) {
 		usleep(250 * 1000);
 		if (time(NULL) < next)
@@ -313,7 +315,7 @@ void *trend_report_thread(void *tool_context)
 
         printf("Dumping trend report(s)\n");
         trendReport(ctx);
-		next = time(NULL) + 15;
+		next = time(NULL) + ctx->reportPeriod;
     }
 	ctx->trendThreadComplete = 1;
 
@@ -917,6 +919,7 @@ static void usage(const char *progname)
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("  -A <number> default trend size [def: %d]\n", DEFAULT_TREND_SIZE);
 	printf("      108000 is 1hr of 30fps, 216000 is 1hr of 60fps, 5184000 is 24hrs of 60fps\n");
+	printf("  -B <seconds> trend report output period [def: %d]\n", DEFAULT_TREND_REPORT_PERIOD);
 
 	printf("\n  Example UDP or RTP:\n");
 	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
@@ -935,18 +938,25 @@ int clock_inspector(int argc, char *argv[])
 	ctx->enableNonTimingConformantMessages = 1;
 	ctx->enableTrendReport = 0;
 	ctx->trendSize = DEFAULT_TREND_SIZE;
+	ctx->reportPeriod = DEFAULT_TREND_REPORT_PERIOD;
 	int progressReport = 0;
 	int stopSeconds = 0;
 
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&ctx->libstats);
 
-    while ((ch = getopt(argc, argv, "?dhi:spt:A:T:D:LPRS:X:YZ")) != -1) {
+    while ((ch = getopt(argc, argv, "?dhi:spt:A:B:T:D:LPRS:X:YZ")) != -1) {
 		switch (ch) {
 		case 'A':
 			ctx->trendSize = atoi(optarg);
 			if (ctx->trendSize < 60) {
 				ctx->trendSize = 60;
+			}
+			break;
+		case 'B':
+			ctx->reportPeriod = atoi(optarg);
+			if (ctx->reportPeriod < 5) {
+				ctx->reportPeriod = 5;
 			}
 			break;
 		case 'd':
