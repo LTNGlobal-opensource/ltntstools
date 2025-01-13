@@ -192,7 +192,7 @@ static void indexDumpEntry(struct tool_context_s *ctx, int id, struct ltntstools
 	pcr_to_videotime(p->pcr, &vt);
 
 	char *streamtime = videotime_to_str(&vt);
-	printf("%8d: 0x%04x %016" PRIx64 " %16" PRIi64 ", %s\n",
+	printf("id: %8d pid: 0x%04x offset: %016" PRIx64 " pcr: %16" PRIi64 ", %s\n",
 		id,
 		p->pid,
 		p->offset,
