@@ -39,6 +39,7 @@
 #include "kl-lineartrend.h"
 
 #define DEFAULT_SCR_PID 0x31
+#define DEFAULT_TREND_SIZE (60 * 60 * 60)
 
 struct ordered_clock_item_s {
 	struct xorg_list list;
@@ -77,6 +78,7 @@ struct pid_s
 	uint64_t pts_last_scr; /* When we captured the last packet, this reflects the SCR at the time. */
 	struct ltntstools_clock_s clk_pts;
 	struct {
+		pthread_mutex_t trendLock; /* Lock the trend when we add or when we clone the struct */
 		struct kllineartrend_context_s *clkToScrTicksDeltaTrend;
 		time_t last_clkToScrTicksDeltaTrend;
 		time_t last_clkToScrTicksDeltaTrendReport; /* Recall whenever we've output a trend report */
@@ -108,6 +110,7 @@ struct tool_context_s
 	int enableTrendReport;
 	int enablePESDeliveryReport;
 	int dumpHex;
+	int trendSize;
 	const char *iname;
 	time_t initial_time;
 	time_t current_stream_time;
@@ -214,22 +217,33 @@ static void pidReport(struct tool_context_s *ctx)
 	}
 }
 
-static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllineartrend_context_s *trend)
+static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllineartrend_context_s *trend, pthread_mutex_t *mutex)
 {
+	/* Lock the struct, briefly prevent additional adds */
+	pthread_mutex_lock(mutex);
+	struct kllineartrend_context_s *trendDup = kllineartrend_clone(trend);
+	if (!trendDup) {
+		pthread_mutex_unlock(mutex);
+		return;
+	}
+	pthread_mutex_unlock(mutex);
+
 	if (ctx->enableTrendReport >= 2) {
 		/* If the caller passes -L twice or more, save data set on every print.
 		 */
-		kllineartrend_save_csv(trend, trend->name);
+		/* Don't need the mutex */
+		kllineartrend_save_csv(trendDup, trendDup->name);
 	}
 	if (ctx->enableTrendReport >= 3) {
 		/* If the caller passes -L three times or more, print the entire data set on every print.
 		 * expensive console processing. Choose wisely my friend.
 		 */
-		kllineartrend_printf(trend);
+		/* Don't need the mutex */
+		kllineartrend_printf(trendDup);
 	}
 
 	double slope, intersect, deviation;
-	kllineartrend_calculate(trend, &slope, &intersect, &deviation);
+	kllineartrend_calculate(trendDup, &slope, &intersect, &deviation);
 
 	char t[64];
 	time_t now = time(NULL);
@@ -238,19 +252,21 @@ static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllinear
 
 	printf("PID 0x%04x - Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f @ %s\n",
 		pid,
-		trend->name,
-		trend->count,
+		trendDup->name,
+		trendDup->count,
 		slope, deviation, t);
+
+	kllineartrend_free(trendDup);
 }
 
 static void trendReport(struct tool_context_s *ctx)
 {
 	for (int i = 0; i <= 0x1fff; i++) {
 		if (ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend) {
-			printTrend(ctx, i, ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend);
+			printTrend(ctx, i, ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend, &ctx->pids[i].trend_pts.trendLock);
 		}
 		if (ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend) {
-			printTrend(ctx, i, ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend);
+			printTrend(ctx, i, ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend, &ctx->pids[i].trend_dts.trendLock);
 		}
 	}
 }
@@ -294,7 +310,8 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		if (p->trend_pts.clkToScrTicksDeltaTrend == NULL) {
 			char label[64];
 			sprintf(&label[0], "PTS 0x%04x to Wallclock delta", pid);
-			p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
+			pthread_mutex_init(&p->trend_pts.trendLock, NULL);
+			p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(ctx->trendSize, label);
 		}
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
@@ -311,7 +328,8 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		if (p->trend_dts.clkToScrTicksDeltaTrend == NULL) {
 			char label[64];
 			sprintf(&label[0], "DTS 0x%04x to SCR tick delta", pid);
-			p->trend_dts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
+			pthread_mutex_init(&p->trend_dts.trendLock, NULL);
+			p->trend_dts.clkToScrTicksDeltaTrend = kllineartrend_alloc(ctx->trendSize, label);
 		}
 	}
 
@@ -370,7 +388,9 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			/* allow the first few samples to flow through the model and be ignored.
 			 */
 #if 0
+					pthread_mutex_lock(&p->trend_pts.trendLock);
                     kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.counter, d_pts_minus_scr_ticks);
+					pthread_mutex_unlock(&p->trend_pts.trendLock);
 #else
                     struct timeval t1;
                     gettimeofday(&t1, NULL);
@@ -383,7 +403,9 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
                     if (p->trend_pts.first_y == 0)
                         p->trend_pts.first_y = y;
 
+					pthread_mutex_lock(&p->trend_pts.trendLock);
                     kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, x - p->trend_pts.first_x, y - p->trend_pts.first_y);
+					pthread_mutex_unlock(&p->trend_pts.trendLock);
 //                    kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.inserted_counter, p->trend_pts.inserted_counter + 10000000);
 //                    if ((p->trend_pts.inserted_counter % 10) == 0)
 //                        kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, ctx->pids[ctx->scr_pid].scr, (p->pes.PTS * 300));
@@ -496,7 +518,9 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		if (p->trend_dts.counter > 16) {
 			/* allow the first few samples to flow through the model and be ignored.
 			 */
+			pthread_mutex_lock(&p->trend_dts.trendLock);
 			kllineartrend_add(p->trend_dts.clkToScrTicksDeltaTrend, p->trend_dts.counter, d_dts_minus_scr_ticks);
+			pthread_mutex_unlock(&p->trend_dts.trendLock);
 #if 0
 			if (ctx->enableTrendReport && (now >= p->trend_dts.last_clkToScrTicksDeltaTrendReport)) {
 				p->trend_dts.last_clkToScrTicksDeltaTrendReport = now + 15;
@@ -715,7 +739,7 @@ static int validateLinearTrend()
 	//double vals[8] = { 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08 };
 	double vals[8] = { 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0 };
 
-	struct kllineartrend_context_s *tc = kllineartrend_alloc(60 * 60 * 60, "linear trend test");
+	struct kllineartrend_context_s *tc = kllineartrend_alloc(128, "linear trend test");
 
 	double counter = 0;
 	for (int i = 0; i < 8; i++) {
@@ -843,6 +867,8 @@ static void usage(const char *progname)
 	printf("  -L Enable printing of PTS to SCR linear trend report [def: no]\n");
 	printf("  -Y Enable printing of 'PES took x ms' walltime and tick delivery times within a stream [def: no]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
+	printf("  -A <number> default trend size[ def: %d]\n", DEFAULT_TREND_SIZE);
+
 	printf("\n  Example UDP or RTP:\n");
 	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
 }
@@ -861,14 +887,21 @@ int clock_inspector(int argc, char *argv[])
 	ctx->scr_pid = DEFAULT_SCR_PID;
 	ctx->enableNonTimingConformantMessages = 1;
 	ctx->enableTrendReport = 0;
+	ctx->trendSize = DEFAULT_TREND_SIZE;
 	int progressReport = 0;
 	int stopSeconds = 0;
 
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&ctx->libstats);
 
-    while ((ch = getopt(argc, argv, "?dhi:spt:T:D:LPRS:X:YZ")) != -1) {
+    while ((ch = getopt(argc, argv, "?dhi:spt:A:T:D:LPRS:X:YZ")) != -1) {
 		switch (ch) {
+		case 'A':
+			ctx->trendSize = atoi(optarg);
+			if (ctx->trendSize < 60) {
+				ctx->trendSize = 60;
+			}
+			break;
 		case 'd':
 			ctx->dumpHex++;
 			break;

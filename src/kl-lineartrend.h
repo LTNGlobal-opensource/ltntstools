@@ -52,6 +52,13 @@ struct kllineartrend_context_s *kllineartrend_alloc(uint32_t maxItems, const cha
 void kllineartrend_free(struct kllineartrend_context_s *ctx);
 
 /**
+ * @brief	Duplicate entirely a preview context.
+ * @param[in]	struct kllineartrend_context_s *ctx - Object.
+ * @return   	Pointer on success, else NULL.
+ */
+struct kllineartrend_context_s *kllineartrend_clone(struct kllineartrend_context_s *ctx);
+
+/**
  * @brief	Add a new value to the set, for the current date/time.
  * @param[in]	struct kllineartrend_context_s *ctx - Object.
  * @param[in]	double x - X axis value

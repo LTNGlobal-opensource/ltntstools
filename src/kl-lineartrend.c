@@ -32,6 +32,23 @@ void kllineartrend_free(struct kllineartrend_context_s *ctx)
 	free(ctx);
 }
 
+struct kllineartrend_context_s *kllineartrend_clone(struct kllineartrend_context_s *ctx)
+{
+	struct kllineartrend_context_s *p = malloc(sizeof(*ctx));
+	if (!p)
+		return NULL;
+
+	memcpy(p, ctx, sizeof(*ctx));
+	p->list = malloc(ctx->maxCount * sizeof(struct kllineartrend_item_s));
+	if (!ctx->list) {
+		free(p);
+		return NULL;
+	}
+	memcpy(p->list, ctx->list, ctx->maxCount * sizeof(struct kllineartrend_item_s));
+
+	return p;
+}
+
 void kllineartrend_add(struct kllineartrend_context_s *ctx, double x, double y)
 {
 //printf("idx %d maxCount %d count %d\n", ctx->idx, ctx->maxCount, ctx->count);
