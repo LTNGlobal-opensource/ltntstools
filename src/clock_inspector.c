@@ -39,7 +39,7 @@
 #include "kl-lineartrend.h"
 
 #define DEFAULT_SCR_PID 0x31
-#define DEFAULT_TREND_SIZE (60 * 60 * 60)
+#define DEFAULT_TREND_SIZE (60 * 60 * 60) /* 1hr */
 
 struct ordered_clock_item_s {
 	struct xorg_list list;
@@ -117,6 +117,8 @@ struct tool_context_s
 	int64_t maxAllowablePTSDTSDrift;
 //	uint32_t pid;
 	struct pid_s pids[8192];
+	pthread_t trendThreadId;
+	int trendThreadComplete;
 
 	int doPacketStatistics;
 	int doSCRStatistics;
@@ -242,21 +244,48 @@ static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllinear
 		kllineartrend_printf(trendDup);
 	}
 
-	double slope, intersect, deviation;
+	struct timeval t1, t2, t3;
+	double slope, intersect, deviation, r2;
+
+	gettimeofday(&t1, NULL);
 	kllineartrend_calculate(trendDup, &slope, &intersect, &deviation);
+	gettimeofday(&t2, NULL);
+	kllineartrend_calculate_r_squared(trendDup, slope, intersect, &r2);
+	gettimeofday(&t3, NULL);
+
+#if 0
+	/* slope calculate takes 1ms for 216000 entries (LTN573), r2 calculation is twice as long */
+	int a_diffus = ltn_timeval_subtract_us(&t2, &t1);
+	int b_diffus = ltn_timeval_subtract_us(&t3, &t2);
+
+	printf("Trend calculation for %d/%d elements took %dus, r2 took %dus.\n",
+		trendDup->count, trendDup->maxCount, a_diffus, b_diffus);
+#endif
 
 	char t[64];
 	time_t now = time(NULL);
 	sprintf(t, "%s", ctime(&now));
 	t[ strlen(t) - 1] = 0;
 
-	printf("PID 0x%04x - Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f @ %s\n",
+	printf("PID 0x%04x - Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f, r2 is %12.8f @ %s\n",
 		pid,
 		trendDup->name,
 		trendDup->count,
-		slope, deviation, t);
+		slope, deviation, r2, t);
 
 	kllineartrend_free(trendDup);
+}
+
+static void trendReportFree(struct tool_context_s *ctx)
+{
+	for (int i = 0; i <= 0x1fff; i++) {
+		if (ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend) {
+			kllineartrend_free(ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend);
+		}
+		if (ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend) {
+			kllineartrend_free(ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend);
+		}
+	}
 }
 
 static void trendReport(struct tool_context_s *ctx)
@@ -274,12 +303,20 @@ static void trendReport(struct tool_context_s *ctx)
 void *trend_report_thread(void *tool_context)
 {
     struct tool_context_s *ctx = tool_context;
-    printf("Dumping trend report startup\n");
+	pthread_detach(ctx->trendThreadId);
+
+	time_t next = time(NULL) + 15;
     while (ctx->enableTrendReport && gRunning) {
-        printf("Dumping trend report\n");
+		usleep(250 * 1000);
+		if (time(NULL) < next)
+			continue;
+
+        printf("Dumping trend report(s)\n");
         trendReport(ctx);
-        sleep(15);
+		next = time(NULL) + 15;
     }
+	ctx->trendThreadComplete = 1;
+
     return NULL;
 }
 
@@ -388,33 +425,24 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			/* allow the first few samples to flow through the model and be ignored.
 			 */
 #if 0
-					pthread_mutex_lock(&p->trend_pts.trendLock);
-                    kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.counter, d_pts_minus_scr_ticks);
-					pthread_mutex_unlock(&p->trend_pts.trendLock);
+			pthread_mutex_lock(&p->trend_pts.trendLock);
+			kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.counter, d_pts_minus_scr_ticks);
+			pthread_mutex_unlock(&p->trend_pts.trendLock);
 #else
-                    struct timeval t1;
-                    gettimeofday(&t1, NULL);
-                    double x, y;
+			struct timeval t1;
+			gettimeofday(&t1, NULL);
+			double x, y;
 
-                    x = t1.tv_sec + t1.tv_usec / 1000000.0;
-                    y = p->pes.PTS / 90000.0;
-                    if (p->trend_pts.first_x == 0)
-                        p->trend_pts.first_x = x;
-                    if (p->trend_pts.first_y == 0)
-                        p->trend_pts.first_y = y;
+			x = t1.tv_sec + t1.tv_usec / 1000000.0;
+			y = p->pes.PTS / 90000.0;
+			if (p->trend_pts.first_x == 0)
+				p->trend_pts.first_x = x;
+			if (p->trend_pts.first_y == 0)
+				p->trend_pts.first_y = y;
 
-					pthread_mutex_lock(&p->trend_pts.trendLock);
-                    kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, x - p->trend_pts.first_x, y - p->trend_pts.first_y);
-					pthread_mutex_unlock(&p->trend_pts.trendLock);
-//                    kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.inserted_counter, p->trend_pts.inserted_counter + 10000000);
-//                    if ((p->trend_pts.inserted_counter % 10) == 0)
-//                        kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, ctx->pids[ctx->scr_pid].scr, (p->pes.PTS * 300));
-#endif
-#if 0
-			if (ctx->enableTrendReport && (now >= p->trend_pts.last_clkToScrTicksDeltaTrendReport)) {
-				p->trend_pts.last_clkToScrTicksDeltaTrendReport = now + 15;
-				printTrend(ctx, pid, p->trend_pts.clkToScrTicksDeltaTrend);
-			}
+			pthread_mutex_lock(&p->trend_pts.trendLock);
+			kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, x - p->trend_pts.first_x, y - p->trend_pts.first_y);
+			pthread_mutex_unlock(&p->trend_pts.trendLock);
 #endif
 		}
 
@@ -518,14 +546,25 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		if (p->trend_dts.counter > 16) {
 			/* allow the first few samples to flow through the model and be ignored.
 			 */
+#if 0
 			pthread_mutex_lock(&p->trend_dts.trendLock);
 			kllineartrend_add(p->trend_dts.clkToScrTicksDeltaTrend, p->trend_dts.counter, d_dts_minus_scr_ticks);
 			pthread_mutex_unlock(&p->trend_dts.trendLock);
-#if 0
-			if (ctx->enableTrendReport && (now >= p->trend_dts.last_clkToScrTicksDeltaTrendReport)) {
-				p->trend_dts.last_clkToScrTicksDeltaTrendReport = now + 15;
-				printTrend(ctx, pid, p->trend_dts.clkToScrTicksDeltaTrend);
-			}
+#else
+			struct timeval t1;
+			gettimeofday(&t1, NULL);
+			double x, y;
+
+			x = t1.tv_sec + t1.tv_usec / 1000000.0;
+			y = p->pes.DTS / 90000.0;
+			if (p->trend_dts.first_x == 0)
+				p->trend_dts.first_x = x;
+			if (p->trend_dts.first_y == 0)
+				p->trend_dts.first_y = y;
+
+			pthread_mutex_lock(&p->trend_dts.trendLock);
+			kllineartrend_add(p->trend_dts.clkToScrTicksDeltaTrend, x - p->trend_dts.first_x, y - p->trend_dts.first_y);
+			pthread_mutex_unlock(&p->trend_dts.trendLock);
 #endif
 		}
 
@@ -734,10 +773,10 @@ static void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t f
 
 static int validateLinearTrend()
 {
-	//double vals[8] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0 };
-	//double vals[8] = { 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0 };
-	//double vals[8] = { 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08 };
-	double vals[8] = { 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0 };
+	//double vals[10] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 1.0, 1.0 }; /* rsq = 1, slope = 1 */
+	double vals[10] = { 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 1.0, 2.0 }; /* rsq = 1, slope = 2 */
+	//double vals[10] = { 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 1.0, 0.01 };
+	//double vals[10] = { 1.0, 0.0, 1.0, 0.2, 1.0, 0.4, 1.0, 0.6, 0.985348, -0.04761905 }; /// ?
 
 	struct kllineartrend_context_s *tc = kllineartrend_alloc(128, "linear trend test");
 
@@ -748,10 +787,19 @@ static int validateLinearTrend()
 
 	kllineartrend_printf(tc);
 
-	double slope, intersect, deviation;
+	double slope, intersect, deviation, r2;
 	kllineartrend_calculate(tc, &slope, &intersect, &deviation);
-	printf("Slope %17.8f Deviation is %12.2f\n", slope, deviation);
+	kllineartrend_calculate_r_squared(tc, slope, intersect, &r2);
 
+	printf("Slope %17.8f Deviation is %12.2f, r is %f\n", slope, deviation, r2);
+	if (r2 != vals[8]) {
+		printf("Rsquared calculation doesn't match excel\n");
+	}
+	if (slope != vals[9]) {
+		printf("slope calculation doesn't match excel\n");
+	}
+
+	kllineartrend_free(tc);
 
 	return -1;
 }
@@ -867,7 +915,8 @@ static void usage(const char *progname)
 	printf("  -L Enable printing of PTS to SCR linear trend report [def: no]\n");
 	printf("  -Y Enable printing of 'PES took x ms' walltime and tick delivery times within a stream [def: no]\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
-	printf("  -A <number> default trend size[ def: %d]\n", DEFAULT_TREND_SIZE);
+	printf("  -A <number> default trend size [def: %d]\n", DEFAULT_TREND_SIZE);
+	printf("      108000 is 1hr of 30fps, 216000 is 1hr of 60fps, 5184000 is 24hrs of 60fps\n");
 
 	printf("\n  Example UDP or RTP:\n");
 	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
@@ -877,9 +926,7 @@ int clock_inspector(int argc, char *argv[])
 {
 	int ch;
 
-	struct tool_context_s tctx, *ctx;
-	ctx = &tctx;
-	memset(ctx, 0, sizeof(*ctx));
+	struct tool_context_s *ctx = calloc(1, sizeof(*ctx));
 	ctx->doPacketStatistics = 1;
 	ctx->doSCRStatistics = 0;
 	ctx->doPESStatistics = 0;
@@ -957,6 +1004,10 @@ int clock_inspector(int argc, char *argv[])
 			stopSeconds = atoi(optarg);
 			break;
 		case 'X':
+			/* Keep valgrind happy */
+			ltntstools_pid_stats_free(ctx->libstats);
+			ctx->libstats = NULL;
+
 			if (atoi(optarg) == 1) {
 				return validateClockMath();
 			} else
@@ -999,8 +1050,7 @@ int clock_inspector(int argc, char *argv[])
 		progressReport = 0;
 	}
 
-        pthread_t trend_tid;
-        pthread_create(&trend_tid, NULL, trend_report_thread, ctx);
+	pthread_create(&ctx->trendThreadId, NULL, trend_report_thread, ctx);
 
 	/* TODO: Replace this with avio so we can support streams. */
 	avformat_network_init();
@@ -1079,6 +1129,9 @@ int clock_inspector(int argc, char *argv[])
 		}
 	}
 	avio_close(puc);
+	while (ctx->trendThreadComplete != 1) {
+		usleep(50 * 1000);
+	}
 
 	if (progressReport) {
 		fprintf(stderr, "\ndone\n");
@@ -1088,6 +1141,7 @@ int clock_inspector(int argc, char *argv[])
 	pidReport(ctx);
 	if (ctx->enableTrendReport) {
 		trendReport(ctx);
+		trendReportFree(ctx);
 	}
 
 	if (ctx->libstats) {
@@ -1104,5 +1158,7 @@ int clock_inspector(int argc, char *argv[])
 			}
 		}
 	}
+
+	free(ctx);
 	return 0;
 }

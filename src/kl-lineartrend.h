@@ -74,6 +74,8 @@ void kllineartrend_printf(struct kllineartrend_context_s *ctx);
 
 void kllineartrend_calculate(struct kllineartrend_context_s *ctx, double *slope, double *intercept, double *deviation);
 
+void kllineartrend_calculate_r_squared(struct kllineartrend_context_s *ctx, double slope, double intercept, double *r);
+
 /**
  * @brief	Release and de-allocate any memory resources associated with object.
  * @param[in]	struct kllineartrend_context_s *ctx - Object.
