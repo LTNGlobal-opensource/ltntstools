@@ -81,6 +81,9 @@ struct pid_s
 		time_t last_clkToScrTicksDeltaTrend;
 		time_t last_clkToScrTicksDeltaTrendReport; /* Recall whenever we've output a trend report */
 		double counter;
+		int inserted_counter;
+		double first_x;
+		double first_y;
 	} trend_pts, trend_dts;
 
 	int clk_pts_initialized;
@@ -252,6 +255,18 @@ static void trendReport(struct tool_context_s *ctx)
 	}
 }
 
+void *trend_report_thread(void *tool_context)
+{
+    struct tool_context_s *ctx = tool_context;
+    printf("Dumping trend report startup\n");
+    while (ctx->enableTrendReport && gRunning) {
+        printf("Dumping trend report\n");
+        trendReport(ctx);
+        sleep(15);
+    }
+    return NULL;
+}
+
 static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx, uint64_t filepos, struct timeval ts,
 	int64_t prior_pes_delivery_ticks,
 	int64_t prior_pes_delivery_us)
@@ -278,7 +293,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		/* Initialize the trend if needed */
 		if (p->trend_pts.clkToScrTicksDeltaTrend == NULL) {
 			char label[64];
-			sprintf(&label[0], "PTS 0x%04x to SCR tick delta", pid);
+			sprintf(&label[0], "PTS 0x%04x to Wallclock delta", pid);
 			p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(60 * 60 * 60, label);
 		}
 	}
@@ -350,15 +365,35 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		/* Update the PTS/SCR linear trends. */
 		p->trend_pts.last_clkToScrTicksDeltaTrend = now;
 		p->trend_pts.counter++;
+		p->trend_pts.inserted_counter++;
 		if (p->trend_pts.counter > 16) {
 			/* allow the first few samples to flow through the model and be ignored.
 			 */
-			kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.counter, d_pts_minus_scr_ticks);
+#if 0
+                    kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.counter, d_pts_minus_scr_ticks);
+#else
+                    struct timeval t1;
+                    gettimeofday(&t1, NULL);
+                    double x, y;
 
+                    x = t1.tv_sec + t1.tv_usec / 1000000.0;
+                    y = p->pes.PTS / 90000.0;
+                    if (p->trend_pts.first_x == 0)
+                        p->trend_pts.first_x = x;
+                    if (p->trend_pts.first_y == 0)
+                        p->trend_pts.first_y = y;
+
+                    kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, x - p->trend_pts.first_x, y - p->trend_pts.first_y);
+//                    kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, p->trend_pts.inserted_counter, p->trend_pts.inserted_counter + 10000000);
+//                    if ((p->trend_pts.inserted_counter % 10) == 0)
+//                        kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, ctx->pids[ctx->scr_pid].scr, (p->pes.PTS * 300));
+#endif
+#if 0
 			if (ctx->enableTrendReport && (now >= p->trend_pts.last_clkToScrTicksDeltaTrendReport)) {
 				p->trend_pts.last_clkToScrTicksDeltaTrendReport = now + 15;
 				printTrend(ctx, pid, p->trend_pts.clkToScrTicksDeltaTrend);
 			}
+#endif
 		}
 
 		if (d_pts_minus_scr_ticks < 0 && ctx->enableNonTimingConformantMessages) {
@@ -462,11 +497,12 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			/* allow the first few samples to flow through the model and be ignored.
 			 */
 			kllineartrend_add(p->trend_dts.clkToScrTicksDeltaTrend, p->trend_dts.counter, d_dts_minus_scr_ticks);
-
+#if 0
 			if (ctx->enableTrendReport && (now >= p->trend_dts.last_clkToScrTicksDeltaTrendReport)) {
 				p->trend_dts.last_clkToScrTicksDeltaTrendReport = now + 15;
 				printTrend(ctx, pid, p->trend_dts.clkToScrTicksDeltaTrend);
 			}
+#endif
 		}
 
 		if ((PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
@@ -929,6 +965,9 @@ int clock_inspector(int argc, char *argv[])
 	} else {
 		progressReport = 0;
 	}
+
+        pthread_t trend_tid;
+        pthread_create(&trend_tid, NULL, trend_report_thread, ctx);
 
 	/* TODO: Replace this with avio so we can support streams. */
 	avformat_network_init();
