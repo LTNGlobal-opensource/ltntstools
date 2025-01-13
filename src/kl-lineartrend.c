@@ -65,7 +65,7 @@ void kllineartrend_printf(struct kllineartrend_context_s *ctx)
 	for (int i = a; i < b; i++) {
 		int ptr = SANITIZE(ctx, i);
 		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
-		printf("%6d: %12.2f %12.2f\n", ptr, e->x, e->y);
+		printf("%6d: %12.8f %12.8f\n", ptr, e->x, e->y);
 	}
 }
 
