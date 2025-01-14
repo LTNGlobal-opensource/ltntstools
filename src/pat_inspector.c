@@ -36,7 +36,6 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 		}
 
 		if (gPATCount && !gDumpAll) {
-			printf("Aborting\n");
 			gRunning = 0;
 			break;
 		}
