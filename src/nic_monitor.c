@@ -1192,6 +1192,11 @@ static void *pcap_thread_func(void *p)
 
 		int ret = pcap_activate(ctx->descr);
 		if (ret != 0) {
+			if (ctx->monitor) {
+				endwin();
+			}
+
+			fprintf(stderr, "\n");
 			if (ret == PCAP_ERROR_PERM_DENIED) {
 				fprintf(stderr, "Error, permission denied.\n");
 			}
@@ -1201,6 +1206,7 @@ static void *pcap_thread_func(void *p)
 			fprintf(stderr, "Error, pcap_activate, %s\n", pcap_geterr(ctx->descr));
 			printf("\nAvailable interfaces:\n");
 			networkInterfaceList();
+			printf("\n");
 			exit(1);
 		}
 
