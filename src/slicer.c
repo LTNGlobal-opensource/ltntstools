@@ -375,6 +375,9 @@ static int _findFirstPCR(struct tool_context_s *ctx)
 		exit(1);
 	}
 
+	struct timeval nowtv;
+	gettimeofday(&nowtv, NULL);
+
 	/* Read up to 16MB of data from a file, in blen chunks,
 	 * feed the stream model and wait for it to complete.
 	 */
@@ -391,7 +394,7 @@ static int _findFirstPCR(struct tool_context_s *ctx)
 		/* Run the first 64MB through the model. */
 		scanLength -= rlen;
 
-		ltntstools_streammodel_write(streamModel, pkts, rlen / 188, &complete);
+		ltntstools_streammodel_write(streamModel, pkts, rlen / 188, &complete, &nowtv);
 		if (complete) {
 			struct ltntstools_pat_s *pat = NULL;
 			if (ltntstools_streammodel_query_model(streamModel, &pat) == 0) {

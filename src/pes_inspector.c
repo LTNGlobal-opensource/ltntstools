@@ -1048,7 +1048,7 @@ int pes_inspector(int argc, char *argv[])
 #endif
 
 	if (ltntstools_pes_extractor_alloc(&ctx->pe, ctx->pid, ctx->streamId,
-			(pes_extractor_callback)callback, ctx) < 0) {
+			(pes_extractor_callback)callback, ctx, (1024 * 1024), (2 * 1024 * 1024)) < 0) {
 		fprintf(stderr, "\nUnable to allocate pes_extractor object.\n\n");
 		exit(1);
 	}

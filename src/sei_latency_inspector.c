@@ -531,7 +531,7 @@ static void process_pcap_input(struct stream_s *src)
 {
 	//struct tool_ctx_s *ctx = src->ctx;
 
-	if (ltntstools_source_pcap_alloc(&src->src_pcap, src, &pcap_callbacks, src->iname, src->pcap_filter) < 0) {
+	if (ltntstools_source_pcap_alloc(&src->src_pcap, src, &pcap_callbacks, src->iname, src->pcap_filter, (1024 * 1024 * 4)) < 0) {
 		fprintf(stderr, "Failed to open source_pcap interface, check permissions (sudo) or syntax.\n");
 		return;
 	}
@@ -636,7 +636,7 @@ static int start_source(struct tool_ctx_s *ctx, int nr)
 	struct stream_s *src = &ctx->src[nr - 1];
 
 	/* PES Extractor for the first input stream */
-	if (ltntstools_pes_extractor_alloc(&src->pe, src->pid, src->streamId, (pes_extractor_callback)pe_callback, src) < 0) {
+	if (ltntstools_pes_extractor_alloc(&src->pe, src->pid, src->streamId, (pes_extractor_callback)pe_callback, src, (1024 * 1024), (1024 * 1024)) < 0) {
 		fprintf(stderr, "\nUnable to allocate src pes_extractor object.\n\n");
 		exit(1);
 	}

@@ -121,7 +121,9 @@ static void * sm_cb_raw(void *userContext, const uint8_t *pkts, int packetCount)
 		tool_srt_reopen(ctx);
 		return NULL;
 	} else {
-		ltn_histogram_interval_update(ctx->h);
+		struct timeval nowtv;
+		gettimeofday(&nowtv, NULL);
+		ltn_histogram_interval_update(ctx->h, &nowtv);
 	}
 
 	if (ctx->verbose >= 2) {

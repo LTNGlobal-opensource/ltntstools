@@ -184,7 +184,9 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 	}
 
 	if (ctx->sm && ctx->smcomplete == 0 && ctx->scte35PID == 0) {
-		ltntstools_streammodel_write(ctx->sm, &buf[0], byteCount / 188, &ctx->smcomplete);
+                struct timeval nowtv;
+                gettimeofday(&nowtv, NULL);
+		ltntstools_streammodel_write(ctx->sm, &buf[0], byteCount / 188, &ctx->smcomplete, &nowtv);
 
 		if (ctx->smcomplete) {
 			struct ltntstools_pat_s *pat = NULL;
@@ -195,22 +197,24 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 				 */
 				int e = 0;
 				struct ltntstools_pmt_s *pmt;
-				uint16_t scte35pid;
-				while (ltntstools_pat_enum_services_scte35(pat, &e, &pmt, &scte35pid) == 0) {
+				uint16_t *scte35pids;
+				int scte35pid_count = 0;
+				while (ltntstools_pat_enum_services_scte35(pat, &e, &pmt, &scte35pids, &scte35pid_count) == 0) {
+					if (scte35pid_count > 0) {
+						uint8_t estype;
+						uint16_t videopid;
+						if (ltntstools_pmt_query_video_pid(pmt, &videopid, &estype) < 0)
+							continue;
 
-					uint8_t estype;
-					uint16_t videopid;
-					if (ltntstools_pmt_query_video_pid(pmt, &videopid, &estype) < 0)
-						continue;
+						printf("DEBUG: Found program %5d, scte35 pid 0x%04x, video pid 0x%04x\n",
+							pmt->program_number,
+							scte35pids[0],
+							videopid);
 
-					printf("DEBUG: Found program %5d, scte35 pid 0x%04x, video pid 0x%04x\n",
-						pmt->program_number,
-						scte35pid,
-						videopid);
-
-					ctx->scte35PID = scte35pid;
-					ctx->videoPID = videopid;
-					break; /* TODO: We only support ehf first SCTE35 pid (SPTS) */
+						ctx->scte35PID = scte35pids[0];
+						ctx->videoPID = videopid;
+						break; /* TODO: We only support ehf first SCTE35 pid (SPTS) */
+					}
 				}
 
 				//ltntstools_pat_dprintf(pat, STDOUT_FILENO);
@@ -221,7 +225,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 
 	if (ctx->videoPID && ctx->pe == NULL) {
 		if (ltntstools_pes_extractor_alloc(&ctx->pe, ctx->videoPID, ctx->streamId,
-				(pes_extractor_callback)pe_callback, ctx) < 0) {
+				(pes_extractor_callback)pe_callback, ctx, (1024 * 1024), (1024 * 1024)) < 0) {
 			fprintf(stderr, "\nUnable to allocate pes_extractor object.\n\n");
 			exit(1);
 		}
@@ -304,7 +308,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 
 static void process_pcap_input(struct tool_ctx_s *ctx)
 {
-	if (ltntstools_source_pcap_alloc(&ctx->src_pcap, ctx, &pcap_callbacks, ctx->iname, ctx->pcap_filter) < 0) {
+	if (ltntstools_source_pcap_alloc(&ctx->src_pcap, ctx, &pcap_callbacks, ctx->iname, ctx->pcap_filter, (1024 * 1024 * 4)) < 0) {
 		fprintf(stderr, "Failed to open source_pcap interface, check permissions (sudo) or syntax.\n");
 		return;
 	}

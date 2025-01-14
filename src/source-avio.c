@@ -74,7 +74,9 @@ static void *avio_thread_func(void *p)
 			printf("\n");
 		}
 		if (ctx->callbacks.raw) {
-			ctx->callbacks.raw(ctx->userContext, buf + boffset, (blen - boffset) / 188);
+			struct timeval nowtv;
+			gettimeofday(&nowtv, NULL);
+			ctx->callbacks.raw(ctx->userContext, buf + boffset, (blen - boffset) / 188, &nowtv);
 		}
 	}
 	if (ctx->callbacks.status) {
