@@ -49,6 +49,19 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
+* Tue Jan 14 2024 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.34.1 - DEVELOPMENT
+  tstools_nic_monitor: slight console improvement when tool ran without privs
+  tstools_nic_monitor: small performace inprovement when we generate a json timestamp
+  tstools_nic_monitor: HTTP posting JSON improvements
+  tstools_nic_monitor: speedupdate the UI refresh and processing of keyboard commands
+  tstools_clock_inspector: Overhaul the -L linear trend code
+  tstools_clock_inspector: Add option -B to specific reporting interval in seconds
+  tstools_clock_inspector: cleanup report thread termination, add rsquared calculation, cleanup test vectors, bit of a patch bomb, various valgrind fixes
+  tstools_pat_inspector: Remove unwanted 'aborting' messages
+  tstools_slicer: Change how we search for PCRs from reverse to forward.
+  core: Massive set of performance improvements to most tools and underlying libary (chris.kennedy@ltnglobal.com)
+
 * Tue Dec  3 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.33.1
   tstools_clock_inspector: When reporting slope, print the number of entries in the trend and the PID (easier scripting).
