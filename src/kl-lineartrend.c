@@ -107,9 +107,9 @@ int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn)
 		return -1;
 	}
 
-	double slope, intersect, deviation, r;
+	double slope, intersect, deviation, r2;
 	kllineartrend_calculate(ctx, &slope, &intersect, &deviation);
-	kllineartrend_calculate_r_squared(ctx, slope, intersect, &r);
+	kllineartrend_calculate_r_squared(ctx, slope, intersect, &r2);
 
 	char t[64];
 	time_t now = time(NULL);
@@ -117,10 +117,10 @@ int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn)
 	t[ strlen(t) - 1] = 0;
 
 	dprintf(fd, "# Created %s\n", t);
-	dprintf(fd, "# Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f\n",
+	dprintf(fd, "# Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f, RSquared %18.8f\n",
 		ctx->name,
 		ctx->count,
-		slope, deviation);
+		slope, deviation, r2);
 
 	for (int i = a; i < b; i++) {
 		int ptr = SANITIZE(ctx, i);
