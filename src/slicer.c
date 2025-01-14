@@ -192,7 +192,7 @@ static void indexDumpEntry(struct tool_context_s *ctx, int id, struct ltntstools
 	pcr_to_videotime(p->pcr, &vt);
 
 	char *streamtime = videotime_to_str(&vt);
-	printf("%8d: 0x%04x %016" PRIx64 " %16" PRIi64 ", %s\n",
+	printf("id: %8d pid: 0x%04x offset: %016" PRIx64 " pcr: %16" PRIi64 ", %s\n",
 		id,
 		p->pid,
 		p->offset,
@@ -635,7 +635,19 @@ int slicer(int argc, char *argv[])
 
 	/* Find the PCR objects for these pcr timestamps */
 	struct ltntstools_pcr_position_s *s = indexLookupPCR(ctx, pcrStart);
+	if (!s) {
+		fprintf(stderr, "Unable to find start PCR for timestamp %s, aborting\n", ctx->opt_s);
+		exit(1);
+	}
+#if 1
+	struct ltntstools_pcr_position_s *e = indexLookupPCR(ctx, pcrEnd);
+#else
 	struct ltntstools_pcr_position_s *e = indexLookupPCRReverse(ctx, pcrEnd);
+#endif
+	if (!e) {
+		fprintf(stderr, "Unable to find end PCR for timestamp %s, aborting\n", ctx->opt_e);
+		exit(1);
+	}
 	indexDumpEntry(ctx, 0, s);
 	indexDumpEntry(ctx, 1, e);
 
