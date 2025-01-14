@@ -1,9 +1,11 @@
 /**
  * @file	kl-lineartrend.h
  * @author	Steven Toth <stoth@kernellabs.com>
- * @copyright	Copyright (c) 2020 Kernel Labs Inc. All Rights Reserved.
+ * @copyright	Copyright (c) 2020-2025 Kernel Labs Inc. All Rights Reserved.
  * The source for this lives in libklmonitoring. Make sure any local change patches
  * are pushed upstream.
+ * This isn't thread safe. For example, if you want to have thread#1 calling _add()
+ * and thread#2 calling _calculate(), use your own mutex to prevent conflict.
  */
 
 #ifndef KL_LINEARTREND_H
@@ -36,7 +38,6 @@ struct kllineartrend_context_s
 	uint32_t count;
 	uint32_t maxCount;
 	struct kllineartrend_item_s *list;
-
 };
 
 /**
@@ -52,7 +53,7 @@ struct kllineartrend_context_s *kllineartrend_alloc(uint32_t maxItems, const cha
 void kllineartrend_free(struct kllineartrend_context_s *ctx);
 
 /**
- * @brief	Duplicate entirely a preview context.
+ * @brief	Duplicate an existing context, entirely.
  * @param[in]	struct kllineartrend_context_s *ctx - Object.
  * @return   	Pointer on success, else NULL.
  */
@@ -68,13 +69,32 @@ void kllineartrend_add(struct kllineartrend_context_s *ctx, double x, double y);
 
 /**
  * @brief	Print the entire lineartrend to stdout.
- * @param[in]	struct kllineartrend_statistics_s *stats - Brief description goes here.
+ * @param[in]	struct kllineartrend_context_s *ctx - Brief description goes here.
  */
 void kllineartrend_printf(struct kllineartrend_context_s *ctx);
 
+/**
+ * @brief	Calculate the slope, intercept and deviation for the current dataset.
+ *          If the caller also wants a Rsquared evaluation, call that via kllineartrend_calculate_r_squared()
+ *          after calling this function.
+ * @param[in]	struct kllineartrend_context_s *ct - Object
+ * @param[in]	double * - slope
+ * @param[in]	double * - intercept
+ * @param[out]	double * - deviation
+ */
 void kllineartrend_calculate(struct kllineartrend_context_s *ctx, double *slope, double *intercept, double *deviation);
 
-void kllineartrend_calculate_r_squared(struct kllineartrend_context_s *ctx, double slope, double intercept, double *r);
+/**
+ * @brief	Calculate the R2 value for a current dataset and a previoudsly calculated slope and intercept.
+ *          Call kllineartrend_calculate() to acquire the slope and intercept before calling this function.
+ *          It's twice as expensive CPU wise to call this function compared to kllineartrend_calculate().
+ *          So, this function is optional.
+ * @param[in]	struct kllineartrend_context_s *ct - Object
+ * @param[in]	double - slope
+ * @param[in]	double - intercept
+ * @param[out]	double - r_squared result
+ */
+void kllineartrend_calculate_r_squared(struct kllineartrend_context_s *ctx, double slope, double intercept, double *r2);
 
 /**
  * @brief	Release and de-allocate any memory resources associated with object.
