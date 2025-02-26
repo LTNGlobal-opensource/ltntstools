@@ -60,7 +60,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: cleanup report thread termination, add rsquared calculation, cleanup test vectors, bit of a patch bomb, various valgrind fixes
   tstools_pat_inspector: Remove unwanted 'aborting' messages
   tstools_slicer: Change how we search for PCRs from reverse to forward.
+  tstools_scte35_inspector: Added support for MPTS streams, multiple SCTE35 pids and video streams.
+  tstools_scte35_inspector: Added support for -J json trigger output in either pretty or compressed formats.
+  tstools_bitrate_smoother: bitrate_smoother: segfault after recent patchset fixed
   core: Massive set of performance improvements to most tools and underlying libary (chris.kennedy@ltnglobal.com)
+  core: Updated version of libklscte35 as a depedency, most impacts scte35_inspector.
 
 * Tue Dec  3 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.33.1
