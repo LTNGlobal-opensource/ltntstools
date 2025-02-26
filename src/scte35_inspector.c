@@ -68,13 +68,13 @@ struct tool_ctx_s
 	struct input_pid_s *pidsOrdered[MAX_PIDS];
 };
 
-void dumpPid(struct tool_ctx_s *ctx, struct input_pid_s *p)
+static void dumpPid(struct tool_ctx_s *ctx, struct input_pid_s *p)
 {
 	printf("pid[0x%04x].pid = 0x%04x, pt = %d, videoPid = 0x%04x, pe = %p, se = %p\n",
 		p->pid, p->pid, p->payloadType, p->videoPid, p->pe, p->se);
 }
 
-void dumpPids(struct tool_ctx_s *ctx)
+static void dumpPids(struct tool_ctx_s *ctx)
 {
 	for (int i = 0; i < MAX_PIDS; i++) {
 		if (ctx->pids[i].enabled) {
@@ -129,7 +129,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 #define iphdr ip
 #endif
 
-void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr, const u_char *pkt)
+static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr, const u_char *pkt)
 {
 	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
 
@@ -188,12 +188,12 @@ void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr, const
 	return NULL;
 }
 
-struct ltntstools_source_pcap_callbacks_s pcap_callbacks = 
+static struct ltntstools_source_pcap_callbacks_s pcap_callbacks = 
 {
     .raw = (ltntstools_source_pcap_raw_callback)source_pcap_raw_cb,
 };
 
-void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
+static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 {
 	struct input_pid_s *ptr = (struct input_pid_s *)userContext;
 	struct tool_ctx_s *ctx = ptr->ctx;
