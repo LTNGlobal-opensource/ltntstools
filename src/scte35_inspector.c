@@ -370,8 +370,12 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 
 int scte35_inspector(int argc, char *argv[])
 {
-	struct tool_ctx_s s_ctx = { 0 };
-	struct tool_ctx_s *ctx = &s_ctx;
+	struct tool_ctx_s *ctx = calloc(1, sizeof(*ctx));
+	if (!ctx) {
+		fprintf(stderr, "Unable to allocate memory for application context, aborting.\n");
+		return -1;
+	}
+	
 	ctx->verbose = 1;
 	ctx->streamId = 0xe0; /* Default PES video stream ID */
 	ctx->mode = MODE_SOURCE_AVIO;
@@ -464,6 +468,8 @@ int scte35_inspector(int argc, char *argv[])
 		free(ctx->iname);
 	}
 	
+	free(ctx);
+
 	return 0;
 }
 
