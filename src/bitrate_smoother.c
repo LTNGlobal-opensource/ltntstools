@@ -449,7 +449,9 @@ static void *thread_packet_rx(void *p)
 		packet_cb(ctx, &buf[boffset], rlen - boffset);
 
 		if (ctx->isRTP == 0 && ctx->smoother) {
-			smoother_pcr_write(ctx->smoother, buf, rlen, NULL);
+			struct timeval now;
+			gettimeofday(&now, NULL);
+			smoother_pcr_write(ctx->smoother, buf, rlen, &now);
 		}
 		if (ctx->isRTP == 1 && ctx->smoother) {
 
