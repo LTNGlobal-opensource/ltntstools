@@ -26,7 +26,6 @@ extern int langdict_sort_dict(enum langdict_type_e langtype);
 
 enum pid_type_e {
 	PT_UNKNOWN = 0,
-	PT_SCTE35,
 	PT_OP47,
 	PT_VIDEO,
 };
