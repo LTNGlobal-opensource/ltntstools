@@ -230,12 +230,28 @@ static void resetDictionaries(struct langdict_context_s *ctx)
         e->total_failed_lookups  = 0;
         e->total_success_lookups = 0;
         e->total_found_words = 0;
+        e->time_last_found = 0;
+        e->time_last_search = 0;
         e++;
     }
 }
 
+static int compare_strings(const void *a, const void *b)
+{
+    const char *str1 = *(const char **)a;
+    const char *str2 = *(const char **)b;
+    return strcmp(str1, str2);
+}
+
 int langdict_alloc(void **handle)
 {
+    /* Sort all the dictionaries, ensure alphabetical order */
+    int i = 0;
+    while (local_dicts[i].langtype != LANG_UNDEFINED) {
+        qsort(local_dicts[i].dict, *local_dicts[i].dict_length, sizeof(const char *), compare_strings);
+        i++;
+    }
+
     struct langdict_context_s *ctx = (struct langdict_context_s *)calloc(1, sizeof(*ctx));
     if (!ctx) {
         return -ENOMEM;
@@ -454,23 +470,19 @@ static void arrayify_dict(struct langdict_item_s *di)
     printf("\n");
 }
 
-static int compare_strings(const void *a, const void *b)
-{
-    const char *str1 = *(const char **)a;
-    const char *str2 = *(const char **)b;
-    return strcmp(str1, str2);
-}
-
-/* Private method I use to help prep the dictionaries */
+/* Private method I use to help prep the dictionary source code */
 int langdict_sort_dict(enum langdict_type_e langtype)
 {
     int i = 0;
-    while (local_dicts[i].langtype != LANG_UNDEFINED) {
-        if (local_dicts[i].langtype == langtype) {
-            qsort(local_dicts[i].dict, *local_dicts[i].dict_length, sizeof(const char *), compare_strings);
-            arrayify_dict(&local_dicts[i]);
+    struct langdict_item_s *di = &local_dicts[i];
+
+    while (di->langtype != LANG_UNDEFINED) {
+        if (di->langtype == langtype) {
+            qsort(di->dict, *di->dict_length, sizeof(const char *), compare_strings);
+            arrayify_dict(di);
             break;
         }
+        di++;
     }
 
     return 0;
