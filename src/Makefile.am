@@ -8,7 +8,7 @@ AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_O
 	-I../../ffmpeg/libavcodec \
 	-I../../ffmpeg
 
-LDADD = -lpthread -lz -lm -lltntstools -lklvanc
+LDADD = -lpthread -lz -lm -lltntstools -lklvanc -lzvbi
 
 if LINUX
   LDADD += -lrt
@@ -92,6 +92,8 @@ SRC += ntt_inspector.cpp
 endif
 SRC += sei_latency_inspector.c
 SRC += kl-lineartrend.c
+SRC += caption_analyzer.c
+SRC += langdict.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -123,6 +125,7 @@ if NTT
 LINKBINS += tstools_ntt_inspector
 endif
 LINKBINS += tstools_sei_latency_inspector
+LINKBINS += tstools_caption_analyzer
 
 tstools_util_SOURCES = $(SRC)
 
@@ -136,6 +139,7 @@ noinst_HEADERS += utils.h
 noinst_HEADERS += hash_index.h
 noinst_HEADERS += source-avio.h
 noinst_HEADERS += kl-lineartrend.h
+noinst_HEADERS += langdict.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)
