@@ -39,6 +39,7 @@ struct input_pid_s
 	uint16_t pid;                  /* Max 0x1fff */
 	uint16_t streamId;             /* Pes Extractor StreamID 0xC0, 0xE0 etc */
 	uint16_t ttx_page;             /* Teletext subtitle page, typically 888 */
+	char ttx_lang[4];              /* Eg. eng */
 	uint16_t programNumber;        /* MPEGTS stream program number */
 
 	void *pe;                      /* PesExtractor Context */
@@ -186,12 +187,18 @@ static void analyze_text(struct tool_ctx_s *ctx, struct input_pid_s *p, char *di
 	/* TODO: Pull the stats from the dicts in a seperate thread and manage stats reporting properly. */
 	/* TODO: Print the program and pid number */
 
-	printf("# %s program %d pid 0x%04x (%d) - %s\n",
+	printf("# %s program %d pid 0x%04x (%d) - %s",
 		ctx->isMPTS ? "MPTS" : "SPTS",
 		p->programNumber,
 		p->pid, p->pid,
 		p->payloadType == PT_OP47 ? "Teletext/WST/OP47" :
 		p->payloadType == PT_VIDEO ? "CEA-608/708" : "Undefined");
+
+	if (p->payloadType == PT_OP47) {
+		printf(" - page %d lang '%s'\n", p->ttx_page, p->ttx_lang);
+	} else {
+		printf("\n");
+	}
 
 	printf("lang   found    missing  processed   accuracy   last processed            last word                 frame Err    idle secs\n");
 	int i = 0;
@@ -276,7 +283,7 @@ static void ttx_event_handler(vbi_event *ev, void *user_data)
     }
 }
 
-static void setPidType(struct tool_ctx_s *ctx, uint16_t pid, enum pid_type_e pt, uint16_t programNumber)
+static struct input_pid_s *setPidType(struct tool_ctx_s *ctx, uint16_t pid, enum pid_type_e pt, uint16_t programNumber)
 {
 	struct input_pid_s *p = &ctx->pids[pid];
 
@@ -285,7 +292,7 @@ static void setPidType(struct tool_ctx_s *ctx, uint16_t pid, enum pid_type_e pt,
 	p->pid = pid;
 	p->ctx = ctx;
 	p->streamId = 0xc0;
-	p->ttx_page = 888; /* TODO: hardcoded */
+	p->ttx_page = 888; /* Hardcoded. If detected in PSIP, get overwritten. */
 	p->programNumber = programNumber;
 
 	if (pt == PT_VIDEO) {
@@ -331,6 +338,8 @@ static void setPidType(struct tool_ctx_s *ctx, uint16_t pid, enum pid_type_e pt,
 			break;
 		}
 	}
+
+	return p;
 }
 
 static int countPidsByPayloadType(struct tool_ctx_s *ctx, enum pid_type_e pt)
@@ -689,12 +698,46 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 						struct ltntstools_pmt_entry_s *se = &pmt->streams[i];
 
 						if (ltntstools_descriptor_list_contains_teletext(&se->descr_list)) {
-							setPidType(ctx, se->elementary_PID, PT_OP47, pmt->program_number);
+							struct input_pid_s *newpid = setPidType(ctx, se->elementary_PID, PT_OP47, pmt->program_number);
 
 							printf("Found %s program %d teletext/op47/wst pid 0x%04x (%d)\n",
 								ctx->isMPTS ? "MPTS" : "SPTS",
 								pmt->program_number,
 								se->elementary_PID, se->elementary_PID);
+
+							/* Find the teletext descriptor and the lang and page number */
+							for (int j = 0; j < se->descr_list.count; j++) {
+								struct ltntstools_descriptor_entry_s *de = &se->descr_list.array[j];
+								if (de->tag == 0x56) {
+									int pos = 0;
+									for (int k = 0; k < (de->len / 5); k++) {
+										/* extract only the first langage and page */
+										newpid->ttx_lang[0] = de->data[pos + 0];
+										newpid->ttx_lang[1] = de->data[pos + 1];
+										newpid->ttx_lang[2] = de->data[pos + 2];
+										newpid->ttx_lang[3] = 0;
+
+										int type = de->data[pos + 3] >> 3;
+										int mag = de->data[pos + 3] & 0x7;
+										int page = de->data[pos + 4];
+
+										if (mag == 0) {
+											mag = 8;
+										}
+										char pn[7];
+										sprintf(pn, "%d%x", mag, page);
+
+										printf("Found pid 0x%04x (%d) teletext lang '%s' @ page %d, type %d (%s)\n",
+											se->elementary_PID, se->elementary_PID,
+											newpid->ttx_lang, newpid->ttx_page, type,
+											type == 2 ? "teletext subtitle page" : "other");
+
+										if (type == 2 /* teletext subtitle page */) {
+											newpid->ttx_page = atoi(pn);
+										}
+									}
+								}
+							}
 						}
 					}
 				}
