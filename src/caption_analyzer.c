@@ -186,10 +186,13 @@ static void analyze_text(struct tool_ctx_s *ctx, struct input_pid_s *p, char *di
 	/* TODO: Pull the stats from the dicts in a seperate thread and manage stats reporting properly. */
 	/* TODO: Print the program and pid number */
 
-	printf("# %s program %d pid 0x%04x (%d)\n",
+	printf("# %s program %d pid 0x%04x (%d) - %s\n",
 		ctx->isMPTS ? "MPTS" : "SPTS",
 		p->programNumber,
-		p->pid, p->pid);
+		p->pid, p->pid,
+		p->payloadType == PT_OP47 ? "Teletext/WST/OP47" :
+		p->payloadType == PT_VIDEO ? "CEA-608/708" : "Undefined");
+
 	printf("lang   found    missing  processed   accuracy   last processed            last word                 frame Err    idle secs\n");
 	int i = 0;
 	while (langs[i] != LANG_UNDEFINED) {
