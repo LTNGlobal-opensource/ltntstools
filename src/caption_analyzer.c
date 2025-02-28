@@ -411,8 +411,15 @@ static int pe_callback_video(struct tool_ctx_s *ctx, struct input_pid_s *ptr, st
 
 			if (e->nalType == 0x6 /* SEI */ &&
 				e->ptr[4] == 0x04 /* SEI PAYLOAD_TYPE == USER_DATA_REGISTERED_ITU_T_T35 */ &&
-				e->ptr[13] == 0x03)
+				e->ptr[13] == 0x03 /* Document this */)
 			{
+				/* These should be captions, do more checks */
+				if (e->ptr[9] != 'G' || e->ptr[10] != 'A' || e->ptr[11] != '9' || e->ptr[12] != '4') {
+					fprintf(stderr, "CEA608 PES has incorrect signature, extected GA94, found %02x %02x %02x %02x, skipping\n",
+						e->ptr[9], e->ptr[10], e->ptr[11], e->ptr[12]);
+					continue;
+				}
+
 				ltn_nal_h264_strip_emulation_prevention(e);
 
 				//int process_cc_data_flag = (e->ptr[14] > 6) & 1;
