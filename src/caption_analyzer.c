@@ -614,8 +614,8 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 static void usage(const char *progname)
 {
-	printf("A tool to parse CEA608/708 captions from SPTS/MPTS SEI nals, and extract OP47/WST/Subtitles from PES frames.\n");
-	printf("Extract captions from both formats, run them through dictionaries and do language detection and word counts.\n");
+	printf("A tool to parse CEA608/708 captions and OP47/teletext subtitles from MPEG-TS SPTS/MPTS streams.\n");
+	printf("Extract captions from both formats, dictionary check them, do language detection and word counts.\n");
 	printf("Usage:\n");
 	printf("  -i <url | nicname>   Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n");
     printf("                           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
