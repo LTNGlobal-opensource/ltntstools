@@ -1,5 +1,3 @@
-/* Copyright LiveTimeNet, Inc. 2025. All Rights Reserved. */
-
 /**
  * @file        langdict.h
  * @author      Steven Toth <steven.toth@ltnglobal.com>
