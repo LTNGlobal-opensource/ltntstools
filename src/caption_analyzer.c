@@ -156,7 +156,7 @@ static void page_export(vbi_page *pg, int start_row, int last_row, char *dst)
 		for (int column = 0; column < pg->columns; ++column) {
 			int c = cp[column].unicode;
 			if (c < 0x20 || c > 0x7E) {
-					c = '.';
+					c = ' ';
 			}
 
 			*(dst + i++) = c;
