@@ -36,7 +36,12 @@ struct langdict_stats_s {
     float    accuracypct;      /* (found / processed) * 100 */
 };
 
-int langdict_alloc(void **handle, enum langdict_type_e langtype);
+/**
+ * @brief       Allocate a new context, it's threadsafe.
+ * @param[out]  void **handle - Newly created context.
+ * @return      0 - Success, else < 0 on error.
+ */
+int langdict_alloc(void **handle);
 void langdict_free(void *handle);
 
 int langdict_parse(void *handle, char *display, int lengthBytes);

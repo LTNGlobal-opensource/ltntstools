@@ -278,7 +278,7 @@ static void setPidType(struct tool_ctx_s *ctx, uint16_t pid, enum pid_type_e pt,
 	/* Allocate a dictionary, pick a default language, doesnt actually matter
 	 * what language is chosen. All languages are processed.
 	 */
-	if (langdict_alloc(&p->langdict_ctx, LANG_ENGLISH) < 0) {
+	if (langdict_alloc(&p->langdict_ctx) < 0) {
 		fprintf(stderr, "Unable to allocate language dictionaries, aborting.\n");
 		exit(1);
 	}

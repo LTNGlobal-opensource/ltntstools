@@ -229,7 +229,7 @@ static void resetDictionaries(struct langdict_context_s *ctx)
     }
 }
 
-int langdict_alloc(void **handle, enum langdict_type_e langtype)
+int langdict_alloc(void **handle)
 {
     struct langdict_context_s *ctx = (struct langdict_context_s *)calloc(1, sizeof(*ctx));
     if (!ctx) {
