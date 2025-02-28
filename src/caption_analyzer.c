@@ -48,6 +48,8 @@ struct input_pid_s
 	char *display;                 /* Buffer to contact decoded caption/subtitle ASCII */
 
 	void *langdict_ctx;            /* Dictionary context */
+
+	uint64_t syntaxError;          /* Count of number of syntax errors we're detecting for this stream */
 };
 
 struct tool_ctx_s
@@ -181,8 +183,9 @@ static void analyze_text(struct tool_ctx_s *ctx, struct input_pid_s *p, char *di
 
 	/* TODO: Figure out what to do with these stats */
 	/* TODO: Pull the stats from the dicts in a seperate thread and manage stats reporting properly. */
-
-	printf("lang   found    missing  processed   accuracy   last processed            last word\n");
+	/* TODO: Print the program and pid number */
+	
+	printf("lang   found    missing  processed   accuracy   last processed            last word                 frame Err    idle secs\n");
 	int i = 0;
 	while (langs[i] != LANG_UNDEFINED) {
 		struct langdict_stats_s s;
@@ -196,8 +199,17 @@ static void analyze_text(struct tool_ctx_s *ctx, struct input_pid_s *p, char *di
 			sprintf(b, "%s", ctime(&s.time_last_found));
 			b[ strlen(b) - 1] = 0;
 
-			printf("%4s %7ld    %7ld    %7ld     %5.0f%%   %s  %s\n",
-				langname[i], s.found, s.missing, s.processed, s.accuracypct, a, b);
+			int idlesecs = -1;
+			char secs[16] = "-";
+			if (s.time_last_search && s.time_last_found) {
+				idlesecs = s.time_last_search - s.time_last_found;
+				sprintf(secs, "%12d", idlesecs);
+			}
+
+			printf("%4s %7ld    %7ld    %7ld     %5.0f%%   %24s  %24s   %8" PRIu64 " %12s\n",
+				langname[i], s.found, s.missing, s.processed, s.accuracypct,
+				a, b, p->syntaxError,
+				secs);
 		}
 		i++;
 	}	
@@ -411,10 +423,24 @@ static int pe_callback_video(struct tool_ctx_s *ctx, struct input_pid_s *ptr, st
 
 			if (e->nalType == 0x6 /* SEI */ &&
 				e->ptr[4] == 0x04 /* SEI PAYLOAD_TYPE == USER_DATA_REGISTERED_ITU_T_T35 */ &&
-				e->ptr[13] == 0x03 /* Document this */)
+				e->ptr[13] == 0x03 /* usercode: CEA-608 Captions */)
 			{
+				if (e->ptr[6] != 0xb5 /* United States */) {
+					ptr->syntaxError++;
+					fprintf(stderr, "CEA608 PES has incorrect country_code 0x%02x, expected 0x0b5, skipping\n",
+						e->ptr[6]);
+					continue;
+				}
+
+				if (e->ptr[7] != 0x00 || e->ptr[8] != 0x31 /* Provide_code - ATSC complicant */) {
+					ptr->syntaxError++;
+					fprintf(stderr, "CEA608 PES has incorrect provider_code 0x%02x 0x%02x, expected 0x00 0x31, skipping\n",
+						e->ptr[7], e->ptr[8]);
+					continue;
+				}
 				/* These should be captions, do more checks */
 				if (e->ptr[9] != 'G' || e->ptr[10] != 'A' || e->ptr[11] != '9' || e->ptr[12] != '4') {
+					ptr->syntaxError++;
 					fprintf(stderr, "CEA608 PES has incorrect signature, extected GA94, found %02x %02x %02x %02x, skipping\n",
 						e->ptr[9], e->ptr[10], e->ptr[11], e->ptr[12]);
 					continue;
@@ -432,6 +458,7 @@ static int pe_callback_video(struct tool_ctx_s *ctx, struct input_pid_s *ptr, st
 				case 2:
 					break;
 				default:	
+					ptr->syntaxError++;
 					fprintf(stderr, "CEA608 PES cc_count invalid %d, wanted 1, 2, 10 or 20, skipping\n", cc_count);
 					continue;
 				}
@@ -449,6 +476,7 @@ static int pe_callback_video(struct tool_ctx_s *ctx, struct input_pid_s *ptr, st
 				for (int i = 0; i < cc_count; i++) {
 					if (e->ptr[s + 0] == 0xfc || e->ptr[s + 0] == 0xfd) {
 						if (sliced_count >= 2) {
+							ptr->syntaxError++;
 							fprintf(stderr, "CEA608 PES contains more than 2 slices, skipping\n");
 							break;
 						}
@@ -479,6 +507,7 @@ static int pe_callback_teletext(struct tool_ctx_s *ctx, struct input_pid_s *ptr,
 {
 	/* EN300472 v1.2.2 for field packing */
 	if (pes->PES_header_data_length != 0x24) {
+		ptr->syntaxError++;
 		fprintf(stderr, "PES has incorrect PES_header_data_length size field, wanted %d got %d, skipping\n",
 			0x24, pes->PES_header_data_length);
 		return -EINVAL;
@@ -488,6 +517,7 @@ static int pe_callback_teletext(struct tool_ctx_s *ctx, struct input_pid_s *ptr,
 	unsigned char *p = &pes->data[i];
 	unsigned char *e = &pes->data[pes->dataLengthBytes];
 	if (*(p++) != 0x10) {
+		ptr->syntaxError++;
 		fprintf(stderr, "PES has incorrect data_identifier field, wanted 0x%x got 0x%x, skipping\n", 0x10, *p);
 		return -EINVAL;
 	}
@@ -503,11 +533,13 @@ static int pe_callback_teletext(struct tool_ctx_s *ctx, struct input_pid_s *ptr,
 			continue;
 		}
 		if (data_unit_id != 0x3) { /* EBU Teletext Subtitle Data */
+			ptr->syntaxError++;
 			fprintf(stderr, "%d: PES has incorrect data_unit_id field, wanted 0x%x got 0x%x, skipping\n",
 				c, 3, data_unit_id);
 			break;
 		}
 		if (data_unit_length != 0x2c) {
+			ptr->syntaxError++;
 			fprintf(stderr, "%d: PES has incorrect data_unit_length field, wanted 0x%x got 0x%x, skipping\n",
 				c, 0x2c, data_unit_length);
 			break;
