@@ -341,7 +341,7 @@ time_t langdict_stats_time_last_word(void *handle, enum langdict_type_e langtype
 }
 
 int langdict_parse_dict(struct langdict_context_s *ctx, struct langdict_item_s *di,
-    char *dstr, int lengthBytes, time_t now)
+    const char *dstr, int lengthBytes, time_t now)
 {
     di->time_last_search = now;
 
@@ -390,7 +390,7 @@ int langdict_parse_dict(struct langdict_context_s *ctx, struct langdict_item_s *
     return 0;
 }
 
-int langdict_parse(void *handle, char *display, int lengthBytes)
+int langdict_parse(void *handle, const char *display, int lengthBytes)
 {
     if (!handle || !display || lengthBytes < 1) {
         return -EINVAL;
