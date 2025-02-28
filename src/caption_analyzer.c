@@ -425,33 +425,44 @@ static int pe_callback_video(struct tool_ctx_s *ctx, struct input_pid_s *ptr, st
 				//int process_cc_data_flag = (e->ptr[14] > 6) & 1;
 				//int zerobit = (e->ptr[14] > 5) & 1;
 				int cc_count = e->ptr[14] & 0x1f;
+				switch (cc_count) {
+				case 10:
+				case 20:
+				case 1:
+				case 2:
+					break;
+				default:	
+					fprintf(stderr, "CEA608 PES cc_count invalid %d, wanted 1, 2, 10 or 20, skipping\n", cc_count);
+					continue;
+				}
 
 				vbi_sliced sliced_frame[2];
 		
-				/* Tupples start at position 16 */
+				/* Tupples start at position 16.
+				 * Genenerally speaking, you should have one fd tupple and one fc tupple per cc_count set.
+				 * Certain equipment puts then anywayere in the set, not just in the first position, so look
+				 * for them across the entire set. Importantly, the majority of the tupples will be throw away
+				 * and up to 2 of them used for CC decoding.
+				 */
 				int sliced_count = 0;
 				int s = 16;
 				for (int i = 0; i < cc_count; i++) {
-					if (e->ptr[s + 0] == 0xfc) {
-						sliced_frame[sliced_count].id = VBI_SLICED_CAPTION_525_F1;
-						sliced_frame[sliced_count].line = 21;
+					if (e->ptr[s + 0] == 0xfc || e->ptr[s + 0] == 0xfd) {
+						if (sliced_count >= 2) {
+							fprintf(stderr, "CEA608 PES contains more than 2 slices, skipping\n");
+							break;
+						}
+						sliced_frame[sliced_count].id      = e->ptr[s + 0] == 0xfc ? VBI_SLICED_CAPTION_525_F1 : VBI_SLICED_CAPTION_525_F2;
+						sliced_frame[sliced_count].line    = e->ptr[s + 0] == 0xfc ? 21 : 284;
 						sliced_frame[sliced_count].data[0] = e->ptr[s + 1];
 						sliced_frame[sliced_count].data[1] = e->ptr[s + 2];
 						sliced_count++;
-						s += 3;
-					} else
-					if (e->ptr[s + 0] == 0xfd) {
-						sliced_frame[sliced_count].id = VBI_SLICED_CAPTION_525_F2;
-						sliced_frame[sliced_count].line = 284;
-						sliced_frame[sliced_count].data[0] = e->ptr[s + 1];
-						sliced_frame[sliced_count].data[1] = e->ptr[s + 2];
-						sliced_count++;
-						s += 3;
 					}
+					s += 3;
 				}
 
 				/* Feed the unit to the decoder */
-				if (sliced_count > 0) {
+				if (sliced_count <= 2) {
 					vbi_decode(ptr->decoder, sliced_frame, sliced_count, 0);
 				}
 			} /* if SEI */
