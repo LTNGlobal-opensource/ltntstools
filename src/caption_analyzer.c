@@ -184,7 +184,7 @@ static void analyze_text(struct tool_ctx_s *ctx, struct input_pid_s *p, char *di
 	/* TODO: Figure out what to do with these stats */
 	/* TODO: Pull the stats from the dicts in a seperate thread and manage stats reporting properly. */
 	/* TODO: Print the program and pid number */
-	
+
 	printf("lang   found    missing  processed   accuracy   last processed            last word                 frame Err    idle secs\n");
 	int i = 0;
 	while (langs[i] != LANG_UNDEFINED) {
@@ -666,33 +666,34 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 
 					setPidType(ctx, videopid, PT_VIDEO, pmt->program_number);
 
-					printf("Found %s video pid 0x%04x (%d)\n",
+					printf("Found %s program %d video pid 0x%04x (%d)\n",
 						ltntstools_streammodel_is_model_mpts(ctx->sm, pat) ? "MPTS" : "SPTS",
+						pmt->program_number,
 						videopid, videopid);
 
 				}
 
-				/* Process any OP47 / Teletext pids */
-				uint16_t *pids;
-				int pid_count = 0;
+				/* Walk all the services, process any OP47 / Teletext pids */
+				e = 0;
+				while (ltntstools_pat_enum_services_teletext(pat, &e, &pmt) == 0) {
+					for (int i = 0; i < pmt->stream_count; i++) {
+						struct ltntstools_pmt_entry_s *se = &pmt->streams[i];
 
-				if (ltntstools_pat_get_services_teletext(pat, &pids, &pid_count) == 0) {
-					for (int i = 0; i < pid_count; i++) {
-						setPidType(ctx, pids[i], PT_OP47, 0);
+						if (ltntstools_descriptor_list_contains_teletext(&se->descr_list)) {
+							setPidType(ctx, se->elementary_PID, PT_OP47, pmt->program_number);
 
-						printf("Found %s teletext/op47/wst pid 0x%04x (%d)\n",
-							ltntstools_streammodel_is_model_mpts(ctx->sm, pat) ? "MPTS" : "SPTS",
-							pids[i], pids[i]);
+							printf("Found %s program %d teletext/op47/wst pid 0x%04x (%d)\n",
+								ltntstools_streammodel_is_model_mpts(ctx->sm, pat) ? "MPTS" : "SPTS",
+								pmt->program_number,
+								se->elementary_PID, se->elementary_PID);
+						}
 					}
-				} else {
-					printf("No teletext service found...\n");
 				}
 
 				if (ctx->verbose > 1) {
 					ltntstools_pat_dprintf(pat, STDOUT_FILENO);
 				}
 
-				free(pids);
 				ltntstools_pat_free(pat);
 			}
 		}
