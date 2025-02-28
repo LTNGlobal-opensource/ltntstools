@@ -64,6 +64,7 @@ struct tool_ctx_s
 
 	void *sm;                  /* StreamModel Context */
 	int smcomplete;            /* Is the streamModel complete and ready for access? Bool. */
+	int isMPTS;                /* Bool */
 
 #define MODE_SOURCE_AVIO 0
 #define MODE_SOURCE_PCAP 1
@@ -185,6 +186,10 @@ static void analyze_text(struct tool_ctx_s *ctx, struct input_pid_s *p, char *di
 	/* TODO: Pull the stats from the dicts in a seperate thread and manage stats reporting properly. */
 	/* TODO: Print the program and pid number */
 
+	printf("# %s program %d pid 0x%04x (%d)\n",
+		ctx->isMPTS ? "MPTS" : "SPTS",
+		p->programNumber,
+		p->pid, p->pid);
 	printf("lang   found    missing  processed   accuracy   last processed            last word                 frame Err    idle secs\n");
 	int i = 0;
 	while (langs[i] != LANG_UNDEFINED) {
@@ -658,6 +663,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 				int e = 0;
 				struct ltntstools_pmt_s *pmt;
 				uint16_t videopid = 0;
+				ctx->isMPTS = ltntstools_streammodel_is_model_mpts(ctx->sm, pat);
 
 				while (ltntstools_pat_enum_services_video(pat, &e, &pmt) == 0) {
 
@@ -667,7 +673,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 					setPidType(ctx, videopid, PT_VIDEO, pmt->program_number);
 
 					printf("Found %s program %d video pid 0x%04x (%d)\n",
-						ltntstools_streammodel_is_model_mpts(ctx->sm, pat) ? "MPTS" : "SPTS",
+						ctx->isMPTS ? "MPTS" : "SPTS",
 						pmt->program_number,
 						videopid, videopid);
 
@@ -683,7 +689,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 							setPidType(ctx, se->elementary_PID, PT_OP47, pmt->program_number);
 
 							printf("Found %s program %d teletext/op47/wst pid 0x%04x (%d)\n",
-								ltntstools_streammodel_is_model_mpts(ctx->sm, pat) ? "MPTS" : "SPTS",
+								ctx->isMPTS ? "MPTS" : "SPTS",
 								pmt->program_number,
 								se->elementary_PID, se->elementary_PID);
 						}
