@@ -22,6 +22,7 @@
 #define TELETEXT_DISPLAYSIZE 8192
 
 char *strcasestr(const char *haystack, const char *needle);
+extern int langdict_sort_dict(enum langdict_type_e langtype);
 
 enum pid_type_e {
 	PT_UNKNOWN = 0,
@@ -757,13 +758,16 @@ int caption_analyzer(int argc, char *argv[])
 	ctx->mode = MODE_SOURCE_AVIO;
 
 	int ch, pid;
-	while ((ch = getopt(argc, argv, "?hvi:F:P:V:")) != -1) {
+	while ((ch = getopt(argc, argv, "@:?hvi:F:P:V:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
 			usage(argv[0]);
 			exit(1);
 			break;
+		case '@':
+			langdict_sort_dict(atoi(optarg));
+			exit(1);
 		case 'i':
 			ctx->iname = strdup(optarg);
 			break;

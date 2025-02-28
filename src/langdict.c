@@ -30,27 +30,32 @@ struct langdict_context_s
     struct langdict_item_s *dicts;
 };
 
-/* Most used top english words */
+/* Most used top english words, sorted alphabetically */
 static unsigned int dict_eng_length = 200;
 static char *dict_eng[] = {
-    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", "aren't", "as", 
-    "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "can't", "cannot", "could", 
-    "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", "don't", "down", "during", "each", "few", "for", "from", 
-    "further", "had", "hadn't", "has", "hasn't", "have", "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here", 
-    "here's", "hers", "herself", "him", "himself", "his", "how", "how's", "howsoever", "i", "i'd", "i'll", "i'm", "i've", "i", 
-    "if", "if not", "in", "into", "is", "isn't", "isn't", "it", "it'd", "it'll", "it's", "its", "itself", "let", "let's", "me", 
-    "mine", "more", "moreover", "most", "most", "my", "myself", "need", "needn't", "not", "no", "nor", "of", "off", "on", "once", 
-    "only", "or", "other", "ought", "oughtn't", "our", "ours", "ourselves", "out", "over", "own", "same", "she", "she'd", "she'll", 
-    "she's", "should", "shouldn't", "so", "so", "some", "somebody", "someone", "such", "than", "that", "that'd", "that'll", "that's", 
-    "that", "that'd", "that'll", "there", "there'd", "there's", "therefore", "these", "they", "they'd", "they'll", "they're", "they've", 
-    "this", "this", "this's", "those", "through", "to", "together", "too", "under", "until", "up", "very", "was", "wasn't", "we", "we'd", 
-    "we'll", "we're", "we've", "what", "what's", "whatsoever", "which", "which's", "who", "who's", "whom", "whomever", "whoever", "why", 
-    "why's", "why ever", "with", "without", "would", "wouldn't", "you", "you'd", "you'll", "you're", "you've", "your", "yours", "yourself", 
-    "yourselves", "yet", "you know", "your", "all", "is", "know", "we", "love", "good", "happy", "thing", "family", "home", "time", 
-    "year", "place", "take", "work", "number", "man", "thing", "place", "children", "beautiful", "new", "happy", "life", "down"
+    "a", "about", "above", "after", "again", "against", "all", "all", "am", "an", 
+    "and", "any", "are", "aren't", "aren't", "as", "at", "be", "because", "been", 
+    "before", "being", "below", "between", "both", "but", "by", "can't", "cannot", "could", 
+    "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", "don't", "down", "during", 
+    "each", "few", "for", "from", "further", "good", "had", "hadn't", "has", "hasn't", 
+    "have", "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here", "here's", 
+    "hers", "herself", "him", "himself", "his", "how", "how's", "howsoever", "i", "i", 
+    "i'd", "i'll", "i'm", "i've", "if", "if not", "in", "into", "is", "is", 
+    "isn't", "isn't", "it", "it'd", "it'll", "it's", "its", "itself", "know", "let", 
+    "let's", "love", "me", "mine", "more", "moreover", "most", "most", "my", "myself", 
+    "need", "needn't", "no", "nor", "not", "of", "off", "on", "once", "only", 
+    "or", "other", "ought", "oughtn't", "our", "ours", "ourselves", "out", "over", "own", 
+    "same", "she", "she'd", "she'll", "she's", "should", "shouldn't", "so", "so", "some", 
+    "somebody", "someone", "such", "than", "that", "that", "that'd", "that'd", "that'll", "that'll", 
+    "that's", "there", "there'd", "there's", "therefore", "these", "they", "they'd", "they'll", "they're", 
+    "they've", "this", "this", "this's", "those", "through", "to", "together", "too", "under", 
+    "until", "up", "very", "was", "wasn't", "we", "we", "we'd", "we'll", "we're", 
+    "we've", "what", "what's", "whatsoever", "which", "which's", "who", "who's", "whoever", "whom", 
+    "whomever", "why", "why ever", "why's", "with", "without", "would", "wouldn't", "yet", "you", 
+    "you know", "you'd", "you'll", "you're", "you've", "your", "your", "yours", "yourself", "yourselves",
 };
 
-/* Most used top spanish words */
+/* Most used top spanish words, sorted alphabetically */
 static unsigned int dict_spa_length = 200;
 static char *dict_spa[] = {
     "a", "aquí", "ahí", "al", "algo", "alguien", "algún", "allí", "ambos", "ante", 
@@ -79,7 +84,7 @@ static char *dict_spa[] = {
     "vosotros", "voy", "ya", "yo"
 };
     
-/* Most used top german words */
+/* Most used top german words, sorted alphabetically */
 static unsigned int dict_ger_length = 200;
 static char *dict_ger[] = {
     "aber", "ab", "alle", "alles", "als", "also", "am", "an", "andere", "andern", 
@@ -114,7 +119,7 @@ static char *dict_ger[] = {
     "würden", "zahlen", "zeit", "zu", "zufrieden", "zum", "zur", "zusammen"
 };
 
-/* Most used top italian words */
+/* Most used top italian words, sorted alphabetically */
 static unsigned int dict_ita_length = 200;
 static char *dict_ita[] = {
     "a", "abbiamo", "ad", "agli", "ai", "al", "alla", "alle", "allo", "anche", 
@@ -141,7 +146,7 @@ static char *dict_ita[] = {
     "va", "vanno", "vedere", "vedo", "verso", "via", "vi", "voi", "volta", "volte"
 };
 
-/* Most used top french words */
+/* Most used top french words, sorted alphabetically */
 static unsigned int dict_fra_length = 200;
 static char *dict_fra[] = {
     "à", "afin", "ai", "aie", "aient", "ainsi", "alla", "allait", "allant", 
@@ -437,4 +442,36 @@ int langdict_get_stats(void *handle, enum langdict_type_e langtype, struct langd
     }
 
     return 0; /* success */
+}
+
+static void arrayify_dict(struct langdict_item_s *di)
+{
+    for (int i = 0; i < *di->dict_length; i++) {
+        printf("\"%s\", ", di->dict[i]);
+        if (i % 10 == 9)
+            printf("\n");
+    }
+    printf("\n");
+}
+
+static int compare_strings(const void *a, const void *b)
+{
+    const char *str1 = *(const char **)a;
+    const char *str2 = *(const char **)b;
+    return strcmp(str1, str2);
+}
+
+/* Private method I use to help prep the dictionaries */
+int langdict_sort_dict(enum langdict_type_e langtype)
+{
+    int i = 0;
+    while (local_dicts[i].langtype != LANG_UNDEFINED) {
+        if (local_dicts[i].langtype == langtype) {
+            qsort(local_dicts[i].dict, *local_dicts[i].dict_length, sizeof(const char *), compare_strings);
+            arrayify_dict(&local_dicts[i]);
+            break;
+        }
+    }
+
+    return 0;
 }
