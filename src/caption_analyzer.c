@@ -1,83 +1,6 @@
 /* Copyright LiveTimeNet, Inc. 2025. All Rights Reserved. */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <math.h>
-#include <inttypes.h>
-#include <string.h>
-#include <assert.h>
-#include <signal.h>
-
-#include <libltntstools/ltntstools.h>
-#include <libklscte35/scte35.h>
-#include "ffmpeg-includes.h"
-#include "source-avio.h"
-
-#include "libzvbi.h"
-#include "langdict.h"
-
-#define TELETEXT_DISPLAYSIZE 8192
-
-char *strcasestr(const char *haystack, const char *needle);
-extern int langdict_sort_dict(enum langdict_type_e langtype);
-
-enum pid_type_e {
-	PT_UNKNOWN = 0,
-	PT_OP47,
-	PT_VIDEO,
-};
-
-struct input_pid_s
-{
-	struct tool_ctx_s *ctx;
-
-	int enabled;                   /* Pid active. Boolean */
-	enum pid_type_e payloadType;   /* PT_OP47, PT_VIDEO etc */
-	uint16_t pid;                  /* Max 0x1fff */
-	uint16_t streamId;             /* Pes Extractor StreamID 0xC0, 0xE0 etc */
-	uint16_t ttx_page;             /* Teletext subtitle page, typically 888 */
-	char ttx_lang[4];              /* Eg. eng */
-	uint16_t programNumber;        /* MPEGTS stream program number */
-
-	void *pe;                      /* PesExtractor Context */
-
-	vbi_decoder *decoder;          /* zvbi decoder */
-	vbi_page page;                 /* zvbi decoder */
-	char *display;                 /* Buffer to contact decoded caption/subtitle ASCII */
-
-	void *langdict_ctx;            /* Dictionary context */
-
-	uint64_t syntaxError;          /* Count of number of syntax errors we're detecting for this stream */
-};
-
-struct tool_ctx_s
-{
-	int verbose;
-
-	void *src_pcap;            /* Source-pcap context */
-	char *iname;
-	char *pcap_filter;
-
-	uint64_t callbackCounter;
-
-	void *sm;                  /* StreamModel Context */
-	int smcomplete;            /* Is the streamModel complete and ready for access? Bool. */
-	int isMPTS;                /* Bool */
-
-#define MODE_SOURCE_AVIO 0
-#define MODE_SOURCE_PCAP 1
-	int mode;                  /* AVIO or PCAP */
-	int isRTP;                 /* Bool */
-
-#define MAX_PIDS 0x2000
-	struct input_pid_s pids[MAX_PIDS];
-
-	int totalOrderedPids;     /* Number of active pids in the ordered list */
-	struct input_pid_s *pidsOrdered[MAX_PIDS];
-};
+#include "caption_analyzer_public.h"
 
 static void dumpPid(struct tool_ctx_s *ctx, struct input_pid_s *p)
 {
@@ -203,26 +126,26 @@ static void analyze_text(struct tool_ctx_s *ctx, struct input_pid_s *p, char *di
 	printf("lang   found    missing  processed   accuracy   last processed            last word                 frame Err    idle secs\n");
 	int i = 0;
 	while (langs[i] != LANG_UNDEFINED) {
-		struct langdict_stats_s s;
-		if (langdict_get_stats(p->langdict_ctx, langs[i], &s) == 0) {
+		struct langdict_stats_s *s = &p->stats[i];
+		if (langdict_get_stats(p->langdict_ctx, langs[i], s) == 0) {
 
 			char a[256];
-			sprintf(a, "%s", ctime(&s.time_last_search));
+			sprintf(a, "%s", ctime(&s->time_last_search));
 			a[ strlen(a) - 1] = 0;
 
 			char b[256];
-			sprintf(b, "%s", ctime(&s.time_last_found));
+			sprintf(b, "%s", ctime(&s->time_last_found));
 			b[ strlen(b) - 1] = 0;
 
 			int idlesecs = -1;
 			char secs[16] = "-";
-			if (s.time_last_search && s.time_last_found) {
-				idlesecs = s.time_last_search - s.time_last_found;
+			if (s->time_last_search && s->time_last_found) {
+				idlesecs = s->time_last_search - s->time_last_found;
 				sprintf(secs, "%12d", idlesecs);
 			}
 
 			printf("%4s %7ld    %7ld    %7ld     %5.0f%%   %24s  %24s   %8" PRIu64 " %12s\n",
-				langname[i], s.found, s.missing, s.processed, s.accuracypct,
+				langname[i], s->found, s->missing, s->processed, s->accuracypct,
 				a, b, p->syntaxError,
 				secs);
 		}
@@ -622,6 +545,7 @@ static void usage(const char *progname)
 	printf("                       Eg: eno2    (Also see -F)\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
+	printf("  -S port number for http prometheus exporter. [def: %d (disabled)]\n", PROMETHEUS_EXPORTER_PORT);
 	printf("  -P 0xnnnn PID containing the Teletext/OP47 messages (Optional)\n");
 	printf("  -V 0xnnnn PID containing the video stream (Optional)\n");
 	printf("  -F exact pcap filter. Eg 'host 227.1.20.80 && udp port 4001'\n");
@@ -796,6 +720,7 @@ static void process_pcap_input(struct tool_ctx_s *ctx)
 
 	while (gRunning) {
 		usleep(50 * 1000);
+		caption_analyzer_metrics_service(&ctx->prom_ctx);
 	}
 
 	ltntstools_source_pcap_free(ctx->src_pcap);
@@ -844,6 +769,7 @@ static void process_avio_input(struct tool_ctx_s *ctx)
 
 	while (gRunning) {
 		usleep(50 * 1000);
+		caption_analyzer_metrics_service(&ctx->prom_ctx);
 	}
 
 	ltntstools_source_avio_free(srcctx);
@@ -858,9 +784,11 @@ int caption_analyzer(int argc, char *argv[])
 	}
 	ctx->verbose = 0;
 	ctx->mode = MODE_SOURCE_AVIO;
+	ctx->prom_ctx.inputPort = PROMETHEUS_EXPORTER_PORT;
+	ctx->prom_ctx.serverfd = -1;
 
 	int ch, pid;
-	while ((ch = getopt(argc, argv, "@:?hvi:F:P:V:")) != -1) {
+	while ((ch = getopt(argc, argv, "@:?hvi:F:P:V:S:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -883,6 +811,17 @@ int caption_analyzer(int argc, char *argv[])
 				exit(1);
 			}
 			setPidType(ctx, pid, PT_OP47, 0);
+			break;
+		case 'S':
+			ctx->prom_ctx.inputPort = atoi(optarg);
+			if (ctx->prom_ctx.inputPort < 0) {
+				fprintf(stderr, "Invalid port number %d, need 1025 or higher, aborting.\n", ctx->prom_ctx.inputPort);
+				exit(1);
+			}
+			if (ctx->prom_ctx.inputPort > 0 && ctx->prom_ctx.inputPort < 1024) {
+				fprintf(stderr, "Invalid port number %d, need 1025 or higher, aborting.\n", ctx->prom_ctx.inputPort);
+				exit(1);
+			}
 			break;
 		case 'v':
 			ctx->verbose++;
@@ -912,6 +851,11 @@ int caption_analyzer(int argc, char *argv[])
 		exit(1);
 	}
 
+	if (caption_analyzer_metrics_alloc(&ctx->prom_ctx) < 0) {
+		fprintf(stderr, "Unable to establish prometheus port %d, aborting\n", ctx->prom_ctx.inputPort);
+		exit(1);
+	}
+
 	signal(SIGINT, signal_handler);
 
 	/* Main processing loop */
@@ -923,6 +867,8 @@ int caption_analyzer(int argc, char *argv[])
 		printf("Mode: PCAP\n");
 		process_pcap_input(ctx);
 	}
+
+	caption_analyzer_metrics_free(&ctx->prom_ctx);
 
 	/* Tear down the application */
 	for (int i = 0; i < MAX_PIDS; i++) {
@@ -941,6 +887,8 @@ int caption_analyzer(int argc, char *argv[])
 		ltntstools_streammodel_free(ctx->sm);
 	if (ctx->iname)
 		free(ctx->iname);
+
+
 	free(ctx);
 
 	return 0;

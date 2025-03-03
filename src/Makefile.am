@@ -93,6 +93,7 @@ endif
 SRC += sei_latency_inspector.c
 SRC += kl-lineartrend.c
 SRC += caption_analyzer.c
+SRC += caption_analyzer_metrics.c
 SRC += langdict.c
 
 bin_PROGRAMS  = tstools_util
@@ -140,6 +141,7 @@ noinst_HEADERS += hash_index.h
 noinst_HEADERS += source-avio.h
 noinst_HEADERS += kl-lineartrend.h
 noinst_HEADERS += langdict.h
+noinst_HEADERS += caption_analyzer_public.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)
