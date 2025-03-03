@@ -30,6 +30,20 @@ struct langdict_context_s
     struct langdict_item_s *dicts;
 };
 
+static const char *langdict_names[] = {
+    "???",
+    "eng",
+    "spa",
+    "ger",
+    "ita",
+    "fra"
+};
+
+const char *langdict_3letter_name(enum langdict_type_e langtype)
+{
+    return langdict_names[langtype];
+}
+
 /* Most used top english words, sorted alphabetically */
 static unsigned int dict_eng_length = 200;
 static char *dict_eng[] = {

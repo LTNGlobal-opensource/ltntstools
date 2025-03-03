@@ -27,6 +27,9 @@ enum langdict_type_e {
     LANG_GERMAN,
     LANG_ITALIAN,
     LANG_FRENCH,
+
+    /* */
+    LANG_MAX_DEFINED,
 };
 
 /**
@@ -80,6 +83,8 @@ void langdict_stats_reset(void *handle);
  * @return      0 - Success, else < 0 on error.
  */
 int langdict_get_stats(void *handle, enum langdict_type_e langtype, struct langdict_stats_s *stats);
+
+const char *langdict_3letter_name(enum langdict_type_e langtype);
 
 #ifdef __cplusplus
 };
