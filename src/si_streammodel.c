@@ -88,18 +88,6 @@ int si_streammodel(int argc, char *argv[])
 		exit(1);
 	}
 
-#if 0
-	/* Fast and efficient */
-	struct ltntstools_pat_s *pat;
-	if (ltntstools_streammodel_alloc_from_url(iname, &pat) < 0) {
-		fprintf(stderr, "Error parsing stream, no model found.\n");
-	}
-
-	ltntstools_pat_dprintf(pat, STDOUT_FILENO);
-	ltntstools_pat_free(pat);
-	return 0;
-#else
-
 	/* With more granular control. */
 	if (ltntstools_streammodel_alloc(&g_sm, NULL) < 0) {
 		fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
@@ -131,7 +119,6 @@ int si_streammodel(int argc, char *argv[])
 //	ltntstools_streammodel_dprintf(g_sm, STDOUT_FILENO);
 
 	ltntstools_streammodel_free(g_sm);
-#endif
 
 	return 0;
 }
