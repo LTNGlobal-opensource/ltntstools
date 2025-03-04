@@ -19,7 +19,7 @@ static void ordered_clock_insert(struct xorg_list *list, struct ordered_clock_it
 	if (!e) {
 		return;
 	}
-	
+
 	memcpy(e, src, sizeof(*src));
 
 	if (xorg_list_is_empty(list)) {
@@ -72,20 +72,6 @@ static void ordered_clock_dump(struct xorg_list *list, unsigned short pid)
 }
 
 /* End: Ordered PTS handling */
-
-static void pidReport(struct tool_context_s *ctx)
-{
-	double total = ctx->ts_total_packets;
-	for (int i = 0; i <= 0x1fff; i++) {
-		if (ctx->pids[i].pkt_count) {
-			printf("pid: 0x%04x pkts: %12" PRIu64 " discontinuities: %12" PRIu64 " using: %7.1f%%\n",
-				i,
-				ctx->pids[i].pkt_count,
-				ctx->pids[i].cc_errors,
-				((double)ctx->pids[i].pkt_count / total) * 100.0);
-		}
-	}
-}
 
 static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllineartrend_context_s *trend, pthread_mutex_t *mutex)
 {

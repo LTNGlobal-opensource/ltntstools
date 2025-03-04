@@ -142,6 +142,7 @@ struct tool_context_s
 };
 
 void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
+void pidReport(struct tool_context_s *ctx);
 
 void kernel_check_socket_sizes(AVIOContext *i);
 int validateClockMath();

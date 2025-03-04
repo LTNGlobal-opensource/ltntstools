@@ -49,3 +49,17 @@ void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filep
 	ctx->pids[pid].cc = cc;
 }
 
+void pidReport(struct tool_context_s *ctx)
+{
+	double total = ctx->ts_total_packets;
+	for (int i = 0; i <= 0x1fff; i++) {
+		if (ctx->pids[i].pkt_count) {
+			printf("pid: 0x%04x pkts: %12" PRIu64 " discontinuities: %12" PRIu64 " using: %7.1f%%\n",
+				i,
+				ctx->pids[i].pkt_count,
+				ctx->pids[i].cc_errors,
+				((double)ctx->pids[i].pkt_count / total) * 100.0);
+		}
+	}
+}
+
