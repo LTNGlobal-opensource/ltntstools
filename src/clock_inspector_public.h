@@ -121,7 +121,8 @@ struct tool_context_s
 	time_t current_stream_time;
 	int64_t maxAllowablePTSDTSDrift;
 //	uint32_t pid;
-	struct pid_s pids[8192];
+#define MAX_PIDS 8192
+	struct pid_s pids[MAX_PIDS];
 	pthread_t trendThreadId;
 	int trendThreadComplete;
 
