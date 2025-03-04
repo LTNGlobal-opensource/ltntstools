@@ -161,4 +161,4 @@ void trendReport(struct tool_context_s *ctx);
 void trendReportFree(struct tool_context_s *ctx);
 void ordered_clock_dump(struct xorg_list *list, unsigned short pid);
 
-#endif /* #define CLOCK_INSPECTOR_PUBLIC_H */
+#endif /* CLOCK_INSPECTOR_PUBLIC_H */
