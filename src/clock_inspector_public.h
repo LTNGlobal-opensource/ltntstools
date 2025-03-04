@@ -141,6 +141,8 @@ struct tool_context_s
 	struct ltntstools_stream_statistics_s *libstats;
 };
 
+extern int gRunning;
+
 void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
 void pidReport(struct tool_context_s *ctx);
 
@@ -148,5 +150,15 @@ void kernel_check_socket_sizes(AVIOContext *i);
 int validateClockMath();
 int validateLinearTrend();
 void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
+
+void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
+ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid, struct tool_context_s *ctx, uint64_t filepos, struct timeval ts,
+	int64_t prior_pes_delivery_ticks,
+	int64_t prior_pes_delivery_us);
+
+void *trend_report_thread(void *tool_context);
+void trendReport(struct tool_context_s *ctx);
+void trendReportFree(struct tool_context_s *ctx);
+void ordered_clock_dump(struct xorg_list *list, unsigned short pid);
 
 #endif /* #define CLOCK_INSPECTOR_PUBLIC_H */
