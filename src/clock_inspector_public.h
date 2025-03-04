@@ -141,4 +141,6 @@ struct tool_context_s
 	struct ltntstools_stream_statistics_s *libstats;
 };
 
+void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
+
 #endif /* #define CLOCK_INSPECTOR_PUBLIC_H */

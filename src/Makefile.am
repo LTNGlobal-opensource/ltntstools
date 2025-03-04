@@ -56,6 +56,7 @@ SRC += base64.c
 SRC += si_inspector.c
 SRC += pcap2ts.c
 SRC += clock_inspector.c
+SRC += clock_inspector_ts.c
 SRC += pid_drop.c
 SRC += nic_monitor.c
 SRC += nic_monitor_di.c
@@ -142,6 +143,7 @@ noinst_HEADERS += source-avio.h
 noinst_HEADERS += kl-lineartrend.h
 noinst_HEADERS += langdict.h
 noinst_HEADERS += caption_analyzer_public.h
+noinst_HEADERS += clock_inspector_public.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)
