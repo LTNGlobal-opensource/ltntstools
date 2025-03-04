@@ -143,4 +143,8 @@ struct tool_context_s
 
 void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
 
+void kernel_check_socket_sizes(AVIOContext *i);
+int validateClockMath();
+int validateLinearTrend();
+
 #endif /* #define CLOCK_INSPECTOR_PUBLIC_H */

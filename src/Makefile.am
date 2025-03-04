@@ -57,6 +57,7 @@ SRC += si_inspector.c
 SRC += pcap2ts.c
 SRC += clock_inspector.c
 SRC += clock_inspector_ts.c
+SRC += clock_inspector_misc.c
 SRC += pid_drop.c
 SRC += nic_monitor.c
 SRC += nic_monitor_di.c
