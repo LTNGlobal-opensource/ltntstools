@@ -16,6 +16,10 @@ static void ordered_clock_init(struct xorg_list *list)
 static void ordered_clock_insert(struct xorg_list *list, struct ordered_clock_item_s *src)
 {
 	struct ordered_clock_item_s *e = calloc(1, sizeof(*e));
+	if (!e) {
+		return;
+	}
+	
 	memcpy(e, src, sizeof(*src));
 
 	if (xorg_list_is_empty(list)) {
