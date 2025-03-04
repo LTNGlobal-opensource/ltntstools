@@ -23,8 +23,8 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 {
 	int complete = 0;
 
-        struct timeval nowtv;
-        gettimeofday(&nowtv, NULL);
+    struct timeval nowtv;
+    gettimeofday(&nowtv, NULL);
 	ltntstools_streammodel_write(g_sm, pkts, packetCount, &complete, &nowtv);
 
 	if (complete) {
