@@ -65,6 +65,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_scte35_inspector: Added support for -J json trigger output in either pretty or compressed formats.
   tstools_bitrate_smoother: bitrate_smoother: segfault after recent patchset fixed
   tstools_caption_analyzer: first versioon of a tool to query teletext/cea608 captions, detect language and count word usage
+  tstools_si_streammodel: Streammodel: significant CPU performance improvements
   core: Massive set of performance improvements to most tools and underlying libary (chris.kennedy@ltnglobal.com)
   core: Updated version of libklscte35 as a depedency, most impacts scte35_inspector.
 
