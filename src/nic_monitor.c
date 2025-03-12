@@ -406,8 +406,10 @@ static void *ui_thread_func(void *p)
 				for (int i = 0; i < MAX_PID; i++) {
 					if (di->stats->pids[i].enabled) {
 						streamCount++;
+						uint64_t oof_count = ltntstools_pid_stats_stream_get_reorder_errors(di->stats);
 						if (i == 0) {
 							mvprintw(streamCount + 2, 0, " -> PID Report");
+							mvprintw(streamCount + 3, 0, "    Pkt Order Errors (POE) %" PRIu64, oof_count);
 						}
 
 						mvprintw(streamCount + 2, 37, "0x%04x (%4d) %7.2f %'17" PRIu64 " %12" PRIu64 "\n",
