@@ -222,11 +222,6 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 		struct timeval nowtv;
 		gettimeofday(&nowtv, NULL);
 
-		if (di->streamModel &&
-			((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))) {
-			int complete;
-			ltntstools_streammodel_write(di->streamModel, pkts, pktCount, &complete, &nowtv);
-		}
 #if 1
 		/* Measure IAT in terms of the following additional bins 10ms and 100ms */
 		/* Work thorugh the hires list, calculate the max IAT for each period and maintain a high-watermark */
@@ -344,6 +339,14 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 
 	time_t now;
 	time(&now);
+	struct timeval nowtv;
+	gettimeofday(&nowtv, NULL);
+
+	if (di->streamModel &&
+		((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))) {
+		int complete;
+		ltntstools_streammodel_write(di->streamModel, pkts, pktCount, &complete, &nowtv);
+	}
 
 	/* Expire any interval averages every few seconds, ro avoid queue growth and memory loss over time. */
 
