@@ -52,10 +52,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 %changelog
 * Tue Jan 14 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.34.1 - DEVELOPMENT
-  tstools_nic_monitor: slight console improvement when tool ran without privs
-  tstools_nic_monitor: small performace inprovement when we generate a json timestamp
+  tstools_nic_monitor: Slight console improvement when accidently tool ran without sudo privs
+  tstools_nic_monitor: Small performace inprovement when we generate a json timestamp
   tstools_nic_monitor: HTTP posting JSON improvements
-  tstools_nic_monitor: speedupdate the UI refresh and processing of keyboard commands
+  tstools_nic_monitor: Speedup the UI refresh and processing of keyboard commands
   tstools_nic_monitor: When terminating the application, don't linger in any pcap callbacks.
   tstools_nic_monitor: Move slightly expensive streammodel_write calls into the deferred worker.
   tstools_nic_monitor: (Experimental) Support for reporting 'Out of Order UDP frames' in PID report.
