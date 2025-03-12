@@ -56,6 +56,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: small performace inprovement when we generate a json timestamp
   tstools_nic_monitor: HTTP posting JSON improvements
   tstools_nic_monitor: speedupdate the UI refresh and processing of keyboard commands
+  tstools_nic_monitor: When terminating the application, don't linger in any pcap callbacks.
+  tstools_nic_monitor: Move slightly expensive streammodel_write calls into the deferred worker.
   tstools_clock_inspector: Overhaul the -L linear trend code
   tstools_clock_inspector: Add option -B to specific reporting interval in seconds
   tstools_clock_inspector: cleanup report thread termination, add rsquared calculation, cleanup test vectors, bit of a patch bomb, various valgrind fixes
