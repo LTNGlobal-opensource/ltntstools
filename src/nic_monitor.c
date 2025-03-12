@@ -1058,6 +1058,9 @@ static void *stats_thread_func(void *p)
 
 static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_char *pkt) 
 {
+	if (!gRunning)
+		return;
+
 	pcap_update_statistics(ctx, h, pkt); /* Update the stream stats realtime to avoid queue jitter */
 	pcap_queue_push(ctx, h, pkt); /* Push the packet onto a deferred queue for late IO processing. */
 }
