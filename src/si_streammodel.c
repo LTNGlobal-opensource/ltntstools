@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <assert.h>
+#include <signal.h>
 
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
@@ -18,6 +19,11 @@ static int g_running = 1;
 static int gVerbose = 0;
 static int gDumpAll = 0;
 static void *g_sm = NULL;
+
+static void signal_handler(int signum)
+{
+	g_running = 0;
+}
 
 static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
 {
@@ -104,6 +110,7 @@ int si_streammodel(int argc, char *argv[])
 		return 1;
 	}
 
+	signal(SIGINT, signal_handler);
 	while (g_running) {
 		usleep(50 * 1000);
 	}
