@@ -69,8 +69,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_bitrate_smoother: bitrate_smoother: segfault after recent patchset fixed
   tstools_caption_analyzer: first versioon of a tool to query teletext/cea608 captions, detect language and count word usage
   tstools_si_streammodel: Streammodel: significant CPU performance improvements
+  tstools_si_streammodel: si_streammodel: Add a signal handler so valgrind sees a clean termination during leak checks
   core: Massive set of performance improvements to most tools and underlying libary (chris.kennedy@ltnglobal.com)
   core: Updated version of libklscte35 as a depedency, most impacts scte35_inspector.
+  core: Streammodel improvements for lowering cpu load.
+  core: Experimental - support for Statics and packet out of order detection.
 
 * Tue Dec  3 2024 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.33.1
