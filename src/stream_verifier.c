@@ -218,6 +218,7 @@ int stream_verifier(int argc, char *argv[])
 
 		int t = ctx->totalSeconds;
 
+		int64_t initialSmootherDepth = 0;
 		while (t-- > 0) { /* Per second */
 			int x = pcrsPerSecond;
 			while (x-- > 0) {
@@ -247,12 +248,17 @@ int stream_verifier(int argc, char *argv[])
 					ltststools_reframer_write(ctx->reframer, pkt, sizeof(pkt));
 				}
 			}
-			/* Sleep for a while, otherwise we generate 30 seconds of content in a ms or two,
-			 * and we just exhaust the smoother buffers, let's just sleep for something close to
-			 * a second, plus allow some time for all of the computation above.
-			 * Approximate is ok.
-			 */
-			usleep(900 * 1000);
+			/* 1 seconds worth of content was generated */
+			
+			/* Assess the queue depth */
+			if (initialSmootherDepth == 0) {
+				initialSmootherDepth = smoother_pcr_get_size(ctx->smoother);	
+			}
+
+			/* Wait until the smoother has flushed 50% of its queue */
+			while (smoother_pcr_get_size(ctx->smoother) > (initialSmootherDepth / 2)) {
+				usleep(5 * 1000);
+			}
 
 		}
 		smoother_pcr_free(ctx->smoother);
