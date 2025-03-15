@@ -101,7 +101,9 @@ static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
 
 	ctx->bitsTransmitted += (lengthBytes * 8);
 
-	smoother_pcr_write(ctx->smoother, buf, lengthBytes, NULL);
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	smoother_pcr_write(ctx->smoother, buf, lengthBytes, &now);
 
 	return NULL;
 }
