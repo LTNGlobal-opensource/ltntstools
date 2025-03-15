@@ -50,6 +50,8 @@
 
 #define DEFAULT_STORAGE_LOCATION "/storage/packet_captures"
 
+#define MEASURE_PCAP_CALLBACK_PERFORMANCE 0
+
 enum payload_type_e {
 	PAYLOAD_UNDEFINED = 0,
 	PAYLOAD_UDP_TS,

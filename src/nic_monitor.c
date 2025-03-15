@@ -1057,14 +1057,42 @@ static void *stats_thread_func(void *p)
 	return 0;
 }
 
+#if MEASURE_PCAP_CALLBACK_PERFORMANCE
+int pcap_cb_intervals_reset = 0;
+struct ltn_histogram_s *pcap_cb_intervals[2] = { NULL, NULL };
+#endif
 
 static void pcap_callback(u_char *args, const struct pcap_pkthdr *h, const u_char *pkt) 
 {
 	if (!gRunning)
 		return;
 
+#if MEASURE_PCAP_CALLBACK_PERFORMANCE
+		if (pcap_cb_intervals[0] == NULL) {
+		ltn_histogram_alloc_video_defaults(&pcap_cb_intervals[0], "PCAP Callback Processing1");
+		ltn_histogram_alloc_video_defaults(&pcap_cb_intervals[1], "PCAP Callback Processing2");
+	}
+
+	ltn_histogram_sample_begin(pcap_cb_intervals[0]);
+
+	if (pcap_cb_intervals_reset) {
+		pcap_cb_intervals_reset = 0;
+		ltn_histogram_reset(pcap_cb_intervals[0]);
+		ltn_histogram_reset(pcap_cb_intervals[1]);
+	}
+#endif
+
 	pcap_update_statistics(ctx, h, pkt); /* Update the stream stats realtime to avoid queue jitter */
+
+#if MEASURE_PCAP_CALLBACK_PERFORMANCE
+	ltn_histogram_sample_end(pcap_cb_intervals[0]);
+	ltn_histogram_sample_begin(pcap_cb_intervals[1]);
+#endif
 	pcap_queue_push(ctx, h, pkt); /* Push the packet onto a deferred queue for late IO processing. */
+
+#if MEASURE_PCAP_CALLBACK_PERFORMANCE
+	ltn_histogram_sample_end(pcap_cb_intervals[1]);
+#endif
 }
 
 static struct pcap_pkthdr file_pkthdr;
@@ -1815,6 +1843,9 @@ int nic_monitor(int argc, char *argv[])
 			time(&ctx->lastResetTime);
 			discovered_items_stats_reset(ctx);
 			ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
+#if MEASURE_PCAP_CALLBACK_PERFORMANCE
+			pcap_cb_intervals_reset = 1;
+#endif
 			ctx->lastSocketReport = 0;
 		}
 		if (c == 'C') {
@@ -1985,5 +2016,17 @@ int nic_monitor(int argc, char *argv[])
 
 	ltntstools_reframer_free(ctx->reframer);
 
+#if MEASURE_PCAP_CALLBACK_PERFORMANCE
+	if (pcap_cb_intervals[0]) {
+		ltn_histogram_interval_print(1, pcap_cb_intervals[0], 0);
+		ltn_histogram_free(pcap_cb_intervals[0]);
+		pcap_cb_intervals[0] = NULL;
+	}
+	if (pcap_cb_intervals[1]) {
+		ltn_histogram_interval_print(1, pcap_cb_intervals[1], 0);
+		ltn_histogram_free(pcap_cb_intervals[1]);
+		pcap_cb_intervals[1] = NULL;
+	}
+#endif
 	return 0;
 }
