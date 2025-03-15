@@ -322,6 +322,12 @@ int stream_verifier(int argc, char *argv[])
 		uint64_t lastCounter = 0;
 		uint64_t currentCounter = 0;
 		uint64_t badMatches = 0;
+#define RECORD_INPUT 0
+#if RECORD_INPUT
+		char ofn[64];
+		sprintf(ofn, "verifier-record-%d.ts", getpid());
+		FILE *ofh = fopen(ofn, "wb");
+#endif
 		while(running) {
 			int rlen = avio_read(ctx->puc, buf, blen);
 			if (ctx->verbose == 2) {
@@ -337,7 +343,11 @@ int stream_verifier(int argc, char *argv[])
 				/* General Error or end of stream. */
 				continue;
 			}
-
+#if RECORD_INPUT
+			if (ofh) {
+				fwrite(buf, 1, rlen, ofh);
+			}
+#endif	
 			for (int i = 0; i < rlen; i += 188) {
 				uint8_t *pkt = &buf[i];
 				if (ltntstools_pid(pkt) != 0x32)
@@ -358,6 +368,11 @@ int stream_verifier(int argc, char *argv[])
 		} /* while */
 		avio_close(ctx->puc);
 		free(buf);
+#if RECORD_INPUT
+		if (ofh) {
+			fclose(ofh);
+		}
+#endif	
 
 		if (badMatches == 0) {
 			printf("\nDone. Success, no errors found in %" PRIu64 " transport packets.\n", reads);
