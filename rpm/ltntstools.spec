@@ -60,6 +60,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Move slightly expensive streammodel_write calls into the deferred worker.
   tstools_nic_monitor: (Experimental) Support for reporting 'Out of Order UDP frames' in PID report. (disabled)
   tstools_nic_monitor: added debug code (disabled) to measure pcap callback performance
+  tstools_nic_monitor: microburst measurements are now DISABLED by default. Use --measure-microbursts to enable
   tstools_clock_inspector: Overhaul the -L linear trend code
   tstools_clock_inspector: Add option -B to specific reporting interval in seconds
   tstools_clock_inspector: cleanup report thread termination, add rsquared calculation, cleanup test vectors, bit of a patch bomb, various valgrind fixes
