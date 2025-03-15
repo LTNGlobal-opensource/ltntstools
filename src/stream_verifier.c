@@ -177,6 +177,14 @@ int stream_verifier(int argc, char *argv[])
 		exit(1);
 	}
 
+	/* We generate "frames" comprised of
+	 * PCR TS packet, PAT TS packet, PMT TS packet, then a caluclated number of "video" like TS packets.
+	 *
+	 * packets per second
+	 * how frequently we want pcrs in milliseconds
+	 * how many pcrs we'll public per second
+	 * how many non-pcr packets we'll generate for every PCR push
+	 */
 	int pps = ctx->bps / 8 / 188;
 	int pcrPeriodMs = 20;
 	int pcrsPerSecond = 1000 / pcrPeriodMs;
