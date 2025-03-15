@@ -90,6 +90,7 @@ struct tool_context_s
 	int reportRTPHeaders;
 	int measureSEILatencyAlways;
 	int reportProcessMemoryUsage;
+	int reportMicrobursts;
 
 	pthread_t pcap_threadId;
 	int pcap_threadTerminate, pcap_threadRunning, pcap_threadTerminated;

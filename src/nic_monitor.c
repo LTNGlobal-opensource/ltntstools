@@ -497,13 +497,15 @@ static void *ui_thread_func(void *p)
 					s = NULL;
 					streamCount++;
 				}
-				double a = ((double)di->bitrate_hwm_us_10ms_last_nsecond * 100.0) / 1000000.0;
-				double b = ((double)di->bitrate_hwm_us_100ms_last_nsecond * 10.0) / 1000000.0;
-				mvprintw(streamCount + 2, 52, "%6.02f @ 10ms\n", a);
-				streamCount++;
-				mvprintw(streamCount + 2, 52, "%6.02f @ 100ms\n", b);
-				streamCount++;
 
+				if (ctx->reportMicrobursts) {
+					double a = ((double)di->bitrate_hwm_us_10ms_last_nsecond * 100.0) / 1000000.0;
+					double b = ((double)di->bitrate_hwm_us_100ms_last_nsecond * 10.0) / 1000000.0;
+					mvprintw(streamCount + 2, 52, "%6.02f @ 10ms\n", a);
+					streamCount++;
+					mvprintw(streamCount + 2, 52, "%6.02f @ 100ms\n", b);
+					streamCount++;
+				}
 			}
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PROCESSES)) {
@@ -1427,6 +1429,7 @@ static void usage(const char *progname)
 	printf("    Eg. http://127.0.0.1:13400/whatever_resource_name_you_want\n");
 	printf("  --report-memory-usage                Report memory usage and growth every 5 seconds.\n");
 	printf("  --measure-scheduling-stalls          Test the scheduling system for 1000us sleeps that lasted more than 3000us.\n");
+	printf("  --measure-microbursts                In the IAT report, show 10ms and 100ms microburst measurements.\n");
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
@@ -1473,6 +1476,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		{ "measure-sei-latency-always", no_argument,		0, 0 },
 		{ "report-memory-usage", 		no_argument,		0, 0 },
 		{ "measure-scheduling-stalls", 		no_argument,		0, 0 },
+		{ "measure-microbursts", 		no_argument,		0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1666,6 +1670,9 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 					}
 					exit(1);
 				}
+				break;
+			case 28: /* measure-microbursts */
+				ctx->reportMicrobursts = 1;
 				break;
 			default:
 				usage(argv[0]);
