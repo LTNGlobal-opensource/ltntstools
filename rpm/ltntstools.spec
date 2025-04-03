@@ -50,8 +50,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Tue Jan 14 2024 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.34.1 - DEVELOPMENT
+* Thu Apr  3 2025 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.34.2
   tstools_nic_monitor: Slight console improvement when accidently tool ran without sudo privs
   tstools_nic_monitor: Small performace inprovement when we generate a json timestamp
   tstools_nic_monitor: HTTP posting JSON improvements
