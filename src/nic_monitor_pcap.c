@@ -407,7 +407,10 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		discovered_item_state_clr(di, DI_STATE_STREAM_FORWARDING);
 
 		/* Free any resources */
-		avio_close(di->forwardAVIO);
+		if (di->forwardAVIO) {
+			avio_close(di->forwardAVIO);
+			di->forwardAVIO = 0;
+		}
 	}
 	if (discovered_item_state_get(di, DI_STATE_STREAM_FORWARD_START)) {
 		discovered_item_state_clr(di, DI_STATE_STREAM_FORWARD_START);
@@ -415,8 +418,9 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 
 		/* Allocate any resources */
 		sprintf(di->forwardURL, "udp://%s:%d?pkt_size=1316&ttl=3",
-			ctx->url_forwards[7 - di->forwardSlotNr].addr,
-			ctx->url_forwards[7 - di->forwardSlotNr].port);
+			ctx->url_forwards[di->forwardSlotNr - 7].addr,
+			ctx->url_forwards[di->forwardSlotNr - 7].port);
+
 		int ret = avio_open2(&di->forwardAVIO, di->forwardURL,
 			AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 		if (ret < 0) {
@@ -425,7 +429,9 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	if (discovered_item_state_get(di, DI_STATE_STREAM_FORWARDING)) {
 		/* Do actual forwarding. */
 #if 1
-		avio_write(di->forwardAVIO, pkts, pktCount * 188);
+		if (di->forwardAVIO) {
+			avio_write(di->forwardAVIO, pkts, pktCount * 188);
+		}
 #else
 		/* Drop all pids except video, so we can measure video pid jitter.
 		 * TODO: Hardcoded to 0x100, lab use only.
