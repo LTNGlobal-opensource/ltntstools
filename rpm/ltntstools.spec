@@ -66,6 +66,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: cleanup report thread termination, add rsquared calculation, cleanup test vectors, bit of a patch bomb, various valgrind fixes
   tstools_pat_inspector: Remove unwanted 'aborting' messages
   tstools_pes_inspector: Add option to dump some of the AC3 audio frame headers (See -A)
+  tstools_pes_inspector: Moved AC3 core functionality into libltntstools
   tstools_slicer: Change how we search for PCRs from reverse to forward.
   tstools_scte35_inspector: Added support for MPTS streams, multiple SCTE35 pids and video streams.
   tstools_scte35_inspector: Added support for -J json trigger output in either pretty or compressed formats.

@@ -17,11 +17,6 @@
 
 #define LOCAL_DEBUG 0
 #define H264_IFRAME_THUMBNAILING 0
-#define AC3_INSPECTION 1
-
-#if AC3_INSPECTION
-#include "klbitstream_readwriter.h"
-#endif
 
 /* TODO: Move this into the libltntstools once we're completely happy with it.
  * See ISO-14496-10:2004 section 7.3.1 NAL unit Syntax.
@@ -501,9 +496,7 @@ struct tool_ctx_s
 	int writeThumbnails;
 	uint64_t esSeqNr;
 	int dumpPICTIMING;
-#if AC3_INSPECTION
 	int analyzeAC3Headers;
-#endif
 	struct nal_throughput_s throughput;
 
 #if H264_IFRAME_THUMBNAILING
@@ -745,165 +738,22 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 	} /* if (pic_struct_present_flag) */
 }
 
-#if AC3_INSPECTION
-struct ltn_ac3_header_syncinfo_s {
-	uint32_t syncword;
-	uint32_t crc1;
-	uint32_t fscod;
-	uint32_t frmsizecod;
-};
-struct ltn_ac3_header_bsi_s {
-	uint32_t bsid;
-	uint32_t bsmod;
-	uint32_t acmod;
-	uint32_t cmixlev;
-	uint32_t surmixlev;
-	uint32_t dsurmod;
-	uint32_t lfeon;
-	int32_t  dialnorm;
-	uint32_t compre;
-	uint32_t compr;
-	/* Incomplete */
-};
-struct ltn_ac3_header_syncframe_s {
-	struct ltn_ac3_header_syncinfo_s syncinfo;
-	struct ltn_ac3_header_bsi_s bsi;
-};
-
-void ltn_ac3_header_dprintf(int fd, struct ltn_ac3_header_syncframe_s *sf)
-{
-	dprintf(fd, "sf->syncinfo.syncword   = 0x%04x [%s]\n",
-		sf->syncinfo.syncword,
-		sf->syncinfo.syncword == 0x0b77 ? "correct" : "incorrect");
-
-	dprintf(fd, "sf->syncinfo.crc1       = 0x%04x\n", sf->syncinfo.crc1);
-
-	dprintf(fd, "sf->syncinfo.fscod      = %d [%s]\n",
-		sf->syncinfo.fscod,
-		sf->syncinfo.fscod == 0 ? "48 KHz" :
-		sf->syncinfo.fscod == 1 ? "44.1 KHz" :
-		sf->syncinfo.fscod == 2 ? "32 KHz" : "reserved");
-
-	dprintf(fd, "sf->syncinfo.frmsizecod = %d [not decoded]\n", sf->syncinfo.frmsizecod);
-
-	dprintf(fd, "sf->bsi.bsid            = %d [not decoded]\n", sf->bsi.bsid);
-	dprintf(fd, "sf->bsi.bsmod           = %d [%s]\n",
-		sf->bsi.bsmod,
-		sf->bsi.bsmod == 0 ? "main audio service: complete main (CM)" :
-		sf->bsi.bsmod == 1 ? "main audio service: music and effects (ME)" :
-		sf->bsi.bsmod == 2 ? "associated service: visually impaired (VI)" :
-		sf->bsi.bsmod == 3 ? "associated service: hearing impaired (HI)" :
-		sf->bsi.bsmod == 4 ? "associated service: dialogue (D)" :
-		sf->bsi.bsmod == 5 ? "associated service: commentary (C)" :
-		sf->bsi.bsmod == 6 ? "associated service: emergency (E)" : "not decoded");
-
-	dprintf(fd, "sf->bsi.acmod           = %d [%s]\n",
-		sf->bsi.acmod,
-		sf->bsi.acmod == 0 ? "1+1 - Ch1, Ch2" :
-		sf->bsi.acmod == 1 ? "1/0 - C" :
-		sf->bsi.acmod == 2 ? "2/0 - L, R" :
-		sf->bsi.acmod == 3 ? "3/0 - L, C, R" :
-		sf->bsi.acmod == 4 ? "2/1 - L, R, S" :
-		sf->bsi.acmod == 5 ? "3/1 - L, C, R, S" :
-		sf->bsi.acmod == 6 ? "2/2 - L, R, SL, SR" : "3/2 - L, C, R, SL, SR");
-
-	if ((sf->bsi.acmod & 0x1) && (sf->bsi.acmod != 0x1)) {
-		/* If 3 front channels */
-		dprintf(fd, "sf->bsi.cmixlev         = %d [%s]\n",
-			sf->bsi.cmixlev,
-			sf->bsi.cmixlev == 0 ? "-3.0 dB" :
-			sf->bsi.cmixlev == 1 ? "-4.5 dB" :
-			sf->bsi.cmixlev == 2 ? "-6.0 dB" : "reserved");
-	}
-	if (sf->bsi.acmod & 0x4) {
-		/* If a surround sound exists */
-		dprintf(fd, "sf->bsi.surmixlev       = %d [%s]\n",
-			sf->bsi.surmixlev,
-			sf->bsi.surmixlev == 0 ? "-3.0 dB" :
-			sf->bsi.surmixlev == 1 ? "-6.0 dB" :
-			sf->bsi.surmixlev == 2 ? "0" : "reserved");
-	}
-	if (sf->bsi.acmod == 0x2) {
-		/* If in 2/0 mode */
-		dprintf(fd, "sf->bsi.dsurmod         = %d [%s]\n",
-			sf->bsi.dsurmod,
-			sf->bsi.dsurmod == 0 ? "not indicated" :
-			sf->bsi.dsurmod == 1 ? "Not Dolby Surround encoded" :
-			sf->bsi.dsurmod == 2 ? "Dolby Surround encoded" : "reserved");
-	}
-
-	dprintf(fd, "sf->bsi.lfeon           = %d\n", sf->bsi.lfeon);
-	dprintf(fd, "sf->bsi.dialnorm        = %d\n", sf->bsi.dialnorm);
-	dprintf(fd, "sf->bsi.compre          = %d [compression_control %s]\n",
-		sf->bsi.compre,
-		sf->bsi.compre ? "enabled" : "disabled");
-	if (sf->bsi.compre) {
-		dprintf(fd, "sf->bsi.compr           = %d [compression_gain]\n", sf->bsi.compr);
-	}
-};
-
-int ltn_ac3_header_parse(struct ltn_ac3_header_syncframe_s *sf, unsigned char *buf, int lengthBytes)
-{
-	struct klbs_context_s pbs, *bs = &pbs;
-	klbs_init(bs);
-	klbs_read_set_buffer(bs, buf, lengthBytes);
-
-	/* See A52-201212-17-2.pdf page 30 */
-
-	/* syncinfo() */
-	sf->syncinfo.syncword    = klbs_read_bits(bs, 16);
-	sf->syncinfo.crc1        = klbs_read_bits(bs, 16);
-	sf->syncinfo.fscod       = klbs_read_bits(bs,  2);
-	sf->syncinfo.frmsizecod  = klbs_read_bits(bs,  6);
-
-	/* bsi() */
-	sf->bsi.bsid        = klbs_read_bits(bs, 5);
-	sf->bsi.bsmod       = klbs_read_bits(bs, 3);
-	sf->bsi.acmod       = klbs_read_bits(bs, 3);
-	sf->bsi.cmixlev     = 0;
-	sf->bsi.surmixlev   = 0;
-	sf->bsi.dsurmod     = 0;
-
-	if ((sf->bsi.acmod & 0x1) && (sf->bsi.acmod != 0x1)) {
-		/* If 3 front channels */
-		sf->bsi.cmixlev = klbs_read_bits(bs, 2);
-	}
-	if (sf->bsi.acmod & 0x4) {
-		/* If a surround sound exists */
-		sf->bsi.surmixlev = klbs_read_bits(bs, 2);
-	}
-	if (sf->bsi.acmod == 0x2) {
-		/* If in 2/0 mode */
-		sf->bsi.dsurmod = klbs_read_bits(bs, 2);
-	}
-
-	sf->bsi.lfeon       = klbs_read_bits(bs, 1);
-	sf->bsi.dialnorm    = klbs_read_bits(bs, 5);
-	sf->bsi.dialnorm   *= -1;
-	sf->bsi.compre      = klbs_read_bits(bs, 1);
-	sf->bsi.compr       = 0;
-	if (sf->bsi.compre) {
-		sf->bsi.compr   = klbs_read_bits(bs, 8);
-	}
-	/* TODO: continue additional parsing */
-
-	return 0; /* Success */
-}
-
 static void _parse_AC3_Headers(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes)
 {
-	struct ltn_ac3_header_syncframe_s frame;
-	ltn_ac3_header_parse(&frame, pes->data, pes->dataLengthBytes);
-	ltn_ac3_header_dprintf(STDOUT_FILENO, &frame);
-
 	printf("AC3: ");
-	for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < (8 + 14); i++) {
 		printf("%02x ", pes->data[i]);
 	}
 	printf("\n");
 
+	struct ltn_ac3_header_syncframe_s frame;
+	if (ltntstools_ac3_header_parse(&frame, pes->data, pes->dataLengthBytes) < 0) {
+		fprintf(stderr, "Error decoding AC3 frame header, skipping\n");
+		return;
+	}
+
+	ltntstools_ac3_header_dprintf(STDOUT_FILENO, &frame);
 }
-#endif
 
 static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 {
@@ -939,12 +789,10 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 		ltn_pes_packet_dump(pes, "");
 	}
 
-#if AC3_INSPECTION
 	if (ctx->analyzeAC3Headers) {
 		/* Parse the first dozen or so bytes and dump to console */
 		_parse_AC3_Headers(ctx, pes);
 	}
-#endif
 
 	if (ctx->writeES_h265) {
 		int arrayLength = 0;
@@ -1103,9 +951,7 @@ static void usage(const char *progname)
 #if H264_IFRAME_THUMBNAILING
 	printf("  -T Decode H264 I-Frames into local .jpg thumbnail files [def: no]\n");
 #endif
-#if AC3_INSPECTION
 	printf("  -A Extract AC3 headers and display fields [def: no]\n");
-#endif
 	printf("  -H Show PES headers only, don't parse payload. [def: disabled, payload shown]\n");
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -5 dump H.265 NAL headers (live stream only) and measure per-NAL throughput\n");
@@ -1156,11 +1002,9 @@ int pes_inspector(int argc, char *argv[])
 			ctx->doH264NalThroughput = 0;
 			ctx->doH265NalThroughput = 1;
 			break;
-#if AC3_INSPECTION
 		case 'A':
 			ctx->analyzeAC3Headers = 1;
 			break;
-#endif
 		case 'E':
 			ctx->writeES_h264 = 1;
 			ctx->writeES_h265 = 0;
