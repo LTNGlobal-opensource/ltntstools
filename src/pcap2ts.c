@@ -120,8 +120,8 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 
 		printf("%s:%d -> %s:%d  = ",
 #if defined(__APPLE__)
-			inet_ntoa(ip->ip_src), ntohs(udp->source),
-			dst, ntohs(udp->dest));
+			inet_ntoa(ip->ip_src), ntohs(udp->uh_sport),
+			dst, ntohs(udp->uh_dport));
 #endif
 #if defined(__linux__)
 			inet_ntoa(s), ntohs(udp->source),
@@ -130,8 +130,14 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 		hexdump(buf, 31, 32);
 	}
 
+#if defined(__linux__)
 	if (ntohs(udp->dest) != port)
 		return;
+#endif
+#if defined(__APPLE__)
+	if (ntohs(udp->uh_dport) != port)
+		return;
+#endif
 
 #if defined(__linux__)
 	if (ip->daddr != sa.sin_addr.s_addr)

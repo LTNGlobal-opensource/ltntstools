@@ -71,7 +71,9 @@ int main(int argc, char *argv[])
 #ifdef HAVE_NTT
 		{ "tstools_ntt_inspector",	ntt_inspector, },
 #endif
+#if __linux
 		{ "tstools_srt_transmit",		srt_transmit, },
+#endif
 		{ "tstools_sei_latency_inspector", sei_latency_inspector, },
 		{ "tstools_caption_analyzer",   caption_analyzer, },
 		{ 0, 0 },

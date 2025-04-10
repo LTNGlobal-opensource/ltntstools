@@ -16,11 +16,12 @@ static uint16_t _compute_stream_hash(struct iphdr *iphdr, struct udphdr *udphdr)
 	/* Compute the destination hash for faster lookup */
 #ifdef __APPLE__
 	uint32_t dstaddr = ntohl(iphdr->ip_dst.s_addr);
+	uint16_t dstport = ntohs(udphdr->uh_dport);
 #endif
 #ifdef __linux__
 	uint32_t dstaddr = ntohl(iphdr->daddr);
-#endif
 	uint16_t dstport = ntohs(udphdr->dest);
+#endif
 	return hash_index_cal_hash(dstaddr, dstport);
 }
 
@@ -120,9 +121,16 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		dstaddr.s_addr = di->iphdr.ip_dst.s_addr;
 #endif
 
+#ifdef __linux__
 		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.source));
 		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.dest));
 		di->dstport = ntohs(di->udphdr.dest);
+#endif
+#ifdef __APPLE__
+		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
+		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
+		di->dstport = ntohs(di->udphdr.uh_dport);
+#endif
 
 		di->iat_lwm_us = 50000000;
 		di->iat_hwm_us = -1;
@@ -238,9 +246,9 @@ static int is_di_duplicate(struct discovered_item_s *x, struct discovered_item_s
 		return 0;
 	if (x->iphdr.ip_dst.s_addr != y->iphdr.ip_dst.s_addr)
 		return 0;
-	if (x->udphdr.source != y->udphdr.source)
+	if (x->udphdr.uh_sport != y->udphdr.uh_sport)
 		return 0;
-	if (x->udphdr.dest != y->udphdr.dest)
+	if (x->udphdr.uh_dport != y->udphdr.uh_dport)
 		return 0;
 #endif
 
@@ -258,10 +266,10 @@ static int is_di_dst_duplicate(struct discovered_item_s *x, struct discovered_it
 #endif
 #ifdef __APPLE__
 	uint64_t a = (uint64_t)ntohl(x->iphdr.ip_dst.s_addr) << 16;
-	a |= (x->udphdr.dest);
+	a |= (x->udphdr.uh_dport);
 
 	uint64_t b = (uint64_t)ntohl(y->iphdr.ip_dst.s_addr) << 16;
-	b |= (y->udphdr.dest);
+	b |= (y->udphdr.uh_dport);
 #endif
 
 	if (a == b)
@@ -286,10 +294,10 @@ static void discovered_item_insert(struct tool_context_s *ctx, struct discovered
 #endif
 #ifdef __APPLE__
 		uint64_t a = (uint64_t)ntohl(e->iphdr.ip_dst.s_addr) << 16;
-		a |= (e->udphdr.dest);
+		a |= (e->udphdr.uh_dport);
 
 		uint64_t b = (uint64_t)ntohl(di->iphdr.ip_dst.s_addr) << 16;
-		b |= (di->udphdr.dest);
+		b |= (di->udphdr.uh_dport);
 #endif
 		if (a < b)
 			continue;

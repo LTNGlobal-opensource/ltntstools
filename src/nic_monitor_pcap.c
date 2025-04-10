@@ -358,7 +358,12 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	}
 
 	if (di->payloadType == PAYLOAD_RTP_TS) {
+#ifdef __APPLE__
+		if (ntohs(udphdr->uh_ulen) - 8 - 12 != (7 * 188)) {
+#endif
+#ifdef __linux__
 		if (ntohs(udphdr->len) - 8 - 12 != (7 * 188)) {
+#endif
         		di->notMultipleOfSevenError++;
         		time(&di->notMultipleOfSevenErrorLastEvent);
 		}
@@ -394,7 +399,12 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		}
 
 	} else {
+#ifdef __linux__
 		if (ntohs(udphdr->len) - 8 != (7 * 188)) {
+#endif
+#ifdef __APPLE__
+		if (ntohs(udphdr->uh_ulen) - 8 != (7 * 188)) {
+#endif
         		di->notMultipleOfSevenError++;
         		time(&di->notMultipleOfSevenErrorLastEvent);
 		}
@@ -679,19 +689,27 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 #ifdef __APPLE__
 			srcaddr.s_addr = ip->ip_src.s_addr;
 			dstaddr.s_addr = ip->ip_dst.s_addr;
+			char src[24], dst[24];
+			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->uh_sport));
+			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->uh_dport));
 #endif
 #ifdef __linux__
 			srcaddr.s_addr = ip->saddr;
 			dstaddr.s_addr = ip->daddr;
-#endif
 
 			char src[24], dst[24];
 			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->source));
 			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->dest));
+#endif
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
 				src, dst,
+#ifdef __linux__
 				ntohs(udp->len),
+#endif
+#ifdef __APPLE__
+				ntohs(udp->uh_ulen),
+#endif
 				ptr[0], ptr[1], ptr[2], ptr[3]);
 			//if (ntohs(udp->dest) == 4100)
 			{
@@ -713,8 +731,14 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
+#ifdef __linux__
 		int pktCount = ntohs(udp->len) / 188;
 		int lengthBytes = ntohs(udp->len);
+#endif
+#ifdef __APPLE__
+		int pktCount = ntohs(udp->uh_ulen) / 188;
+		int lengthBytes = ntohs(udp->uh_ulen);
+#endif
 		_processPackets_IO(ctx, eth, ip, udp, ptr, pktCount, isRTP, h, pkt, lengthBytes);
 	}
 }
@@ -748,19 +772,27 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 #ifdef __APPLE__
 			srcaddr.s_addr = iphdr->ip_src.s_addr;
 			dstaddr.s_addr = iphdr->ip_dst.s_addr;
+			char src[24], dst[24];
+			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 #endif
 #ifdef __linux__
 			srcaddr.s_addr = iphdr->saddr;
 			dstaddr.s_addr = iphdr->daddr;
-#endif
 
 			char src[24], dst[24];
 			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
 			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
+#endif
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
 				src, dst,
+#ifdef __linux__
 				ntohs(udphdr->len),
+#endif
+#ifdef __APPLE__
+				ntohs(udphdr->uh_ulen),
+#endif
 				ptr[0], ptr[1], ptr[2], ptr[3]);
 		}
 
@@ -774,7 +806,12 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		 */
 		di->lastUpdated = time(NULL);
 
+#ifdef __linux__
 		int lengthPayloadBytes = ntohs(udphdr->len) - sizeof(struct udphdr);
+#endif
+#ifdef __APPLE__
+		int lengthPayloadBytes = ntohs(udphdr->uh_ulen) - sizeof(struct udphdr);
+#endif
 #if 0
 		/* Mangle incoming stream so we can check our payload detection code */
 		/* Trash anything on port 4011 */

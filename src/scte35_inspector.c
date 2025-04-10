@@ -164,17 +164,33 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 #endif
 
 			char src[24], dst[24];
+#ifdef __linux__
 			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
 			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
+#endif
+#ifdef __APPLE__
+			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+#endif
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
 				
 				src, dst,
+#ifdef __linux__
 				ntohs(udphdr->len),
+#endif
+#ifdef __APPLE__
+				ntohs(udphdr->uh_ulen),
+#endif
 				ptr[0], ptr[1], ptr[2], ptr[3]);
 		}
 
+#ifdef __linux__
 		int lengthPayloadBytes = ntohs(udphdr->len) - sizeof(struct udphdr);
+#endif
+#ifdef __APPLE__
+		int lengthPayloadBytes = ntohs(udphdr->uh_ulen) - sizeof(struct udphdr);
+#endif
 		
 		if ((lengthPayloadBytes > 12) && ((lengthPayloadBytes - 12) % 188 == 0)) {
 			/* It's RTP */
