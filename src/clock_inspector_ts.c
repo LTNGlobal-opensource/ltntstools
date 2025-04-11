@@ -51,14 +51,24 @@ void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filep
 
 void pidReport(struct tool_context_s *ctx)
 {
+
 	double total = ctx->ts_total_packets;
 	for (int i = 0; i <= 0x1fff; i++) {
 		if (ctx->pids[i].pkt_count) {
-			printf("pid: 0x%04x pkts: %12" PRIu64 " discontinuities: %12" PRIu64 " using: %7.1f%%\n",
+			printf("pid: 0x%04x pkts: %12" PRIu64 " discontinuities: %12" PRIu64 " using: %7.1f%% %s\n",
 				i,
 				ctx->pids[i].pkt_count,
 				ctx->pids[i].cc_errors,
-				((double)ctx->pids[i].pkt_count / total) * 100.0);
+				((double)ctx->pids[i].pkt_count / total) * 100.0,
+				i == 0x01 ? "CAT" :
+				i == 0x02 ? "TSDT" :
+				i == 0x10 ? "NIT, ST" :
+				i == 0x11 ? "SDT, BAT, ST" :
+				i == 0x12 ? "EIT, ST CIT" :
+				i == 0x13 ? "RST, ST" :
+				i == 0x14 ? "TDT, TOT, ST" :
+				i == 0x15 ? "NetSync" :
+				i == 0x16 ? "RNT" : "");
 		}
 	}
 }
