@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <assert.h>
+#include <signal.h>
 
 #include "dump.h"
 #include <libltntstools/ltntstools.h>
@@ -28,13 +29,17 @@ char *strcasestr(const char *haystack, const char *needle);
 struct ts_stream_s;
 
 static int g_running = 1;
+static void signal_handler(int signum)
+{
+        g_running = 0;
+}
 
 enum ts_pid_psiptype_e
 {
 	PID_UNKNOWN = 0,
 	PID_PAT,
 	PID_PCR,
-	PID_CA,
+	PID_CAT,
 	PID_PMT
 };
 
@@ -200,6 +205,22 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 	return NULL;
 }
 
+static void *_avio_raw_callback_status(void *userContext, enum source_avio_status_e status)
+{
+        switch (status) {
+        case AVIO_STATUS_MEDIA_START:
+                printf("AVIO media starts\n");
+                break;
+        case AVIO_STATUS_MEDIA_END:
+                printf("AVIO media ends\n");
+                signal_handler(0);
+                break;
+        default:
+                fprintf(stderr, "unsupported avio state %d\n", status);
+        }
+        return NULL;
+}
+
 static void usage(const char *progname)
 {
 	printf("A tool to display the PAT/PMT transport tree structures from file.\n");
@@ -249,6 +270,7 @@ int si_inspector(int argc, char *argv[])
 
 	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
 	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+	cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
 
 	void *srcctx = NULL;
 	int ret = ltntstools_source_avio_alloc(&srcctx, strm, &cbs, iname);
@@ -270,6 +292,8 @@ int si_inspector(int argc, char *argv[])
 
 	pat->used = 1;
 	pat->psip_type = PID_PAT;
+
+	signal(SIGINT, signal_handler);
 
 	while (g_running) {
 		usleep(50 * 1000);
