@@ -54,6 +54,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 - v1.35.1 - DEV
   all tools: bugfix with tools stalling when reading RTP from file.
   tstools_clock_inspector: Add SDT, NIT, EIT etc to pid dump report
+  tstools_pat_inspector: tool stalls if PAT has no programs defined
 
 * Thu Apr  3 2025 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.34.2

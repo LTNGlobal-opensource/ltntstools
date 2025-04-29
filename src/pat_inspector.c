@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <signal.h>
 #include "dump.h"
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
@@ -17,11 +18,32 @@ static int gVerbose = 0;
 static int gRunning = 1;
 static dvbpsi_t *gp_dvbpsi = NULL;
 
+static void signal_handler(int signum)
+{
+        gRunning = 0;
+}
+
 static void DumpPAT(void* p_zero, dvbpsi_pat_t* p_pat)
 {
 	tstools_DumpPAT(p_zero, p_pat);
 	dvbpsi_pat_delete(p_pat);
 	gPATCount++;
+}
+
+static void *_avio_raw_callback_status(void *userContext, enum source_avio_status_e status)
+{
+        switch (status) {
+        case AVIO_STATUS_MEDIA_START:
+                printf("AVIO media starts\n");
+                break;
+        case AVIO_STATUS_MEDIA_END:
+                printf("AVIO media ends\n");
+                signal_handler(0);
+                break;
+        default:
+                fprintf(stderr, "unsupported avio state %d\n", status);
+        }
+        return NULL;
 }
 
 static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
@@ -92,6 +114,7 @@ int pat_inspector(int argc, char *argv[])
 
 	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
 	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+	cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
 
 	void *srcctx = NULL;
 	int ret = ltntstools_source_avio_alloc(&srcctx, NULL, &cbs, iname);
@@ -113,6 +136,8 @@ int pat_inspector(int argc, char *argv[])
 	if (!dvbpsi_pat_attach(gp_dvbpsi, DumpPAT, NULL)) {
 		goto out;
 	}
+
+	signal(SIGINT, signal_handler);
 
 	while (gRunning) {
 		usleep(50 * 1000);
