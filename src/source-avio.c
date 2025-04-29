@@ -65,6 +65,7 @@ static void *avio_thread_func(void *p)
 			blen += 12;
 			isRTP = 1;
 			boffset = 12;
+			avio_read(ctx->puc, buf, 12); /* Realign the read buffer */
 			continue;
 		}
 		if (ctx->verbose > 0) {
