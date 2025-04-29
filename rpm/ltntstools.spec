@@ -56,6 +56,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: Add SDT, NIT, EIT etc to pid dump report
   tstools_pat_inspector: tool stalls if PAT has no programs defined
   tstools_si_inspector: tool stalls if PAT has no programs defined
+  tstools_pes_inspector: enable passing decimals for -P option
 
 * Thu Apr  3 2025 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.34.2

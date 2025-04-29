@@ -1025,8 +1025,10 @@ int pes_inspector(int argc, char *argv[])
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x", &ctx->pid) != 1) || (ctx->pid > 0x1fff)) {
-				usage(argv[0]);
-				exit(1);
+				if ((sscanf(optarg, "%d", &ctx->pid) != 1) || (ctx->pid > 0x1fff)) {
+					usage(argv[0]);
+					exit(1);
+				}
 			}
 			break;
 		case 'S':
