@@ -144,10 +144,15 @@ int pid_drop(int argc, char *argv[])
 		fprintf(stderr, "Unable to allocate buffer\n");
 		exit(1);
 	}
-
+#if 1
+	printf("Dropping packets on pid 0x%04x starting at packet #%d, %s correct CC in headers\n",
+		ctx->pid, ctx->pidPacketDropPosition,
+		ctx->doFixups ? "will" : "WILL NOT");
+#else
 	printf("Dropping %d packets on pid 0x%04x starting at packet #%d, %s correct CC in headers\n",
 		ctx->pidPacketDropCount, ctx->pid, ctx->pidPacketDropPosition,
 		ctx->doFixups ? "will" : "WILL NOT");
+#endif
 
 	while (!feof(ctx->ifh)) {
 		size_t rlen = fread(buf, 188, max_packets, ctx->ifh);
