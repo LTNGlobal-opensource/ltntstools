@@ -740,11 +740,11 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 
 static void _parse_AC3_Headers(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes)
 {
-	printf("AC3: ");
+	printf("\nAC3: ");
 	for (int i = 0; i < (8 + 14); i++) {
 		printf("%02x ", pes->data[i]);
 	}
-	printf("\n");
+	printf(" ...\n");
 
 	struct ltn_ac3_header_syncframe_s frame;
 	if (ltntstools_ac3_header_parse(&frame, pes->data, pes->dataLengthBytes) < 0) {
@@ -753,6 +753,8 @@ static void _parse_AC3_Headers(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *
 	}
 
 	ltntstools_ac3_header_dprintf(STDOUT_FILENO, &frame);
+	printf("\n");
+
 }
 
 static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
@@ -784,14 +786,19 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 	/* If we're analyzing NALs then ONLY do this.... */
 	if (ctx->doH264NalThroughput || ctx->doH265NalThroughput) {
 		_pes_packet_measure_nal_throughput(ctx, pes, &ctx->throughput);
-	} else {
-		/* Else, dump all the PES packets */
-		ltn_pes_packet_dump(pes, "");
 	}
 
 	if (ctx->analyzeAC3Headers) {
+		if (ctx->verbose > 1) {
+			ltn_pes_packet_dump_with_options(pes, "", 0x05);
+		} else {
+			ltn_pes_packet_dump_with_options(pes, "", 0x01);
+		}
 		/* Parse the first dozen or so bytes and dump to console */
 		_parse_AC3_Headers(ctx, pes);
+	} else {
+		/* Else, dump all the PES packets */
+		ltn_pes_packet_dump(pes, "");
 	}
 
 	if (ctx->writeES_h265) {

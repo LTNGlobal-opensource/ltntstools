@@ -59,6 +59,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_si_inspector: stop processing PAT/PMTS tables after the first set is received. (use -a to receive all)
   tstools_si_inspector: Added H.265 to the detect stream types 
   tstools_pes_inspector: enable passing decimals for -P option
+  tstools_pes_inspector: Change the -A ac3 formatting to fix readability issues.
   tstools_pid_drop: fixed a confusing console output message
   tstools_stream_verifier: Minor performance improvement via new libltntstools api.
 
