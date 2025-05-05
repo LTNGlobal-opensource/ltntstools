@@ -294,8 +294,13 @@ int stream_verifier(int argc, char *argv[])
 
 					int i = 0;
 					while (i++ < packetsPerPCR) {
-						ret  = ltntstools_generatePacketWith64bCounter(pkt, sizeof(pkt), 0x32,
-							&countercc, counter++);
+						if (i == 1) {
+							ret  = ltntstools_generatePacketWith64bCounter(pkt, sizeof(pkt), 0x32,
+								&countercc, counter++);
+						} else {
+							ret  = ltntstools_updatePacketWith64bCounter(pkt, sizeof(pkt), 0x32,
+								&countercc, counter++);
+						}
 						if (ret < 0)
 							break;
 

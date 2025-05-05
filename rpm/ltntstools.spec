@@ -59,6 +59,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_si_inspector: stop processing PAT/PMTS tables after the first set is received. (use -a to receive all)
   tstools_pes_inspector: enable passing decimals for -P option
   tstools_pid_drop: fixed a confusing console output message
+  tstools_stream_verifier: Minor performance improvement via new libltntstools api.
 
 * Thu Apr  3 2025 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.34.2
