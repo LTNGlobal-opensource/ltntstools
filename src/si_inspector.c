@@ -161,6 +161,10 @@ static void completionPMT(void* p_zero, dvbpsi_pmt_t* p_pmt)
   	tstools_DumpPMT(p_zero, p_pmt, gVerbose > 0, pid->pid);
 
 	dvbpsi_pmt_delete(p_pmt);
+
+	if (strm->totalPMTS == strm->countPMTS) {
+		signal_handler(0);
+	}
 }
 
 static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
@@ -196,6 +200,10 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 	struct ts_stream_s *strm = (struct ts_stream_s *)userContext;
 	//printf("%s() strm %p, pkts %p, count %d\n", __func__, strm, pkts, packetCount);
 
+	if (gDumpAll == 0 && g_running == 0) {
+		return NULL;
+	}
+
 	updateStream(strm, pkts, packetCount);
 
 	if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS)) {
@@ -226,6 +234,7 @@ static void usage(const char *progname)
 	printf("A tool to display the PAT/PMT transport tree structures from file.\n");
 	printf("The first PAT and first set of PMTs are displayed, then the program terminates.\n");
 	printf("Usage:\n");
+	printf("  -a process all pat/pmts, not just the first\n");
 	printf("  -i <url>   Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n");
     printf("                 192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -v Increase level of verbosity (enable descriptor dumping).\n");
