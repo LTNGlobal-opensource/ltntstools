@@ -669,8 +669,17 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 		return;
 
 	struct ether_header *eth = (struct ether_header *)pkt;
+#ifdef __APPLE__
+	{
+		/* MacOS doesn't give us an etherher, but a loophead 4 byte header instead */
+		struct iphdr *iphdr = (struct iphdr *)((u_char *)pkt + 4);
+		if (*(pkt + 4) != 0x45) /* Check this is a IP header version 4, 20 bytes long */
+			return;
+#endif
+#ifdef __linux__
 	if (ntohs(eth->ether_type) == ETHERTYPE_IP) {
 		struct iphdr *ip = (struct iphdr *)((u_char *)eth + sizeof(struct ether_header));
+#endif
 
 #ifdef __APPLE__
 		if (ip->ip_p != IPPROTO_UDP)
@@ -752,8 +761,17 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		return;
 
 	struct ether_header *ethhdr = (struct ether_header *)pkt;
+#ifdef __APPLE__
+	{
+		/* MacOS doesn't give us an etherher, but a loophead 4 byte header instead */
+		struct iphdr *iphdr = (struct iphdr *)((u_char *)pkt + 4);
+		if (*(pkt + 4) != 0x45) /* Check this is a IP header version 4, 20 bytes long */
+			return;
+#endif
+#ifdef __linux__
 	if (ntohs(ethhdr->ether_type) == ETHERTYPE_IP) {
 		struct iphdr *iphdr = (struct iphdr *)((u_char *)ethhdr + sizeof(struct ether_header));
+#endif
 
 #ifdef __APPLE__
 		if (iphdr->ip_p != IPPROTO_UDP)

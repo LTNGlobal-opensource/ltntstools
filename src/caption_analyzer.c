@@ -298,9 +298,18 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 	if (hdr->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
 		return NULL;
 
+#ifdef __APPLE__
+	{
+		/* MacOS doesn't give us an etherher, but a loophead 4 byte header instead */
+		struct iphdr *iphdr = (struct iphdr *)((u_char *)pkt + 4);
+		if (*(pkt + 4) != 0x45) /* Check this is a IP header version 4, 20 bytes long */
+			return NULL;
+#endif
+#ifdef __linux__
 	struct ether_header *ethhdr = (struct ether_header *)pkt;
 	if (ntohs(ethhdr->ether_type) == ETHERTYPE_IP) {
 		struct iphdr *iphdr = (struct iphdr *)((u_char *)ethhdr + sizeof(struct ether_header));
+#endif
 
 #ifdef __APPLE__
 		if (iphdr->ip_p != IPPROTO_UDP)
