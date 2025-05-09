@@ -27,8 +27,8 @@ LDADD += -L../../target-root/usr/lib -ldvbpsi
 LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2
 LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
-if LINUX
 LDADD += -lsrt -lcrypto
+if LINUX
 if DTAPI
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
 endif
@@ -92,9 +92,7 @@ SRC += asi2ip.cpp
 endif
 #SRC += media.cpp
 SRC += smpte2038_inspector.cpp
-if LINUX
 SRC += srt_transmit.c
-endif
 SRC += source-avio.c
 if NTT
 SRC += ntt_inspector.cpp
