@@ -62,6 +62,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_pes_inspector: Change the -A ac3 formatting to fix readability issues.
   tstools_pid_drop: fixed a confusing console output message
   tstools_stream_verifier: Minor performance improvement via new libltntstools api.
+  general: bump all the copyright dates to 2025
   MacOS: Fixups for various tools to adjust how PCAP headers are interpreted (were broken).
 
 * Thu Apr  3 2025 Steven Toth <steven.toth@ltnglobal.com> 
