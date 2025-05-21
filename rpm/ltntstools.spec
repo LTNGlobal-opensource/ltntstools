@@ -51,7 +51,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Wed May 21 2025 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.36.3
+- v1.36.4
   all tools: bugfix with tools stalling when reading RTP from file.
   tstools_clock_inspector: Add SDT, NIT, EIT etc to pid dump report
   tstools_pat_inspector: tool stalls if PAT has no programs defined
@@ -64,6 +64,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_stream_verifier: Minor performance improvement via new libltntstools api.
   tstools_nic_monitor: -d -n memory leak fixed, regression since v1.34.2
   general: bump all the copyright dates to 2025
+  libltntstools: pes extraction updates fixing weird ac3 decoding issues
   MacOS: Fixups for various tools to adjust how PCAP headers are interpreted (were broken).
 
 * Thu Apr  3 2025 Steven Toth <steven.toth@ltnglobal.com> 
