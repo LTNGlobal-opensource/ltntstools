@@ -50,8 +50,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
-* Fri Apr 11 2025 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.35.1 - DEV
+* Wed May 21 2025 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.36.2
   all tools: bugfix with tools stalling when reading RTP from file.
   tstools_clock_inspector: Add SDT, NIT, EIT etc to pid dump report
   tstools_pat_inspector: tool stalls if PAT has no programs defined
