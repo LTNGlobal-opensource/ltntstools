@@ -93,5 +93,14 @@ AM_CONDITIONAL(NTT, test x"$ntt" = x"true")
 AM_COND_IF(NTT,
     AC_DEFINE(HAVE_NTT, 1, [Define to 1 if NBA Tissot Timing support included]),)
 
+AC_ARG_ENABLE([shared],
+  [AS_HELP_STRING([--enable-shared], [build shared libraries [default=yes]])])
+
+AC_ARG_ENABLE([static],
+  [AS_HELP_STRING([--enable-static], [build static libraries [default=yes]])])
+
+AM_CONDITIONAL([BUILD_SHARED], [test "x$enable_shared" != "xno"])
+AM_CONDITIONAL([BUILD_STATIC], [test "x$enable_static" != "xno"])
+
 AC_CONFIG_FILES([Makefile src/Makefile])
 AC_OUTPUT
