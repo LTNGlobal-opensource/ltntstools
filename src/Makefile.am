@@ -2,6 +2,12 @@
 AUTOMAKE_OPTIONS = foreign
 GIT_VERSION := $(shell git describe --abbrev=8 --dirty --always --tags)
 
+if LINUX
+AM_LDFLAGS  = -Wl,-rpath='$$ORIGIN/../lib-ltntstools' -Wl,-z,origin
+#AM_LDFLAGS += $(shell pkg-config --libs srt libltntstools json-c libklscte35 zvbi-0.2 libklvanc)
+#AM_LDFLAGS += $(shell pkg-config --libs libavformat libavutil libavcodec libswresample libswscale)
+endif
+
 AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_OFFSET_BITS=64 \
 	-D_DEFAULT_SOURCE \
 	-DGIT_VERSION=\"$(GIT_VERSION)\" \
