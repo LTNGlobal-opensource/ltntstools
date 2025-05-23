@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <libltntstools/ltntstools.h>
 #include "source-avio.h"
+#include "audioanalyzer.h"
 
 extern "C" {
 #include <libavformat/avformat.h>

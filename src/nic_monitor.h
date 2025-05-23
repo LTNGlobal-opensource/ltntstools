@@ -25,6 +25,7 @@
 #include "utils.h"
 #include "hash_index.h"
 #include "ffmpeg-includes.h"
+#include "codecs.h"
 
 #include <pcap.h>
 #include <arpa/inet.h>

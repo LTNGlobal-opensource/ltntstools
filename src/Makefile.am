@@ -102,6 +102,13 @@ SRC += kl-lineartrend.c
 SRC += caption_analyzer.c
 SRC += caption_analyzer_metrics.c
 SRC += langdict.c
+SRC += nal_h264.c
+SRC += nal_h265.c
+SRC += h264_codec_metadata.c
+SRC += h265_codec_metadata.c
+SRC += audioanalyzer.c
+SRC += nielsen-bindings.cpp
+SRC += golomb.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -150,6 +157,12 @@ noinst_HEADERS += kl-lineartrend.h
 noinst_HEADERS += langdict.h
 noinst_HEADERS += caption_analyzer_public.h
 noinst_HEADERS += clock_inspector_public.h
+noinst_HEADERS += nal_h264.h
+noinst_HEADERS += nal_h265.h
+noinst_HEADERS += h264_codec_metadata.h
+noinst_HEADERS += h265_codec_metadata.h
+noinst_HEADERS += audioanalyzer.h
+noinst_HEADERS += nielsen-bindings.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)

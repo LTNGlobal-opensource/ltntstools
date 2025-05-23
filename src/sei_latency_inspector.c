@@ -26,6 +26,7 @@
 #include "source-avio.h"
 #include "xorg-list.h"
 #include "utils.h"
+#include "codecs.h"
 
 #define DEFAULT_STREAMID 0xe0
 #define DEFAULT_PID 0x31

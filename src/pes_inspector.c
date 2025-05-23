@@ -14,6 +14,7 @@
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
 #include "golomb.h"
+#include "codecs.h"
 
 #define LOCAL_DEBUG 0
 #define H264_IFRAME_THUMBNAILING 0

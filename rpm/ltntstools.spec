@@ -50,6 +50,16 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 
 %changelog
+* Fri May 23 2025 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.37.1 - DEV
+  libltntstools: moved code that referenced ffmpeg
+  ltntstools: added code pulled from libltntstools related to ffmpeg
+  tstools_nic_monitor: adjusted to use relocated ffmpeg related code
+  tstools_nic_monitor: adjusted to use relocated ffmpeg related code
+  caption_analyzer: adjusted to use relocated ffmpeg related code
+  nielsen_inspector: adjusted to use relocated ffmpeg related code
+  pes_inspector: adjusted to use relocated ffmpeg related code
+
 * Wed May 21 2025 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.36.4
   all tools: bugfix with tools stalling when reading RTP from file.
