@@ -14,6 +14,8 @@
 #define MIN_PES_EXTRACTOR (1 * 1048576)
 #define MAX_PES_EXTRACTOR (2 * 1048576)
 
+extern int ltnpthread_setname_np(pthread_t thread, const char *name);
+
 struct ltntstools_audioanalyzer_stream_s
 {
     struct ltntstools_audioanalyzer_ctx_s *ctx;
@@ -66,18 +68,6 @@ struct ltntstools_audioanalyzer_ctx_s
     pthread_mutex_t mutex;
     struct ltntstools_audioanalyzer_stream_s *streams[8192];
 };
-
-int ltnpthread_setname_np(pthread_t thread, const char *name)
-{
-#if defined(__linux__)
-extern int pthread_setname_np(pthread_t thread, const char *name);
-        return pthread_setname_np(thread, name);
-#endif
-#if defined(__APPLE__)
-        /* We don't support thread naming on OSX, yet. */
-        return 0;
-#endif
-}
 
 static void _compute_dbFS_s16p(struct ltntstools_audioanalyzer_stream_s *stream, int channelNr, int16_t *samples, int sampleCount)
 {
