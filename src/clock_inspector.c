@@ -210,8 +210,10 @@ int clock_inspector(int argc, char *argv[])
 			usleep(1 * 1000);
 			continue;
 		}
-		if (rlen < 0)
+		if (rlen < 0) {
+			fprintf(stderr, "avio_read() < 0 read, ret = %d, shutting down\n", rlen);
 			break;
+		}
 
 		streamPosition += rlen;
 

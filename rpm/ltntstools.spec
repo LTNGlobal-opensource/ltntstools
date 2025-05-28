@@ -56,6 +56,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   ltntstools: added code pulled from libltntstools related to ffmpeg
   tstools_nic_monitor: adjusted to use relocated ffmpeg related code
   tstools_nic_monitor: adjusted to use relocated ffmpeg related code
+  tstools_clock_inspector: Improve console message if input stream is torn down or aborted (srt).
   caption_analyzer: adjusted to use relocated ffmpeg related code
   nielsen_inspector: adjusted to use relocated ffmpeg related code
   pes_inspector: adjusted to use relocated ffmpeg related code
