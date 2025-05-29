@@ -831,7 +831,7 @@ void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct
 		else
 			di->warningIndicatorLabel[1] = blank;
 
-		if (di->notMultipleOfSevenError)
+		if (ltntstools_pid_stats_stream_get_notmultipleofseven_errors(di->stats))
 			di->warningIndicatorLabel[2] = 'P';
 		else
 			di->warningIndicatorLabel[2] = blank;

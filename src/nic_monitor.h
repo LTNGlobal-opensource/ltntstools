@@ -354,12 +354,6 @@ struct discovered_item_s
 	void *pcapRecorder;
 	time_t lastTimeFSFreeSpaceCheck;
 
-	/* Monitor the UDP packet lengths, increment
-	 * this each time the length is not 188 * 7
-	 */
-	time_t notMultipleOfSevenErrorLastEvent;
-	int64_t notMultipleOfSevenError;
-
 	/* IAT Histogram */
 	struct ltn_histogram_s *packetIntervals;
 	void *packetIntervalAverages;

@@ -358,15 +358,6 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 	}
 
 	if (di->payloadType == PAYLOAD_RTP_TS) {
-#ifdef __APPLE__
-		if (ntohs(udphdr->uh_ulen) - 8 - 12 != (7 * 188)) {
-#endif
-#ifdef __linux__
-		if (ntohs(udphdr->len) - 8 - 12 != (7 * 188)) {
-#endif
-        		di->notMultipleOfSevenError++;
-        		time(&di->notMultipleOfSevenErrorLastEvent);
-		}
 
 		/* Feed the analyzer */
 		if (isRTP) {
@@ -398,16 +389,6 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 
 		}
 
-	} else {
-#ifdef __linux__
-		if (ntohs(udphdr->len) - 8 != (7 * 188)) {
-#endif
-#ifdef __APPLE__
-		if (ntohs(udphdr->uh_ulen) - 8 != (7 * 188)) {
-#endif
-        		di->notMultipleOfSevenError++;
-        		time(&di->notMultipleOfSevenErrorLastEvent);
-		}
 	}
 
 	/* Packet Forwarding */

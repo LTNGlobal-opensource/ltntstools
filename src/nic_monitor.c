@@ -427,12 +427,15 @@ static void *ui_thread_func(void *p)
 
 				streamCount++;
 
-				if (di->notMultipleOfSevenError && (di->payloadType != PAYLOAD_A324_CTP) &&
+
+				if (ltntstools_pid_stats_stream_get_notmultipleofseven_errors(di->stats) &&
+					(di->payloadType != PAYLOAD_A324_CTP) &&
 					(di->payloadType != PAYLOAD_SMPTE2110_20_VIDEO) &&
 					(di->payloadType != PAYLOAD_SMPTE2110_30_AUDIO) &&
 					(di->payloadType != PAYLOAD_SMPTE2110_40_ANC)) {
 					attron(COLOR_PAIR(4));
-					mvprintw(streamCount + 2, 37, "Warning: %" PRIi64 " UDP packets that are less then 1316 bytes long", di->notMultipleOfSevenError);
+					mvprintw(streamCount + 2, 37, "Warning: %" PRIi64 " UDP packets that are less then 1316 bytes long",
+						ltntstools_pid_stats_stream_get_notmultipleofseven_errors(di->stats));
 					attroff(COLOR_PAIR(4));
 					streamCount++;
 				}
