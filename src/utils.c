@@ -16,6 +16,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "ffmpeg-includes.h"
+
 /* In string 'str', find occurences of character src and replace with character dst. */
 /* return the number of substituions occured. */
 int character_replace(char *str, char src, char dst)
@@ -429,3 +431,141 @@ void printToolBanner(char *toolname, char *version)
 
 	free(name);
 }
+
+int ltntstools_file_estimate_bitrate(const char *filename, uint32_t *bps)
+{
+	if (!filename || !bps)
+		return -1;
+
+	/* Figure out the PCR Pid */
+	struct ltntstools_pat_s *pat;
+	if (ltntstools_streammodel_alloc_from_url(filename, &pat) < 0) {
+		fprintf(stderr, "%s() Unable to query stream model for file\n", __func__);
+		return -1;
+	}
+
+	int e = 0;
+	struct ltntstools_pmt_s *pmt;
+	if (ltntstools_pat_enum_services_video(pat, &e, &pmt) < 0) {
+		fprintf(stderr, "%s() Unable to detect PCR PID from file.\n", __func__);
+		return -1;
+	}
+
+	FILE *fh = fopen(filename, "rb");
+	if (!fh) {
+		ltntstools_pat_free(pat);
+		return -1;
+	}
+
+	int rlen = 32 * 1048576;
+	uint8_t *buf = malloc(rlen);
+	if (!buf) {
+		ltntstools_pat_free(pat);
+		return -1;
+	}
+
+	int l = fread(buf, 1, rlen, fh);
+	if (l > 0) {
+		int arrayLength;
+		struct ltntstools_pcr_position_s *array;
+		if (ltntstools_queryPCRs(buf, l, 0, &array, &arrayLength) < 0) {
+			fclose(fh);
+			free(buf);
+			ltntstools_pat_free(pat);
+			return -1;
+		}
+
+		struct ltntstools_pcr_position_s first = { 0 }, next = { 0 };
+		first.pid = 0;
+
+		for (int i = 0; i < arrayLength; i++) {
+			struct ltntstools_pcr_position_s *p = &array[i];
+			if (p->pid != pmt->PCR_PID)
+				continue;
+
+			if (first.pid == 0)
+				first = *p;
+
+			next = *p;
+		}
+
+#if 0
+		printf("first   offset %12" PRIu64 "  scr %14" PRIu64 "\n", first.offset, first.pcr);
+		printf(" next   offset %12" PRIu64 "  scr %14" PRIu64 "\n", next.offset, next.pcr);
+#endif
+		uint64_t bits = (next.offset - first.offset) * 8;
+		uint64_t ticks_ms = (next.pcr - first.pcr) / 27000;
+		*bps = (bits / ticks_ms) * 1000;
+#if 0
+		printf("  time %14" PRIu64 " (ms)\n", ticks_ms);
+		printf("  bits %14" PRIu64 "\n", bits);
+		printf("   bps %14d\n", *bps);
+#endif
+	}
+
+	fclose(fh);
+	free(buf);
+	ltntstools_pat_free(pat);
+
+	return 0; /* Success */
+}
+
+int ltntstools_streammodel_alloc_from_url(const char *url, struct ltntstools_pat_s **pat)
+{
+	void *sm;
+	*pat = NULL;
+
+	if (ltntstools_streammodel_alloc(&sm, NULL) < 0) {
+		fprintf(stderr, "\nUnable to allocate streammodel object.\n\n");
+		return -1;
+	}
+
+	avformat_network_init();
+	AVIOContext *puc;
+	int ret = avio_open2(&puc, url, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+	if (ret < 0) {
+		ltntstools_streammodel_free(sm);
+		fprintf(stderr, "%s() url '%s' syntax error\n", __func__, url);
+		return -1;
+	}
+
+	uint8_t buf[7 * 188];
+	int ok = 1;
+	while (ok) {
+		int rlen = avio_read(puc, &buf[0], sizeof(buf));
+		if (rlen == -EAGAIN) {
+			usleep(2 * 1000);
+			continue;
+		}
+		if (rlen < 0)
+			break;
+
+		int complete = 0;
+		struct timeval now;
+		gettimeofday(&now, NULL);
+		ltntstools_streammodel_write(sm, &buf[0], rlen / 188, &complete, &now);
+
+		if (complete) {
+
+			struct ltntstools_pat_s *m = NULL;
+			if (ltntstools_streammodel_query_model(sm, &m) == 0) {
+				*pat = m;
+			}
+			break;
+		}
+
+	}
+	avio_close(puc);
+
+	if (0 && *pat) {
+		ltntstools_pat_dprintf(*pat, 0);
+	}
+
+	ltntstools_streammodel_free(sm);
+	
+	if (*pat == NULL)
+		return -1; /* Error */
+
+	return 0; /* Success */
+}
+

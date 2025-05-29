@@ -13,6 +13,7 @@
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
+#include "codecs.h"
 
 static int gVerbose = 0;
 static uint32_t goffset = 0;

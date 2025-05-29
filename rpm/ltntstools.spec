@@ -57,9 +57,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: adjusted to use relocated ffmpeg related code
   tstools_nic_monitor: adjusted to use relocated ffmpeg related code
   tstools_clock_inspector: Improve console message if input stream is torn down or aborted (srt).
+  tstools_sei_unregistered: fixed compiler symbol warning
   caption_analyzer: adjusted to use relocated ffmpeg related code
   nielsen_inspector: adjusted to use relocated ffmpeg related code
   pes_inspector: adjusted to use relocated ffmpeg related code
+  libltntstools: moved source-rcts from the core library into the ltntstools repo
 
 * Wed May 21 2025 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.36.4

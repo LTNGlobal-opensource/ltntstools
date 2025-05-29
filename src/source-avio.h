@@ -18,6 +18,7 @@
 #define SOURCE_AVIO_H
 
 #include <libltntstools/ltntstools.h>
+#include "source-rcts.h"
 
 #ifdef __cplusplus
 extern "C" {

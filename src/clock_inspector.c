@@ -215,6 +215,18 @@ int clock_inspector(int argc, char *argv[])
 			break;
 		}
 
+#if 0
+		FILE *fh = fopen("/tmp/ci-delay.txt", "rb");
+		if (fh) {
+			char str[64] = { 0 };
+			fread(str, 1, sizeof(str), fh);
+			fclose(fh);
+
+			int delayms = atoi(str);
+			usleep(delayms * 1000);
+		}
+#endif
+
 		streamPosition += rlen;
 
 		/* Push the entire stream into the stats layer - so we can compyte walltime */

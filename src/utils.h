@@ -7,6 +7,7 @@
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+#include <libltntstools/ltntstools.h>
 
 #ifdef __APPLE__
 #define iphdr ip
@@ -61,5 +62,9 @@ int process_memory_sprintf(char *dst, struct statm_context_s *ctx, int reportSec
 void subtract_ms_from_timeval(struct timeval *result, struct timeval *now, unsigned int ms);
 
 void printToolBanner(char *toolname, char *version);
+
+int ltntstools_streammodel_alloc_from_url(const char *url, struct ltntstools_pat_s **pat);
+
+int ltntstools_file_estimate_bitrate(const char *filename, uint32_t *bps);
 
 #endif  /* LTNTOOLS_UTILS_H */

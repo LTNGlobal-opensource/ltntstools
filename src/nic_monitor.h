@@ -20,11 +20,12 @@
 #include <libltntstools/ltntstools.h>
 #include <libltntstools/histogram.h>
 #include <libltntstools/probes.h>
+#include "source-rcts.h"
 #include "xorg-list.h"
 #include "parsers.h"
+#include "ffmpeg-includes.h"
 #include "utils.h"
 #include "hash_index.h"
-#include "ffmpeg-includes.h"
 #include "codecs.h"
 
 #include <pcap.h>

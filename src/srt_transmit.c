@@ -7,6 +7,8 @@
 #include <inttypes.h>
 
 #include <libltntstools/ltntstools.h>
+#include "ffmpeg-includes.h"
+#include "source-rcts.h"
 #include <srt/srt.h>
 
 #include "utils.h"
