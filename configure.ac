@@ -1,4 +1,5 @@
 #                                               -*- Autoconf -*-
+#                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.68])
@@ -101,6 +102,15 @@ AC_ARG_ENABLE([static],
 
 AM_CONDITIONAL([BUILD_SHARED], [test "x$enable_shared" != "xno"])
 AM_CONDITIONAL([BUILD_STATIC], [test "x$enable_static" != "xno"])
+
+# Check for Nielsen decoder SDK, optional.
+AC_LANG_PUSH([C++])
+AC_CHECK_HEADERS([IMonitorSdkProcessor.h], HEADER_NIELSENSDK="yes")
+if test "x$HEADER_NIELSENSDK" == "xyes" ; then
+    LDFLAGS+=" -lMonitorSdk -lNaes2HybridDecoder -lNaes2HFDecoder -lNaes6Decoder -lCBETDecoder -lNielsenAudioCore "
+fi
+AM_CONDITIONAL(NIELSENSDK, test x"$HEADER_NIELSENSDK" == x"yes")
+AC_LANG_POP([C++])
 
 AC_CONFIG_FILES([Makefile src/Makefile])
 AC_OUTPUT
