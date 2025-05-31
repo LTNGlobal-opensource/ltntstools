@@ -46,6 +46,22 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 	return NULL;
 }
 
+static void *_avio_raw_callback_status(void *userContext, enum source_avio_status_e status)
+{
+	switch (status) {
+	case AVIO_STATUS_MEDIA_START:
+		printf("AVIO media starts\n");
+		break;
+	case AVIO_STATUS_MEDIA_END:
+		printf("AVIO media ends\n");
+		//signal_handler(0);
+		break;
+	default:
+		fprintf(stderr, "unsupported avio state %d\n", status);
+	}
+	return NULL;
+}
+
 static void usage()
 {
 	printf("\nA tool to read nielsen audio watermarks from a live compressed UDP stream.\n");
@@ -200,6 +216,7 @@ int _nielsen_inspector(int argc, char **argv)
 
 	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
 	cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+	cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
 
 	void *srcctx = NULL;
 	ret = ltntstools_source_avio_alloc(&srcctx, ctx, &cbs, ctx->iname);
