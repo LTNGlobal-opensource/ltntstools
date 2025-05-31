@@ -69,6 +69,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   pes_inspector: adjusted to use relocated ffmpeg related code
   libltntstools: moved source-rcts from the core library into the ltntstools repo
   libltntstools: added packetlength != 1316 detection into base library
+  libltntstools: klringbuffer: fix cpp warnings about assignments
 
 * Wed May 21 2025 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.36.4
