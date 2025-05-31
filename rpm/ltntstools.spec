@@ -65,6 +65,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   nielsen_inspector: TERMINATE if the application has no internal nielsen decoder linked into the project
   nielsen_inspector: disable silent mode, renable message output
   nielsen_inspector: enable AVIOD stream end messages
+  nielsen_inspector: fix broken decoding for MP2 audio
   pes_inspector: adjusted to use relocated ffmpeg related code
   libltntstools: moved source-rcts from the core library into the ltntstools repo
   libltntstools: added packetlength != 1316 detection into base library
