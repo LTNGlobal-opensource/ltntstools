@@ -47,7 +47,7 @@ public:
 CMonitorSdkCallback::CMonitorSdkCallback(int pid, int channelNr)
 {
 	this->pairNumber = pairNumber;
-    silentMode = 1; /* By default, silence all message outputs */
+    silentMode = 0; /* By default, silence all message outputs */
     this->pid = pid;
     this->channelNr = channelNr;
 }
