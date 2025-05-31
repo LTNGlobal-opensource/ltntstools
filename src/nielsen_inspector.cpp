@@ -97,8 +97,8 @@ int _nielsen_inspector(int argc, char **argv)
 	}
 
 	if (ltntstools_audioanalyzer_has_feature_nielsen(NULL) == 0) {
-		printf("No Nielsen audio decoder detected, this build does not includie Nielsen support, aborting.\n");
-		//exit(1);
+		printf("No Nielsen audio decoder detected, this build does not include Nielsen support, aborting.\n");
+		exit(1);
 	}
 
 	printf("\nEnabling the Nielsen decoder\n\n");
