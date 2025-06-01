@@ -48,6 +48,19 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_caption_analyzer
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
+/usr/local/lib-ltntstools/libdvbpsi.so.10
+/usr/local/lib-ltntstools/libklscte35.so.0
+/usr/local/lib-ltntstools/libltntstools.so.0
+/usr/local/lib-ltntstools/libsrt.so.1.4
+/usr/local/lib-ltntstools/libjson-c.so.4
+/usr/local/lib-ltntstools/libzvbi.so.0
+/usr/local/lib-ltntstools/libklvanc.so.0
+/usr/local/lib-ltntstools/libavformat.so.58
+/usr/local/lib-ltntstools/libavutil.so.56
+/usr/local/lib-ltntstools/libavcodec.so.58
+/usr/local/lib-ltntstools/libswresample.so.3
+/usr/local/lib-ltntstools/libswscale.so.5
+/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
 * Fri May 23 2025 Steven Toth <steven.toth@ltnglobal.com> 
