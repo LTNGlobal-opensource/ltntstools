@@ -7,6 +7,7 @@ if BUILD_SHARED
 AM_LDFLAGS  = -Wl,-rpath='$$ORIGIN/../lib-ltntstools' -Wl,-z,origin
 AM_LDFLAGS += $(shell pkg-config --libs srt libltntstools json-c libklscte35 zvbi-0.2 libklvanc)
 AM_LDFLAGS += $(shell pkg-config --libs libavformat libavutil libavcodec libswresample libswscale)
+AM_LDFLAGS += $(shell pkg-config --libs libcurl)
 endif
 endif
 

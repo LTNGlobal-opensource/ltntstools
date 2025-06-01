@@ -103,7 +103,6 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	printf("base64 = %s\n", encoded_data);
 #endif
 
-#if 0
 	curl_global_init(CURL_GLOBAL_ALL);
 
 	CURL *curl = curl_easy_init();
@@ -142,9 +141,6 @@ int json_item_post_http(struct tool_context_s *ctx, struct json_item_s *item)
 	curl_easy_cleanup(curl);
 	curl_global_cleanup();
 	
-	return ret;
-#endif
-
 	return ret;	
 }
 
