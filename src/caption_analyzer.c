@@ -434,6 +434,9 @@ static int pe_callback_video(struct tool_ctx_s *ctx, struct input_pid_s *ptr, st
 				int sliced_count = 0;
 				int s = 16;
 				for (int i = 0; i < cc_count; i++) {
+					if (ctx->verbose) {
+						printf("%d: %02x %02x %02x\n", i, e->ptr[s + 0], e->ptr[s + 1], e->ptr[s + 2]);
+					}
 					if (e->ptr[s + 0] == 0xfc || e->ptr[s + 0] == 0xfd) {
 						if (sliced_count >= 2) {
 							ptr->syntaxError++;
