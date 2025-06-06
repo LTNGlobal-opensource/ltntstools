@@ -74,6 +74,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: moved packetlength != 1316 into base library
   tstools_sei_unregistered: fixed compiler symbol warning
   caption_analyzer: adjusted to use relocated ffmpeg related code
+  caption_analyzer: caption_analyzer: in verbose mode dump tuples to console
   nielsen_inspector: adjusted to use relocated ffmpeg related code
   nielsen_inspector: fix a spelling error in console help
   nielsen_inspector: TERMINATE if the application has no internal nielsen decoder linked into the project
