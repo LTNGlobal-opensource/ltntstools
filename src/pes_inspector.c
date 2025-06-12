@@ -25,7 +25,7 @@
 static void ltn_nal_h264_strip_emulation_prevention(struct ltn_nal_headers_s *h)
 {
 	int dropped = 0;
-	for (int i = 1; i < h->lengthBytes; i++) {
+	for (unsigned int i = 1; i < h->lengthBytes; i++) {
 		if (i + 2 < h->lengthBytes &&
 			h->ptr[i + 0] == 0x00 &&
 			h->ptr[i + 1] == 0x00 &&

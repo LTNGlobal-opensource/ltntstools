@@ -40,7 +40,7 @@ void hash_index_remove(struct hash_index_s *p, uint16_t key, void *item)
 	if (e->arrLength == 0)
 		return;
 
-	for (int i = 0; i < e->arrLength; i++) {
+	for (unsigned int i = 0; i < e->arrLength; i++) {
 		if (*(e->arr + i) == item) {
 			*(e->arr + i) = (void *)0xdead; /* TODO: trim the list instead of faking a removal */
 		}
@@ -68,7 +68,7 @@ int hash_index_get_enum(struct hash_index_s *p, uint16_t key, int *enumer, void 
 	struct hash_index_s *e = p + key;
 	if (e->arrLength == 0)
 		return -1;
-	if (*enumer < 0 || *enumer >= e->arrLength)
+	if (*enumer < 0 || *enumer >= (int)e->arrLength)
 		return -1;
 	*ptr = e->arr[(*enumer)++];
 

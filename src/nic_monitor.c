@@ -607,7 +607,7 @@ static void *ui_thread_func(void *p)
 					streamCount++;
 					mvprintw(streamCount + 2, 4, "prog#  PMT_PID ----->  PCR_PID ----->  Streams  ES_PID ----->  TYPE  Description");
 
-					for (int p = 0; p < m->program_count; p++) {
+					for (unsigned int p = 0; p < m->program_count; p++) {
 
 						int has_scte35 = ltntstools_descriptor_list_contains_scte35_cue_registration(&m->programs[p].pmt.descr_list);
 						int has_smpte2038 = 0;
@@ -628,7 +628,7 @@ static void *ui_thread_func(void *p)
 							/* Poke the stats model and let it know we should be receiving PCRs on this pid. */
 							ltntstools_pid_stats_pid_set_contains_pcr(di->stats, m->programs[p].pmt.PCR_PID);
 						}
-						for (int s = 0; s < m->programs[p].pmt.stream_count; s++) {
+						for (unsigned int s = 0; s < m->programs[p].pmt.stream_count; s++) {
 							if (s > 0)
 								streamCount++;
 

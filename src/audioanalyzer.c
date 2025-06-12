@@ -442,7 +442,7 @@ ssize_t ltntstools_audioanalyzer_write(void *hdl, const uint8_t *pkts, unsigned 
     struct ltntstools_audioanalyzer_ctx_s *ctx = (struct ltntstools_audioanalyzer_ctx_s *)hdl;
     int count = 0;
 
-    for (int i = 0; i < packetCount; i++) {
+    for (unsigned int i = 0; i < packetCount; i++) {
         const unsigned char *pkt = &pkts[i * 188];
         uint16_t pid = ltntstools_pid(pkt);
 

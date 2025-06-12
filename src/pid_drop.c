@@ -159,7 +159,7 @@ int pid_drop(int argc, char *argv[])
 		if (rlen <= 0)
 			break;
 
-		for (int i = 0; i < rlen; i++) {
+		for (unsigned int i = 0; i < rlen; i++) {
 
 			uint8_t *p = buf + (i * 188);
 			ctx->ts_total_packets++;

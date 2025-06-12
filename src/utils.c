@@ -24,7 +24,7 @@ int character_replace(char *str, char src, char dst)
 {
 	int c = 0;
 
-	for (int i = 0; i < strlen(str); i++) {
+	for (unsigned int i = 0; i < strlen(str); i++) {
 		if (str[i] == src) {
 			str[i] = dst;
 			c++;

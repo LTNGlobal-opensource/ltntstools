@@ -15,7 +15,7 @@ AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_O
 	-D_DEFAULT_SOURCE \
 	-DGIT_VERSION=\"$(GIT_VERSION)\" \
 	-I../../ffmpeg/libavcodec \
-	-I../../ffmpeg
+	-I../../ffmpeg -Wsign-compare
 
 LDADD = -lpthread -lz -lm -lltntstools -lklvanc -lzvbi
 

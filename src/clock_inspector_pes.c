@@ -225,8 +225,8 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	ssize_t len = ltn_pes_packet_parse(&p->pes, bs, 1 /* SkipDataExtraction */);
 
 	/* Track the difference in SCR clocks between this PTS header and the prior. */
-	uint64_t pts_scr_diff_ms = 0;
-	uint64_t dts_scr_diff_ms = 0;
+	int64_t pts_scr_diff_ms = 0;
+	int64_t dts_scr_diff_ms = 0;
 
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 		p->pts_diff_ticks = ltntstools_pts_diff(p->pts_last.PTS, p->pes.PTS);

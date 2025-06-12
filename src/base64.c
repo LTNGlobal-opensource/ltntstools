@@ -36,7 +36,7 @@ char *base64_encode(const unsigned char *data,
     if (encoded_data == NULL)
 		return NULL;
  
-    for (int i = 0, j = 0; i < input_length;) {
+    for (unsigned int i = 0, j = 0; i < input_length;) {
  
         uint32_t octet_a = i < input_length ? (unsigned char)data[i++] : 0;
         uint32_t octet_b = i < input_length ? (unsigned char)data[i++] : 0;

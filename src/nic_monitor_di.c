@@ -543,7 +543,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 
 	struct ltntstools_pat_s *m = NULL;
 	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
-		for (int p = 0; p < m->program_count; p++) {
+		for (unsigned int p = 0; p < m->program_count; p++) {
 			if (m->programs[p].program_number == 0)
 				continue; /* Skip the NIT pid */
 
@@ -566,7 +566,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 
 			json_object *streams = json_object_new_array();
 
-			for (int s = 0; s < m->programs[p].pmt.stream_count; s++) {
+			for (unsigned int s = 0; s < m->programs[p].pmt.stream_count; s++) {
 				const char *d = ltntstools_GetESPayloadTypeDescription(m->programs[p].pmt.streams[s].stream_type);
 
 				json_object *item = json_object_new_object();
@@ -1011,7 +1011,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 	char enclat[32];
 	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
 
-		for (int p = 0; p < m->program_count; p++) {
+		for (unsigned int p = 0; p < m->program_count; p++) {
 
 			unsigned int major, minor, patch;
 			int ret = ltntstools_descriptor_list_contains_ltn_encoder_sw_version(&m->programs[p].pmt.descr_list,
@@ -1133,7 +1133,7 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 	char enclat[32];
 	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
 
-		for (int p = 0; p < m->program_count; p++) {
+		for (unsigned int p = 0; p < m->program_count; p++) {
 
 			unsigned int major, minor, patch;
 			int ret = ltntstools_descriptor_list_contains_ltn_encoder_sw_version(&m->programs[p].pmt.descr_list,

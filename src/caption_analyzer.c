@@ -23,7 +23,7 @@ static void dumpPids(struct tool_ctx_s *ctx)
 static void ltn_nal_h264_strip_emulation_prevention(struct ltn_nal_headers_s *h)
 {
 	int dropped = 0;
-	for (int i = 1; i < h->lengthBytes; i++) {
+	for (unsigned int i = 1; i < h->lengthBytes; i++) {
 		if (i + 2 < h->lengthBytes &&
 			h->ptr[i + 0] == 0x00 &&
 			h->ptr[i + 1] == 0x00 &&
@@ -511,7 +511,7 @@ static int pe_callback_teletext(struct tool_ctx_s *ctx, struct input_pid_s *ptr,
 		if (ctx->verbose) {
 			/* 'p' represents EN 300 472 v1.2.2 page 7, beginning "data unit id" */
 			printf("0x%04x: %02x %02x : ", ptr->pid, *(p + 0), *(p + 1));
-			for (int j = 0; j < data_unit_length; j++) {
+			for (unsigned int j = 0; j < data_unit_length; j++) {
 				printf("%02x ", *(p + j + 2));
 			}
 			printf("\n");
@@ -641,7 +641,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 				/* Walk all the services, process any OP47 / Teletext pids */
 				e = 0;
 				while (ltntstools_pat_enum_services_teletext(pat, &e, &pmt) == 0) {
-					for (int i = 0; i < pmt->stream_count; i++) {
+					for (unsigned int i = 0; i < pmt->stream_count; i++) {
 						struct ltntstools_pmt_entry_s *se = &pmt->streams[i];
 
 						if (ltntstools_descriptor_list_contains_teletext(&se->descr_list)) {
@@ -653,7 +653,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 								se->elementary_PID, se->elementary_PID);
 
 							/* Find the teletext descriptor and the lang and page number */
-							for (int j = 0; j < se->descr_list.count; j++) {
+							for (unsigned int j = 0; j < se->descr_list.count; j++) {
 								struct ltntstools_descriptor_entry_s *de = &se->descr_list.array[j];
 								if (de->tag == 0x56) {
 									int pos = 0;

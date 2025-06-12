@@ -640,7 +640,7 @@ static int init_source(struct tool_ctx_s *ctx, int nr)
 	xorg_list_init(&src->listElements);
 
 	pthread_mutex_lock(&src->lockElements);
-	for (int i = 0; i < src->maxListElements; i++) {
+	for (unsigned int i = 0; i < src->maxListElements; i++) {
 		struct timing_element_s *e = calloc(1, sizeof(*e));
 		e->nr = i;
 		xorg_list_append(&e->list, &src->listElements);

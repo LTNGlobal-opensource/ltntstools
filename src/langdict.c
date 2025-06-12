@@ -401,7 +401,7 @@ int langdict_parse_dict(struct langdict_context_s *ctx, struct langdict_item_s *
         if (t[0] >= di->dict[*di->dict_length / 2][0]) {
             begin = (*di->dict_length / 2) - 1;
         }
-        for (int i = begin; i < *di->dict_length; i++) {
+        for (unsigned int i = begin; i < *di->dict_length; i++) {
             if (strcasecmp(di->dict[i], t) == 0) {
                 found++;
                 di->time_last_found = now;
@@ -476,7 +476,7 @@ int langdict_get_stats(void *handle, enum langdict_type_e langtype, struct langd
 
 static void arrayify_dict(struct langdict_item_s *di)
 {
-    for (int i = 0; i < *di->dict_length; i++) {
+    for (unsigned int i = 0; i < *di->dict_length; i++) {
         printf("\"%s\", ", di->dict[i]);
         if (i % 10 == 9)
             printf("\n");
