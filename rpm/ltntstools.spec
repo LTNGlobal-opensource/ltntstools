@@ -81,6 +81,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   nielsen_inspector: enable AVIOD stream end messages
   nielsen_inspector: Wasn't decoding MP2/AAC/AC3 audio. Fixed/tested with 2.0 on all 3 codecs and 5.1 on AC3.
   pes_inspector: adjusted to use relocated ffmpeg related code
+  all: signed compare checks enabled. Squash lots of subsequent compiler warnings
   libltntstools: moved source-rcts from the core library into the ltntstools repo
   libltntstools: added packetlength != 1316 detection into base library
   libltntstools: klringbuffer: fix cpp warnings about assignments
