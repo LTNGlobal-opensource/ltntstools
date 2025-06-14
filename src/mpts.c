@@ -10,6 +10,8 @@
 #include <string.h>
 #include <assert.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
@@ -27,7 +29,7 @@ struct pid_s;
 struct stream_s;
 struct tool_ctx_s;
 
-struct stream_s *stream_alloc(char *iname);
+struct stream_s *stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr);
 int stream_add_pid(struct stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
 int stream_write(struct stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
 void stream_free(struct stream_s *stream);
@@ -72,6 +74,8 @@ struct stream_s
 
 	void *avio_ctx;
 	struct ltntstools_source_avio_callbacks_s cbs;
+
+	struct ltntstools_stream_statistics_s *libstats;
 
 	int pidCount;
 	struct pid_s *pids[MAX_STREAM_PIDS];
@@ -171,9 +175,32 @@ void pid_free(struct pid_s *pid)
 
 static void *_avio_raw_callback(struct stream_s *stream, const uint8_t *pkts, int packetCount)
 {
+	//printf("AVIO data: %s nr %d %d packets\n", stream->iname, stream->nr, packetCount);
+
 	for (int i = 0; i < stream->pidCount; i++) {
+		if (i == 0) {
+			struct stat s;
+			char fn[64];
+			sprintf(fn, "/tmp/stream%d.drop", stream->nr);
+			if (stat(fn, &s) == 0) {
+				/* Trash the cc in the first packet */
+				unsigned char *p =(unsigned char *)pkts;
+#if 0
+				printf("Trashing stream nr %d\n", stream->nr);
+#endif
+				*(p + 3) = 0x30;
+				remove(fn);
+
+#if 0
+				printf("%02x %02x %02x %02x\n",
+					p[0], p[1], p[2], p[3]);
+#endif
+			}
+		}
 		stream_write(stream, stream->pids[i], pkts, packetCount);
 	}
+
+	ltntstools_pid_stats_update(stream->libstats, pkts, packetCount);
 
 	return NULL;
 }
@@ -194,15 +221,92 @@ static void *_avio_raw_callback_status(struct stream_s *stream, enum source_avio
 	return NULL;
 }
 
-struct stream_s *stream_alloc(char *iname)
+void *notification_callback(struct stream_s *stream, enum ltntstools_notification_event_e event,
+	const struct ltntstools_stream_statistics_s *stats,
+	const struct ltntstools_pid_statistics_s *pid)
+{
+	struct timeval ts;
+	gettimeofday(&ts, NULL);
+
+#if 0
+	printf("%d.%06d: %s stream %p pid %p\n", (int)ts.tv_sec, (int)ts.tv_usec,
+		ltntstools_notification_event_name(event),
+		stats, pid);
+#endif
+
+	if (event == EVENT_UPDATE_STREAM_CC_COUNT) {
+		printf("%d.%06d: %-40s stream %p nr %d %" PRIu64 " cc errors\n",
+			(int)ts.tv_sec,
+			(int)ts.tv_usec,
+			ltntstools_notification_event_name(event),
+			stats,
+			stream->nr,
+			ltntstools_pid_stats_stream_get_cc_errors((struct ltntstools_stream_statistics_s *)stats));
+	} else
+	if (event == EVENT_UPDATE_STREAM_MBPS) {
+		printf("%d.%06d: %-40s stream %p nr %d %5.2f mbps\n", (int)ts.tv_sec, (int)ts.tv_usec,
+			ltntstools_notification_event_name(event),
+			stats,
+			stream->nr,
+			ltntstools_pid_stats_stream_get_mbps((struct ltntstools_stream_statistics_s *)stats));
+	} else
+	if (event == EVENT_UPDATE_STREAM_IAT_HWM) {
+		printf("%d.%06d: %-40s stream %p nr %d %" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
+			ltntstools_notification_event_name(event),
+			stats,
+			stream->nr,
+			ltntstools_pid_stats_stream_get_iat_hwm_us((struct ltntstools_stream_statistics_s *)stats) / 1000);
+	} else
+	if (0 && event == EVENT_UPDATE_PID_PUSI_DELIVERY_TIME) {
+
+		/* Find the pid from the stats in our stream struct */
+		int64_t ms = pid->pusi_time_ms;
+		struct pid_s *opid = NULL;
+		for (int i = 0; i < stream->pidCount; i++) {
+			//printf("pid->pidNr 0x%04x finding.... %04x\n", pid->pidNr, stream->pids[i]->pid);
+			if (stream->pids[i]->pid == pid->pidNr) {
+				opid = stream->pids[i];
+				break;
+			}
+		}
+
+		/* opid can be null if this app is given a pid for which we're not tracking (such as a second audio channe. */
+		if (opid && (opid->outputPidNr & 0xff) == 0x31) {
+			printf("%d.%06d: %-40s stream %p ipid %p/0x%04x opid %p/0x%04x/0x%04x % 6" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
+				ltntstools_notification_event_name(event),
+				stats,
+				pid, pid->pidNr,
+				opid, opid->pid, opid->outputPidNr,
+				ms);
+		} else {
+#if 0
+			printf("%d.%06d: %s stream %p ipid %p/0x%04x: opid %p %+6" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
+				ltntstools_notification_event_name(event),
+				stats,
+				pid, pid->pidNr,
+				opid,
+				ms);
+#endif
+		}
+	}
+	return NULL;	
+}
+
+struct stream_s *stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr)
 {
 	struct stream_s *stream = calloc(1, sizeof(*stream));
 	if (!stream) {
 		return NULL;
 	}
 
+	stream->nr = nr;
+	stream->ctx = ctx;
 	stream->pidCount = 0;
 	stream->iname = strdup(iname);
+
+	/* We use this specifically for tracking PCR walltime drift */
+	ltntstools_pid_stats_alloc(&stream->libstats);
+	ltntstools_notification_register_callback(stream->libstats, stream, (ltntstools_notification_callback)notification_callback);
 
 	stream->cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
 	stream->cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
@@ -300,9 +404,7 @@ int mpts(int argc, char *argv[])
 			break;
 		case 'i':
 			inputNr++;
-			ctx->streams[inputNr] = stream_alloc(optarg);
-			ctx->streams[inputNr]->ctx = ctx;
-			ctx->streams[inputNr]->nr = inputNr;
+			ctx->streams[inputNr] = stream_alloc(ctx, optarg, inputNr);
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x:0x%x", &pid, &streamId) != 2) || (pid > 0x1fff)) {
@@ -389,7 +491,9 @@ int mpts(int argc, char *argv[])
 			ltntstools_pmt_create_packet_ts(&pat->programs[0].pmt, pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
 			ltntstools_pmt_create_packet_ts(&pat->programs[1].pmt, pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
 
-			printf("PES Queues: ");
+			struct timeval ts;
+			gettimeofday(&ts, NULL);
+			printf("%d.%06d: PES Queues: ", (int)ts.tv_sec, (int)ts.tv_usec);
 			for (int i = 0; i <= inputNr; i++) {
 				struct stream_s *stream = ctx->streams[i];
 				for (int j = 0; j < stream->pidCount; j++) {
