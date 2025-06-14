@@ -121,6 +121,7 @@ SRC += audioanalyzer.c
 SRC += nielsen-bindings.cpp
 SRC += golomb.c
 SRC += source-rcts.c
+SRC += mpts.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -153,6 +154,7 @@ LINKBINS += tstools_ntt_inspector
 endif
 LINKBINS += tstools_sei_latency_inspector
 LINKBINS += tstools_caption_analyzer
+LINKBINS += tstools_mpts
 
 tstools_util_SOURCES = $(SRC)
 
