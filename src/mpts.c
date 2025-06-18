@@ -24,6 +24,7 @@
 #define TS_PACKET_SIZE          188
 #define TS_PACKETS_PER_SEC (TARGET_BITRATE / (TS_PACKET_SIZE * 8))
 #define PACKET_INTERVAL_NS (1000000000 / TS_PACKETS_PER_SEC)
+#define MAX_EBN_SIZE 834 * 1000
 
 struct pid_s;
 struct stream_s;
@@ -55,6 +56,8 @@ struct pid_s
 
 	pthread_mutex_t peslistlock;
 	uint64_t peslistcount;
+	uint64_t EBnSize;
+	uint64_t EBnSize_hwm;
 	struct xorg_list peslist;
 
 	/* Transport packets to be egressed */
@@ -109,7 +112,9 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 {
 	struct stream_s *stream = pid->stream;
 
-	//ltntstools_hexdump(pes->rawBuffer, 188, 32);
+	if (pid->pid == 0x32) {
+		//ltntstools_hexdump(pes->rawBuffer, 188, 32);
+	}
 
 	struct pes_item_s *e = malloc(sizeof(*e));
 	if (e) {
@@ -117,6 +122,12 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 		pthread_mutex_lock(&pid->peslistlock);
 		xorg_list_append(&e->list, &pid->peslist);
 		pid->peslistcount++;
+		pid->EBnSize += pes->dataLengthBytes; /* Plus header */
+		if (pid->EBnSize > MAX_EBN_SIZE) {
+			printf("EBN Overflow %" PRIu64 " > %d\n", pid->EBnSize, MAX_EBN_SIZE);
+		}
+		pid->EBnSize_hwm = (pid->EBnSize > pid->EBnSize_hwm) ? pid->EBnSize : pid->EBnSize_hwm;
+
 		pthread_mutex_unlock(&pid->peslistlock);
 	} else {
 		//ltn_pes_packet_dump(pes, "");
@@ -163,6 +174,7 @@ void pid_free(struct pid_s *pid)
 
 		struct pes_item_s *e = xorg_list_first_entry(&pid->peslist, struct pes_item_s, list);
 		pid->peslistcount--;
+		pid->EBnSize -= e->pes->dataLengthBytes; /* Plus header */
 		xorg_list_del(&e->list);
 		ltn_pes_packet_free(e->pes);
 		free(e);
@@ -306,7 +318,8 @@ struct stream_s *stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr)
 
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&stream->libstats);
-	ltntstools_notification_register_callback(stream->libstats, stream, (ltntstools_notification_callback)notification_callback);
+	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_STREAM_MBPS, stream, (ltntstools_notification_callback)notification_callback);
+	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_STREAM_IAT_HWM, stream, (ltntstools_notification_callback)notification_callback);
 
 	stream->cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
 	stream->cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
@@ -371,7 +384,9 @@ static void usage(const char *progname)
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("\n  Eg. %s -i 'udp://227.1.20.80:4002?buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -P 0x31:0xe0 -P 0x32:0xc0 \\\n", progname);
-	printf("                     -i 'udp://227.1.20.80:4002?buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -P 0x31:0xe0 -P 0x32:0xc0\n\n");
+	printf("                     -i 'udp://227.1.20.80:4002?buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -P 0x31:0xe0 -P 0x32:0xc0\n");
+	printf("\n  Eg. %s -v -B 50000000 -T sample.ts\n", progname);
+	printf("\n");
 }
 
 int mpts(int argc, char *argv[])
@@ -493,14 +508,14 @@ int mpts(int argc, char *argv[])
 
 			struct timeval ts;
 			gettimeofday(&ts, NULL);
-			printf("%d.%06d: PES Queues: ", (int)ts.tv_sec, (int)ts.tv_usec);
+			printf("%d.%06d: PES Queues/Size: ", (int)ts.tv_sec, (int)ts.tv_usec);
 			for (int i = 0; i <= inputNr; i++) {
 				struct stream_s *stream = ctx->streams[i];
 				for (int j = 0; j < stream->pidCount; j++) {
 					struct pid_s *pid = stream->pids[j];
 
 					pthread_mutex_lock(&pid->peslistlock);
-					printf("%05" PRIi64 " ", pid->peslistcount);
+					printf("%05" PRIu64 ",%06" PRIu64 ",%06" PRIu64 " ", pid->peslistcount, pid->EBnSize, pid->EBnSize_hwm);
 					pthread_mutex_unlock(&pid->peslistlock);
 
 				}
@@ -534,6 +549,7 @@ int mpts(int argc, char *argv[])
 						item = xorg_list_first_entry(&pid->peslist, struct pes_item_s, list);
 						xorg_list_del(&item->list);
 						pid->peslistcount--;
+						pid->EBnSize -= item->pes->dataLengthBytes; /* Plus header */
 						break;
 					}
 					pthread_mutex_unlock(&pid->peslistlock);
