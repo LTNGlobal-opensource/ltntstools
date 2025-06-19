@@ -72,6 +72,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: Improve console message if input stream is torn down or aborted (srt).
   tstools_clock_inspector: moved packetlength != 1316 into base library
   tstools_sei_unregistered: fixed compiler symbol warning
+  tstools_bitrate_smoother: Added -S option to expose smoother runetime statistics to console.
   caption_analyzer: adjusted to use relocated ffmpeg related code
   caption_analyzer: caption_analyzer: in verbose mode dump tuples to console
   nielsen_inspector: adjusted to use relocated ffmpeg related code

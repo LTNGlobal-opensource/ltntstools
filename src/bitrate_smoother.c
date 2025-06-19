@@ -37,6 +37,7 @@ struct tool_context_s
 	int verbose;
 	int stopAfterSeconds;
 	int terminateLOSSeconds;
+	int showDeveloperStatisticsSeconds;
 
 	struct ltntstools_stream_statistics_s *i_stream, *o_stream;
 	void *smoother;
@@ -273,6 +274,7 @@ static void *thread_packet_rx(void *p)
 	}
 
 	time_t lastPacketTime = time(0);
+	time_t lastDevStatsTime = lastPacketTime;
 
 	char ts[256];
 	time_t now = time(0);
@@ -282,6 +284,29 @@ static void *thread_packet_rx(void *p)
 	printf("%s: Smoother starting\n", ts);
 
 	while (!ctx->ffmpeg_threadTerminate) {
+		if (ctx->smoother && ctx->showDeveloperStatisticsSeconds && (lastDevStatsTime + ctx->showDeveloperStatisticsSeconds <= now)) {
+			lastDevStatsTime = now;
+
+			char ts[256];
+			time_t now = time(0);
+			sprintf(ts, "%s", ctime(&now));
+			ts[ strlen(ts) - 1] = 0;
+
+			struct smoother_pcr_statistics s;
+			smoother_pcr_get_statistics(ctx->smoother, &s);
+
+			printf("%s: Dev Statistics - latency %" PRIi64 "(ms) alloc %" PRIi64  
+				"(B) used %" PRIu64 "(B) items %" PRIu64" free %" PRIu64 " busy %" PRIu64 " growth %" PRIu64 " \n",
+				ts,
+				s.measuredLatencyMs,
+				s.totalAllocFootprintBytes,
+				s.totalUserBytes,
+				s.totalItems,
+				s.qFreeCount,
+				s.qBusyCount,
+				s.totalItemGrowth);
+		}
+
 		if (ctx->terminateLOSSeconds && (lastPacketTime + ctx->terminateLOSSeconds <= now)) {
 			char ts[256];
 			time_t now = time(0);
@@ -557,6 +582,7 @@ static void usage(const char *progname)
 	printf("     8 - input packet RTP data and human readable clock\n");
 	printf("    32 - PMT re-writing and PID removal\n");
 	printf("  -R pid 0xNNNN to be removed [def: none], multiple -R instances supported. [0x2000 all pids]\n");
+	printf("  -S <seconds> Show developer statistics every N seconds. [def: disabled]\n");
 	printf("  -Z pid 0xNNNN Update this PID PMT to reflect any removed ES pids [def: disabled]\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
 #ifdef __linux__
@@ -587,7 +613,7 @@ int bitrate_smoother(int argc, char *argv[])
 	ltntstools_pid_stats_alloc(&ctx->i_stream);
 	ltntstools_pid_stats_alloc(&ctx->o_stream);
 
-	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:R:v:t:Z:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:R:v:t:S:Z:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -624,6 +650,12 @@ int bitrate_smoother(int argc, char *argv[])
 				memset(&ctx->filter[0], 0, sizeof(ctx->filter)); /* Disable all pids by default */
 			} else {
 				ctx->filter[ ctx->pid ] = 0; /* Disable pid output */
+			}
+			break;
+		case 'S':
+			ctx->showDeveloperStatisticsSeconds = atoi(optarg);
+			if (ctx->showDeveloperStatisticsSeconds < 5) {
+				ctx->showDeveloperStatisticsSeconds = 5;
 			}
 			break;
 #ifdef __linux__
