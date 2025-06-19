@@ -295,10 +295,10 @@ static void *thread_packet_rx(void *p)
 			struct smoother_pcr_statistics s;
 			smoother_pcr_get_statistics(ctx->smoother, &s);
 
-			printf("%s: Dev Statistics - latency %" PRIi64 "(ms) alloc %" PRIi64  
-				"(B) used %" PRIu64 "(B) items %" PRIu64" free %" PRIu64 " busy %" PRIu64 " growth %" PRIu64 " \n",
+			printf("%s: Dev Statistics - max observed latency %6" PRIi64 "(ms) alloc %8" PRIi64  
+				"(B) used %8" PRIu64 "(B) items %5" PRIu64" free %5" PRIu64 " busy %5" PRIu64 " growth %5" PRIu64 " \n",
 				ts,
-				s.measuredLatencyMs,
+				s.measuredLatencyMs_hwm,
 				s.totalAllocFootprintBytes,
 				s.totalUserBytes,
 				s.totalItems,
@@ -409,9 +409,13 @@ static void *thread_packet_rx(void *p)
 		} else
 		if (ctx->isRTP == 0 && ctx->sm == NULL && ctx->pcrPID && ctx->smoother == NULL) {
 			smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_pcr_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
+			smoother_pcr_set_verbose(ctx->smoother, 0);
+			smoother_pcr_set_blocking_writes(ctx->smoother, 0);
 		} else
 		if (ctx->isRTP == 1 && ctx->sm == NULL && ctx->smoother == NULL) {
 			smoother_rtp_alloc(&ctx->smoother, ctx, &smoother_rtp_cb, 5000, 12 + (7 * 188), ctx->latencyMS);
+			smoother_pcr_set_verbose(ctx->smoother, 0);
+			smoother_pcr_set_blocking_writes(ctx->smoother, 0);
 		}
 
 		/* UDP-TS only */
