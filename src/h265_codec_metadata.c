@@ -82,7 +82,7 @@ int h265_coalesce_nal(uint8_t **dst, uint32_t *dstLengthBytes, const uint8_t *sr
     uint8_t *pb = p;
 
     /* in/out buffers will be formatted 00 00 01 NN NN DD DD DD DD */
-    for (int i = 0; i < srcLengthBytes; i++) {
+    for (unsigned int i = 0; i < srcLengthBytes; i++) {
         if (i + 2 < srcLengthBytes) {
             if ((src[i + 0] == 0) && (src[i + 1] == 0) && (src[i + 2] == 3)) {
                 *(p++) = *(src + i + 0);
@@ -204,7 +204,7 @@ static int h265_parse_st_ref_pic_set(struct h265_codec_metadata_ctx_s *ctx, int 
     }
 
     if (sps->inter_ref_pic_set_prediction_flag) {
-        if (stRpsIdx == sps->num_short_term_ref_pic_sets) {
+        if ((unsigned int)stRpsIdx == sps->num_short_term_ref_pic_sets) {
             sps->delta_idx_minus1 = get_ue_golomb(&ctx->gb);
         }
 
@@ -221,11 +221,11 @@ static int h265_parse_st_ref_pic_set(struct h265_codec_metadata_ctx_s *ctx, int 
     } else {
         sps->num_negative_pics = get_ue_golomb(&ctx->gb);
         sps->num_positive_pics = get_ue_golomb(&ctx->gb);
-        for(int i = 0; i < sps->num_negative_pics; i++) {
+        for(unsigned int i = 0; i < sps->num_negative_pics; i++) {
             sps->delta_poc_s0_minus1 = get_ue_golomb(&ctx->gb);
             sps->used_by_curr_pic_s0_flag = get_bits1(&ctx->gb);
         }
-        for (int i = 0; i < sps->num_positive_pics; i++) {
+        for (unsigned int i = 0; i < sps->num_positive_pics; i++) {
             sps->delta_poc_s1_minus1 = get_ue_golomb(&ctx->gb);
             sps->used_by_curr_pic_s1_flag = get_bits1(&ctx->gb);
         }
@@ -500,7 +500,7 @@ static int h265_parse_slice_segment_layer(struct h265_codec_metadata_ctx_s *ctx,
 
     int slice_type = -1;
     if (!dependent_slice_segment_flag) {
-        for (int i = 0; i < pps->num_extra_slice_header_bits; i++) {
+        for (unsigned int i = 0; i < pps->num_extra_slice_header_bits; i++) {
             skip_bits(&ctx->gb, 1); /* Reserved */
         }
         slice_type = get_ue_golomb(&ctx->gb);
@@ -543,7 +543,7 @@ static int h265_parse_vps(struct h265_codec_metadata_ctx_s *ctx)
 
     vps->vps_sub_layer_ordering_info_present_flag = get_bits1(&ctx->gb);
 
-    for (int i = ( vps->vps_sub_layer_ordering_info_present_flag ? 0 : vps->vps_max_sub_layers_minus1 );
+    for (unsigned int i = ( vps->vps_sub_layer_ordering_info_present_flag ? 0 : vps->vps_max_sub_layers_minus1 );
         i <= vps->vps_max_sub_layers_minus1; i++)
     {
         vps->vps_max_dec_pic_buffering_minus1[i] = get_ue_golomb(&ctx->gb);
@@ -554,8 +554,8 @@ static int h265_parse_vps(struct h265_codec_metadata_ctx_s *ctx)
     vps->vps_max_layer_id = get_bits(&ctx->gb, 6);
     vps->vps_num_layer_sets_minus1 = get_ue_golomb(&ctx->gb);
 
-    for (int i = 1; i <= vps->vps_num_layer_sets_minus1; i++) {
-        for (int j = 0; j <= vps->vps_max_layer_id; j++) {
+    for (unsigned int i = 1; i <= vps->vps_num_layer_sets_minus1; i++) {
+        for (unsigned int j = 0; j <= vps->vps_max_layer_id; j++) {
             //vps->layer_id_included_flag[;] TODO, we don't handle this well.
             skip_bits(&ctx->gb, 1);
         }
@@ -629,7 +629,7 @@ static int h265_parse_sps(struct h265_codec_metadata_ctx_s *ctx)
     sps->bit_depth_chroma_minus8 = get_ue_golomb(&ctx->gb);
     sps->log2_max_pic_order_cnt_lsb_minus4 = get_ue_golomb(&ctx->gb);
     sps->sps_sub_layer_ordering_info_present_flag = get_bits1(&ctx->gb);
-    for (int i = (sps->sps_sub_layer_ordering_info_present_flag ? 0 : sps->sps_max_sub_layers_minus1 );
+    for (unsigned int i = (sps->sps_sub_layer_ordering_info_present_flag ? 0 : sps->sps_max_sub_layers_minus1 );
         i <= sps->sps_max_sub_layers_minus1; i++)
     {
         sps->sps_max_dec_pic_buffering_minus1[i] = get_ue_golomb(&ctx->gb);
@@ -662,14 +662,14 @@ static int h265_parse_sps(struct h265_codec_metadata_ctx_s *ctx)
     }
 
     sps->num_short_term_ref_pic_sets = get_ue_golomb(&ctx->gb);
-    for (int i = 0; i < sps->num_short_term_ref_pic_sets; i++) {
+    for (unsigned int i = 0; i < sps->num_short_term_ref_pic_sets; i++) {
         h265_parse_st_ref_pic_set(ctx, i);
     }
 
     sps->long_term_ref_pics_present_flag = get_bits1(&ctx->gb);
     if (sps->long_term_ref_pics_present_flag) {
         sps->num_long_term_ref_pics_sps = get_ue_golomb(&ctx->gb);
-        for (int i = 0; i < sps->num_long_term_ref_pics_sps; i++) {
+        for (unsigned int i = 0; i < sps->num_long_term_ref_pics_sps; i++) {
             sps->lt_ref_pic_poc_lsb_sps[i] = get_ue_golomb(&ctx->gb);
             sps->used_by_curr_pic_lt_sps_flag[i] = get_bits1(&ctx->gb);
         }
