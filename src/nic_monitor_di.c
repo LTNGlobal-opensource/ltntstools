@@ -31,9 +31,12 @@ static const char *payloadTypes[] = {
 	"RTP",
 	"STL",
 	"UNK",
-	"21V",
-	"21A",
-	"21D",
+	"21V", // SMPTE-2110 Video
+	"21A", // SMPTE-2110 Audio
+	"21D", // SMPTE-2110 Data
+	"SRT", // TS
+	"SRT", // Control
+	"SRT", // SRT encrypted
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt)
@@ -821,6 +824,7 @@ void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct
 	switch(di->payloadType) {
 	case PAYLOAD_RTP_TS:
 	case PAYLOAD_UDP_TS:
+	case PAYLOAD_SRT_TS:
 		if (di->iat_hwm_us / 1000 > ctx->iatMax)
 			di->warningIndicatorLabel[0] = 'I';
 		else
@@ -837,7 +841,28 @@ void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct
 			di->warningIndicatorLabel[2] = blank;
 
 		di->warningIndicatorLabel[3] = 'T';
+		di->warningIndicatorLabel[4] = blank;
 		break;
+	case PAYLOAD_SRT_ENCRYPTED:
+		if (di->iat_hwm_us / 1000 > ctx->iatMax)
+			di->warningIndicatorLabel[0] = 'I';
+		else
+			di->warningIndicatorLabel[0] = blank;
+
+		if (di->hasHiddenDuplicates)
+			di->warningIndicatorLabel[1] = 'D';
+		else
+			di->warningIndicatorLabel[1] = blank;
+
+		if (di->payloadType == PAYLOAD_SRT_ENCRYPTED) {
+			di->warningIndicatorLabel[2] = 'E';
+		} else {
+			di->warningIndicatorLabel[2] = blank;
+		}
+		di->warningIndicatorLabel[3] = blank;
+		di->warningIndicatorLabel[4] = blank;
+		break;
+	case PAYLOAD_SRT_CTRL:
 	case PAYLOAD_BYTE_STREAM:
 	case PAYLOAD_A324_CTP:
 	case PAYLOAD_SMPTE2110_20_VIDEO:
@@ -854,18 +879,19 @@ void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct
 		else
 			di->warningIndicatorLabel[1] = blank;
 
-		di->warningIndicatorLabel[2] = blank;
 		di->warningIndicatorLabel[3] = blank;
+		di->warningIndicatorLabel[4] = blank;
 	default:
 		di->warningIndicatorLabel[0] = '?';
 		di->warningIndicatorLabel[1] = '?';
 		di->warningIndicatorLabel[2] = '?';
 		di->warningIndicatorLabel[3] = '?';
+		di->warningIndicatorLabel[4] = '?';
 		break;
 	}
 
 	/* Null terminate the string */
-	di->warningIndicatorLabel[4] = 0;
+	di->warningIndicatorLabel[5] = 0;
 }
 
 void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
@@ -986,7 +1012,8 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 
 	uint32_t bps = 0;
 	double mbps = 0;
-	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS)) {
+	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS) ||
+		(di->payloadType == PAYLOAD_SRT_TS)) {
 		mbps = ltntstools_pid_stats_stream_get_mbps(di->stats);
 		bps = ltntstools_pid_stats_stream_get_bps(di->stats);
 	} else
@@ -1108,7 +1135,8 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 
 	uint32_t bps = 0;
 	double mbps = 0;
-	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS)) {
+	if ((di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_RTP_TS) ||
+		(di->payloadType == PAYLOAD_SRT_TS)) {
 		mbps = ltntstools_pid_stats_stream_get_mbps(di->stats);
 		bps = ltntstools_pid_stats_stream_get_bps(di->stats);
 	} else

@@ -171,7 +171,7 @@ static void *ui_thread_func(void *p)
 			totalMbps = totalRxMbps + totalTxMbps;
 
 			totalStreams++;
-			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS)) {
+			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_SRT_TS)) {
 				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
@@ -208,7 +208,7 @@ static void *ui_thread_func(void *p)
 					di->warningIndicatorLabel);
 				totalMbps += ltntstools_ctp_stats_stream_get_mbps(di->stats);
 			} else
-			if (di->payloadType == PAYLOAD_BYTE_STREAM) {
+			if ((di->payloadType == PAYLOAD_BYTE_STREAM) || (di->payloadType == PAYLOAD_SRT_CTRL) || (di->payloadType == PAYLOAD_SRT_ENCRYPTED)) {
 				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %4d  %s",
 					payloadTypeDesc(di->payloadType),
 					di->srcaddr,
@@ -383,6 +383,15 @@ static void *ui_thread_func(void *p)
 			} /* Show clocks */
 
 			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
+				if (di->payloadType == PAYLOAD_SRT_CTRL) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> PID Report not available for SRT flow control channels");
+				}
+				if (di->payloadType == PAYLOAD_SRT_ENCRYPTED) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> PID Report not available for SRT encrypted channels");
+					mvprintw(streamCount + 3, 0, "    Pkt ReTransmits %" PRIu64, di->srt_retransmittion_count);
+				}
 				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
 					streamCount++;
 					mvprintw(streamCount + 2, 0, " -> PID Report not available for SMPTE2110-20 Video streams");
@@ -411,6 +420,9 @@ static void *ui_thread_func(void *p)
 #endif
 						if (i == 0) {
 							mvprintw(streamCount + 2, 0, " -> PID Report");
+							if ((di->payloadType == PAYLOAD_SRT_ENCRYPTED) || (di->payloadType == PAYLOAD_SRT_TS)) {
+								mvprintw(streamCount + 3, 0, "    Pkt ReTransmits %" PRIu64, di->srt_retransmittion_count);
+							}
 #if 0
 							mvprintw(streamCount + 3, 0, "    Pkt Order Errors (POE) %" PRIu64, oof_count);
 #endif
@@ -432,6 +444,8 @@ static void *ui_thread_func(void *p)
 					(di->payloadType != PAYLOAD_A324_CTP) &&
 					(di->payloadType != PAYLOAD_SMPTE2110_20_VIDEO) &&
 					(di->payloadType != PAYLOAD_SMPTE2110_30_AUDIO) &&
+					(di->payloadType != PAYLOAD_SRT_CTRL) &&
+					(di->payloadType != PAYLOAD_SRT_ENCRYPTED) &&
 					(di->payloadType != PAYLOAD_SMPTE2110_40_ANC)) {
 					attron(COLOR_PAIR(4));
 					mvprintw(streamCount + 2, 37, "Warning: %" PRIi64 " UDP packets that are less then 1316 bytes long",
@@ -445,6 +459,11 @@ static void *ui_thread_func(void *p)
 				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
 					streamCount++;
 					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SMPTE2110-20 Video streams");
+					streamCount++;
+				} else
+				if (di->payloadType == PAYLOAD_SRT_CTRL) {
+					streamCount++;
+					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SRT flow control channels");
 					streamCount++;
 				} else
 				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
@@ -564,6 +583,14 @@ static void *ui_thread_func(void *p)
 				streamCount++;
 				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
 					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SMPTE2110-20 Video streams");
+					streamCount++;
+				} else
+				if (di->payloadType == PAYLOAD_SRT_CTRL) {
+					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SRT flow control channels");
+					streamCount++;
+				} else
+				if (di->payloadType == PAYLOAD_SRT_ENCRYPTED) {
+					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SRT encrypted channels");
 					streamCount++;
 				} else
 				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {

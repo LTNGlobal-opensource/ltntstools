@@ -63,6 +63,9 @@ enum payload_type_e {
 	PAYLOAD_SMPTE2110_20_VIDEO,
 	PAYLOAD_SMPTE2110_30_AUDIO,
 	PAYLOAD_SMPTE2110_40_ANC,
+	PAYLOAD_SRT_TS,
+	PAYLOAD_SRT_CTRL,
+	PAYLOAD_SRT_ENCRYPTED,
 	PAYLOAD_MAX,
 };
 
@@ -258,6 +261,17 @@ void display_doc_render(struct display_doc_s *doc, int row, int col);
 void display_doc_page_up(struct display_doc_s *doc);
 void display_doc_page_down(struct display_doc_s *doc);
 
+struct srt_control_pkt_hdr_s
+{
+	uint32_t seq_nr; // [15] = 1 (control), [14:0] = control type
+	uint32_t msg_nr; // ACK=0x0002, NAK=0x0003, HANDSHAKE=0x0000, etc.
+	uint32_t timestamp; // Timestamp in microseconds
+	uint32_t dst_socket_id; // SRT connection ID
+} __attribute__((packed));
+#define SRT__IS_DATA_PACKET(p)       ((ntohl(p->seq_nr) & 0x80000000) == 0)
+#define SRT__IS_DATA_ENCRYPTED(p)    ((ntohl(p->msg_nr) & 0x18000000) == 0)
+#define SRT__IS_DATA_RETRANMITTED(p) ((ntohl(p->seq_nr) & 0x04000000) == 0)
+
 struct discovered_item_s
 {
 	struct xorg_list list;
@@ -423,6 +437,9 @@ struct discovered_item_s
 	int hasHiddenDuplicates;
 	char warningIndicatorLabel[8]; /* ARray of single characters, shows warning flags to operator. */
 
+	/* SRT Protocol */
+	struct srt_control_pkt_hdr_s srt_header_last;
+	uint64_t srt_retransmittion_count;
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);

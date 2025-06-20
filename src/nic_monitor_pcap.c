@@ -112,6 +112,14 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 	return ret;
 }
 
+void srt_control_pkt_dump(struct srt_control_pkt_hdr_s *p)
+{
+	printf("seq_nr 0x%08x ", ntohl(p->seq_nr));
+	printf("msg_nr 0x%04x ", ntohl(p->msg_nr));
+	printf("timestamp 0x%08x ", ntohl(p->timestamp));
+	printf("dst_socket_id 0x%08x\n", ntohl(p->dst_socket_id));
+}
+
 static enum payload_type_e determinePayloadType(struct discovered_item_s *di, const unsigned char *buf, int lengthBytes)
 {
 #if 0
@@ -149,6 +157,47 @@ printf("\n");
 		}
 		if (len >= (188 * 1) && (ptr[offset + (188 * 0)] == 0x47)) {
 			return PAYLOAD_RTP_TS; /* After 1 sync byte */
+		}
+	}
+
+	if (lengthBytes  == 44) {
+		struct srt_control_pkt_hdr_s *p = (struct srt_control_pkt_hdr_s *)ptr;
+		if (!SRT__IS_DATA_PACKET(p)) {
+			return PAYLOAD_SRT_CTRL;
+		}
+	}
+
+	if ((lengthBytes > 16) && ((lengthBytes - 16) % 188 == 0)) {
+		struct srt_control_pkt_hdr_s *p = (struct srt_control_pkt_hdr_s *)ptr;
+//1332 : 69 12 9e ad c0 2a 1d 39 56 9d 2c 9d 06 04 9b dd 
+//pkt_flags 0x6912 ctrl_type 0x9ead timestamp 0xc02a1d39 socket_id 0x569d2c9d
+//1332 : 69 12 9e ae c0 2a 1d 3a 56 9d 2c 9d 06 04 9b dd 
+//pkt_flags 0x6912 ctrl_type 0x9eae timestamp 0xc02a1d3a socket_id 0x569d2c9d
+//1332 : 69 12 9e af c0 2a 1d 3b 56 9d 2c 9e 06 04 9b dd 
+//pkt_flags 0x6912 ctrl_type 0x9eaf timestamp 0xc02a1d3b socket_id 0x569d2c9e
+//1332 : 69 12 9e b0 c0 2a 1d 3c 56 9d 2c b3 06 04 9b dd 
+
+		// 68 f7 08 ff c0 0e 87 8b 1d e4 90 ed 06 04 9b dd 47 1f ff 10 ff ff ff ff ff ff ff ff ff ff
+		// 80 02 00 00 00 00 b7 ef 1d e4 8e 25 31 e0 91 2e 68 f7 08 f4 00 00 01 84 00 00 00 7e 00 00
+		/* Perfect multiple for SRT wrapped transport packets */
+		//printf("Found SRT\n");
+		//srt_control_pkt_dump(p);
+
+		if (SRT__IS_DATA_PACKET(p)) {
+			di->srt_header_last = *p;
+			/* SRT Data Packet */
+			int len = lengthBytes - 16;
+			int offset = 16;
+			if ((len >= (188 * 3)) && (ptr[offset + (188 * 0)] == 0x47) && (ptr[offset + (188 * 1)] == 0x47) && (ptr[offset + (188 * 2)] == 0x47)) {
+				return PAYLOAD_SRT_TS; /* After 3 sync bytes */
+			}
+			if ((len >= (188 * 2)) && (ptr[offset + (188 * 0)] == 0x47) && (ptr[offset + (188 * 1)] == 0x47)) {
+				return PAYLOAD_SRT_TS; /* After 2 sync bytes */
+			}
+			if (len >= (188 * 1) && (ptr[offset + (188 * 0)] == 0x47)) {
+				return PAYLOAD_SRT_TS; /* After 1 sync byte */
+			}
+			return PAYLOAD_SRT_ENCRYPTED;
 		}
 	}
 
@@ -278,7 +327,7 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 	di->iat_last_frame = cb_h->ts;
 
 	/* If we're detected the LTN version marker, start feeding the packets into the latency detection probe. */
-	if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))
+	if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_SRT_TS))
 	{
 // SEGFAULT
 		ltntstools_pid_stats_update(di->stats, pkts, pktCount);
@@ -325,7 +374,13 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 	if (di->payloadType == PAYLOAD_BYTE_STREAM)
 	{
 		ltntstools_bytestream_stats_update(di->stats, pkts, lengthPayloadBytes);
+	} else
+	if (di->payloadType == PAYLOAD_SRT_ENCRYPTED)
+	{
+		ltntstools_bytestream_stats_update(di->stats, pkts, lengthPayloadBytes);
 	}
+
+
 }
 
 /* Called on the stats thread, blocking and stalling is tolerated. */
@@ -347,6 +402,16 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS))) {
 		int complete;
 		ltntstools_streammodel_write(di->streamModel, pkts, pktCount, &complete, &nowtv);
+	} else
+	if (di->streamModel && (di->payloadType == PAYLOAD_SRT_TS)) {
+		/* Skip any control headers that are not data. */
+		if (pktCount) {
+			pkts += sizeof(struct srt_control_pkt_hdr_s); /* Size of SRT header*/
+			int complete;
+			//printf("count %d\n", pktCount);
+			//ltntstools_hexdump(pkts, pktCount * 188, 32);
+			ltntstools_streammodel_write(di->streamModel, pkts, pktCount, &complete, &nowtv);
+		}
 	}
 
 	/* Expire any interval averages every few seconds, ro avoid queue growth and memory loss over time. */
@@ -719,6 +784,14 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 			}
 		}
 
+#if 0
+	for (unsigned int i = 0; i < (h->len > 30 ? 30 : h->len); i++) {
+		printf("%02x ", ptr[i]);
+	}
+	printf("\n");
+#endif
+
+
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
 #ifdef __linux__
@@ -821,12 +894,38 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 #endif
 
 		/* TODO: Handle RTP with FEC correctly. */
-		if (di->payloadType == PAYLOAD_UNDEFINED)
+		if (di->payloadType == PAYLOAD_UNDEFINED) {
 			di->payloadType = determinePayloadType(di, ptr, lengthPayloadBytes);
+		}
 
 		if (di->payloadType == PAYLOAD_RTP_TS) {
 			lengthPayloadBytes -= 12;
 			ptr += 12;
+		}
+
+		if (di->payloadType == PAYLOAD_SRT_ENCRYPTED) {
+			struct srt_control_pkt_hdr_s *p = (struct srt_control_pkt_hdr_s *)ptr;
+			if (SRT__IS_DATA_RETRANMITTED(p)) {
+				di->srt_retransmittion_count++;
+			}
+		}
+
+		if (di->payloadType == PAYLOAD_SRT_TS) {
+			struct srt_control_pkt_hdr_s *p = (struct srt_control_pkt_hdr_s *)ptr;
+			if (!SRT__IS_DATA_PACKET(p)) {
+				return;
+			}
+
+			if (SRT__IS_DATA_RETRANMITTED(p)) {
+				di->srt_retransmittion_count++;
+			}
+
+			lengthPayloadBytes -= 16;
+			ptr += 16;
+
+			if ((lengthPayloadBytes / 188) == 0) {
+				printf("SRT with zero length\n");
+			}
 		}
 
 		/* TS Packet, almost certainly */
