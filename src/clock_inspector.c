@@ -235,7 +235,7 @@ int clock_inspector(int argc, char *argv[])
 			continue;
 		}
 		if (rlen < 0) {
-			fprintf(stderr, "avio_read() < 0 read, ret = %d, shutting down\n", rlen);
+			//fprintf(stderr, "avio_read() < 0 read, ret = %d, shutting down\n", rlen);
 			break;
 		}
 
