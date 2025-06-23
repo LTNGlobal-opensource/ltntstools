@@ -233,7 +233,7 @@ static void *_avio_raw_callback_status(struct stream_s *stream, enum source_avio
 	return NULL;
 }
 
-void *notification_callback(struct stream_s *stream, enum ltntstools_notification_event_e event,
+static void *notification_callback(struct stream_s *stream, enum ltntstools_notification_event_e event,
 	const struct ltntstools_stream_statistics_s *stats,
 	const struct ltntstools_pid_statistics_s *pid)
 {
