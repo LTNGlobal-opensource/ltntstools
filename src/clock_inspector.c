@@ -6,6 +6,27 @@ static void signal_handler(int signum)
 	gRunning = 0;
 }
 
+static void *notification_callback(struct tool_context_s *ctx, enum ltntstools_notification_event_e event,
+	const struct ltntstools_stream_statistics_s *stats,
+	const struct ltntstools_pid_statistics_s *pid)
+{
+	struct timeval ts;
+	gettimeofday(&ts, NULL);
+
+#if 0
+	printf("%d.%06d: %s stream %p pid %p\n", (int)ts.tv_sec, (int)ts.tv_usec,
+		ltntstools_notification_event_name(event),
+		stats, pid);
+#endif
+
+	if (event == EVENT_UPDATE_PCR_MBPS) {
+		double bps;
+		ltntstools_bitrate_calculator_query_bitrate(ctx->libstats, &bps);
+		printf("+TS PCR computed bitrate is %3.2f [ %f ]\n", bps / 1000000.0, bps);
+	}
+	return NULL;	
+}
+
 static void usage(const char *progname)
 {
 	printf("A tool to extract PCR/SCR PTS/DTS clocks from all pids in a MPEGTS file, or stream.\n");
@@ -97,6 +118,9 @@ int clock_inspector(int argc, char *argv[])
 				exit(1);
 			}
 			ltntstools_pid_stats_pid_set_contains_pcr(ctx->libstats, ctx->scr_pid);
+			ltntstools_notification_register_callback(ctx->libstats, EVENT_UPDATE_PCR_MBPS, ctx,
+				(ltntstools_notification_callback)notification_callback);
+
 			break;
 		case 'D':
 			ctx->maxAllowablePTSDTSDrift = atoi(optarg);
@@ -282,6 +306,7 @@ int clock_inspector(int argc, char *argv[])
 	}
 
 	if (ctx->libstats) {
+		ltntstools_notification_unregister_callbacks(ctx->libstats);
 		ltntstools_pid_stats_free(ctx->libstats);
 		ctx->libstats = NULL;
 	}
