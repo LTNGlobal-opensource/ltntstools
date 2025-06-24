@@ -15,10 +15,24 @@
 #include "source-avio.h"
 #include "golomb.h"
 #include "codecs.h"
+#include "testcase-428-dts.h"
 
 #define LOCAL_DEBUG 0
 #define H264_IFRAME_THUMBNAILING 0
 
+static int testcase_428_dts_exists(uint32_t dts)
+{
+	for (int i = 0; i < (sizeof(testcase_428_dts) / sizeof(uint32_t)); i++) {
+		if (testcase_428_dts[i] == dts) {
+			return 1;
+		} else
+		if (testcase_428_dts[i] > dts) {
+			return 0;
+		}
+	}
+
+	return 0;
+}
 /* TODO: Move this into the libltntstools once we're completely happy with it.
  * See ISO-14496-10:2004 section 7.3.1 NAL unit Syntax.
  */
@@ -489,6 +503,7 @@ struct tool_ctx_s
 	int doH265NalThroughput;
 	int verbose;
 	int pid;
+	int testcase_validate;
 	int streamId;
 	void *pe;
 	int writeES_h264;
@@ -770,6 +785,11 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 		printf("PES Extractor callback\n");
 	}
 
+	if (ctx->testcase_validate == 428) {
+		if (pes->DTS && testcase_428_dts_exists(pes->DTS) == 0) {
+			printf("DID NOT FIND DTS %" PRIi64  " in input stream!!!!!!!!!!\n", pes->DTS);
+		}
+	}
 	if (ctx->writeES_payload) {
 		ltn_pes_packet_save_es(&ctx->writer_ctx, pes);
 		ltn_pes_packet_free(pes);
@@ -995,8 +1015,11 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "45?AEFG:Hhvi:P:S:Tt")) != -1) {
+	while ((ch = getopt(argc, argv, "@:45?AEFG:Hhvi:P:S:Tt")) != -1) {
 		switch (ch) {
+		case '@':
+			ctx->testcase_validate = atoi(optarg);
+			break;
 		case '?':
 		case 'h':
 			usage(argv[0]);
@@ -1094,6 +1117,10 @@ int pes_inspector(int argc, char *argv[])
 	if (ctx->dumpPICTIMING) {
 		/* We want the PIC decoding in the correct temporal order */
 		ltntstools_pes_extractor_set_ordered_output(ctx->pe, 1);
+	}
+
+	if (1) {
+		ltntstools_pes_extractor_set_pcr_pid(ctx->pe, 0x31);
 	}
 
 	struct ltntstools_source_avio_callbacks_s cbs = { 0 };
