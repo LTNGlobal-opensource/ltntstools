@@ -74,6 +74,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_clock_inspector: moved packetlength != 1316 into base library
   tstools_clock_inspector: Report the bitrate to the console using PCRs as a computation
   tstools_clock_inspector: Remove a spurious avio_read() call that goes to console.
+  tstools_clock_inspector: add verbose mode. Add synthesized STC measuremented based on rebasing PCR
   tstools_sei_unregistered: fixed compiler symbol warning
   tstools_bitrate_smoother: Added -S option to expose smoother runetime statistics to console.
   caption_analyzer: adjusted to use relocated ffmpeg related code
