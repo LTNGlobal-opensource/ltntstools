@@ -8,6 +8,16 @@ void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos,
 	if (ltntstools_scr(pkt, &scr) < 0)
 		return;
 
+	int64_t stc;
+	int r = ltntstools_bitrate_calculator_query_stc(ctx->libstats, &stc);
+	if (r == 0 && ctx->verbose) {
+		int64_t diff = ltntstools_scr_diff(stc, scr);
+		printf("+STC %" PRIi64 " is %10s pcr by %14" PRIi64 " ticks (developer debug - ignore)\n",
+			stc,
+			stc > (int64_t)scr ? "ahead of" : "behind the",
+			diff);
+	}
+
 	uint64_t scr_diff = 0;
 	if (ctx->pids[pid].scr_updateCount > 0) {
 		scr_diff = ltntstools_scr_diff(ctx->pids[pid].scr, scr);
