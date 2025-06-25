@@ -20,7 +20,7 @@
 
 #define MAX_INPUT_STREAMS        16
 #define MAX_STREAM_PIDS           2
-#define TARGET_BITRATE     35000000 // bps
+#define TARGET_BITRATE     40000000 // bps
 #define TS_PACKET_SIZE          188
 #define TS_PACKETS_PER_SEC (TARGET_BITRATE / (TS_PACKET_SIZE * 8))
 #define PACKET_INTERVAL_NS (1000000000 / TS_PACKETS_PER_SEC)
@@ -43,6 +43,8 @@ struct pes_item_s
 {
 	struct xorg_list list;
 	struct ltn_pes_packet_s *pes;
+	int64_t arrivalSTC; /* local STC clock value when we first got the pes */
+	int64_t outputSTC;  /* the local STC clock value when the pes is scheduled for output */
 };
 
 struct pid_s
@@ -61,9 +63,10 @@ struct pid_s
 	struct xorg_list peslist;
 
 	/* Transport packets to be egressed */
-	uint8_t *pkts;
-	uint32_t pkts_count;
-	uint32_t pkts_idx;
+	uint8_t  *pkts;
+	uint32_t  pkts_count;
+	uint32_t  pkts_idx;
+	int64_t  *pkts_outputSTC;
 	uint8_t cc;
 
 	struct timeval lastOutputPCR;
@@ -102,6 +105,16 @@ struct tool_ctx_s
 	struct stream_s *streams[MAX_INPUT_STREAMS];
 };
 
+int64_t get_computed_stc(struct tool_ctx_s *ctx)
+{
+	double startupPacketsSent = 10000;
+	double bitsTransmitted = (startupPacketsSent + ctx->ts_packets_sent) * TS_PACKET_SIZE * 8.0;
+	double additionalBits = 0.0;
+	double bps = TARGET_BITRATE;
+
+	return (((bitsTransmitted + additionalBits) / bps) * (double)27000000);
+}
+
 static int g_running = 1;
 static void signal_handler(int signum)
 {
@@ -111,7 +124,7 @@ static void signal_handler(int signum)
 static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 {
 	struct stream_s *stream = pid->stream;
-
+	//printf("pes->pid 0x%02x dts %14" PRIi64 " pcr %14" PRIi64 "\n", pid->outputPidNr, pes->DTS, pes->pcr);
 	if (pid->pid == 0x32) {
 		//ltntstools_hexdump(pes->rawBuffer, 188, 32);
 	}
@@ -119,12 +132,22 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 	struct pes_item_s *e = malloc(sizeof(*e));
 	if (e) {
 		e->pes = pes;
+		e->arrivalSTC = get_computed_stc(stream->ctx);
+		e->outputSTC = get_computed_stc(stream->ctx) + (27000 * 200);
+
 		pthread_mutex_lock(&pid->peslistlock);
 		xorg_list_append(&e->list, &pid->peslist);
 		pid->peslistcount++;
 		pid->EBnSize += pes->dataLengthBytes; /* Plus header */
 		if (pid->EBnSize > MAX_EBN_SIZE) {
-			printf("EBN Overflow %" PRIu64 " > %d\n", pid->EBnSize, MAX_EBN_SIZE);
+			static struct timeval lastOutput = { 0, 0 };
+			static struct timeval now;
+			if (now.tv_sec > lastOutput.tv_sec) {
+				lastOutput = now;
+				printf("%d.%06d: EBN Overflow %" PRIu64 " > %d\n",
+					(int)now.tv_sec, (int)now.tv_usec,
+					pid->EBnSize, MAX_EBN_SIZE);
+			}
 		}
 		pid->EBnSize_hwm = (pid->EBnSize > pid->EBnSize_hwm) ? pid->EBnSize : pid->EBnSize_hwm;
 
@@ -160,7 +183,12 @@ struct pid_s *pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr)
 		fprintf(stderr, "\nUnable to allocate pes_extractor object.\n\n");
 		exit(1);
 	}
-	
+	uint16_t pcrPid = 0;
+	if ((pidnr & 0x31) == 0x31) {
+		pcrPid = pidnr;
+	}
+	ltntstools_pes_extractor_set_pcr_pid(pid->pe, pcrPid);
+
 	return pid;
 }
 
@@ -255,7 +283,7 @@ static void *notification_callback(struct stream_s *stream, enum ltntstools_noti
 			stream->nr,
 			ltntstools_pid_stats_stream_get_cc_errors((struct ltntstools_stream_statistics_s *)stats));
 	} else
-	if (event == EVENT_UPDATE_STREAM_MBPS) {
+	if (0 && event == EVENT_UPDATE_STREAM_MBPS) {
 		printf("%d.%06d: %-40s stream %p nr %d %5.2f mbps\n", (int)ts.tv_sec, (int)ts.tv_usec,
 			ltntstools_notification_event_name(event),
 			stats,
@@ -363,13 +391,18 @@ void *reframer_callback(struct tool_ctx_s *ctx, const uint8_t *buf, int lengthBy
 	return NULL;
 }
 
-int64_t get_computed_pcr(struct tool_ctx_s *ctx)
+int timesec_diff(struct timespec next_time, struct timespec last_time)
 {
-	double bitsTransmitted = ctx->ts_packets_sent * TS_PACKET_SIZE * 8.0;
-	double additionalBits = 0.0;
-	double bps = TARGET_BITRATE;
+	struct timespec diff;
+	diff.tv_sec = next_time.tv_sec - last_time.tv_sec;
+	diff.tv_nsec = next_time.tv_nsec - last_time.tv_nsec;
+	if (diff.tv_nsec < 0) {
+		diff.tv_sec -= 1;
+		diff.tv_nsec += 1000000000L;
+	}
 
-	return (((bitsTransmitted + additionalBits) / bps) * (double)27000000);
+	int ms = diff.tv_sec + diff.tv_nsec / 1e6;
+	return ms;
 }
 
 static void usage(const char *progname)
@@ -463,6 +496,7 @@ int mpts(int argc, char *argv[])
 		pat->programs[i].pmt.streams[0].stream_type    = 0x1b;
 		pat->programs[i].pmt.streams[1].elementary_PID = 0x32 + (0x100 * prog);
 		pat->programs[i].pmt.streams[1].stream_type    = 0x04;
+		pat->programs[i].pmt.streams[1].stream_type    = 0x81; // AC3
 	}
 
 	/* Build a pid output schedule. Each time we iterate a need to output a packet,
@@ -480,11 +514,12 @@ int mpts(int argc, char *argv[])
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-	time_t last_psip = 0;
 	int output_psip_idx = -1;
 
 	/* Main clock we use to drive the mux */
-	struct timespec next_time;
+	struct timespec next_time = { 0, 0 };
+	struct timespec last_psip = { 0, 0 };
+	struct timespec last_q_report = { 0, 0 };
     clock_gettime(CLOCK_MONOTONIC, &next_time);
 
 	/* Main loop.
@@ -497,17 +532,12 @@ int mpts(int argc, char *argv[])
 	 */
 	while (g_running) {
 
-		time_t now = time(0);
-		if (now > last_psip) {
-			/* Quick and dirty. We generate the PSIP every second. */
-			last_psip = now;
-			output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
-			ltntstools_pat_create_packet_ts(pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
-			ltntstools_pmt_create_packet_ts(&pat->programs[0].pmt, pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
-			ltntstools_pmt_create_packet_ts(&pat->programs[1].pmt, pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
+		if (timesec_diff(next_time, last_q_report) >= 950) {
+			last_q_report = next_time;
 
 			struct timeval ts;
 			gettimeofday(&ts, NULL);
+
 			printf("%d.%06d: PES Queues/Size: ", (int)ts.tv_sec, (int)ts.tv_usec);
 			for (int i = 0; i <= inputNr; i++) {
 				struct stream_s *stream = ctx->streams[i];
@@ -515,12 +545,23 @@ int mpts(int argc, char *argv[])
 					struct pid_s *pid = stream->pids[j];
 
 					pthread_mutex_lock(&pid->peslistlock);
-					printf("%05" PRIu64 ",%06" PRIu64 ",%06" PRIu64 " ", pid->peslistcount, pid->EBnSize, pid->EBnSize_hwm);
+					printf("s%d.%04x %05" PRIu64 ",%06" PRIu64 ",%06" PRIu64 " ",
+						stream->nr, pid->outputPidNr,
+						pid->peslistcount, pid->EBnSize, pid->EBnSize_hwm);
 					pthread_mutex_unlock(&pid->peslistlock);
 
 				}
 			}
 			printf("\n");
+		}
+
+		if (timesec_diff(next_time, last_psip) > 50) {
+			/* Quick and dirty. We generate the PSIP every second. */
+			last_psip = next_time;
+			output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
+			ltntstools_pat_create_packet_ts(pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
+			ltntstools_pmt_create_packet_ts(&pat->programs[0].pmt, pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
+			ltntstools_pmt_create_packet_ts(&pat->programs[1].pmt, pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
 		}
 
 		/* Try to ensure we have TS packets available for all input streams, all pids.  */
@@ -538,6 +579,8 @@ int mpts(int argc, char *argv[])
 					pid->pkts = NULL;
 					pid->pkts_count = 0;
 					pid->pkts_idx = 0;
+					free(pid->pkts_outputSTC);
+					pid->pkts_outputSTC = NULL;
 				}
 
 				/* If this pid doesn't have any packets queued.... convert the next pes into TS */
@@ -545,12 +588,15 @@ int mpts(int argc, char *argv[])
 					/* Get more ts packets */
 
 					pthread_mutex_lock(&pid->peslistlock);
-					while (!xorg_list_is_empty(&pid->peslist)) {
-						item = xorg_list_first_entry(&pid->peslist, struct pes_item_s, list);
-						xorg_list_del(&item->list);
-						pid->peslistcount--;
-						pid->EBnSize -= item->pes->dataLengthBytes; /* Plus header */
-						break;
+					struct pes_item_s *e = NULL, *next = NULL;
+					xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
+						if (e->outputSTC < get_computed_stc(ctx)) {
+							item = e;
+							xorg_list_del(&e->list);
+							pid->peslistcount--;
+							pid->EBnSize -= item->pes->dataLengthBytes; /* Plus header */
+							break;
+						}
 					}
 					pthread_mutex_unlock(&pid->peslistlock);
 
@@ -558,23 +604,17 @@ int mpts(int argc, char *argv[])
 						continue;
 					}
 
-					struct timeval ts;
-					gettimeofday(&ts, NULL);
-
-					/* Don't send a PCR by default.... */
-					int sendPCR = 0;
-					if (ltn_timeval_subtract_ms(&ts, &pid->lastOutputPCR) > 40) {
-						/* Unless it's been 40ms */
-						sendPCR = 1;
+					int64_t pcr = item->pes->pcr;
+					if (pcr <= 0) {
+						pcr = -1;
+					}
+					static int64_t oldpcr =0;
+					if (oldpcr > pcr) {
+						printf("pid 0x%04x pcr %" PRIi64 "\n", pid->outputPidNr, pcr);
+						oldpcr = pcr;
 					}
 
-					int64_t pcr = -1;
-					if (sendPCR && (pid->outputPidNr & 0xff) == 0x31) {
-						/* Video pids only, all video pids every video PES */
-						pcr = get_computed_pcr(ctx);
-						pid->lastOutputPCR = ts;
-					}
-
+					/* Slightly childish - sending a PCR on every every frame */
 					if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
 						item->pes->rawBufferLengthBytes,
 						&pid->pkts,
@@ -586,6 +626,20 @@ int mpts(int argc, char *argv[])
 					}
 					//printf("Created %d ts packets\n", pid->pkts_count);
 					pid->pkts_idx = 0;
+
+					/* Now compute the fine grain packet scheduling from the first, TS packet onwards */
+					pid->pkts_outputSTC = calloc(sizeof(int64_t), pid->pkts_count);
+					for (unsigned int i = 0; i < pid->pkts_count; i++) {
+
+						/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
+						double bitrate_mbps = 20.0 - 2;
+					    double bitrate_bps = bitrate_mbps * 1000000.0;
+					    double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
+    					double ticks_per_packet = packet_duration_sec * 27000000.0;
+						int64_t ticks_per_ts = ticks_per_packet;
+
+						pid->pkts_outputSTC[i] = item->outputSTC + (i * ticks_per_ts);
+					}
 
 					ltn_pes_packet_free(item->pes);
 					free(item);
@@ -622,8 +676,15 @@ int mpts(int argc, char *argv[])
 //				printf("i %d pid->pid 0x%04x, sidx %d, pkts_count %d\n", i, pid->pid, schedule_idx, pid->pkts_count);
 
 				/* Find the next schedule output will an available packet */
+				/* make sure its scheduled to go out */
 				if (pid->pkts_idx < pid->pkts_count) {
-					pkt = &pid->pkts[ pid->pkts_idx++ * 188];
+					pkt = &pid->pkts[ pid->pkts_idx * 188];
+					if (pid->pkts_outputSTC[pid->pkts_idx] <= get_computed_stc(ctx)) {
+						pid->pkts_idx++;
+					} else {
+						pkt = NULL;
+					}
+
 					break;
 				}
 			}
