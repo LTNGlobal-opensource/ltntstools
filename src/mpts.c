@@ -556,7 +556,7 @@ int mpts(int argc, char *argv[])
 		}
 
 		if (timesec_diff(next_time, last_psip) > 50) {
-			/* Quick and dirty. We generate the PSIP every second. */
+			/* Generate the PSIP multiple times a second, and schedule them for output. */
 			last_psip = next_time;
 			output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
 			ltntstools_pat_create_packet_ts(pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
@@ -572,9 +572,8 @@ int mpts(int argc, char *argv[])
 
 				struct pes_item_s *item = NULL;
 
-				/* Cleanup previously used packet lists, free them. */
+				/* Cleanup previously used packet lists and related output clocks, free them. */
 				if (pid->pkts && pid->pkts_count && pid->pkts_idx >= pid->pkts_count) {
-					//printf("Cleaning up used ts packet list\n");
 					free(pid->pkts);
 					pid->pkts = NULL;
 					pid->pkts_count = 0;
@@ -606,12 +605,7 @@ int mpts(int argc, char *argv[])
 
 					int64_t pcr = item->pes->pcr;
 					if (pcr <= 0) {
-						pcr = -1;
-					}
-					static int64_t oldpcr =0;
-					if (oldpcr > pcr) {
-						printf("pid 0x%04x pcr %" PRIi64 "\n", pid->outputPidNr, pcr);
-						oldpcr = pcr;
+						pcr = -1; /* Magic value, tells func NOT to generate a PCR. */
 					}
 
 					/* Slightly childish - sending a PCR on every every frame */
@@ -632,7 +626,7 @@ int mpts(int argc, char *argv[])
 					for (unsigned int i = 0; i < pid->pkts_count; i++) {
 
 						/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
-						double bitrate_mbps = 20.0 - 2;
+						double bitrate_mbps = 20.0 - 2; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
 					    double bitrate_bps = bitrate_mbps * 1000000.0;
 					    double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
     					double ticks_per_packet = packet_duration_sec * 27000000.0;
@@ -668,21 +662,20 @@ int mpts(int argc, char *argv[])
 			 * Using an input schedule forces pid interleaving.
 			 */
 			for (int i = 0; i < schedule_entries; i++) {
-
 				schedule_idx = (schedule_idx + 1) % schedule_entries;
-
 				struct pid_s *pid = schedule[schedule_idx];
 
 //				printf("i %d pid->pid 0x%04x, sidx %d, pkts_count %d\n", i, pid->pid, schedule_idx, pid->pkts_count);
 
-				/* Find the next schedule output will an available packet */
-				/* make sure its scheduled to go out */
+				/* Find the next packet and check its scheduling time. */
+				/* Make sure its scheduled to go out */
+				/* Otherwise leave with item being NULL and a null packet will go out instead */
 				if (pid->pkts_idx < pid->pkts_count) {
-					pkt = &pid->pkts[ pid->pkts_idx * 188];
+					pkt = &pid->pkts[ pid->pkts_idx * 188 ];
 					if (pid->pkts_outputSTC[pid->pkts_idx] <= get_computed_stc(ctx)) {
 						pid->pkts_idx++;
 					} else {
-						pkt = NULL;
+						pkt = NULL; /* Send a null packet instead */
 					}
 
 					break;
