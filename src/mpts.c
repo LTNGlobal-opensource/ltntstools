@@ -90,6 +90,7 @@ struct stream_s
 struct tool_ctx_s
 {
 	int verbose;
+	int inputNr;
 
 	uint8_t null_pkt[188];
 
@@ -101,8 +102,20 @@ struct tool_ctx_s
 	int sockfd;
 	int64_t ts_packets_sent;
 
+	struct timespec next_time;
+	struct timespec last_psip;
+	struct timespec last_q_report;
+	int output_psip_idx;
+
 	/* Streams */
 	struct stream_s *streams[MAX_INPUT_STREAMS];
+	struct ltntstools_pat_s *pat;
+
+	/* Stream scheduling */
+	uint32_t schedule_idx;
+	int schedule_entries;
+	struct pid_s *schedule[4];
+
 };
 
 int64_t get_computed_stc(struct tool_ctx_s *ctx)
@@ -405,6 +418,169 @@ int timesec_diff(struct timespec next_time, struct timespec last_time)
 	return ms;
 }
 
+void service(struct tool_ctx_s *ctx)
+{
+	if (timesec_diff(ctx->next_time, ctx->last_q_report) >= 950) {
+		ctx->last_q_report = ctx->next_time;
+
+		struct timeval ts;
+		gettimeofday(&ts, NULL);
+
+		printf("%d.%06d: PES Queues/Size: ", (int)ts.tv_sec, (int)ts.tv_usec);
+		for (int i = 0; i <= ctx->inputNr; i++) {
+			struct stream_s *stream = ctx->streams[i];
+			for (int j = 0; j < stream->pidCount; j++) {
+				struct pid_s *pid = stream->pids[j];
+
+				pthread_mutex_lock(&pid->peslistlock);
+				printf("s%d.%04x %05" PRIu64 ",%06" PRIu64 ",%06" PRIu64 " ",
+					stream->nr, pid->outputPidNr,
+					pid->peslistcount, pid->EBnSize, pid->EBnSize_hwm);
+				pthread_mutex_unlock(&pid->peslistlock);
+
+			}
+		}
+		printf("\n");
+	}
+
+	if (timesec_diff(ctx->next_time, ctx->last_psip) > 50) {
+		/* Generate the PSIP multiple times a second, and schedule them for output. */
+		ctx->last_psip = ctx->next_time;
+		ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
+		ltntstools_pat_create_packet_ts(ctx->pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
+		ltntstools_pmt_create_packet_ts(&ctx->pat->programs[0].pmt, ctx->pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
+		ltntstools_pmt_create_packet_ts(&ctx->pat->programs[1].pmt, ctx->pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
+	}
+
+	/* Try to ensure we have TS packets available for all input streams, all pids.  */
+	for (int s = 0; s <= ctx->inputNr; s++) {
+		struct stream_s *stream = ctx->streams[s];
+		for (int p = 0; p < stream->pidCount; p++) {
+			struct pid_s *pid = stream->pids[p];
+
+			struct pes_item_s *item = NULL;
+
+			/* Cleanup previously used packet lists and related output clocks, free them. */
+			if (pid->pkts && pid->pkts_count && pid->pkts_idx >= pid->pkts_count) {
+				free(pid->pkts);
+				pid->pkts = NULL;
+				pid->pkts_count = 0;
+				pid->pkts_idx = 0;
+				free(pid->pkts_outputSTC);
+				pid->pkts_outputSTC = NULL;
+			}
+
+			/* If this pid doesn't have any packets queued.... convert the next pes into TS */
+			if (pid->pkts_count == 0) {
+				/* Get more ts packets */
+
+				pthread_mutex_lock(&pid->peslistlock);
+				struct pes_item_s *e = NULL, *next = NULL;
+				xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
+					if (e->outputSTC < get_computed_stc(ctx)) {
+						item = e;
+						xorg_list_del(&e->list);
+						pid->peslistcount--;
+						pid->EBnSize -= item->pes->dataLengthBytes; /* Plus header */
+						break;
+					}
+				}
+				pthread_mutex_unlock(&pid->peslistlock);
+
+				if (!item) {
+					continue;
+				}
+
+				int64_t pcr = item->pes->pcr;
+				if (pcr <= 0) {
+					pcr = -1; /* Magic value, tells func NOT to generate a PCR. */
+				}
+
+				/* Slightly childish - sending a PCR on every every frame */
+				if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
+					item->pes->rawBufferLengthBytes,
+					&pid->pkts,
+					&pid->pkts_count,
+					188, &pid->cc, pid->outputPidNr,
+					pcr) < 0)
+				{
+					printf("Err\n");
+				}
+				//printf("Created %d ts packets\n", pid->pkts_count);
+				pid->pkts_idx = 0;
+
+				/* Now compute the fine grain packet scheduling from the first, TS packet onwards */
+				pid->pkts_outputSTC = calloc(sizeof(int64_t), pid->pkts_count);
+				for (unsigned int i = 0; i < pid->pkts_count; i++) {
+
+					/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
+					double bitrate_mbps = 20.0 - 2; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
+					double bitrate_bps = bitrate_mbps * 1000000.0;
+					double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
+					double ticks_per_packet = packet_duration_sec * 27000000.0;
+					int64_t ticks_per_ts = ticks_per_packet;
+
+					pid->pkts_outputSTC[i] = item->outputSTC + (i * ticks_per_ts);
+				}
+
+				ltn_pes_packet_free(item->pes);
+				free(item);
+			}
+		}
+	} /* For all input stream, ensure we have TS packets available. */
+
+	/* Each iteration through, we output a single packet. If we don't have a packet
+		* in the schedule to send, then a NULL packet goes out.
+		* "Only one ping Mr Borodin, one ping."
+		*/
+
+	uint8_t *pkt = NULL;
+
+	if (ctx->output_psip_idx > -1) {
+		/* Its time to output a PSIP packet, select one. */
+
+		pkt = &ctx->psip_pkt[ ctx->output_psip_idx ][0];
+
+		if (++ctx->output_psip_idx == 3) {
+			ctx->output_psip_idx = -1;
+		}
+
+	} else {
+		/* Its time to output a regular stream packet, select one.
+			* Using an input schedule forces pid interleaving.
+			*/
+		for (int i = 0; i < ctx->schedule_entries; i++) {
+			ctx->schedule_idx = (ctx->schedule_idx + 1) % ctx->schedule_entries;
+			struct pid_s *pid = ctx->schedule[ctx->schedule_idx];
+
+//				printf("i %d pid->pid 0x%04x, sidx %d, pkts_count %d\n", i, pid->pid, schedule_idx, pid->pkts_count);
+
+			/* Find the next packet and check its scheduling time. */
+			/* Make sure its scheduled to go out */
+			/* Otherwise leave with item being NULL and a null packet will go out instead */
+			if (pid->pkts_idx < pid->pkts_count) {
+				pkt = &pid->pkts[ pid->pkts_idx * 188 ];
+				if (pid->pkts_outputSTC[pid->pkts_idx] <= get_computed_stc(ctx)) {
+					pid->pkts_idx++;
+				} else {
+					pkt = NULL; /* Send a null packet instead */
+				}
+
+				break;
+			}
+		}
+	}
+
+	if (!pkt) {
+		/* Hmm, not time for PSIP or audio/video. Must be null packet time. */
+		pkt = &ctx->null_pkt[0];
+	}
+
+	/* Send a single PKT to the reframer */
+	ltststools_reframer_write(ctx->reframer, pkt, 188);
+	ctx->ts_packets_sent++;
+}
+
 static void usage(const char *progname)
 {
 	printf("\nA demonstration tool to merge two SPTS input streams into a single MPTS.\n");
@@ -427,6 +603,9 @@ int mpts(int argc, char *argv[])
 	struct tool_ctx_s myctx, *ctx;
 	ctx = &myctx;
 	memset(ctx, 0, sizeof(*ctx));
+	ctx->inputNr = -1;
+	ctx->output_psip_idx = -1;
+	ctx->schedule_entries = 4;
 
 	ltntstools_generateNullPacket(&ctx->null_pkt[0]);
 	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_callback);
@@ -438,7 +617,6 @@ int mpts(int argc, char *argv[])
     inet_pton(AF_INET, "227.1.20.45", &ctx->addr.sin_addr);
 
 	int ch;
-	int inputNr = -1;
 
 	uint32_t pid;
 	uint32_t streamId;
@@ -451,15 +629,15 @@ int mpts(int argc, char *argv[])
 			exit(1);
 			break;
 		case 'i':
-			inputNr++;
-			ctx->streams[inputNr] = stream_alloc(ctx, optarg, inputNr);
+			ctx->inputNr++;
+			ctx->streams[ctx->inputNr] = stream_alloc(ctx, optarg, ctx->inputNr);
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x:0x%x", &pid, &streamId) != 2) || (pid > 0x1fff)) {
 				usage(argv[0]);
 				exit(1);
 			}
-			stream_add_pid(ctx->streams[inputNr], pid, pid + (0x100 * (inputNr +1)), streamId);
+			stream_add_pid(ctx->streams[ctx->inputNr], pid, pid + (0x100 * (ctx->inputNr +1)), streamId);
 			break;
 		case 'v':
 			ctx->verbose++;
@@ -470,20 +648,21 @@ int mpts(int argc, char *argv[])
 		}
 	}
 
-	if (inputNr < 0) {
+	if (ctx->inputNr < 0) {
 		usage(argv[0]);
 		exit(1);
 	}
-	printf("inputNr: %d\n", inputNr);
+	printf("inputNr: %d\n", ctx->inputNr);
 
 	/* Mostly hardcoded. Buld a PAT object and we'll synthesize actial PAT/PMT packets from this. */
-	struct ltntstools_pat_s *pat = ltntstools_pat_alloc();
+	ctx->pat = ltntstools_pat_alloc();
+	struct ltntstools_pat_s *pat = ctx->pat;
 	pat->transport_stream_id = 1;
 	pat->version_number = 1;
 	pat->current_next_indicator = 1;
 	pat->program_count = 2;
 
-	for (int i = 0; i <= inputNr; i++) {
+	for (int i = 0; i <= ctx->inputNr; i++) {
 		int prog = i + 1;
 		pat->programs[i].program_number = prog;
 		pat->programs[i].program_map_PID = 0x100 * prog;
@@ -499,28 +678,20 @@ int mpts(int argc, char *argv[])
 		pat->programs[i].pmt.streams[1].stream_type    = 0x81; // AC3
 	}
 
+	/* Setup the output schedule to give each stream time in the packet scheduler. */
+	ctx->schedule[0] = ctx->streams[0]->pids[0];
+	ctx->schedule[1] = ctx->streams[0]->pids[1];
+	ctx->schedule[2] = ctx->streams[1]->pids[0];
+	ctx->schedule[3] = ctx->streams[1]->pids[1];
+
 	/* Build a pid output schedule. Each time we iterate a need to output a packet,
 	 * we process the threads in this order.
 	 */
-	uint32_t schedule_idx = 0;
-	int schedule_entries = 4;
-	struct pid_s *schedule[4] = {
-		ctx->streams[0]->pids[0],
-		ctx->streams[0]->pids[1],
-		ctx->streams[1]->pids[0],
-		ctx->streams[1]->pids[1]
-	};
-
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-	int output_psip_idx = -1;
-
 	/* Main clock we use to drive the mux */
-	struct timespec next_time = { 0, 0 };
-	struct timespec last_psip = { 0, 0 };
-	struct timespec last_q_report = { 0, 0 };
-    clock_gettime(CLOCK_MONOTONIC, &next_time);
+    clock_gettime(CLOCK_MONOTONIC, &ctx->next_time);
 
 	/* Main loop.
 	 * Build psip every second.
@@ -532,173 +703,15 @@ int mpts(int argc, char *argv[])
 	 */
 	while (g_running) {
 
-		if (timesec_diff(next_time, last_q_report) >= 950) {
-			last_q_report = next_time;
-
-			struct timeval ts;
-			gettimeofday(&ts, NULL);
-
-			printf("%d.%06d: PES Queues/Size: ", (int)ts.tv_sec, (int)ts.tv_usec);
-			for (int i = 0; i <= inputNr; i++) {
-				struct stream_s *stream = ctx->streams[i];
-				for (int j = 0; j < stream->pidCount; j++) {
-					struct pid_s *pid = stream->pids[j];
-
-					pthread_mutex_lock(&pid->peslistlock);
-					printf("s%d.%04x %05" PRIu64 ",%06" PRIu64 ",%06" PRIu64 " ",
-						stream->nr, pid->outputPidNr,
-						pid->peslistcount, pid->EBnSize, pid->EBnSize_hwm);
-					pthread_mutex_unlock(&pid->peslistlock);
-
-				}
-			}
-			printf("\n");
-		}
-
-		if (timesec_diff(next_time, last_psip) > 50) {
-			/* Generate the PSIP multiple times a second, and schedule them for output. */
-			last_psip = next_time;
-			output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
-			ltntstools_pat_create_packet_ts(pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
-			ltntstools_pmt_create_packet_ts(&pat->programs[0].pmt, pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
-			ltntstools_pmt_create_packet_ts(&pat->programs[1].pmt, pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
-		}
-
-		/* Try to ensure we have TS packets available for all input streams, all pids.  */
-		for (int s = 0; s <= inputNr; s++) {
-			struct stream_s *stream = ctx->streams[s];
-			for (int p = 0; p < stream->pidCount; p++) {
-				struct pid_s *pid = stream->pids[p];
-
-				struct pes_item_s *item = NULL;
-
-				/* Cleanup previously used packet lists and related output clocks, free them. */
-				if (pid->pkts && pid->pkts_count && pid->pkts_idx >= pid->pkts_count) {
-					free(pid->pkts);
-					pid->pkts = NULL;
-					pid->pkts_count = 0;
-					pid->pkts_idx = 0;
-					free(pid->pkts_outputSTC);
-					pid->pkts_outputSTC = NULL;
-				}
-
-				/* If this pid doesn't have any packets queued.... convert the next pes into TS */
-				if (pid->pkts_count == 0) {
-					/* Get more ts packets */
-
-					pthread_mutex_lock(&pid->peslistlock);
-					struct pes_item_s *e = NULL, *next = NULL;
-					xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
-						if (e->outputSTC < get_computed_stc(ctx)) {
-							item = e;
-							xorg_list_del(&e->list);
-							pid->peslistcount--;
-							pid->EBnSize -= item->pes->dataLengthBytes; /* Plus header */
-							break;
-						}
-					}
-					pthread_mutex_unlock(&pid->peslistlock);
-
-					if (!item) {
-						continue;
-					}
-
-					int64_t pcr = item->pes->pcr;
-					if (pcr <= 0) {
-						pcr = -1; /* Magic value, tells func NOT to generate a PCR. */
-					}
-
-					/* Slightly childish - sending a PCR on every every frame */
-					if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
-						item->pes->rawBufferLengthBytes,
-						&pid->pkts,
-						&pid->pkts_count,
-						188, &pid->cc, pid->outputPidNr,
-						pcr) < 0)
-					{
-						printf("Err\n");
-					}
-					//printf("Created %d ts packets\n", pid->pkts_count);
-					pid->pkts_idx = 0;
-
-					/* Now compute the fine grain packet scheduling from the first, TS packet onwards */
-					pid->pkts_outputSTC = calloc(sizeof(int64_t), pid->pkts_count);
-					for (unsigned int i = 0; i < pid->pkts_count; i++) {
-
-						/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
-						double bitrate_mbps = 20.0 - 2; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
-					    double bitrate_bps = bitrate_mbps * 1000000.0;
-					    double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
-    					double ticks_per_packet = packet_duration_sec * 27000000.0;
-						int64_t ticks_per_ts = ticks_per_packet;
-
-						pid->pkts_outputSTC[i] = item->outputSTC + (i * ticks_per_ts);
-					}
-
-					ltn_pes_packet_free(item->pes);
-					free(item);
-				}
-			}
-		} /* For all input stream, ensure we have TS packets available. */
-
-		/* Each iteration through, we output a single packet. If we don't have a packet
-		 * in the schedule to send, then a NULL packet goes out.
-		 * "Only one ping Mr Borodin, one ping."
-		 */
-
-		uint8_t *pkt = NULL;
-
-		if (output_psip_idx > -1) {
-			/* Its time to output a PSIP packet, select one. */
-
-			pkt = &ctx->psip_pkt[ output_psip_idx ][0];
-
-			if (++output_psip_idx == 3) {
-				output_psip_idx = -1;
-			}
-
-		} else {
-			/* Its time to output a regular stream packet, select one.
-			 * Using an input schedule forces pid interleaving.
-			 */
-			for (int i = 0; i < schedule_entries; i++) {
-				schedule_idx = (schedule_idx + 1) % schedule_entries;
-				struct pid_s *pid = schedule[schedule_idx];
-
-//				printf("i %d pid->pid 0x%04x, sidx %d, pkts_count %d\n", i, pid->pid, schedule_idx, pid->pkts_count);
-
-				/* Find the next packet and check its scheduling time. */
-				/* Make sure its scheduled to go out */
-				/* Otherwise leave with item being NULL and a null packet will go out instead */
-				if (pid->pkts_idx < pid->pkts_count) {
-					pkt = &pid->pkts[ pid->pkts_idx * 188 ];
-					if (pid->pkts_outputSTC[pid->pkts_idx] <= get_computed_stc(ctx)) {
-						pid->pkts_idx++;
-					} else {
-						pkt = NULL; /* Send a null packet instead */
-					}
-
-					break;
-				}
-			}
-		}
-
-		if (!pkt) {
-			/* Hmm, not time for PSIP or audio/video. Must be null packet time. */
-			pkt = &ctx->null_pkt[0];
-		}
-
-		/* Send a single PKT to the reframer */
-		ltststools_reframer_write(ctx->reframer, pkt, 188);
-		ctx->ts_packets_sent++;
+		service(ctx);
 
 		/* Have a haba daba too time... sleep a while */
-		next_time.tv_nsec += PACKET_INTERVAL_NS;
-        while (next_time.tv_nsec >= 1000000000) {
-            next_time.tv_nsec -= 1000000000;
-            next_time.tv_sec += 1;
+		ctx->next_time.tv_nsec += PACKET_INTERVAL_NS;
+        while (ctx->next_time.tv_nsec >= 1000000000) {
+            ctx->next_time.tv_nsec -= 1000000000;
+            ctx->next_time.tv_sec += 1;
         }
-        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_time, NULL);
+        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ctx->next_time, NULL);
 
 	} /* g_running */
 
@@ -706,7 +719,7 @@ int mpts(int argc, char *argv[])
 	ltntstools_reframer_free(ctx->reframer);
 	close(ctx->sockfd);
 
-	for (int i = 0; i <= inputNr; i++) {
+	for (int i = 0; i <= ctx->inputNr; i++) {
 		printf("i %d\n", i);
 	}
 	return 0;
