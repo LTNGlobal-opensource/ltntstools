@@ -136,8 +136,8 @@ struct tool_ctx_s
 static void *vbv_notifications(void *userContext, enum ltntstools_vbv_event_e event)
 {
 	struct pid_s *pid = (struct pid_s *)userContext;
-	struct stream_s *stream = pid->stream;
-	struct tool_ctx_s *ctx = stream->ctx;
+	//struct stream_s *stream = pid->stream;
+	//struct tool_ctx_s *ctx = stream->ctx;
 
 	struct timeval now;
 	gettimeofday(&now, NULL);
@@ -235,10 +235,16 @@ struct pid_s *pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, 
 	pthread_mutex_init(&pid->peslistlock, NULL);
 	xorg_list_init(&pid->peslist);
 
-	pid->dp.vbv_buffer_size = 0;
-    pid->dp.framerate = 59.94;
+	if (ltntstools_vbv_profile_defaults(&pid->dp, VBV_CODEC_H264, 32, 59.94) < 0) {
+		fprintf(stderr, "Unable to allocate VBV size for profile, aborting.\n");
+		exit(0);
+	}
 	if (ltntstools_vbv_profile_validate(&pid->dp) == 0) {
 		fprintf(stderr, "invalid decoder profile, aborting.\n");
+		exit(0);
+	}
+	if (ltntstools_vbv_alloc(&pid->vbv, pid->outputPidNr, (vbv_callback)vbv_notifications, pid, &pid->dp) < 0) {
+		fprintf(stderr, "invalid vbv context, aborting.\n");
 		exit(0);
 	}
 
@@ -580,10 +586,10 @@ void service(struct tool_ctx_s *ctx)
 					} else
 					if (pid->type == PID_AUDIO) {
 						/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
-						double bitrate_mbps = 1.0; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
-						double bitrate_bps = bitrate_mbps * 1000000.0;
-						double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
-						double ticks_per_packet = packet_duration_sec * 27000000.0;
+						//double bitrate_mbps = 1.0; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
+						//double bitrate_bps = bitrate_mbps * 1000000.0;
+						//double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
+						//double ticks_per_packet = packet_duration_sec * 27000000.0;
 						//ticks_per_ts = ticks_per_packet;
 					}
 
