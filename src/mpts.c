@@ -663,15 +663,14 @@ void service(struct tool_ctx_s *ctx)
 		/* Hmm, not time for PSIP or audio/video. Could be null packet time. */
 		if (ctx->null_pkt_outputSTC < get_computed_stc(ctx)) {
 			pkt = &ctx->null_pkt[0];
-
 			ctx->null_pkt_outputSTC += ctx->ticks_per_outputts27MHz;
 		}
 	}
 
 	if (pkt) {
 		if (outputPid && outputPid->type == PID_VIDEO) {
-			/* All video pids need to be rolled becasue we inject PCR 
-			 * packet randomly into the schedule.
+			/* All video pids need to be rolled because we inject PCR 
+			 * packet randomly into the schedule, messing up the pre-allocated CC's
 			 */
 			if (ltntstools_has_adaption(pkt)) {
 				if (ltntstools_adaption_field_control(pkt) == 0x02 /* Adaption only */) {
