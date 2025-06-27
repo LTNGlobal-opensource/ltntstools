@@ -64,8 +64,6 @@ struct pid_s
 
 	pthread_mutex_t peslistlock;
 	uint64_t peslistcount;
-	uint64_t EBnSize;
-	uint64_t EBnSize_hwm;
 	struct xorg_list peslist;
 
 	/* Transport packets to be egressed */
@@ -176,7 +174,7 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 		//ltntstools_hexdump(pes->rawBuffer, 188, 32);
 	}
 
-	if (pid->vbv && ltntstools_vbv_write(pid->vbv, (const struct ltn_pes_packet_s *)pes) < 0) {
+	if (pid->vbv && pid->type == PID_VIDEO && ltntstools_vbv_write(pid->vbv, (const struct ltn_pes_packet_s *)pes) < 0) {
 		fprintf(stderr, "Error writing PES to VBV\n");
 	}
 
@@ -195,19 +193,6 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 		pthread_mutex_lock(&pid->peslistlock);
 		xorg_list_append(&e->list, &pid->peslist);
 		pid->peslistcount++;
-		pid->EBnSize += pes->dataLengthBytes; /* Plus header */
-		if (pid->EBnSize > MAX_EBN_SIZE) {
-			static struct timeval lastOutput = { 0, 0 };
-			static struct timeval now;
-			if (now.tv_sec > lastOutput.tv_sec) {
-				lastOutput = now;
-				printf("%d.%06d: EBN Overflow %" PRIu64 " > %d\n",
-					(int)now.tv_sec, (int)now.tv_usec,
-					pid->EBnSize, MAX_EBN_SIZE);
-			}
-		}
-		pid->EBnSize_hwm = (pid->EBnSize > pid->EBnSize_hwm) ? pid->EBnSize : pid->EBnSize_hwm;
-
 		pthread_mutex_unlock(&pid->peslistlock);
 	} else {
 		//ltn_pes_packet_dump(pes, "");
@@ -284,7 +269,6 @@ void pid_free(struct pid_s *pid)
 
 		struct pes_item_s *e = xorg_list_first_entry(&pid->peslist, struct pes_item_s, list);
 		pid->peslistcount--;
-		pid->EBnSize -= e->pes->dataLengthBytes; /* Plus header */
 		xorg_list_del(&e->list);
 		ltn_pes_packet_free(e->pes);
 		free(e);
@@ -497,9 +481,9 @@ void service(struct tool_ctx_s *ctx)
 				struct pid_s *pid = stream->pids[j];
 
 				pthread_mutex_lock(&pid->peslistlock);
-				printf("s%d.%04x %05" PRIu64 ",%06" PRIu64 ",%06" PRIu64 " ",
+				printf("s%d.%04x %05" PRIu64 " ",
 					stream->nr, pid->outputPidNr,
-					pid->peslistcount, pid->EBnSize, pid->EBnSize_hwm);
+					pid->peslistcount);
 				pthread_mutex_unlock(&pid->peslistlock);
 
 			}
@@ -545,7 +529,6 @@ void service(struct tool_ctx_s *ctx)
 						item = e;
 						xorg_list_del(&e->list);
 						pid->peslistcount--;
-						pid->EBnSize -= item->pes->dataLengthBytes; /* Plus header */
 						break;
 					}
 				}
