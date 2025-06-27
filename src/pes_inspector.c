@@ -22,7 +22,7 @@
 
 static int testcase_428_dts_exists(uint32_t dts)
 {
-	for (int i = 0; i < (sizeof(testcase_428_dts) / sizeof(uint32_t)); i++) {
+	for (unsigned int i = 0; i < (sizeof(testcase_428_dts) / sizeof(uint32_t)); i++) {
 		if (testcase_428_dts[i] == dts) {
 			return 1;
 		} else
