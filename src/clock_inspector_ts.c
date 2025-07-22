@@ -7,6 +7,10 @@ void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filep
 
 	uint32_t cc = ltntstools_continuity_counter(pkt);
 
+	if (ctx->doSCRStatistics == 0) {
+		ctx->current_stream_time = ts.tv_sec;
+	}
+
 	if (ctx->dumpHex) {
 		if (ctx->ts_linenr++ == 0) {
 			printf("+TS Packet         filepos ------------>\n");
