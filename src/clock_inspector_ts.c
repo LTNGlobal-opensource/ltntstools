@@ -39,8 +39,8 @@ void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filep
 					char str[64];
 					sprintf(str, "%s", ctime(&ctx->current_stream_time));
 					str[ strlen(str) - 1] = 0;
-					printf("!CC Error. PID %04x expected %02x got %02x @ %s\n",
-						pid, (ctx->pids[pid].cc + 1) & 0x0f, cc, str);
+					printf("!CC Error. PID %04x expected %02x got %02x : %s @ %s\n",
+						pid, (ctx->pids[pid].cc + 1) & 0x0f, cc, ctx->iname, str);
 					ctx->pids[pid].cc_errors++;
 				}
 			}
