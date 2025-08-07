@@ -816,7 +816,12 @@ int mpts(int argc, char *argv[])
             ctx->next_time.tv_nsec -= 1000000000;
             ctx->next_time.tv_sec += 1;
         }
+#ifdef __linux__
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ctx->next_time, NULL);
+#endif
+#ifdef __APPLE__
+        nanosleep(&ctx->next_time, NULL);
+#endif
 
 	} /* g_running */
 
