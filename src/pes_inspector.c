@@ -696,7 +696,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 		printf("TIMING: pic_struct %d (stream))\n", pic_struct);
 #endif
 
-		if (ctx->pid == 0x100) {
+		if (ctx->pid == 0x101) {
 			pic_struct = 8; /* Hardcoded - Video Engine */
 		}
 
