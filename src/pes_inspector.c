@@ -733,19 +733,10 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 					int seconds = get_bits(&ctx->gb, 6);
 					int minutes = get_bits(&ctx->gb, 6);
 					int hours   = get_bits(&ctx->gb, 5);
-
-					printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
-						hours, minutes, seconds, n_frames,
-						pic_struct,
-						discontinuity_flag,
-						ct_type, counting_type, nuit_field_based_flag,
-						full_timestamp_flag,
-						cnt_dropped_flag);
-
 				} else {
 					int seconds               = 0;
-					int minutes               = 0;
-					int hours                 = 0;
+					int minutes               = -1;
+					int hours                 = -1;
 					int seconds_flag          = get_bits(&ctx->gb, 1);
 					if (seconds_flag) {
 						seconds               = get_bits(&ctx->gb, 6);
@@ -757,15 +748,18 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 								hours         = get_bits(&ctx->gb, 5);
 							}
 						}
+					} else {
+						seconds = -1;
 					}
-					printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
-						hours, minutes, seconds, n_frames,
-						pic_struct,
-						discontinuity_flag,
-						ct_type, counting_type, nuit_field_based_flag,
-						full_timestamp_flag,
-						cnt_dropped_flag);
 				}
+				printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
+					hours, minutes, seconds, n_frames,
+					pic_struct,
+					discontinuity_flag,
+					ct_type, counting_type, nuit_field_based_flag,
+					full_timestamp_flag,
+					cnt_dropped_flag);
+
 				if (time_offset_length > 0) {
 					/* int time_offset = */ get_bits_long(&ctx->gb, time_offset_length);
 				}
