@@ -79,7 +79,7 @@ int clock_inspector(int argc, char *argv[])
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&ctx->libstats);
 
-    while ((ch = getopt(argc, argv, "?dhi:spt:A:B:T:D:LPRS:X:YZ")) != -1) {
+    while ((ch = getopt(argc, argv, "?dhi:spt:vA:B:T:D:LPRS:X:YZ")) != -1) {
 		switch (ch) {
 		case 'A':
 			ctx->trendSize = atoi(optarg);
@@ -150,6 +150,9 @@ int clock_inspector(int argc, char *argv[])
 		case 't':
 			stopSeconds = atoi(optarg);
 			break;
+		case 'v':
+			ctx->verbose++;
+			break;
 		case 'X':
 			/* Keep valgrind happy */
 			ltntstools_pid_stats_free(ctx->libstats);
@@ -180,7 +183,7 @@ int clock_inspector(int argc, char *argv[])
 		exit(1);
 	}
 
-	int blen = 188 * 1024;
+	int blen = 188 * 7;
 	uint8_t *buf = malloc(blen);
 	if (!buf) {
 		fprintf(stderr, "Unable to allocate buffer\n");
@@ -253,9 +256,6 @@ int clock_inspector(int argc, char *argv[])
 
 		streamPosition += rlen;
 
-		/* Push the entire stream into the stats layer - so we can compyte walltime */
-		ltntstools_pid_stats_update(ctx->libstats, buf, rlen / 188);
-
 		for (int i = 0; i < rlen; i += 188) {
 
 			filepos = (streamPosition - rlen) + i;
@@ -264,6 +264,9 @@ int clock_inspector(int argc, char *argv[])
 
 			struct timeval ts;
 			gettimeofday(&ts, NULL);
+
+			/* Push one packet into the stats layer - so we can compute walltime and jitter with finer granuality */
+			ltntstools_pid_stats_update(ctx->libstats, p, 1);
 
 			if (ctx->doPacketStatistics) {
 				processPacketStats(ctx, p, filepos, ts);

@@ -22,7 +22,7 @@
 
 static int testcase_428_dts_exists(uint32_t dts)
 {
-	for (int i = 0; i < (sizeof(testcase_428_dts) / sizeof(uint32_t)); i++) {
+	for (unsigned int i = 0; i < (sizeof(testcase_428_dts) / sizeof(uint32_t)); i++) {
 		if (testcase_428_dts[i] == dts) {
 			return 1;
 		} else
@@ -502,6 +502,7 @@ struct tool_ctx_s
 	int doH264NalThroughput;
 	int doH265NalThroughput;
 	int verbose;
+	int doVBV;
 	int pid;
 	int testcase_validate;
 	int streamId;
@@ -523,7 +524,26 @@ struct tool_ctx_s
 
 	struct ltn_pes_packet_writer_ctx writer_ctx;
 
+	/* Video Buffer Verifier (VBV) */
+	void *vbv;
+	struct vbv_decoder_profile_s dp;
+
 };
+
+static void *vbv_notifications(void *userContext, enum ltntstools_vbv_event_e event)
+{
+	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
+
+	struct timeval now;
+	gettimeofday(&now, NULL);
+
+	printf("%d.%06d: pid 0x%04x (%04d) %s\n",
+		(int)now.tv_sec, (int)now.tv_usec,
+		ctx->pid, ctx->pid,
+		ltntstools_vbv_event_name(event));
+
+	return NULL;
+}
 
 static void _pes_packet_measure_nal_throughput(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes, struct nal_throughput_s *s)
 {
@@ -676,7 +696,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 		printf("TIMING: pic_struct %d (stream))\n", pic_struct);
 #endif
 
-		if (ctx->pid == 0x100) {
+		if (ctx->pid == 0x101) {
 			pic_struct = 8; /* Hardcoded - Video Engine */
 		}
 
@@ -713,19 +733,10 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 					int seconds = get_bits(&ctx->gb, 6);
 					int minutes = get_bits(&ctx->gb, 6);
 					int hours   = get_bits(&ctx->gb, 5);
-
-					printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
-						hours, minutes, seconds, n_frames,
-						pic_struct,
-						discontinuity_flag,
-						ct_type, counting_type, nuit_field_based_flag,
-						full_timestamp_flag,
-						cnt_dropped_flag);
-
 				} else {
 					int seconds               = 0;
-					int minutes               = 0;
-					int hours                 = 0;
+					int minutes               = -1;
+					int hours                 = -1;
 					int seconds_flag          = get_bits(&ctx->gb, 1);
 					if (seconds_flag) {
 						seconds               = get_bits(&ctx->gb, 6);
@@ -737,15 +748,18 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 								hours         = get_bits(&ctx->gb, 5);
 							}
 						}
+					} else {
+						seconds = -1;
 					}
-					printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
-						hours, minutes, seconds, n_frames,
-						pic_struct,
-						discontinuity_flag,
-						ct_type, counting_type, nuit_field_based_flag,
-						full_timestamp_flag,
-						cnt_dropped_flag);
 				}
+				printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
+					hours, minutes, seconds, n_frames,
+					pic_struct,
+					discontinuity_flag,
+					ct_type, counting_type, nuit_field_based_flag,
+					full_timestamp_flag,
+					cnt_dropped_flag);
+
 				if (time_offset_length > 0) {
 					/* int time_offset = */ get_bits_long(&ctx->gb, time_offset_length);
 				}
@@ -783,6 +797,14 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 	if (ctx->verbose > 1) {
 		printf("PES Extractor callback\n");
+	}
+
+	if (ctx->doVBV) {
+		if (ltntstools_vbv_write(ctx->vbv, (const struct ltn_pes_packet_s *)pes) < 0) {
+			fprintf(stderr, "Error writing PES to VBV\n");
+		}
+		ltn_pes_packet_free(pes);
+		return NULL;
 	}
 
 	if (ctx->testcase_validate == 428) {
@@ -984,6 +1006,7 @@ static void usage(const char *progname)
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -5 dump H.265 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -t dump H.264 PIC TIMING headers (experimental with PTS reordering) [def: disabled]\n");
+	printf("  -V Run the Video Bitrate Verifier across this pid [def: no]\n");
 	printf("  -G <dirname> write ES payload to individual sequences files [def: no]\n"
 	       "     Eg. seq00000000000000-pts00000000000000-dts00000000000000-len00000000-crc00000000\n");
 	printf("  -F write H.265 PES ES Nals to individual sequences files [def: no]\n");
@@ -1015,7 +1038,7 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "@:45?AEFG:Hhvi:P:S:Tt")) != -1) {
+	while ((ch = getopt(argc, argv, "@:45?AEFG:Hhvi:P:S:TtV")) != -1) {
 		switch (ch) {
 		case '@':
 			ctx->testcase_validate = atoi(optarg);
@@ -1079,6 +1102,9 @@ int pes_inspector(int argc, char *argv[])
 		case 'v':
 			ctx->verbose++;
 			break;
+		case 'V':
+			ctx->doVBV = 1;
+			break;
 		default:
 			usage(argv[0]);
 			exit(1);
@@ -1105,6 +1131,21 @@ int pes_inspector(int argc, char *argv[])
 		}
 	}
 #endif
+
+	if (ctx->doVBV) {
+		if (ltntstools_vbv_profile_defaults(&ctx->dp, VBV_CODEC_H264, 32, 59.94) < 0) {
+			fprintf(stderr, "Unable to allocate VBV size for profile, aborting.\n");
+			exit(0);
+		}
+		if (ltntstools_vbv_profile_validate(&ctx->dp) == 0) {
+			fprintf(stderr, "invalid decoder profile, aborting.\n");
+			exit(0);
+		}
+		if (ltntstools_vbv_alloc(&ctx->vbv, ctx->pid, (vbv_callback)vbv_notifications, ctx, &ctx->dp) < 0) {
+			fprintf(stderr, "invalid vbv context, aborting.\n");
+			exit(0);
+		}
+	}
 
 	if (ltntstools_pes_extractor_alloc(&ctx->pe, ctx->pid, ctx->streamId,
 			(pes_extractor_callback)callback, ctx, (1024 * 1024), (2 * 1024 * 1024)) < 0) {
@@ -1141,6 +1182,10 @@ int pes_inspector(int argc, char *argv[])
 	ltntstools_source_avio_free(srcctx);
 
 	ltntstools_pes_extractor_free(ctx->pe);
+	if (ctx->vbv) {
+		ltntstools_vbv_free(ctx->vbv);
+		ctx->vbv = NULL;
+	}
 	nal_throughput_free(&ctx->throughput);
 #if H264_IFRAME_THUMBNAILING
 	ltntstools_h264_iframe_thumbnailer_free(ctx->h264Thumbnailer);

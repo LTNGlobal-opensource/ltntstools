@@ -30,13 +30,16 @@ endif
 
 AM_CFLAGS += -I../../target-root/usr/include -g
 if APPLE
-AM_CFLAGS += ../../target-root/usr/lib/libjson-c.a
+#AM_CFLAGS += ../../target-root/usr/lib/libjson-c.a
 endif
 LDADD += -L../../target-root/usr/lib -ldvbpsi
 LDADD += -L../../target-root/usr/lib -lavformat -lavutil -lz -lavcodec -lswresample -lswscale -lavutil -lbz2
 LDADD += -lpcap -llzma
 LDADD += -lklscte35 -ldl
 LDADD += -lsrt -lcrypto
+if APPLE
+LDADD += -ljson-c -lcurl
+endif
 if LINUX
 if DTAPI
 LDADD += ../../sdk-dektec/LinuxSDK/DTAPI/Lib/GCC4.8_CXX11_ABI0/DTAPI64.o
@@ -192,3 +195,4 @@ clean-local:
 # codesign --force --deep -s "Developer ID Application: LTN" tstools_util
 # codesign --verify --verbose tstools_util
 # spctl -a -v tstools_util
+# install_name_tool -change @rpath/libsrt.1.4.dylib /Users/stoth/GIT/ltntstools-build-environment/ffmpeg/../target-root/usr/lib/libsrt.1.4.dylib tstools_pes_inspector

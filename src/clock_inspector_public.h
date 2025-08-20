@@ -110,6 +110,7 @@ struct pid_s
 
 struct tool_context_s
 {
+	int verbose;
 	int enableNonTimingConformantMessages;
 	int enableTrendReport;
 	int enablePESDeliveryReport;
