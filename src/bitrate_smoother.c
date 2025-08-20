@@ -35,6 +35,7 @@ struct tool_context_s
 {
 	char *iname, *oname;
 	int verbose;
+	int skipSmoother;
 	int stopAfterSeconds;
 	int terminateLOSSeconds;
 	int showDeveloperStatisticsSeconds;
@@ -480,7 +481,11 @@ static void *thread_packet_rx(void *p)
 		if (ctx->isRTP == 0 && ctx->smoother) {
 			struct timeval now;
 			gettimeofday(&now, NULL);
-			smoother_pcr_write(ctx->smoother, buf, rlen, &now);
+			if (ctx->skipSmoother) {
+				smoother_pcr_cb(ctx, buf, rlen, NULL, 0);
+			} else {
+				smoother_pcr_write(ctx->smoother, buf, rlen, &now);
+			}
 		}
 		if (ctx->isRTP == 1 && ctx->smoother) {
 
@@ -493,7 +498,11 @@ static void *thread_packet_rx(void *p)
 			rtp_hdr_write(&ctx->rtp_stream_in, (struct rtp_hdr *)buf);
 
 			/* Feed the smoother */
-			smoother_rtp_write(ctx->smoother, buf, rlen, NULL);
+			if (ctx->skipSmoother) {
+				smoother_rtp_cb(ctx, buf, rlen);
+			} else {
+				smoother_rtp_write(ctx->smoother, buf, rlen, NULL);
+			}
 		}
 
 	}
@@ -593,6 +602,7 @@ static void usage(const char *progname)
 	printf("  -t <#seconds> Stop after N seconds [def: 0 - unlimited]\n");
 #endif
 	printf("  -L <#seconds> During input LOS, terminate software after time. [def: 0 - don't terminate]\n");
+	printf("  -X Skip the smoother and write the input packet direct to output as fast as possible (with reframing)\n");
 	printf("  -h Display command line help.\n");
 	printf("\n  Example UDP or RTP, don't mix'n'match:\n");
 	printf("    tstools_bitrate_smoother -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000' \\\n");
@@ -617,7 +627,7 @@ int bitrate_smoother(int argc, char *argv[])
 	ltntstools_pid_stats_alloc(&ctx->i_stream);
 	ltntstools_pid_stats_alloc(&ctx->o_stream);
 
-	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:R:v:t:S:Z:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:R:v:t:S:XZ:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -667,6 +677,9 @@ int bitrate_smoother(int argc, char *argv[])
 			ctx->stopAfterSeconds = atoi(optarg);
 			break;
 #endif
+		case 'X':
+			ctx->skipSmoother = 1;
+			break;
 		case 'Z':
 			if ((sscanf(optarg, "0x%x", &ctx->spts_pmt_pid) != 1) || (ctx->spts_pmt_pid >= 0x2000)) {
 				usage(argv[0]);
