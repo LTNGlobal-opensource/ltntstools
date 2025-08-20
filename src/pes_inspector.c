@@ -729,14 +729,14 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 				int cnt_dropped_flag      = get_bits(&ctx->gb, 1);
 				int n_frames              = get_bits(&ctx->gb, 8);
 
+				int seconds               = 0;
+				int minutes               = -1;
+				int hours                 = -1;
 				if (full_timestamp_flag) {
-					int seconds = get_bits(&ctx->gb, 6);
-					int minutes = get_bits(&ctx->gb, 6);
-					int hours   = get_bits(&ctx->gb, 5);
+					seconds = get_bits(&ctx->gb, 6);
+					minutes = get_bits(&ctx->gb, 6);
+					hours   = get_bits(&ctx->gb, 5);
 				} else {
-					int seconds               = 0;
-					int minutes               = -1;
-					int hours                 = -1;
 					int seconds_flag          = get_bits(&ctx->gb, 1);
 					if (seconds_flag) {
 						seconds               = get_bits(&ctx->gb, 6);
