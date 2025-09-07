@@ -528,6 +528,9 @@ struct tool_ctx_s
 	void *vbv;
 	struct vbv_decoder_profile_s dp;
 
+	/* SEI Report */
+	int seiReport;
+	int seiOccurences[256]; /* Sei Types is limited to a single byte, Count how manu occurences we've seen. */
 };
 
 static void *vbv_notifications(void *userContext, enum ltntstools_vbv_event_e event)
@@ -787,6 +790,40 @@ static void _parse_AC3_Headers(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *
 
 }
 
+static void _report_SEI(struct tool_ctx_s *ctx)
+{
+	printf("Report of all SEI: Supplemental Enhancement Information found\n");
+	printf("Type    Count  Description\n");
+	for (int i = 0; i < 256; i++) {
+		if (ctx->seiOccurences[i]) {
+			printf("%03d: %8d  %s\n", i, ctx->seiOccurences[i], ltn_sei_h264_lookupName(i));
+		}
+	}
+}
+
+static void _parse_SEI(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes)
+{
+	int nalArrayLength = 0;
+	struct ltn_nal_headers_s *nalArray = NULL;
+
+	if (ltn_nal_h264_find_headers(pes->data, pes->dataLengthBytes, &nalArray, &nalArrayLength) < 0) {
+		return;
+	}
+
+	int seiArrayLength = 0;
+	struct ltn_sei_headers_s *seiArray = NULL;
+	if (ltn_sei_h264_find_headers(nalArray, nalArrayLength, &seiArray, &seiArrayLength) < 0) {
+		free(nalArray);
+		return;
+	}
+
+	for (int i = 0; i < seiArrayLength; i++) {
+		ctx->seiOccurences[ seiArray[i].seiType ]++;
+	}
+
+	free(seiArray);
+}
+
 static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 {
 	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
@@ -797,6 +834,10 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 	if (ctx->verbose > 1) {
 		printf("PES Extractor callback\n");
+	}
+
+	if (ctx->seiReport) {
+		_parse_SEI(ctx, pes);
 	}
 
 	if (ctx->doVBV) {
@@ -1005,6 +1046,7 @@ static void usage(const char *progname)
 	printf("  -H Show PES headers only, don't parse payload. [def: disabled, payload shown]\n");
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -5 dump H.265 NAL headers (live stream only) and measure per-NAL throughput\n");
+	printf("  -s create H.264 specific SEI Report [def: disabled]\n");
 	printf("  -t dump H.264 PIC TIMING headers (experimental with PTS reordering) [def: disabled]\n");
 	printf("  -V Run the Video Bitrate Verifier across this pid [def: no]\n");
 	printf("  -G <dirname> write ES payload to individual sequences files [def: no]\n"
@@ -1038,7 +1080,7 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "@:45?AEFG:Hhvi:P:S:TtV")) != -1) {
+	while ((ch = getopt(argc, argv, "@:45?AEFG:Hhvi:P:sS:TtV")) != -1) {
 		switch (ch) {
 		case '@':
 			ctx->testcase_validate = atoi(optarg);
@@ -1084,6 +1126,9 @@ int pes_inspector(int argc, char *argv[])
 					exit(1);
 				}
 			}
+			break;
+		case 's':
+			ctx->seiReport = 1;
 			break;
 		case 'S':
 			if ((sscanf(optarg, "0x%x", &ctx->streamId) != 1) || (ctx->streamId > 0xff)) {
@@ -1191,5 +1236,8 @@ int pes_inspector(int argc, char *argv[])
 	ltntstools_h264_iframe_thumbnailer_free(ctx->h264Thumbnailer);
 #endif
 
+	if (ctx->seiReport) {
+		_report_SEI(ctx);
+	}
 	return 0;
 }

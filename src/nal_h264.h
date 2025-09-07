@@ -21,6 +21,7 @@ struct ltn_nal_headers_s
     uint8_t        nalType;
     const char    *nalName;
 };
+
 /**
  * @brief         Search buffer for the byte sequence 000001, a NAL header signature, return an array inside a new
  *                memory allocation for the caller.
@@ -118,5 +119,18 @@ void h264_slice_counter_query(void *ctx, struct h264_slice_counter_results_s *re
 const char *h274_slice_name_ascii(int slice_type);
 
 int h264_nal_get_slice_type(const struct ltn_nal_headers_s *hdr, char *sliceType);
+
+struct ltn_sei_headers_s
+{
+    const uint8_t *ptr;
+    uint32_t       lengthBytes;
+    uint8_t        seiType;
+    const char    *seiName;
+};
+
+int ltn_sei_h264_find_headers(struct ltn_nal_headers_s *nals, int nalArrayLength, struct ltn_sei_headers_s **array, int *arrayLength);
+
+/* Guaranteed to return a usable string, even if the sei Type is invalid */
+const char *ltn_sei_h264_lookupName(int seiType);
 
 #endif /* NAL_H264_H */

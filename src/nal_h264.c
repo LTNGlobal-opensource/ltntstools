@@ -3,8 +3,7 @@
 #include <inttypes.h>
 #include "memmem.h"
 
-#include <libavutil/internal.h>
-#include <libavcodec/golomb.h>
+#include <libltntstools/nal_bitreader.h>
 
 int ltn_nal_h264_find_headers(const uint8_t *buf, int lengthBytes, struct ltn_nal_headers_s **array, int *arrayLength)
 {
@@ -62,7 +61,7 @@ int ltn_nal_h264_findHeader(const uint8_t *buffer, int lengthBytes, int *offset)
 {
 	const uint8_t sig[] = { 0, 0, 1 };
 
-	for (int i = (*offset + 1); i < lengthBytes - sizeof(sig); i++) {
+	for (int i = (*offset + 1); i < lengthBytes - (int)sizeof(sig); i++) {
 		if (memcmp(buffer + i, sig, sizeof(sig)) == 0) {
 
 			/* Check for the forbidden zero bit, it's illegal to be high in a nal (conflicts with PES headers. */
@@ -76,6 +75,8 @@ int ltn_nal_h264_findHeader(const uint8_t *buffer, int lengthBytes, int *offset)
 
 	return -1; /* Not found */
 }
+
+#define NAL_TYPE_SEI 0x06
 
 static struct h264Nal_s {
 	const char *name;
@@ -231,7 +232,7 @@ void h264_slice_counter_dprintf(void *ctx, int fd, int printZeroCounts)
 
 int h264_nal_get_slice_type(const struct ltn_nal_headers_s *hdr, char *sliceType)
 {
-	GetBitContext gb;
+	NALBitReader br;
 	int offset = -1;
 
 	if (ltn_nal_h264_findHeader(hdr->ptr, hdr->lengthBytes, &offset) == 0) {
@@ -243,9 +244,9 @@ int h264_nal_get_slice_type(const struct ltn_nal_headers_s *hdr, char *sliceType
 		case 2: /* slice_data_partition_a_layer_rbsp */
 		case 5: /* slice_layer_without_partitioning_rbsp */
 		case 19: /* slice_layer_without_partitioning_rbsp */
-			init_get_bits8(&gb, hdr->ptr + 4, 4);
-			get_ue_golomb(&gb); /* first_mb_in_slice */
-			int slice_type = get_ue_golomb(&gb);
+			NALBitReader_init(&br, hdr->ptr + 4, 4);
+			NALBitReader_read_ue(&br); /* first_mb_in_slice */
+			int slice_type = NALBitReader_read_ue(&br);
 			if (slice_type < MAX_H264_SLICE_TYPES) {
 				strcpy(sliceType, h264_slice_name_ascii(slice_type));
 			} else {
@@ -277,7 +278,7 @@ static void h264_slice_counter_write_packet(void *ctx, const unsigned char *pkt)
 {
 
 	struct h264_slice_counter_s *s = (struct h264_slice_counter_s *)ctx;
-	GetBitContext gb;
+	NALBitReader br;
 
 	int offset = -1;
 	while (offset < ((1 * 188) - 5)) {
@@ -306,9 +307,9 @@ static void h264_slice_counter_write_packet(void *ctx, const unsigned char *pkt)
 #endif
 			case 5: /* slice_layer_without_partitioning_rbsp */
 			case 19: /* slice_layer_without_partitioning_rbsp */
-				init_get_bits8(&gb, pkt + offset + 4, 4);
-				get_ue_golomb(&gb); /* first_mb_in_slice */
-				int slice_type = get_ue_golomb(&gb);
+				NALBitReader_init(&br, pkt + offset + 4, 4);
+				NALBitReader_read_ue(&br); /* first_mb_in_slice */
+				int slice_type = NALBitReader_read_ue(&br);
 				if (slice_type < MAX_H264_SLICE_TYPES) {
 					h264_slice_counter_update(s, slice_type);
 					//h264_slice_counter_dprintf(s, 0, 0);
@@ -377,4 +378,78 @@ void h264_slice_counter_reset_pid(void *ctx, uint16_t pid)
 	h264_slice_counter_reset(ctx);
 }
 
-/* HEVC */
+/* See ISO 14496-10 Appened D.1 2004 Page 231 */
+#define MAX_H264_SEI (18)
+static struct h264SEI_s {
+	const char *name;
+	const char *type;
+} h264SEIs[] = {
+	[ 0] = { "buffer_period",							.type = 0 },
+	[ 1] = { "pic_timing",								.type = 0 },
+	[ 2] = { "pan_scan_rect",							.type = 0 },
+	[ 3] = { "filler_payload",							.type = 0 },
+	[ 4] = { "user_data_registered_itu_t_t35",			.type = 0 },
+	[ 5] = { "user_data_unregistered",					.type = 0 },
+	[ 6] = { "recovery_point",							.type = 0 },
+	[ 7] = { "dec_ref_pic_marking_repetition",			.type = 0 },
+	[ 8] = { "spare_pic",								.type = 0 },
+	[ 9] = { "scene_info",								.type = 0 },
+	[10] = { "sub_seq_info",							.type = 0 },
+	[11] = { "sub_seq_layer_characteristics",			.type = 0 },
+	[12] = { "sub_seq_characteristics",					.type = 0 },
+	[13] = { "full_frame_freeze",						.type = 0 },
+	[14] = { "full_frame_freeze_release",				.type = 0 },
+	[15] = { "full_frame_snapshot",						.type = 0 },
+	[16] = { "progressive_refinement_segment_start",	.type = 0 },
+	[17] = { "progressive_refinement_segment_end",		.type = 0 },
+	[18] = { "motion_constrained_slice_group_set",		.type = 0 },
+	[64] = { "undefined in spec 2004",					.type = 0 },
+};
+
+const char *ltn_sei_h264_lookupName(int seiType)
+{
+	if (seiType <= MAX_H264_SEI) {
+		return h264SEIs[seiType].name;
+	} else {
+		return h264SEIs[64].name;
+	}
+}
+
+int ltn_sei_h264_find_headers(struct ltn_nal_headers_s *nals, int nalArrayLength, struct ltn_sei_headers_s **array, int *arrayLength)
+{
+	if (!arrayLength) {
+		return -1;
+	}
+
+	if (nals == 0) {
+		return -1;
+	}
+
+	int idx = 0;
+	int maxitems = 64;
+	*array = malloc(sizeof(struct ltn_sei_headers_s) * maxitems);
+	if (!array) {
+		return -1;
+	}
+
+	struct ltn_sei_headers_s *hdr = *array;
+
+	for (int i = 0; i < nalArrayLength; i++) {
+		if (nals[i].nalType == NAL_TYPE_SEI) {
+
+			uint8_t seiType = nals[i].ptr[4]; /* SEI Sub Type, buffer_period 0, PIC_TIMING 1, etc */
+
+			hdr->lengthBytes	= nals[i].lengthBytes;
+			hdr->ptr			= nals[i].ptr;
+			hdr->seiType		= seiType;
+			hdr->seiName		= ltn_sei_h264_lookupName(hdr->seiType);
+
+			hdr++;
+			idx++;
+		}
+	}
+
+	*arrayLength = idx;
+
+	return 0; /* Success */
+}

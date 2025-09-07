@@ -3,8 +3,7 @@
 #include "nal_h264.h"
 #include <inttypes.h>
 
-#include <libavutil/internal.h>
-#include <libavcodec/golomb.h>
+#include <libltntstools/nal_bitreader.h>
 
 
 int ltn_nal_h265_find_headers(const uint8_t *buf, int lengthBytes, struct ltn_nal_headers_s **array, int *arrayLength)
@@ -47,7 +46,7 @@ int ltn_nal_h265_findHeader(const uint8_t *buffer, int lengthBytes, int *offset)
 {
 	const uint8_t sig[] = { 0, 0, 1 };
 
-	for (int i = (*offset + 1); i < lengthBytes - sizeof(sig); i++) {
+	for (int i = (*offset + 1); i < lengthBytes - (int)sizeof(sig); i++) {
 		if (memcmp(buffer + i, sig, sizeof(sig)) == 0) {
 
 			/* Check for the forbidden zero bit, it's illegal to be high in a nal (conflicts with PES headers. */
@@ -243,7 +242,7 @@ void h265_slice_counter_dprintf(void *ctx, int fd, int printZeroCounts)
 static void h265_slice_counter_write_packet(void *ctx, const unsigned char *pkt)
 {
 	struct h265_slice_counter_s *s = (struct h265_slice_counter_s *)ctx;
-	GetBitContext gb;
+	NALBitReader br;
 
 	int offset = -1;
 	while (offset < ((1 * 188) - 5)) {
@@ -266,11 +265,11 @@ static void h265_slice_counter_write_packet(void *ctx, const unsigned char *pkt)
 				if (s->spsValid)
 					break; /* Already have the data */
 
-				init_get_bits8(&gb, pkt + offset + 4, 4);
+				NALBitReader_init(&br, pkt + offset + 4, 4);
 
-				s->sps_video_parameter_set_id = get_bits(&gb, 4);
-				s->sps_max_sub_layers_minus1 = get_bits(&gb, 3);
-				s->sps_temporal_id_nesting_flag = get_bits1(&gb);
+				s->sps_video_parameter_set_id = NALBitReader_read_bits(&br, 4);
+				s->sps_max_sub_layers_minus1 = NALBitReader_read_bits(&br, 3);
+				s->sps_temporal_id_nesting_flag = NALBitReader_read_bits(&br, 1);
 
 				s->spsValid = 1;
 				/* Abort parsing from here */
@@ -285,12 +284,13 @@ static void h265_slice_counter_write_packet(void *ctx, const unsigned char *pkt)
 				if (s->ppsValid)
 					break; /* Already have the data */
 
-				init_get_bits8(&gb, pkt + offset + 4, 4);
-				s->pps_pic_parameter_set_id = get_ue_golomb(&gb);
-				s->pps_seq_parameter_set_id = get_ue_golomb(&gb);
-				s->dependent_slice_segments_enabled_flag = get_bits1(&gb);
-				s->output_flag_present_flag = get_bits1(&gb);
-				s->num_extra_slice_header_bits = get_bits(&gb, 3);
+				NALBitReader_init(&br, pkt + offset + 4, 4);
+
+				s->pps_pic_parameter_set_id = NALBitReader_read_ue(&br);
+				s->pps_seq_parameter_set_id = NALBitReader_read_ue(&br);
+				s->dependent_slice_segments_enabled_flag = NALBitReader_read_bits(&br, 1);
+				s->output_flag_present_flag = NALBitReader_read_bits(&br, 1);
+				s->num_extra_slice_header_bits = NALBitReader_read_bits(&br, 3);
 				s->ppsValid = 1;
 				/* Abort parsing from here */
 				break;
@@ -313,32 +313,32 @@ static void h265_slice_counter_write_packet(void *ctx, const unsigned char *pkt)
 				if (s->ppsValid == 0)
 					break;
 
-				init_get_bits8(&gb, pkt + offset + 4, 4);
-				int first_slice_segment_in_pic_flag = get_bits1(&gb);
+				NALBitReader_init(&br, pkt + offset + 4, 4);
+				int first_slice_segment_in_pic_flag = NALBitReader_read_bits(&br, 1);
 				if ((nalType >= 16) && (nalType <= 23)) {
-					int no_output_of_prior_pics_flag = get_bits1(&gb);
+					int no_output_of_prior_pics_flag = NALBitReader_read_bits(&br, 1);
 					printf("no_output_of_prior_pics_flag = %d\n", no_output_of_prior_pics_flag);
 				}
 
-				int slice_pic_parameter_set_id = get_ue_golomb(&gb);
+				int slice_pic_parameter_set_id = NALBitReader_read_ue(&br);
 				printf("slice_pic_parameter_set_id = %d\n", slice_pic_parameter_set_id);
 
 				int dependent_slice_segment_flag = 0;
 				if (!first_slice_segment_in_pic_flag) {
 					if (s->dependent_slice_segments_enabled_flag) {
-						dependent_slice_segment_flag = get_bits(&gb, 1);
+						dependent_slice_segment_flag = NALBitReader_read_bits(&br, 1);
 					}
-					int slice_address_length = 0; //av_ceil_log2(s->ps.sps->ctb_width * s->ps.sps->ctb_height);
-					int slice_segment_address = get_bitsz(&gb, slice_address_length);
+					//int slice_address_length = 0; //av_ceil_log2(s->ps.sps->ctb_width * s->ps.sps->ctb_height);
+					int slice_segment_address = NALBitReader_read_bits(&br, 1);
 					printf("slice_segment_address = %d\n", slice_segment_address);
 				}
 
 				int slice_type = -1;
 				if (!dependent_slice_segment_flag) {
-					for (int i = 0; i < s->num_extra_slice_header_bits; i++) {
-						skip_bits(&gb, 1); /* Reserved */
+					for (unsigned int i = 0; i < s->num_extra_slice_header_bits; i++) {
+						NALBitReader_skip_bits(&br, 1); /* Reserved */
 					}
-					slice_type = get_ue_golomb(&gb);
+					slice_type = NALBitReader_read_ue(&br);
 					printf("slice_type = %d\n", slice_type);
 					// End of parsing */
 				}
