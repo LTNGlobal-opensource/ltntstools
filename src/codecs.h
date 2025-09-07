@@ -5,12 +5,8 @@
 extern "C" {
 #endif
 
-#include "nal_h264.h"
 #include "h264_codec_metadata.h"
-
-#include "nal_h265.h"
 #include "h265_codec_metadata.h"
-
 #include "audioanalyzer.h"
 
 /* golomb.c */

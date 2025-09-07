@@ -13,8 +13,8 @@
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
-#include "golomb.h"
-#include "codecs.h"
+//#include "golomb.h"
+//#include "codecs.h"
 #include "testcase-428-dts.h"
 
 #define LOCAL_DEBUG 0
@@ -520,7 +520,7 @@ struct tool_ctx_s
 	void *h264Thumbnailer;
 #endif
 
-	GetBitContext gb;
+	NALBitReader br;
 
 	struct ltn_pes_packet_writer_ctx writer_ctx;
 
@@ -668,7 +668,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 	printf("\n");
 #endif
 
-	init_get_bits8(&ctx->gb, &e->ptr[5], (e->lengthBytes - 5) * 8);
+	NALBitReader_init(&ctx->br, &e->ptr[5], (e->lengthBytes - 5) * 8);
 
 	int CpbDpbDelaysPresentFlag = 1; /* When NAL HRD present = 1 */
 	int pic_struct_present_flag = 1;
@@ -684,8 +684,8 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 	}
 
 	if (CpbDpbDelaysPresentFlag) {
-		/* int cpb_removal_delay = */ get_bits_long(&ctx->gb, cpb_removal_delay_length);
-		/* int dpb_removal_delay = */ get_bits_long(&ctx->gb, dpb_removal_delay_length);
+		/* int cpb_removal_delay = */ NALBitReader_read_bits(&ctx->br, cpb_removal_delay_length);
+		/* int dpb_removal_delay = */ NALBitReader_read_bits(&ctx->br, dpb_removal_delay_length);
 #if LOCAL_DEBUG
 		//printf("TIMING: cpb_removal_delay %d, dpb_removal_delay %d\n", cpb_removal_delay, dpb_removal_delay);
 #endif
@@ -694,7 +694,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 	if (pic_struct_present_flag) {
 		int clocks[16] = { 1, 1, 1, 2, 2, 3, 3, 2, 3, 0, 0, 0, 0, 0, 0 };
 
-		int pic_struct = get_bits(&ctx->gb, 4);
+		int pic_struct = NALBitReader_read_bits(&ctx->br, 4);
 #if LOCAL_DEBUG
 		printf("TIMING: pic_struct %d (stream))\n", pic_struct);
 #endif
@@ -722,33 +722,33 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 #endif
 
 		for (int i = 0; i < NumClocksTS; i++) {
-			clock_timestamp_flag[i] = get_bits(&ctx->gb, 1);
+			clock_timestamp_flag[i] = NALBitReader_read_bits(&ctx->br, 1);
 			if (clock_timestamp_flag[i]) {
-				int ct_type               = get_bits(&ctx->gb, 2);
-				int nuit_field_based_flag = get_bits(&ctx->gb, 1);
-				int counting_type         = get_bits(&ctx->gb, 5);
-				int full_timestamp_flag   = get_bits(&ctx->gb, 1);
-				int discontinuity_flag    = get_bits(&ctx->gb, 1);
-				int cnt_dropped_flag      = get_bits(&ctx->gb, 1);
-				int n_frames              = get_bits(&ctx->gb, 8);
+				int ct_type               = NALBitReader_read_bits(&ctx->br, 2);
+				int nuit_field_based_flag = NALBitReader_read_bits(&ctx->br, 1);
+				int counting_type         = NALBitReader_read_bits(&ctx->br, 5);
+				int full_timestamp_flag   = NALBitReader_read_bits(&ctx->br, 1);
+				int discontinuity_flag    = NALBitReader_read_bits(&ctx->br, 1);
+				int cnt_dropped_flag      = NALBitReader_read_bits(&ctx->br, 1);
+				int n_frames              = NALBitReader_read_bits(&ctx->br, 8);
 
 				int seconds               = 0;
 				int minutes               = -1;
 				int hours                 = -1;
 				if (full_timestamp_flag) {
-					seconds = get_bits(&ctx->gb, 6);
-					minutes = get_bits(&ctx->gb, 6);
-					hours   = get_bits(&ctx->gb, 5);
+					seconds = NALBitReader_read_bits(&ctx->br, 6);
+					minutes = NALBitReader_read_bits(&ctx->br, 6);
+					hours   = NALBitReader_read_bits(&ctx->br, 5);
 				} else {
-					int seconds_flag          = get_bits(&ctx->gb, 1);
+					int seconds_flag          = NALBitReader_read_bits(&ctx->br, 1);
 					if (seconds_flag) {
-						seconds               = get_bits(&ctx->gb, 6);
-						int minutes_flag      = get_bits(&ctx->gb, 1);
+						seconds               = NALBitReader_read_bits(&ctx->br, 6);
+						int minutes_flag      = NALBitReader_read_bits(&ctx->br, 1);
 						if (minutes_flag) {
-							minutes           = get_bits(&ctx->gb, 6);
-							int hours_flag    = get_bits(&ctx->gb, 1);
+							minutes           = NALBitReader_read_bits(&ctx->br, 6);
+							int hours_flag    = NALBitReader_read_bits(&ctx->br, 1);
 							if (hours_flag) {
-								hours         = get_bits(&ctx->gb, 5);
+								hours         = NALBitReader_read_bits(&ctx->br, 5);
 							}
 						}
 					} else {
@@ -764,7 +764,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 					cnt_dropped_flag);
 
 				if (time_offset_length > 0) {
-					/* int time_offset = */ get_bits_long(&ctx->gb, time_offset_length);
+					/* int time_offset = */ NALBitReader_read_bits(&ctx->br, time_offset_length);
 				}
 			} /* if (clock_timestamp_flag[i]) */
 		} /* for (int i = 0; i < NumClocksTS; i++) */
