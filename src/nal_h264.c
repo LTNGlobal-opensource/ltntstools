@@ -10,46 +10,42 @@ int ltn_nal_h264_find_headers(const uint8_t *buf, int lengthBytes, struct ltn_na
 	int idx = 0;
 	int maxitems = 64;
 	struct ltn_nal_headers_s *a = malloc(sizeof(struct ltn_nal_headers_s) * maxitems);
-	if (!a)
+	if (!a) {
 		return -1;
+	}
+	const uint8_t start_code[3] = {0, 0, 1};
+	const uint8_t *end = buf + lengthBytes;
+	const uint8_t *p = buf;
 
-       const uint8_t start_code[3] = {0, 0, 1};
-       const uint8_t *end = buf + lengthBytes;
-       const uint8_t *p = buf;
+	while (p < end - 3) {
+		p = ltn_memmem(p, end - p, start_code, sizeof(start_code));
+		if (!p)
+				break;
 
-       while (p < end - 3)
-       {
-               p = ltn_memmem(p, end - p, start_code, sizeof(start_code));
-               if (!p)
-                       break;
+		if (idx >= maxitems) {
+				maxitems *= 2;
+				struct ltn_nal_headers_s *temp = realloc(a, sizeof(struct ltn_nal_headers_s) * maxitems);
+				if (!temp)
+				{
+						free(a);
+						return -1;
+				}
+				a = temp;
+		}
 
-               if (idx >= maxitems)
-               {
-                       maxitems *= 2;
-                       struct ltn_nal_headers_s *temp = realloc(a, sizeof(struct ltn_nal_headers_s) * maxitems);
-                       if (!temp)
-                       {
-                               free(a);
-                               return -1;
-                       }
-                       a = temp;
-               }
-
-               a[idx].ptr = p;
-               a[idx].nalType = p[3] & 0x1f;
-               a[idx].nalName = h264Nals_lookupName(a[idx].nalType);
-               if (idx > 0)
-               {
-                       a[idx - 1].lengthBytes = p - a[idx - 1].ptr;
+		a[idx].ptr = p;
+		a[idx].nalType = p[3] & 0x1f;
+		a[idx].nalName = h264Nals_lookupName(a[idx].nalType);
+		if (idx > 0) {
+				a[idx - 1].lengthBytes = p - a[idx - 1].ptr;
 		}
 
 		idx++;
-               p += 3; // Move past start code
-       }
+		p += 3; // Move past start code
+	}
 
-       if (idx > 0)
-       {
-               a[idx - 1].lengthBytes = end - a[idx - 1].ptr;
+	if (idx > 0) {
+		a[idx - 1].lengthBytes = end - a[idx - 1].ptr;
 	}
 
 	*array = a;
