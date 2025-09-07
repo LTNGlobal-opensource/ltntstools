@@ -80,6 +80,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_sei_unregistered: fixed compiler symbol warning
   tstools_bitrate_smoother: Added -S option to expose smoother runetime statistics to console.
   tstools_pes_inspector: Add VBV functionality.
+  tstools_pes_inspector: New -s SEI report that finds all types of H.264 SEI and reports it with usage count
+  tstools_pes_inspector: adjusted to use relocated ffmpeg related code, and simplified NALBitReader code.
   caption_analyzer: adjusted to use relocated ffmpeg related code
   caption_analyzer: caption_analyzer: in verbose mode dump tuples to console
   nielsen_inspector: adjusted to use relocated ffmpeg related code
@@ -88,7 +90,6 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   nielsen_inspector: disable silent mode, renable message output
   nielsen_inspector: enable AVIOD stream end messages
   nielsen_inspector: Wasn't decoding MP2/AAC/AC3 audio. Fixed/tested with 2.0 on all 3 codecs and 5.1 on AC3.
-  pes_inspector: adjusted to use relocated ffmpeg related code
   all: signed compare checks enabled. Squash lots of subsequent compiler warnings
   libltntstools: moved source-rcts from the core library into the ltntstools repo
   libltntstools: added packetlength != 1316 detection into base library
