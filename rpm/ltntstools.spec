@@ -43,7 +43,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_asi2ip
 /usr/local/bin/tstools_smpte2038_inspector
 /usr/local/bin/tstools_srt_transmit
-/usr/local/bin/tstools_ntt_inspector
+#/usr/local/bin/tstools_ntt_inspector
 /usr/local/bin/tstools_sei_latency_inspector
 /usr/local/bin/tstools_caption_analyzer
 /usr/local/share/man/man8/tstools_pcapts.8
@@ -60,7 +60,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/lib-ltntstools/libavcodec.so.58
 /usr/local/lib-ltntstools/libswresample.so.3
 /usr/local/lib-ltntstools/libswscale.so.5
-/usr/local/lib-ltntstools/libntt.so.0
+#/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
 * Mon Sep  8 2025 Steven Toth <steven.toth@ltnglobal.com> 
