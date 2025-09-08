@@ -63,8 +63,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
-* Fri May 23 2025 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.37.1 - DEV
+* Mon Sep  8 2025 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.37.1
   libltntstools: moved code that referenced ffmpeg
   ltntstools: added code pulled from libltntstools related to ffmpeg
   tstools_nic_monitor: adjusted to use relocated ffmpeg related code
