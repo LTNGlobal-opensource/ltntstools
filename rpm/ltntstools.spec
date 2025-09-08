@@ -82,8 +82,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_pes_inspector: Add VBV functionality.
   tstools_pes_inspector: New -s SEI report that finds all types of H.264 SEI and reports it with usage count
   tstools_pes_inspector: adjusted to use relocated ffmpeg related code, and simplified NALBitReader code.
+  tstools_pes_inspector: relocated common strip RBSP function into core library, then leverage.
   caption_analyzer: adjusted to use relocated ffmpeg related code
   caption_analyzer: caption_analyzer: in verbose mode dump tuples to console
+  caption_inspector: leverage common RBSP stripping func.
   nielsen_inspector: adjusted to use relocated ffmpeg related code
   nielsen_inspector: fix a spelling error in console help
   nielsen_inspector: TERMINATE if the application has no internal nielsen decoder linked into the project
@@ -95,6 +97,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   libltntstools: added packetlength != 1316 detection into base library
   libltntstools: klringbuffer: fix cpp warnings about assignments
   libltntstools: stats layer. Added automatic calculation of 5 second IAT high water mark.
+  libltntstools: Added front-half of a demux layer framework, for future use.
 
 * Wed May 21 2025 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.36.4
