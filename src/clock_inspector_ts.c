@@ -33,6 +33,18 @@ void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filep
 		ltntstools_hexdump(pkt, 188, 32);
 	}
 
+	if (ltntstools_isPayloadPUSIInError(pkt)) {
+		char str[64];
+		sprintf(str, "%s", ctime(&ctx->current_stream_time));
+		str[ strlen(str) - 1] = 0;
+		printf("!PUSI/Adaption bits - combination is illegal. Adaption Field = %x PUSI = %d, %02x %02x %02x %02x, PID %04x : %s @ %s\n",
+			ltntstools_adaption_field_control(pkt),
+			ltntstools_payload_unit_start_indicator(pkt),
+			pkt[0], pkt[1], pkt[2], pkt[3],
+			pid,
+			ctx->iname, str);
+	}
+
 	uint32_t afc = ltntstools_adaption_field_control(pkt);
 	if ((afc == 1) || (afc == 3)) {
 		/* Every pid will be in error the first occurece. Check on second and subsequent pids. */
