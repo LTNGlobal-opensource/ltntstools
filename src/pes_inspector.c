@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <assert.h>
+#include <signal.h>
 
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
@@ -17,8 +18,17 @@
 //#include "codecs.h"
 #include "testcase-428-dts.h"
 
+#include "timecode.h"
+
 #define LOCAL_DEBUG 0
+#define DEBUG_PIC_TIMING 0
 #define H264_IFRAME_THUMBNAILING 0
+
+static int g_running = 1;
+static void signal_handler(int signum)
+{
+	g_running = 0;
+}
 
 static int testcase_428_dts_exists(uint32_t dts)
 {
@@ -65,8 +75,6 @@ static time_t g_nextThumbnailTime = 0;
 
 #define DEFAULT_STREAMID 0xe0
 #define DEFAULT_PID 0x31
-
-static int g_running = 1;
 
 struct nal_statistic_s
 {
@@ -513,6 +521,10 @@ struct tool_ctx_s
 	/* SEI Report */
 	int seiReport;
 	int seiOccurences[256]; /* Sei Types is limited to a single byte, Count how manu occurences we've seen. */
+
+	int ptFrameRate;
+
+	struct timecode_context_s tc;
 };
 
 static void *vbv_notifications(void *userContext, enum ltntstools_vbv_event_e event)
@@ -642,7 +654,7 @@ PIC_TIMING: 00 00 01 06 01 08 03 20 80 90 42 5d 12 7c 80 00
 PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_dropped:0
 */
 
-#if LOCAL_DEBUG
+#if DEBUG_PIC_TIMING
 	printf("PIC_TIMING: ");
 	for (int z = 0; z < e->lengthBytes; z++) {
 		printf("%02x ", e->ptr[z]);
@@ -668,7 +680,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 	if (CpbDpbDelaysPresentFlag) {
 		/* int cpb_removal_delay = */ NALBitReader_read_bits(&ctx->br, cpb_removal_delay_length);
 		/* int dpb_removal_delay = */ NALBitReader_read_bits(&ctx->br, dpb_removal_delay_length);
-#if LOCAL_DEBUG
+#if DEBUG_PIC_TIMING
 		//printf("TIMING: cpb_removal_delay %d, dpb_removal_delay %d\n", cpb_removal_delay, dpb_removal_delay);
 #endif
 	}
@@ -677,7 +689,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 		int clocks[16] = { 1, 1, 1, 2, 2, 3, 3, 2, 3, 0, 0, 0, 0, 0, 0 };
 
 		int pic_struct = NALBitReader_read_bits(&ctx->br, 4);
-#if LOCAL_DEBUG
+#if DEBUG_PIC_TIMING
 		printf("TIMING: pic_struct %d (stream))\n", pic_struct);
 #endif
 
@@ -699,7 +711,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 
 		int NumClocksTS = clocks[ pic_struct ];
 
-#if LOCAL_DEBUG
+#if DEBUG_PIC_TIMING
 		printf("TIMING: pic_struct %d NumClocksTS %d\n", pic_struct, NumClocksTS);
 #endif
 
@@ -737,13 +749,26 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 						seconds = -1;
 					}
 				}
-				printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d\n",
+
+				obe_timecode_update(&ctx->tc, hours, minutes, seconds, n_frames);
+				if (obe_timecode_get_corrected_frame(&ctx->tc) >= 0) {
+					/* */
+				} else {
+					/* The timecode is > 30fps and we need to wait for the
+					* incoming frame counter to reach 0 so we can syncronize
+					* our corrected frame count with a known good frame count.
+					* In practise this means we don't apply a timecode to the
+					* first N frames, until a second has wrapped.
+					*/
+				}
+				printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d %s\n",
 					hours, minutes, seconds, n_frames,
 					pic_struct,
 					discontinuity_flag,
 					ct_type, counting_type, nuit_field_based_flag,
 					full_timestamp_flag,
-					cnt_dropped_flag);
+					cnt_dropped_flag,
+					obe_timecode_get_discontinuity(&ctx->tc) ? "DISCONTINUITY MEASURED" : "");
 
 				if (time_offset_length > 0) {
 					/* int time_offset = */ NALBitReader_read_bits(&ctx->br, time_offset_length);
@@ -989,7 +1014,24 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int packetCount)
 {
 	struct tool_ctx_s *ctx = (struct tool_ctx_s *)userContext;
-	
+
+#if 0
+	/* Workaround for video engine and not-great PUSI behaviour */
+	if (ctx->dumpPICTIMING && ctx->pid == 0x101 /* Video Engine */) {
+		for (int i = 0; i < packetCount; i++) {
+			unsigned char *pkt = (const uint8_t *)&pkts[i];
+			if (ltntstools_pid(pkt) != ctx->pid) {
+				continue;
+			}
+
+			if (ltntstools_isPayloadPUSIInError(pkt)) {
+				/* Remove the PUSI bit if we think the adaption contains no payload */
+				*(pkt + 1) &= 0xBF;
+			}
+		}
+	}
+#endif
+
 	ltntstools_pes_extractor_write(ctx->pe, pkts, packetCount);
 
 	return NULL;
@@ -1029,7 +1071,7 @@ static void usage(const char *progname)
 	printf("  -4 dump H.264 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -5 dump H.265 NAL headers (live stream only) and measure per-NAL throughput\n");
 	printf("  -s create H.264 specific SEI Report [def: disabled]\n");
-	printf("  -t dump H.264 PIC TIMING headers (experimental with PTS reordering) [def: disabled]\n");
+	printf("  -t <framerate> dump H.264 PIC TIMING headers (experimental with PTS reordering) [def: disabled]\n");
 	printf("  -V Run the Video Bitrate Verifier across this pid [def: no]\n");
 	printf("  -G <dirname> write ES payload to individual sequences files [def: no]\n"
 	       "     Eg. seq00000000000000-pts00000000000000-dts00000000000000-len00000000-crc00000000\n");
@@ -1062,7 +1104,7 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "@:45?AEFG:Hhvi:P:sS:TtV")) != -1) {
+	while ((ch = getopt(argc, argv, "@:45?AEFG:Hhvi:P:sS:Tt:V")) != -1) {
 		switch (ch) {
 		case '@':
 			ctx->testcase_validate = atoi(optarg);
@@ -1125,6 +1167,8 @@ int pes_inspector(int argc, char *argv[])
 #endif
 		case 't':
 			ctx->dumpPICTIMING = 1;
+			ctx->ptFrameRate = atoi(optarg);
+			obe_timecode_clear(&ctx->tc, ctx->ptFrameRate);
 			break;
 		case 'v':
 			ctx->verbose++;
@@ -1202,6 +1246,7 @@ int pes_inspector(int argc, char *argv[])
 		return 1;
 	}
 
+	signal(SIGINT, signal_handler);
 	while (g_running) {
 		usleep(50 * 1000);
 	}

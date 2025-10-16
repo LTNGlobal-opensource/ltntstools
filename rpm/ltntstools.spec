@@ -63,6 +63,12 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 #/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
+* Thu Oct 16 2025 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.39.0 - dev
+  tstools_clock_inspector: Detect illegal state when PUSI=1 and AdaptionControl is "adaption only"
+  tstools_pes_inspector: Check for actual time discontinuites in PIC TIMING payload, report to console.
+
+  libltntstools: moved code that referenced ffmpeg
 * Mon Sep  8 2025 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.38.5
   libltntstools: moved code that referenced ffmpeg

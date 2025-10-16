@@ -123,6 +123,7 @@ SRC += nielsen-bindings.cpp
 SRC += golomb.c
 SRC += source-rcts.c
 #SRC += mpts.c
+SRC += timecode.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -177,6 +178,7 @@ noinst_HEADERS += h265_codec_metadata.h
 noinst_HEADERS += audioanalyzer.h
 noinst_HEADERS += nielsen-bindings.h
 noinst_HEADERS += source-rcts.h
+noinst_HEADERS += timecode.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)
