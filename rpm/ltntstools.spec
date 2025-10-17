@@ -67,6 +67,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 - v1.39.0 - dev
   tstools_clock_inspector: Detect illegal state when PUSI=1 and AdaptionControl is "adaption only"
   tstools_pes_inspector: Check for actual time discontinuites in PIC TIMING payload, report to console.
+  tstools_pes_inspector: Improve the timecode checking, two different types of detection now.
 
   libltntstools: moved code that referenced ffmpeg
 * Mon Sep  8 2025 Steven Toth <steven.toth@ltnglobal.com> 

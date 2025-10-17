@@ -18,6 +18,9 @@ struct timecode_s
 {
 	int hours, minutes, seconds, frame;
 	int corrected_frame;
+
+	/* Secondary verification */
+	uint32_t seqNr;
 };
 
 /* Don't touch these fields directly.
@@ -31,6 +34,8 @@ struct timecode_context_s
 	struct timecode_s curr;
 	struct timecode_s prev;
 	struct timeval lastDiscontinuity;
+	uint64_t updateCount;
+	uint32_t seqNrMax;
 };
 
 void obe_timecode_clear(struct timecode_context_s *ctx, uint32_t intendedFPS);
