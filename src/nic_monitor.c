@@ -673,6 +673,9 @@ static void *ui_thread_func(void *p)
 							}
 
 							const char *d = ltntstools_GetESPayloadTypeDescription(m->programs[p].pmt.streams[s].stream_type);
+							if (m->programs[p].pmt.streams[s].elementary_PID < 0x10) {
+								attron(COLOR_PAIR(4));
+							}
 							mvprintw(streamCount + 2, 52, "0x%04x (%4d)  0x%02x  %.*s%s",
 								m->programs[p].pmt.streams[s].elementary_PID,
 								m->programs[p].pmt.streams[s].elementary_PID,
@@ -680,6 +683,9 @@ static void *ui_thread_func(void *p)
 								52,
 								d,
 								strlen(d) >= 52 ? "..." : "");
+							if (m->programs[p].pmt.streams[s].elementary_PID < 0x10) {
+								attroff(COLOR_PAIR(4));
+							}
 
 							if (x) {
 								streamCount++;
