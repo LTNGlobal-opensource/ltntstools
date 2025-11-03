@@ -628,7 +628,7 @@ static void _pes_packet_measure_nal_throughput(struct tool_ctx_s *ctx, struct lt
 	}
 }
 
-static void _parse_PIC_TIMING(struct tool_ctx_s *ctx, struct ltn_nal_headers_s *e)
+static void _parse_PIC_TIMING(struct tool_ctx_s *ctx, struct ltn_nal_headers_s *e, struct ltn_pes_packet_s *pes)
 {
 	/* Quick basic PIC timing parsing, we're assuming pic_struct_present is true,
 	 * and CpbDpbDelaysPresentFlag is false, and we'll only look at the first clock in any stream.
@@ -693,7 +693,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 		printf("TIMING: pic_struct %d (stream))\n", pic_struct);
 #endif
 
-		if (ctx->pid == 0x101) {
+		if ((ctx->pid == 0x101) || (ctx->pid == 0x8d)) {
 			pic_struct = 8; /* Hardcoded - Video Engine */
 		}
 
@@ -761,6 +761,14 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 					* first N frames, until a second has wrapped.
 					*/
 				}
+
+				char lbl[128];
+				if (obe_timecode_get_discontinuity(&ctx->tc)) {
+					sprintf(lbl, "DISCONTINUITY MEASURED, PTS 0x%09" PRIx64"\n", pes->PTS);
+				} else {
+					lbl[0] = 0;
+				}
+
 				printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d %s\n",
 					hours, minutes, seconds, n_frames,
 					pic_struct,
@@ -768,7 +776,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 					ct_type, counting_type, nuit_field_based_flag,
 					full_timestamp_flag,
 					cnt_dropped_flag,
-					obe_timecode_get_discontinuity(&ctx->tc) ? "DISCONTINUITY MEASURED" : "");
+					lbl);
 
 				if (time_offset_length > 0) {
 					/* int time_offset = */ NALBitReader_read_bits(&ctx->br, time_offset_length);
@@ -929,7 +937,7 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 				struct ltn_nal_headers_s *e = array + i;
 				if (e->nalType == 0x6 /* SEI */ && e->ptr[4] == 0x01 /* SEI PAYLOAD_TYPE == PIC_TIMING */) {
 					ltn_nal_h264_strip_emulation_prevention(e);
-					_parse_PIC_TIMING(ctx, e);
+					_parse_PIC_TIMING(ctx, e, pes);
 				}
 			} /* for (int i = 0; i < arrayLength; i++) */
 
