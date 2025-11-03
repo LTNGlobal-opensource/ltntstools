@@ -241,6 +241,7 @@ int _nielsen_inspector(int argc, char **argv)
 #endif
 	ltntstools_audioanalyzer_free(ctx->aa);
 
+	free(ctx->iname);
 	return 0;
 }
 
