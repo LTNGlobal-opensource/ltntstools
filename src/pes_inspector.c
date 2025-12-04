@@ -156,6 +156,8 @@ struct ltntstools_h264_iframe_thumbnailer_ctx_s
 {
 	void *userContext;
 	int verbose;
+	int lowLatency;
+	int lowLatencyPrimeCount;
 
 	/* AVCodec Decoding to AVFrame */
 	struct {
@@ -207,6 +209,7 @@ static int ltntstools_h264_iframe_thumbnailer_alloc_decoder(struct ltntstools_h2
 		return -1;
 	}
 
+	ctx->lowLatency = 1;
 	return 0; /* Success */
 }
 static void ltntstools_h264_iframe_thumbnailer_free_decoder(struct ltntstools_h264_iframe_thumbnailer_ctx_s *ctx)
@@ -327,7 +330,7 @@ static int ltntstools_h264_iframe_thumbnailer_avframe_scale_to_N(struct ltntstoo
 	int ret = av_image_alloc(&ofrm->data[0], &ofrm->linesize[0], ofrm->width, ofrm->height, ofrm->format, 1);
 	if (ret < 0) {
 		fprintf(stderr, "%s() Failed allocating image\n", __func__);
-		av_frame_free(&frm);
+		av_frame_free(&ofrm);
 		return -1;
 	}
 
@@ -343,8 +346,8 @@ static int ltntstools_h264_iframe_thumbnailer_avframe_scale_to_N(struct ltntstoo
 			av_get_pix_fmt_name(infrm->format), infrm->width, infrm->height,
 			av_get_pix_fmt_name(infrm->format), dst_w, dst_h);
 
-		av_freep(&frm->data[0]);
-		av_frame_free(&frm);
+		av_freep(&ofrm->data[0]);
+		av_frame_free(&ofrm);
 		sws_freeContext(sws_ctx);
 		return -1;
 	}
@@ -402,6 +405,7 @@ static int ltntstools_h264_iframe_thumbnailer_avframe_encode(struct ltntstools_h
 		}
 
 		g_nextThumbnailTime = time(0) + 5;
+		ctx->lowLatencyPrimeCount = 0;
 
         av_packet_unref(ctx->dec.pkt);
     }
@@ -418,7 +422,7 @@ static void ltntstools_h264_iframe_thumbnailer_avframe_dump(AVFrame *frm)
 		frm->linesize[0]);
 }
 
-static void ltntstools_h264_iframe_thumbnailer_decode(struct ltntstools_h264_iframe_thumbnailer_ctx_s *ctx, AVCodecContext *cc, AVFrame *frame, AVPacket *pkt, const char *filename)
+static void ltntstools_h264_iframe_thumbnailer_decode_normal(struct ltntstools_h264_iframe_thumbnailer_ctx_s *ctx, AVCodecContext *cc, AVFrame *frame, AVPacket *pkt, const char *filename)
 {
     int ret = avcodec_send_packet(cc, pkt);
     if (ret < 0) {
@@ -440,12 +444,12 @@ static void ltntstools_h264_iframe_thumbnailer_decode(struct ltntstools_h264_ifr
 		{
 			ltntstools_h264_iframe_thumbnailer_avframe_dump(frame);
 		}
-		if (frame->key_frame) {
+		if (1 || frame->key_frame) {
 			AVFrame *frm;
 
 			/* Encode the full frame using a quality scale of 1..31 where 1 is best */
 			ltntstools_h264_iframe_thumbnailer_avframe_encode(ctx, frame, 10);
-#if 1
+#if 0
 			/* Created a 160x90 scaled version */
 			ltntstools_h264_iframe_thumbnailer_avframe_scale_to_N(ctx, frame, &frm, 160, 90);
 
@@ -455,8 +459,101 @@ static void ltntstools_h264_iframe_thumbnailer_decode(struct ltntstools_h264_ifr
 			av_freep(&frm->data[0]);
 			av_frame_free(&frm);
 #endif
+		} else {
+			printf("Not a key frame\n");
 		}
     }
+}
+
+static void ltntstools_h264_iframe_thumbnailer_decode_low(struct ltntstools_h264_iframe_thumbnailer_ctx_s *ctx, AVCodecContext *cc, AVFrame *frame, AVPacket *pkt, const char *filename)
+{
+	int ret = -1;
+	ctx->lowLatencyPrimeCount++;
+	printf("%s() %d, size %d\n", __func__, ctx->lowLatencyPrimeCount, pkt->size);
+#if 0
+	for (int i = 0; i < (pkt->size < 32 ? pkt->size : 64); i++) {
+		if (i % 32 == 0) {
+			printf("\nb: ");
+		}
+		printf("%02x ", pkt->data[i]);
+	}
+	printf("\n");
+#endif
+	/* CPU optimization that could save as much as 1 second of
+	 * decoding time. Inspect the packets, look for the slice that starts
+	 * at exactly macroblock 0, and feed the codec from there.
+	 * A frame pops out when the last slice macroblock is fed in.
+	 */
+
+    ret = avcodec_send_packet(cc, pkt);
+    if (ret < 0) {
+        fprintf(stderr, "%s() Error sending a packet for decoding\n", __func__);
+        return;
+    }
+
+static int rc_count = 0;
+    while (ret >= 0) {
+        ret = avcodec_receive_frame(cc, frame);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            return;
+		}
+        else if (ret < 0) {
+            fprintf(stderr, "%s() Error during decoding\n", __func__);
+			return;
+        }
+		
+		rc_count++;
+		if (rc_count == 1) {
+			/* skip this frame, wait for next */
+			/* Dump the nal here and inspect it. */
+#if 1
+			for (int i = 0; i < (pkt->size < 32 ? pkt->size : 256); i++) {
+				if (i % 32 == 0) {
+					printf("\na: ");
+				}
+				printf("%02x ", pkt->data[i]);
+			}
+			printf("\n");
+#endif
+			return;
+		}
+
+		if (ctx->verbose)
+		{
+			ltntstools_h264_iframe_thumbnailer_avframe_dump(frame);
+		}
+		if (1 || frame->key_frame) {
+		{
+			AVFrame *frm;
+
+			/* Encode the full frame using a quality scale of 1..31 where 1 is best */
+			ltntstools_h264_iframe_thumbnailer_avframe_encode(ctx, frame, 10);
+#if 0
+			/* Created a 160x90 scaled version */
+			ltntstools_h264_iframe_thumbnailer_avframe_scale_to_N(ctx, frame, &frm, 160, 90);
+
+			/* Encode the scaled frame using a quality scale of 1..31 where 1 is best */
+			ltntstools_h264_iframe_thumbnailer_avframe_encode(ctx, frm, 5);
+
+			av_freep(&frm->data[0]);
+			av_frame_free(&frm);
+#endif
+		} else {
+			printf("Not a key frame\n");
+		}
+		rc_count = 0;
+		avcodec_flush_buffers(cc);
+		break;
+    }
+}
+
+static void ltntstools_h264_iframe_thumbnailer_decode(struct ltntstools_h264_iframe_thumbnailer_ctx_s *ctx, AVCodecContext *cc, AVFrame *frame, AVPacket *pkt, const char *filename)
+{
+	if (ctx->lowLatency) {
+		return ltntstools_h264_iframe_thumbnailer_decode_low(ctx, cc, frame, pkt, filename);
+	} else {
+		return ltntstools_h264_iframe_thumbnailer_decode_normal(ctx, cc, frame, pkt, filename);
+	}
 }
 
 /* A caller may write a single complete nal, or multiple nals in a single buffer.
@@ -469,6 +566,7 @@ int ltntstools_h264_iframe_thumbnailer_write(void *handle, const uint8_t *buf, i
 	if (!ctx)
 		return -1;
 
+// printf("length %d\n", lengthBytes);
 	int ret = av_parser_parse2(ctx->dec.parser, ctx->dec.cc,
 		&ctx->dec.pkt->data, &ctx->dec.pkt->size,
 		buf, lengthBytes,
@@ -895,7 +993,11 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 		}
 		/* Parse the first dozen or so bytes and dump to console */
 		_parse_AC3_Headers(ctx, pes);
-	} else {
+	} else
+	if (ctx->writeThumbnails) {
+		/* No packet dumps during thumbnail creation, it's too chatty */
+	} else
+	{
 		/* Else, dump all the PES packets */
 		ltn_pes_packet_dump(pes, "");
 	}
@@ -974,9 +1076,17 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 #if H264_IFRAME_THUMBNAILING
 			if (ctx->writeThumbnails && (now >= g_nextThumbnailTime)) {
 
-				/* Send the entire stream to the decoder until the
-				 * first key_frame drops out of the decoder. At this we grab the first
-				 * 'keyframe' and go back to a sleep for a while.
+				/* Normal latency, with iframes:
+				 *  Detect an iframe below. Send only the iframe to the decoder.
+				 *  decoder pops out a frame, job done.
+				 *  then go back to sleep for a while.
+				 * 
+				 * Low Latency, P frames only:
+				 *   Send the entire stream to the decoder until a frame drops out,
+				 *   its going to be broken or mangled. Keep feeding the decoder
+				 *    until the second frames comes out, its 100% clean.
+				 *   go back to a sleep for a while.
+				 * 
 				 */
 				for (int i = 0; i < arrayLength; i++) {
 					struct ltn_nal_headers_s *e = array + i;
@@ -987,9 +1097,15 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 					case 5: /* slice_layer_without_partitioning_rbsp */
 					case 19: /* slice_layer_without_partitioning_rbsp */
 						init_get_bits8(&gb, e->ptr + 4, 4);
-						get_ue_golomb(&gb); /* first_mb_in_slice */
+						int mbnr = get_ue_golomb(&gb); /* first_mb_in_slice */
 						int slice_type = get_ue_golomb(&gb);
+						int pic_parameter_set_id = get_ue_golomb(&gb);
+						int color_plane_id = get_bits(&gb, 2);
+						int frame_num = get_ue_golomb(&gb);
 
+						printf("mb %05d, slice type %03d, length %d, ppsid %d, cpid %d, fn %d\n",
+							mbnr, slice_type, e->lengthBytes, pic_parameter_set_id,
+							color_plane_id, frame_num);
 						//if ((slice_type == 2) || (slice_type == 4) || (slice_type == 7) || (slice_type == 9))
 						{
 							if (ltntstools_h264_iframe_thumbnailer_write(ctx->h264Thumbnailer, e->ptr, e->lengthBytes) < 0) {
@@ -1234,7 +1350,7 @@ int pes_inspector(int argc, char *argv[])
 	
 	ltntstools_pes_extractor_set_skip_data(ctx->pe, headersOnly);
 
-	if (ctx->dumpPICTIMING) {
+	if (ctx->dumpPICTIMING || ctx->writeThumbnails) {
 		/* We want the PIC decoding in the correct temporal order */
 		ltntstools_pes_extractor_set_ordered_output(ctx->pe, 1);
 	}
