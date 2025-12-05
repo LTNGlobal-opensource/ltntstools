@@ -24,6 +24,7 @@
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
+#include "source-pcap.h"
 #include "xorg-list.h"
 #include "utils.h"
 #include "codecs.h"

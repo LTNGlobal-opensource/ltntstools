@@ -17,6 +17,7 @@
 
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
+#include "source-pcap.h"
 
 char *strcasestr(const char *haystack, const char *needle);
 

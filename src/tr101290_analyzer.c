@@ -12,6 +12,7 @@
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
+#include "source-pcap.h"
 
 #define LOCAL_DEBUG 0
 
