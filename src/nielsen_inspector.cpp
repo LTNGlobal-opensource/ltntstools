@@ -54,7 +54,7 @@ static void *_avio_raw_callback_status(void *userContext, enum source_avio_statu
 		break;
 	case AVIO_STATUS_MEDIA_END:
 		printf("AVIO media ends\n");
-		//signal_handler(0);
+		signal_handler(0);
 		break;
 	default:
 		fprintf(stderr, "unsupported avio state %d\n", status);
