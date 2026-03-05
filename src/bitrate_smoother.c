@@ -75,7 +75,7 @@ struct tool_context_s
 
 	/* PMT replacement in a SPTS */
 	unsigned int spts_pmt_pid;             /* PID where we expect to fine a PMT in the input stream, what we're replacing. */
-	unsigned char spts_pmt_pkt_new[188];   /* New PMT that gets create IF we're dropping pids. */
+	unsigned char spts_pmt_pkt_new[188];   /* New PMT that gets create IF we're dropping pids. TODO: Aaumption PMT is not 2 packets or more */
 	struct ltntstools_pat_s *spts_pmt_sm;  /* deconstructed PMT object. */
 
 };
@@ -88,6 +88,10 @@ static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
 	return NULL;
 }
 
+/* This can be called either from a smoother read, calling to output
+ * packet paced content..... Or, directly from the thread immediate after avio_read was called,
+ * and no smoothing is required.
+ */
 static int smoother_pcr_cb(void *userContext, unsigned char *buf, int byteCount,
 	struct ltntstools_pcr_position_s *array, int arrayLength)
 {
@@ -366,8 +370,10 @@ static void *thread_packet_rx(void *p)
 				ctx->spts_pmt_pkt_new[3] &= 0xf0; /* Strip previous CC field */
 				ctx->spts_pmt_pkt_new[3] |= (*(buf + i + 3) & 0x0f); /* Clone the CC field from current. */
 				memcpy(buf + i, &ctx->spts_pmt_pkt_new[0], 188);
+				/* TODO: Assumption that the PMT is never two packets or more */
 			} else
 			if (ctx->spts_pmt_pid && ctx->spts_pmt_pid == pidnr) {
+				/* Expensive to do, so we only do this once during startup. */
 				if (ctx->spts_pmt_sm && ctx->spts_pmt_pkt_new[0] != 0x47) {
 					/* If a stream model has been established then create a new PMT packet,
 					 * strip any ES's pids as needed.
@@ -390,6 +396,7 @@ static void *thread_packet_rx(void *p)
 						}
 
 						/* Convert he PMT object into a fully formed transport packet. A one-time cost. */
+						/* TODO: No support for PMT packets that span two or more transport packets */
 						int cc = ltntstools_continuity_counter(buf + i);
 						ltntstools_pmt_create_packet_ts(pmtptr, ctx->spts_pmt_pid, cc, &ctx->spts_pmt_pkt_new[0], 188);
 						if (ctx->verbose & 32) {
@@ -400,7 +407,6 @@ static void *thread_packet_rx(void *p)
 					}
 				}
 			}
-
 		}
 		if (ctx->isRTP == 0 && ctx->sm == NULL && ctx->pcrPID == 0) {
 			if (ltntstools_streammodel_alloc(&ctx->sm, NULL) < 0) {
@@ -482,6 +488,7 @@ static void *thread_packet_rx(void *p)
 			struct timeval now;
 			gettimeofday(&now, NULL);
 			if (ctx->skipSmoother) {
+				/* Don't write into the smoother, just output back to network asap. */
 				smoother_pcr_cb(ctx, buf, rlen, NULL, 0);
 			} else {
 				smoother_pcr_write(ctx->smoother, buf, rlen, &now);
@@ -499,6 +506,7 @@ static void *thread_packet_rx(void *p)
 
 			/* Feed the smoother */
 			if (ctx->skipSmoother) {
+				/* Don't write into the smoother, just output back to network asap. */
 				smoother_rtp_cb(ctx, buf, rlen);
 			} else {
 				smoother_rtp_write(ctx->smoother, buf, rlen, NULL);
