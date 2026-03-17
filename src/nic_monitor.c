@@ -1692,18 +1692,35 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 				break;
 			case 27: /* measure-scheduling-stalls */
 				{
-					struct timeval a, b;
-					while (1) {
-						gettimeofday(&a, NULL);
-						usleep(1000);
-						gettimeofday(&b, NULL);
-						uint32_t diffUs = ltn_timeval_subtract_us(&b, &a);
-						if (diffUs >= 3000) {
-							char ts[128];
-							libltntstools_getTimestamp(&ts[0], sizeof(ts), NULL);
-							printf("%s: Slept for 1000us, woke to find we'd spent %dus asleep.\n", ts, diffUs);
-						}
+					void *ctx;
+					if (ltntstools_probe_scheduler_alloc(&ctx) < 0) {
+						fprintf(stderr, "Unable to allocate scheduler probe, aborting\n");
+						exit(1);
 					}
+
+					signal(SIGINT, signal_handler);
+					int cnt = 0;
+					gRunning = 1;
+					while (gRunning) {
+						usleep(500 * 1000);
+						if (cnt++ % 10) {
+							continue;
+						}
+						char *buf = NULL;
+
+						printf("Scheduler delayed our 1ms sleep request to more than 3ms %" PRIi64 " times.\n",
+							ltntstools_probe_scheduler_get_3ms_error_count(ctx));
+
+						ltntstools_probe_scheduler_get_histogram_report(ctx, &buf);
+						if (buf) {
+							printf("%s\n", buf);
+							free(buf);
+							buf = NULL;
+						}
+						
+					}
+
+					ltntstools_probe_scheduler_free(ctx);
 					exit(1);
 				}
 				break;
