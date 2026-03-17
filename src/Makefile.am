@@ -17,7 +17,7 @@ AM_CFLAGS = -Wall -O3 -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_O
 	-I../../ffmpeg/libavcodec \
 	-I../../ffmpeg -Wsign-compare
 
-LDADD = -lpthread -lz -lm -lltntstools -lklvanc -lzvbi
+LDADD = -lpthread -lz -lm -lltntstools -lklvanc -lzvbi -lcurl
 
 if LINUX
   LDADD += -lrt
