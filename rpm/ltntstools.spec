@@ -63,15 +63,21 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 #/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
-* Thu Oct 16 2025 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.39.0 - dev
+* Wed Mar 18 2026 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.39.4
   tstools_clock_inspector: Detect illegal state when PUSI=1 and AdaptionControl is "adaption only"
   tstools_pes_inspector: Check for actual time discontinuites in PIC TIMING payload, report to console.
   tstools_pes_inspector: Improve the timecode checking, two different types of detection now.
-  tstools_nic_monitor: Assert and subsequent termination if ES pid was 0.
-  tstools_nic_monitor: Callout in red in the stream model view if a ES pid is less than 0x10
+  tstools_pes_inspector: Many improvements related to BBC pic timing analysis
+  tstools_nic_monitor: bugfix. assert and subsequent termination if ES pid was 0.
+  tstools_nic_monitor: Callout in red (warning) in the stream model UI if a ES pid is less than 0x10
+  tstools_nic_monitor: Generalize and add histogram code to the --measure-scheduling-stalls feature
+  tstools_nielsen_inspector: Not working reliably when reading input from files.
+  libltntstools: moved pcap code into ltntsools repo
+  libltntstools: PCR packing improvements
+  libltntstools: TR101290 improvements related to PMT alerts always being raised.
+  all: any tools using pcap were updated to use local code instead of libltntstools
 
-  libltntstools: moved code that referenced ffmpeg
 * Mon Sep  8 2025 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.38.5
   libltntstools: moved code that referenced ffmpeg
