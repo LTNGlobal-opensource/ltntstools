@@ -27,3 +27,4 @@ tstools_srt_transmit
 tstools_sei_latency_inspector
 tstools_caption_analyzer
 tstools_mpts
+tstools_demux_inspector

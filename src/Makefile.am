@@ -125,6 +125,7 @@ SRC += source-rcts.c
 #SRC += mpts.c
 SRC += timecode.c
 SRC += source-pcap.c
+SRC += demux_inspector.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -158,6 +159,7 @@ endif
 LINKBINS += tstools_sei_latency_inspector
 LINKBINS += tstools_caption_analyzer
 #LINKBINS += tstools_mpts
+LINKBINS += tstools_demux_inspector
 
 tstools_util_SOURCES = $(SRC)
 
