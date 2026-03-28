@@ -46,6 +46,7 @@ struct input_pid_s
 	int enabled;                   /* Pid active. Boolean */
 	enum pid_type_e payloadType;   /* PT_OP47, PT_VIDEO etc */
 	uint16_t pid;                  /* Max 0x1fff */
+	uint8_t streamType;            /* H.264=0x1b, HEVC=0x24, etc */
 	uint16_t streamId;             /* Pes Extractor StreamID 0xC0, 0xE0 etc */
 	uint16_t ttx_page;             /* Teletext subtitle page, typically 888 */
 	char ttx_lang[4];              /* Eg. eng */
