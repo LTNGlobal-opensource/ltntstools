@@ -186,7 +186,7 @@ static void ttx_event_handler(vbi_event *ev, void *user_data)
     }
 }
 
-static struct input_pid_s *setPidType(struct tool_ctx_s *ctx, uint16_t pid, enum pid_type_e pt, uint16_t programNumber)
+static struct input_pid_s *setPidType(struct tool_ctx_s *ctx, uint16_t pid, enum pid_type_e pt, uint16_t programNumber, uint8_t streamType)
 {
 	struct input_pid_s *p = &ctx->pids[pid];
 
@@ -195,6 +195,7 @@ static struct input_pid_s *setPidType(struct tool_ctx_s *ctx, uint16_t pid, enum
 	p->pid = pid;
 	p->ctx = ctx;
 	p->streamId = 0xc0;
+	p->streamType = streamType;
 	p->ttx_page = 888; /* Hardcoded. If detected in PSIP, get overwritten. */
 	p->programNumber = programNumber;
 
@@ -351,92 +352,153 @@ static struct ltntstools_source_pcap_callbacks_s pcap_callbacks =
     .raw = (ltntstools_source_pcap_raw_callback)source_pcap_raw_cb,
 };
 
+/* The structure of the ITU T.35 payload is the same between H.264 and HEVC, so provide a common parser */
+static void process_t35_sei(struct tool_ctx_s *ctx, struct input_pid_s *ptr, const uint8_t *payload, size_t len)
+{
+	/* Check to make sure it has the US country code, with the GA94 provider code.  If it
+	   isn't that doesn't mean it's a syntax error - just not a message type we care about ... */
+	if (payload[0] != 0xb5 /* United States */)
+		return;
+	if (payload[1] != 0x00 || payload[2] != 0x31 /* Provider_code - ATSC  */)
+		return;
+	if (payload[3] != 'G' || payload[4] != 'A' || payload[5]!= '9' || payload[6] != '4')
+		return;
+
+	int cc_count = payload[8] & 0x1f;
+	switch (cc_count) {
+	case 10:
+	case 20:
+	case 1:
+	case 2:
+		break;
+	default:
+		ptr->syntaxError++;
+		fprintf(stderr, "CEA608 PES cc_count invalid %d, wanted 1, 2, 10 or 20, skipping\n", cc_count);
+		return;
+	}
+
+	/* Tupples start at position 16.
+	 * Genenerally speaking, you should have one fd tupple and one fc tupple per cc_count set.
+	 * Certain equipment puts then anywayere in the set, not just in the first position, so look
+	 * for them across the entire set. Importantly, the majority of the tupples will be throw away
+	 * and up to 2 of them used for CC decoding.
+	 */
+	vbi_sliced sliced_frame[2];
+	int sliced_count = 0;
+	int s = 10;
+	for (int i = 0; i < cc_count; i++) {
+		if (ctx->verbose) {
+			printf("%d: %02x %02x %02x\n", i, payload[s + 0], payload[s + 1], payload[s + 2]);
+		}
+		if (payload[s + 0] == 0xfc || payload[s + 0] == 0xfd) {
+			if (sliced_count >= 2) {
+				ptr->syntaxError++;
+				fprintf(stderr, "CEA608 PES contains more than 2 slices, skipping\n");
+				break;
+			}
+			sliced_frame[sliced_count].id      = payload[s + 0] == 0xfc ? VBI_SLICED_CAPTION_525_F1 : VBI_SLICED_CAPTION_525_F2;
+			sliced_frame[sliced_count].line    = payload[s + 0] == 0xfc ? 21 : 284;
+			sliced_frame[sliced_count].data[0] = payload[s + 1];
+			sliced_frame[sliced_count].data[1] = payload[s + 2];
+			sliced_count++;
+		}
+		s += 3;
+	}
+
+	/* Feed the unit to the decoder */
+	if (sliced_count <= 2) {
+		vbi_decode(ptr->decoder, sliced_frame, sliced_count, 0);
+	}
+
+}
+
 /* Process captions in H.264 specific PES frames */
-static int pe_callback_video(struct tool_ctx_s *ctx, struct input_pid_s *ptr, struct ltn_pes_packet_s *pes)
+static int pe_callback_h264(struct tool_ctx_s *ctx, struct input_pid_s *ptr, struct ltn_pes_packet_s *pes)
 {
 	int arrayLength = 0;
 	struct ltn_nal_headers_s *array = NULL;
 	if (ltn_nal_h264_find_headers(pes->data, pes->dataLengthBytes, &array, &arrayLength) == 0) {
-
 		for (int i = 0; i < arrayLength; i++) {
 			struct ltn_nal_headers_s *e = array + i;
+			size_t offset = 4;
 
-			if (e->nalType == 0x6 /* SEI */ &&
-				e->ptr[4] == 0x04 /* SEI PAYLOAD_TYPE == USER_DATA_REGISTERED_ITU_T_T35 */ &&
-				e->ptr[13] == 0x03 /* usercode: CEA-608 Captions */)
-			{
-				if (e->ptr[6] != 0xb5 /* United States */) {
-					ptr->syntaxError++;
-					fprintf(stderr, "CEA608 PES has incorrect country_code 0x%02x, expected 0x0b5, skipping\n",
-						e->ptr[6]);
-					continue;
-				}
+			/* Only look at SEI NALs */
+			if (e->nalType != 0x6)
+				continue;
 
-				if (e->ptr[7] != 0x00 || e->ptr[8] != 0x31 /* Provide_code - ATSC complicant */) {
-					ptr->syntaxError++;
-					fprintf(stderr, "CEA608 PES has incorrect provider_code 0x%02x 0x%02x, expected 0x00 0x31, skipping\n",
-						e->ptr[7], e->ptr[8]);
-					continue;
-				}
-				/* These should be captions, do more checks */
-				if (e->ptr[9] != 'G' || e->ptr[10] != 'A' || e->ptr[11] != '9' || e->ptr[12] != '4') {
-					ptr->syntaxError++;
-					fprintf(stderr, "CEA608 PES has incorrect signature, extected GA94, found %02x %02x %02x %02x, skipping\n",
-						e->ptr[9], e->ptr[10], e->ptr[11], e->ptr[12]);
-					continue;
-				}
+			/* An SEI can contain multiple messages (e.g. pic_timing followed by T.35), so we need to parse them */
+			int payloadType = 0;
+			int payloadSize = 0;
 
-				ltn_nal_h264_strip_emulation_prevention(e);
-
-				//int process_cc_data_flag = (e->ptr[14] > 6) & 1;
-				//int zerobit = (e->ptr[14] > 5) & 1;
-				int cc_count = e->ptr[14] & 0x1f;
-				switch (cc_count) {
-				case 10:
-				case 20:
-				case 1:
-				case 2:
-					break;
-				default:	
-					ptr->syntaxError++;
-					fprintf(stderr, "CEA608 PES cc_count invalid %d, wanted 1, 2, 10 or 20, skipping\n", cc_count);
-					continue;
+			while (offset < e->lengthBytes - 2) {
+				/* See H.264 Sec 7.3.1 */
+				payloadType = 0;
+				while (e->ptr[offset] == 0xff) {
+					payloadType += 255;
+					offset++;
 				}
+				payloadType += e->ptr[offset++];
 
-				vbi_sliced sliced_frame[2];
-		
-				/* Tupples start at position 16.
-				 * Genenerally speaking, you should have one fd tupple and one fc tupple per cc_count set.
-				 * Certain equipment puts then anywayere in the set, not just in the first position, so look
-				 * for them across the entire set. Importantly, the majority of the tupples will be throw away
-				 * and up to 2 of them used for CC decoding.
-				 */
-				int sliced_count = 0;
-				int s = 16;
-				for (int i = 0; i < cc_count; i++) {
-					if (ctx->verbose) {
-						printf("%d: %02x %02x %02x\n", i, e->ptr[s + 0], e->ptr[s + 1], e->ptr[s + 2]);
-					}
-					if (e->ptr[s + 0] == 0xfc || e->ptr[s + 0] == 0xfd) {
-						if (sliced_count >= 2) {
-							ptr->syntaxError++;
-							fprintf(stderr, "CEA608 PES contains more than 2 slices, skipping\n");
-							break;
-						}
-						sliced_frame[sliced_count].id      = e->ptr[s + 0] == 0xfc ? VBI_SLICED_CAPTION_525_F1 : VBI_SLICED_CAPTION_525_F2;
-						sliced_frame[sliced_count].line    = e->ptr[s + 0] == 0xfc ? 21 : 284;
-						sliced_frame[sliced_count].data[0] = e->ptr[s + 1];
-						sliced_frame[sliced_count].data[1] = e->ptr[s + 2];
-						sliced_count++;
-					}
-					s += 3;
+				payloadSize = 0;
+				while (e->ptr[offset] == 0xff) {
+					payloadSize += 255;
+					offset++;
 				}
+				payloadSize += e->ptr[offset++];
 
-				/* Feed the unit to the decoder */
-				if (sliced_count <= 2) {
-					vbi_decode(ptr->decoder, sliced_frame, sliced_count, 0);
+				if (payloadType == 0x04 /* ITU T-35 packet */) {
+					ltn_nal_h264_strip_emulation_prevention(e);
+					process_t35_sei(ctx, ptr, &e->ptr[offset], payloadSize);
 				}
+				offset += payloadSize;
 			} /* if SEI */
+		} /* for all NALs */
+	} /* find nal headers */
+
+	free(array);
+
+	return 0;
+}
+
+/* Process captions in H.265 specific PES frames */
+static int pe_callback_hevc(struct tool_ctx_s *ctx, struct input_pid_s *ptr, struct ltn_pes_packet_s *pes)
+{
+	int arrayLength = 0;
+	struct ltn_nal_headers_s *array = NULL;
+	if (ltn_nal_h265_find_headers(pes->data, pes->dataLengthBytes, &array, &arrayLength) == 0) {
+		for (int i = 0; i < arrayLength; i++) {
+			struct ltn_nal_headers_s *e = array + i;
+			size_t offset = 5;
+
+			/* Only look at SEI NALs */
+			if (e->nalType != 39 && e->nalType != 40)
+				continue;
+
+			/* An SEI can contain multiple messages (e.g. pic_timing followed by T.35), so we need to parse them */
+			int payloadType = 0;
+			int payloadSize = 0;
+
+			while (offset < e->lengthBytes - 2) {
+				/* See HEVC Sec 7.3.5 */
+				payloadType = 0;
+				while (e->ptr[offset] == 0xff) {
+					payloadType += 255;
+					offset++;
+				}
+				payloadType += e->ptr[offset++];
+
+				payloadSize = 0;
+				while (e->ptr[offset] == 0xff) {
+					payloadSize += 255;
+					offset++;
+				}
+				payloadSize += e->ptr[offset++];
+				if (payloadType == 0x04 /* ITU T-35 packet */) {
+					ltn_nal_h264_strip_emulation_prevention(e);
+					process_t35_sei(ctx, ptr, &e->ptr[offset], payloadSize);
+				}
+				offset += payloadSize;
+			}
 		} /* for all NALs */
 	} /* find nal headers */
 
@@ -529,8 +591,11 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 	if (ptr->payloadType == PT_OP47) {
 		pe_callback_teletext(ctx, ptr, pes);
 	} else
-	if (ptr->payloadType == PT_VIDEO) {
-		pe_callback_video(ctx, ptr, pes);
+	if (ptr->payloadType == PT_VIDEO && ptr->streamType == 0x1b) {
+		pe_callback_h264(ctx, ptr, pes);
+	} else
+	if (ptr->payloadType == PT_VIDEO && ptr->streamType == 0x24) {
+		pe_callback_hevc(ctx, ptr, pes);
 	}
 
 	ltn_pes_packet_free(pes);
@@ -609,7 +674,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 					uint8_t estype;
 					ltntstools_pmt_query_video_pid(pmt, &videopid, &estype);
 
-					setPidType(ctx, videopid, PT_VIDEO, pmt->program_number);
+					setPidType(ctx, videopid, PT_VIDEO, pmt->program_number, estype);
 
 					printf("Found %s program %d video pid 0x%04x (%d)\n",
 						ctx->isMPTS ? "MPTS" : "SPTS",
@@ -625,7 +690,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 						struct ltntstools_pmt_entry_s *se = &pmt->streams[i];
 
 						if (ltntstools_descriptor_list_contains_teletext(&se->descr_list)) {
-							struct input_pid_s *newpid = setPidType(ctx, se->elementary_PID, PT_OP47, pmt->program_number);
+							struct input_pid_s *newpid = setPidType(ctx, se->elementary_PID, PT_OP47, pmt->program_number, 0);
 
 							printf("Found %s program %d teletext/op47/wst pid 0x%04x (%d)\n",
 								ctx->isMPTS ? "MPTS" : "SPTS",
@@ -813,7 +878,7 @@ int caption_analyzer(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
-			setPidType(ctx, pid, PT_OP47, 0);
+			setPidType(ctx, pid, PT_OP47, 0, 0);
 			break;
 		case 'S':
 			ctx->prom_ctx.inputPort = atoi(optarg);
@@ -834,7 +899,8 @@ int caption_analyzer(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
-			setPidType(ctx, pid, PT_VIDEO, 0);
+			/* FIXME: setting PID manually always assumes H.264 */
+			setPidType(ctx, pid, PT_VIDEO, 0, 0);
 			break;
 		default:
 			usage(argv[0]);
