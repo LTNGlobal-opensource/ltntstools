@@ -65,6 +65,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Fri Apr  3 2026 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.39.6
+  tstools_neilsen_inspector: Use decoded channel number, don't assume 2 channels.
+
+* Fri Apr  3 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.39.5
   tstools_neilsen_inspector: performance improvements
 
