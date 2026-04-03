@@ -46,6 +46,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 #/usr/local/bin/tstools_ntt_inspector
 /usr/local/bin/tstools_sei_latency_inspector
 /usr/local/bin/tstools_caption_analyzer
+/usr/local/bin/tstools_demux_inspector
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 /usr/local/lib-ltntstools/libdvbpsi.so.10
