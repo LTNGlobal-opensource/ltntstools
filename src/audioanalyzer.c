@@ -208,7 +208,7 @@ static void decode(struct ltntstools_audioanalyzer_ctx_s *ctx, struct ltntstools
             int bytes = stream->decoded_frame->nb_samples * sample_size * stream->codecContext->channels;
             printf("pid 0x%04x decoded %d bytes\n", stream->pid, bytes);
 
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < stream->codecContext->channels; i++) {
                 printf("pid 0x%04x plane%d: ", stream->pid, i);
                 uint8_t *p = (uint8_t *)stream->decoded_frame->data[i];
                 for (int j = 0; j < stream->decoded_frame->nb_samples * sample_size; j++) {
@@ -222,14 +222,14 @@ static void decode(struct ltntstools_audioanalyzer_ctx_s *ctx, struct ltntstools
 
         if (stream->sampleFormat == AV_SAMPLE_FMT_FLTP) {
             /* Stereo planes */
-            for (int ch = 0; ch < 2; ch++) {
+            for (int ch = 0; ch < stream->decoded_frame->channels; ch++) {
                 /* Measure dbFS across every PCM channel, this is planer so the samples are just a massive array. */
                 compute_dbFS(stream, ch, (int16_t *)stream->decoded_frame->data[ch], stream->decoded_frame->nb_samples);
             }
         } else
         if (stream->sampleFormat == AV_SAMPLE_FMT_S16P) {
             /* Stereo planes */
-            for (int ch = 0; ch < 2; ch++) {
+            for (int ch = 0; ch < stream->decoded_frame->channels; ch++) {
                 //printf("ch%d planes = %p/%p/%p\n", i, stream->decoded_frame->data[0], stream->decoded_frame->data[1], stream->decoded_frame->data[2]);
 #if HAVE_IMONITORSDKPROCESSOR_H
                 /* Its fairly expensive to compute Nielson, skip it if the user doesn't want it. */
