@@ -65,8 +65,16 @@ struct ltntstools_audioanalyzer_ctx_s
     int threadRunning, threadTerminate, threadTerminated;
     int doWork;
 
+    /* Array, ordered by TS PID number, >99% empty array */
     pthread_mutex_t mutex;
     struct ltntstools_audioanalyzer_stream_s *streams[8192];
+
+    /* Array, ordered by arrival, first 1% used, remaining not. Faster to enumerate. */
+    /* Faster array based index for the thread, so we only process
+     * 1..usedCount streams, and don't walk the entire 8192 possibilities.
+     */
+    int usedCount;
+    struct ltntstools_audioanalyzer_stream_s *usedStreams[8192];
 };
 
 static void _compute_dbFS_s16p(struct ltntstools_audioanalyzer_stream_s *stream, int channelNr, int16_t *samples, int sampleCount)
@@ -254,11 +262,12 @@ static void *ltntstools_audioanalyzer_stream_threadfunc(void *p)
 	while (!ctx->threadTerminate) {
 
         if (ctx->doWork == 0)
-            usleep(100 * 1000);
+            usleep(10 * 1000);
 
         ctx->doWork = 0;
-        for (int i = 0; i < 8192; i++) {
-            struct ltntstools_audioanalyzer_stream_s *stream = ctx->streams[i];
+
+        for (int i = 0; i < ctx->usedCount; i++) {
+            struct ltntstools_audioanalyzer_stream_s *stream = ctx->usedStreams[i];
             if (!stream)
                 continue;
 
@@ -268,7 +277,6 @@ static void *ltntstools_audioanalyzer_stream_threadfunc(void *p)
                 ltntstools_pes_extractor_write(stream->pesExtractor, stream->tsbuf, TS_BUF_MAX_SIZE / 188);
             }
             pthread_mutex_unlock(&stream->tsmutex);
-
         }
     }
 
@@ -396,6 +404,8 @@ int ltntstools_audioanalyzer_stream_add(void *hdl, uint16_t pid, uint8_t streamI
     }
 #endif /* HAVE_IMONITORSDKPROCESSOR_H */
 
+    ctx->usedStreams[ctx->usedCount++] = stream;
+
     pthread_mutex_unlock(&ctx->mutex);
     return 0;
 }
@@ -458,11 +468,11 @@ ssize_t ltntstools_audioanalyzer_write(void *hdl, const uint8_t *pkts, unsigned 
          * feed a fifo and return quickly. The thread will take care of the rest.
          */
         pthread_mutex_lock(&stream->tsmutex);
-        while (av_fifo_space(stream->tsfifo) < TS_BUF_MAX_SIZE) {
+        while (av_fifo_space(stream->tsfifo) < 188) {
             pthread_mutex_unlock(&stream->tsmutex);
             usleep(1000);
             pthread_mutex_lock(&stream->tsmutex);
-	}
+	    }
         av_fifo_generic_write(stream->tsfifo, (void *)pkt, 188, NULL);
         pthread_mutex_unlock(&stream->tsmutex);
         count++;

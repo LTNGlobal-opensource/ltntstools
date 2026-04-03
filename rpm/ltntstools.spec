@@ -63,6 +63,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 #/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
+* Fri Apr  3 2026 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.39.5
+  tstools_neilsen_inspector: performance improvements
+
 * Wed Mar 18 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.39.4
   tstools_clock_inspector: Detect illegal state when PUSI=1 and AdaptionControl is "adaption only"
