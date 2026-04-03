@@ -155,6 +155,13 @@ printf("x %f\n", x);
 
 static void compute_dbFS(struct ltntstools_audioanalyzer_stream_s *stream, int channelNr, int16_t *samples, int sampleCount)
 {
+    if (!samples || !stream || channelNr <= 0 || sampleCount <= 0) {
+        fprintf(stderr, "%s() missing or illegal arg. samples %p stream %p channelNr %d sampleCount %d\n",
+            __func__,
+            samples, stream, channelNr, sampleCount);
+        return;
+    }
+
     switch(stream->sampleFormat) {
     case AV_SAMPLE_FMT_S16P:
         return _compute_dbFS_s16p(stream, channelNr, samples, sampleCount);
