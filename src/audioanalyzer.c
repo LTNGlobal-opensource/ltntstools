@@ -237,10 +237,14 @@ static void decode(struct ltntstools_audioanalyzer_ctx_s *ctx, struct ltntstools
         if (stream->sampleFormat == AV_SAMPLE_FMT_S16P) {
             /* Stereo planes */
             for (int ch = 0; ch < stream->decoded_frame->channels; ch++) {
-                //printf("ch%d planes = %p/%p/%p\n", i, stream->decoded_frame->data[0], stream->decoded_frame->data[1], stream->decoded_frame->data[2]);
+#if 0
+                printf("stream->decoded_frame->channels = %d\n", stream->decoded_frame->channels);
+                printf("ch%d planes = %p/%p/%p\n", ch, stream->decoded_frame->data[0], stream->decoded_frame->data[1], stream->decoded_frame->data[2]);
+#endif
 #if HAVE_IMONITORSDKPROCESSOR_H
                 /* Its fairly expensive to compute Nielson, skip it if the user doesn't want it. */
-                if (stream->enableNielsen) {
+                /* We only support stereo with the nielsen SDK */
+                if (stream->enableNielsen && ch < 2) {
                     nielsen_bindings_write_silent(stream->nielsen, 0);
                     nielsen_bindings_write_plane(stream->nielsen, ch, (uint8_t *)stream->decoded_frame->data[ch], stream->decoded_frame->nb_samples * sample_size);
                 }
