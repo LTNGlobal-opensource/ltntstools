@@ -64,6 +64,11 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 #/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
+* Sun Apr  5 2026 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.40-dev
+  tstools_pes_inspector: dump h264 / h265 nal report on program termination
+  tstools_pes_inspector: don't dump entire pes payload to console when running nal reports.
+
 * Fri Apr  3 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.39.7
   tstools_neilsen_inspector: Use decoded channel number, don't feed more than 2 channels to the nielsen SDK.
