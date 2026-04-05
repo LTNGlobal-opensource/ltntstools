@@ -1469,6 +1469,11 @@ int pes_inspector(int argc, char *argv[])
 		ltntstools_vbv_free(ctx->vbv);
 		ctx->vbv = NULL;
 	}
+
+	if (ctx->doH264NalThroughput || ctx->doH265NalThroughput) {
+		nal_throughput_report(&ctx->throughput, 0, ctx->doH264NalThroughput, ctx->doH265NalThroughput);
+	}
+
 	nal_throughput_free(&ctx->throughput);
 #if H264_IFRAME_THUMBNAILING
 	ltntstools_h264_iframe_thumbnailer_free(ctx->h264Thumbnailer);
