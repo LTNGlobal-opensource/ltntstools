@@ -51,7 +51,7 @@ struct pid_s
 	struct input_stream_s *stream;	/* A single stream has many pids. Each pids needs to have ES extracted. */
 	enum pid_type_t type;
 
-	uint16_t pid;
+	uint16_t pidNr;
 	uint16_t outputPidNr;		/* Output Pid number we'll generate */
 	uint8_t streamId;
 	void *pe;					/* PES Extractor per pid. Stack is called back with PEs's extracted from each input*/
@@ -105,6 +105,10 @@ struct output_stream_s
 
 	struct ltntstools_pat_s *pat;
 
+	uint8_t psip_cc[3];
+	uint8_t psip_pkt[3][188];
+	struct timespec last_psip;
+
 //	void *avio_ctx;
 	//struct ltntstools_stream_statistics_s *libstats;
 
@@ -120,11 +124,7 @@ struct tool_ctx_s
 	uint8_t null_pkt[188];
 	int64_t null_pkt_outputSTC;
 
-	uint8_t psip_cc[3];
-	uint8_t psip_pkt[3][188];
-
 	struct timespec next_time;
-	struct timespec last_psip;
 	struct timespec last_q_report;
 	int output_psip_idx;
 
@@ -143,16 +143,17 @@ struct tool_ctx_s
 
 /* switcher-input.c */
 void input_stream_free(struct input_stream_s *stream);
-int input_stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
-int input_stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
+int  input_stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
+int  input_stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
 struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr);
 
 struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type);
 void input_pid_free(struct pid_s *pid);
 
 /* switcher-output.c */
-int output_alloc(struct tool_ctx_s *ctx, struct output_stream_s **outputStream);
-void output_free(struct tool_ctx_s *ctx, struct output_stream_s *outputStream);
-void *output_reframer_callback(struct tool_ctx_s *ctx, struct output_stream_s *os, const uint8_t *buf, int lengthBytes);
-int output_write(struct tool_ctx_s *ctx, struct output_stream_s *outputStream, uint8_t *pkt, int packetCount);
+int     output_alloc(struct tool_ctx_s *ctx, struct output_stream_s **outputStream);
+void    output_free(struct output_stream_s *outputStream);
+void   *output_reframer_callback(struct output_stream_s *os, const uint8_t *buf, int lengthBytes);
+int     output_write(struct output_stream_s *outputStream, uint8_t *pkt, int packetCount);
 int64_t output_get_computed_stc(struct output_stream_s *os);
+void    output_generate_psip(struct output_stream_s *os);

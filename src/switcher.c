@@ -26,6 +26,7 @@ void service(struct tool_ctx_s *ctx)
 {
 	struct pid_s *outputPid = NULL;
 
+	/* Every 950ms print a PES queue size report */
 	if (timesec_diff(ctx->next_time, ctx->last_q_report) >= 950) {
 		ctx->last_q_report = ctx->next_time;
 
@@ -49,15 +50,11 @@ void service(struct tool_ctx_s *ctx)
 		printf("\n");
 	}
 
-	if (timesec_diff(ctx->next_time, ctx->last_psip) > 50) {
-		struct output_stream_s *os = ctx->outputStream;
-
+	struct output_stream_s *os = ctx->outputStream;
+	/* Every 50ms generate new PAT/PMT service information */
+	if (timesec_diff(ctx->next_time, os->last_psip) > 50) {
 		/* Generate the PSIP multiple times a second, and schedule them for output. */
-		ctx->last_psip = ctx->next_time;
-		ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
-		ltntstools_pat_create_packet_ts(os->pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
-		ltntstools_pmt_create_packet_ts(&os->pat->programs[0].pmt, os->pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
-		ltntstools_pmt_create_packet_ts(&os->pat->programs[1].pmt, os->pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
+		output_generate_psip(os);
 	}
 
 	/* Try to ensure we have TS packets available for all input streams, all pids.  */
@@ -155,7 +152,7 @@ void service(struct tool_ctx_s *ctx)
 	if (ctx->output_psip_idx > -1) {
 		/* Its time to output a PSIP packet, select one. */
 
-		pkt = &ctx->psip_pkt[ ctx->output_psip_idx ][0];
+		pkt = &ctx->outputStream->psip_pkt[ ctx->output_psip_idx ][0];
 
 		if (++ctx->output_psip_idx == 3) {
 			ctx->output_psip_idx = -1;
@@ -229,7 +226,7 @@ void service(struct tool_ctx_s *ctx)
 		}
 
 		/* Send a single PKT to the reframer */
-		output_write(ctx, ctx->outputStream, pkt, 188);
+		output_write(ctx->outputStream, pkt, 188);
 	}
 }
 
@@ -288,6 +285,7 @@ int switcher_main(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
+			/* Add the input pid, changes its output pid to 0x100 + pidnr + input nr. */
 			input_stream_add_pid(ctx->streams[ctx->inputNr], pid, pid + (0x100 * (ctx->inputNr +1)), streamId);
 			break;
 		case 'v':
@@ -321,7 +319,7 @@ int switcher_main(int argc, char *argv[])
     clock_gettime(CLOCK_MONOTONIC, &ctx->next_time);
 
 	/* Main loop.
-	 * Build psip every second.
+	 * Build psip multiple times every second.
 	 * output psip every second.
 	 * Walk the schedule and find a packet on the pid
 	 * If no packets in psip, or pid need to be output,
@@ -336,7 +334,7 @@ int switcher_main(int argc, char *argv[])
 			service(ctx);
 		}
 
-		/* Have a haba daba too time... sleep a while */
+		/* Have a haba daba doo time... sleep a while */
 		ctx->next_time.tv_nsec += (PACKET_INTERVAL_NS * calls_per_sleep);
         while (ctx->next_time.tv_nsec >= 1000000000) {
             ctx->next_time.tv_nsec -= 1000000000;
@@ -355,6 +353,6 @@ int switcher_main(int argc, char *argv[])
 		input_stream_free(ctx->streams[i]);
 	}
 
-	output_free(ctx, ctx->outputStream);
+	output_free(ctx->outputStream);
 	return 0;
 }

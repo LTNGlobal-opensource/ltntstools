@@ -28,7 +28,7 @@ static void *input_pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 	if (is->ctx->verbose) {
 		printf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 "\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr);
 	}
-	if (pid->pid == 0x32) {
+	if (pid->pidNr == 0x32) {
 		//ltntstools_hexdump(pes->rawBuffer, 188, 32);
 	}
 
@@ -58,20 +58,20 @@ static void *input_pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 	}
 
 	if (is->ctx->verbose) {
-		printf("PES Extractor callback %d:%s pid 0x%04x 0x%08" PRIx64 " pes's\n", is->nr, is->iname, pid->pid, pid->peslistcount);
+		printf("PES Extractor callback %d:%s pid 0x%04x 0x%08" PRIx64 " pes's\n", is->nr, is->iname, pid->pidNr, pid->peslistcount);
 	}
 
 	return NULL;
 }
 
-struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type)
+struct pid_s *input_pid_alloc(uint16_t pidNr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type)
 {
 	struct pid_s *pid = calloc(1, sizeof(*pid));
 	if (!pid) {
 		return NULL;
 	}
 
-	pid->pid = pidnr;
+	pid->pidNr = pidNr;
 	pid->outputPidNr = outputPidNr;
 	pid->streamId = streamId;
 	pid->type = type;
@@ -91,14 +91,14 @@ struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputP
 		exit(0);
 	}
 
-	if (ltntstools_pes_extractor_alloc(&pid->pe, pid->pid, pid->streamId, (pes_extractor_callback)input_pe_callback,
+	if (ltntstools_pes_extractor_alloc(&pid->pe, pid->pidNr, pid->streamId, (pes_extractor_callback)input_pe_callback,
 		pid, (1024 * 1024), (2 * 1024 * 1024)) < 0)
 	{
 		fprintf(stderr, "\nUnable to allocate pes_extractor object.\n\n");
 		exit(1);
 	}
 	uint16_t pcrPid = 0;
-	switch(pidnr) {
+	switch(pidNr) {
 	case 0x31:
 	case 0x32:
 		pcrPid = 0x31;
@@ -221,7 +221,7 @@ static void *input_notification_callback(struct input_stream_s *is, enum ltntsto
 		struct pid_s *opid = NULL;
 		for (int i = 0; i < is->pidCount; i++) {
 			//printf("pid->pidNr 0x%04x finding.... %04x\n", pid->pidNr, stream->pids[i]->pid);
-			if (is->pids[i]->pid == pid->pidNr) {
+			if (is->pids[i]->pidNr == pid->pidNr) {
 				opid = is->pids[i];
 				break;
 			}
@@ -233,7 +233,7 @@ static void *input_notification_callback(struct input_stream_s *is, enum ltntsto
 				ltntstools_notification_event_name(event),
 				stats,
 				pid, pid->pidNr,
-				opid, opid->pid, opid->outputPidNr,
+				opid, opid->pidNr, opid->outputPidNr,
 				ms);
 		} else {
 #if 0
