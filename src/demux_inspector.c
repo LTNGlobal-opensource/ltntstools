@@ -18,11 +18,49 @@
 
 char *strcasestr(const char *haystack, const char *needle);
 
+enum pidType_e {
+	PT_UNDEFINED = 0, PT_AUDIO, PT_VIDEO, PT_OTHER,
+};
+
+enum SliceType_e {
+	SLICE_UNDEFINED = 0,
+	SLICE_I, SLICE_B, SLICE_P
+};
+
 struct input_pid_s
 {
 	struct tool_ctx_s *ctx;
 	int enabled;
-	uint16_t pid;
+	uint16_t pidNr;
+
+	enum pidType_e type; /* PT_UNDEFINED = 0, PT_AUDIO, PT_VIDEO, PT_OTHER, etc */
+
+	struct xorg_list pesitemlist; /* list of struct pes_item_s */
+};
+
+struct pes_item_s
+{
+	struct xorg_list list;
+	const struct ltn_pes_packet_s *pes;
+	enum pidType_e type; /* PT_UNDEFINED = 0, PT_AUDIO, PT_VIDEO, PT_OTHER, etc */
+
+	struct input_pid_s *input;
+
+	struct {
+		int hasSync_MP1L2;
+		int hasSync_AC3;
+		int hasSync_AAC;
+	} audio;
+
+	struct {
+		enum SliceType_e sliceType;
+		int has_avc_sps;
+		int has_avc_pps;
+		int has_avc_aud;
+	} video;
+
+	int nalArrayLength;
+	struct ltn_nal_headers_s *nals;
 };
 
 struct tool_ctx_s
@@ -46,9 +84,13 @@ struct tool_ctx_s
 
 #define MAX_PIDS 0x2000
 	struct input_pid_s pids[MAX_PIDS];
+
+	uint64_t count_frames_i;
+	uint64_t count_frames_b;
+	uint64_t count_frames_p;
 };
 
-struct input_pid_s;
+//struct input_pid_s;
 
 static int gRunning = 1;
 static void signal_handler(int signum)
@@ -56,79 +98,250 @@ static void signal_handler(int signum)
 	gRunning = 0;
 }
 
-int pes_contains_audio(const struct ltn_pes_packet_s *pes)
-{
-	return 0;
-}
-
-int pes_contains_sps_avc(const struct ltn_pes_packet_s *pes, struct ltn_nal_headers_s *nals, int nalLength)
-{
-	for (int i = 0; i < nalLength; i++) {
-		if (nals[i].nalType == 0x07 /* SPS */) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
-int pes_contains_pps_avc(const struct ltn_pes_packet_s *pes, struct ltn_nal_headers_s *nals, int nalLength)
-{
-	for (int i = 0; i < nalLength; i++) {
-		if (nals[i].nalType == 0x08 /* PPS */) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
+/* For a given pes, look at the vars and stream content.
+ * determine of the pes begins with a MP2 sync marker.
+ * Returns 1 on success else 0.
+ */
 int pes_contains_start_of_mp2_sync(const struct ltn_pes_packet_s *pes)
 {
-	return 0;
+	if (!ltn_pes_packet_is_audio((struct ltn_pes_packet_s *)pes))
+		return 0;
+
+	if (pes->dataLengthBytes < 2)
+		return 0;
+
+	/* MP2 sync word 0xFFF */
+	if (pes->data[0] != 0xff)
+		return 0;
+	/* C = MPEG Version == MP2*/
+	if (pes->data[1] != 0xfc)
+		return 0;
+
+	return 1; /* MP1/L2 sync found */
 }
 
-int pes_contains_start_of_aac_sync(const struct ltn_pes_packet_s *pes)
+/* For a given pes, look at the vars and stream content.
+ * determine of the pes begins with a MP2 sync marker.
+ * Returns 1 on success else 0.
+ */
+int pes_contains_start_of_ac3_sync(const struct ltn_pes_packet_s *pes)
 {
-	return 0;
+	if (!ltn_pes_packet_is_audio((struct ltn_pes_packet_s *)pes))
+		return 0;
+
+	if (pes->dataLengthBytes < 2)
+		return 0;
+
+	/* Fixed sync 0x0B77 */
+	if (pes->data[0] != 0x0B)
+		return 0;
+	if (pes->data[1] != 0x77)
+		return 0;
+
+	return 1; /* AC3 sync found */
 }
 
-int pes_contains_video_avc_idr(const struct ltn_pes_packet_s *pes)
+static int pes_contains_start_of_aac_sync(const struct ltn_pes_packet_s *pes)
 {
-	int reportAll = 0;
-	int result = 0;
+	/* FFFn
+	adts_fixed_header() {
+    syncword                         12 bits  // 0xFFF
+    ID                                1 bit   // 0=MPEG-4, 1=MPEG-2
+    layer                             2 bits  // always 00
+    protection_absent                 1 bit   // 1=no CRC
+
+    profile                           2 bits  // 1 = AAC-LC
+    sampling_frequency_index          4 bits
+    private_bit                       1 bit
+    channel_configuration             3 bits
+    original_copy                     1 bit
+    home                              1 bit
+	}
+	*/
+	if (!ltn_pes_packet_is_audio((struct ltn_pes_packet_s *)pes))
+		return 0;
+
+	if (pes->dataLengthBytes < 2)
+		return 0;
+
+	/* Fixed sync 0xFFF1 */
+	if (pes->data[0] != 0xff)
+		return 0;
+	if (pes->data[1] != 0xf1)
+		return 0;
+
+	return 1; /* AAC ADTS sync found */
+}
+
+void pes_item_nals_dump(struct pes_item_s *item)
+{
+	for (int i = 0; i < item->nalArrayLength; i++) {
+		struct ltn_nal_headers_s *nal = &item->nals[i];
+		printf(" nal: %02x [%s]\n", nal->nalType, nal->nalName);
+	}
+}
+
+void pes_item_nals_free(struct pes_item_s *item)
+{
+	if (item->nals) {
+		free(item->nals);
+		item->nals = NULL;
+	}
+	item->nalArrayLength = 0;
+}
+
+int pes_item_nals_alloc(struct pes_item_s *item)
+{
+	struct tool_ctx_s *ctx = item->input->ctx;
+
+//	int reportAll = 0;
+//	int result = 0;
+	unsigned int sliceType;
+
+	/* Free any existing nals */
+	pes_item_nals_free(item);
 
 	/* Turn the PES into a series of NALS */
-
-	/* Determine if these nals contain a PPS */
-	/* Determine if these nals contain a SPS */
-	/* Determine if these nals contain a IDR */
-	int nalArrayLength = 0;
-	struct ltn_nal_headers_s *nals = NULL;
-
-	if (ltn_nal_h264_find_headers(pes->data, pes->dataLengthBytes, &nals, &nalArrayLength) < 0) {
+	if (ltn_nal_h264_find_headers(item->pes->data, item->pes->dataLengthBytes, &item->nals, &item->nalArrayLength) < 0) {
 		return -1;
 	}
 
-	if (reportAll && nalArrayLength) {
-		printf("naltype: ");
-	}
-
-	for (int i = 0; i < nalArrayLength; i++) {
-		if (nals[i].nalType == 0x05 /* slice_layer_without_partitioning_rbsp IDR */) {
-			result = 1;
+	/* TODO: THIS IS AVC ONLY */
+	for (int i = 0; i < item->nalArrayLength; i++) {
+		struct ltn_nal_headers_s *nal = &item->nals[i];
+		switch (nal->nalType) {
+		case 1: /* slice_layer_without_partitioning_rbsp */
+		case 2: /* slice_data_partition_a_layer_rbsp */
+		case 5: /* slice_layer_without_partitioning_rbsp */
+		case 19: /* slice_layer_without_partitioning_rbsp */
+			if (h264_nal_get_slice_type_for_nal(nal, &sliceType) == 0) {
+				//printf("SLICE TYPE %d, %s\n", sliceType, h264_slice_name_ascii(sliceType));
+				if (h264_is_slice_type_iframe(sliceType)) {
+					item->video.sliceType = SLICE_I;
+					ctx->count_frames_i++;
+				} else
+				if (h264_is_slice_type_bframe(sliceType)) {
+					item->video.sliceType = SLICE_B;
+					ctx->count_frames_b++;
+				} else
+				if (h264_is_slice_type_pframe(sliceType)) {
+					item->video.sliceType = SLICE_P;
+					ctx->count_frames_p++;
+				}
+			}
+			break;
+		case 7:
+			item->video.has_avc_sps = 1;
+			break;
+		case 8:
+			item->video.has_avc_pps = 1;
+			break;
+		case 9:
+			item->video.has_avc_aud = 1;
+			break;
 		}
-		if (reportAll) {
-			printf(" %02x [%s]", nals[i].nalType, nals[i].nalName);
-		}
-	}
-	if (reportAll && nalArrayLength) {
-		printf("\n");
 	}
 
-	free(nals);
-
-	return result;
+	return 0; /* Success */
 }
 
+struct pes_item_s * pes_item_alloc(const struct ltn_pes_packet_s *pes, struct input_pid_s *input)
+{
+	//ltn_pes_packet_dump(pes, "");
+	struct pes_item_s *item = calloc(1, sizeof(*item));
+	if (item) {
+		item->pes = ltn_pes_packet_clone((struct ltn_pes_packet_s *)pes);
+		if (!item->pes) {
+			free(item);
+			return NULL;
+		}
+		item->type = PT_UNDEFINED;
+		item->input = input;
+
+		if (ltn_pes_packet_is_video((struct ltn_pes_packet_s *)item->pes)) {
+			//printf("pes contains video\n");
+			item->type = PT_VIDEO;
+
+			if (pes_item_nals_alloc(item) < 0) {
+				fprintf(stderr, "asked to find nals, no nals found.... unusual, continuiting...\n");
+			}
+			/* item->video.has_XYZ are now set correctly */
+
+		} else
+		if (ltn_pes_packet_is_audio((struct ltn_pes_packet_s *)item->pes)) {
+			item->type = PT_AUDIO;
+			//printf("pes contains audio\n");
+			if (pes_contains_start_of_mp2_sync(pes) == 1) {
+				//printf("Contains MP1/L2 sync\n");
+				item->audio.hasSync_MP1L2 = 1;
+			} else
+			if (pes_contains_start_of_ac3_sync(pes) == 1) {
+				//printf("Contains AC3 sync\n");
+				item->audio.hasSync_AC3 = 1;
+			} else
+			if (pes_contains_start_of_aac_sync(pes) == 1) {
+				//printf("Contains AAC/ADTS sync\n");
+				item->audio.hasSync_AAC = 1;
+			}
+		} else {
+			item->type = PT_OTHER;
+		}
+
+	}
+
+	return item;
+}
+
+void pes_item_free(struct pes_item_s *item)
+{
+	pes_item_nals_free(item);
+
+	if (item->pes) {
+		ltn_pes_packet_free((struct ltn_pes_packet_s *)item->pes);
+		item->pes = NULL;
+	}
+
+	free(item);
+}
+
+void pes_item_dump(struct pes_item_s *item)
+{
+	const struct ltn_pes_packet_s *pes = item->pes;
+
+	char lbl[] = "[?]";
+
+	if (item->type == PT_VIDEO) {
+		switch(item->video.sliceType) {
+		case SLICE_I: lbl[1] = 'I'; break;
+		case SLICE_B: lbl[1] = 'B'; break;
+		case SLICE_P: lbl[1] = 'P'; break;
+		case SLICE_UNDEFINED: lbl[1] = '?'; break;
+		}
+	} else {
+		/* No slice printing for non video nals */
+		lbl[0] = ' ';
+		lbl[1] = ' ';
+		lbl[2] = ' ';
+	}
+
+	printf("%s() pid 0x%04x %s %s pes %p rtt %3dms, pcr %013" PRIi64,
+		__func__, item->input->pidNr,
+		item->type == PT_VIDEO ? "VIDEO" :
+		item->type == PT_AUDIO ? "AUDIO" : "OTHER",
+		lbl,
+		pes,
+		pes->arrivalMs, pes->pcr);
+	if (pes->PTS_DTS_flags & 2) {
+		printf(", pts %013" PRIi64, pes->PTS);
+	}
+	if (pes->PTS_DTS_flags & 1) {
+		printf(", dts %013" PRIi64, pes->DTS);
+	}
+	printf("\n");
+
+	//pes_item_nals_dump(item);
+
+}
 /* End -- Misc pes function - find a better home for these. */
 
 static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char *buf, int byteCount);
@@ -221,28 +434,21 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 	return NULL;
 }
 
-void *demux_cb_pes(void *userContext, uint16_t pid, struct ltn_pes_packet_s *pes)
+void *demux_cb_pes(void *userContext, uint16_t pidNr, struct ltn_pes_packet_s *pes)
 {
+	struct tool_ctx_s *ctx = userContext; 
+	struct input_pid_s *pid = (struct input_pid_s *)&ctx->pids[pidNr & 0x1fff];
+
+	if (pidNr == 0x33) {
+		//ltn_pes_packet_dump(pes, "");
+	}
+
 	/* Caller DOES NOT OWN the lifespan of the pes object, don't free it. */
+	struct pes_item_s *item = pes_item_alloc(pes, pid);
 
-	printf("%s() pid 0x%04x pes %p transmissionTime %3dms, pcr %013" PRIi64, __func__, pid, pes, pes->arrivalMs, pes->pcr);
-	if (pes->PTS_DTS_flags & 2) {
-		printf(", pts %013" PRIi64, pes->PTS);
-	}
-	if (pes->PTS_DTS_flags & 1) {
-		printf(", dts %013" PRIi64, pes->DTS);
-	}
-	printf("\n");
+	pes_item_dump(item);
 
-	if (ltn_pes_packet_is_video(pes)) {
-		printf("pes contains video\n");
-		if (pes_contains_video_avc_idr(pes)) {
-			printf("nals contain IDR frame\n");
-		}
-	} else
-	if (ltn_pes_packet_is_audio(pes)) {
-		printf("pes contains audio\n");
-	}
+	pes_item_free(item);
 
 	return NULL;
 }
@@ -397,6 +603,12 @@ int demux_inspector(int argc, char *argv[])
 	ctx->verbose = 1;
 	ctx->mode = MODE_SOURCE_AVIO;
 
+	for (int i = 0; i < MAX_PIDS; i++) {
+		xorg_list_init(&ctx->pids[i].pesitemlist);
+		ctx->pids[i].pidNr = i;
+		ctx->pids[i].ctx = ctx;
+	}
+
 	int ch;
 
 	while ((ch = getopt(argc, argv, "?hvi:F:P:V:")) != -1) {
@@ -449,23 +661,29 @@ int demux_inspector(int argc, char *argv[])
 		if (ctx->pids[i].enabled == 0) {
 			continue;
 		}
+		/* TODO: Free up any list items */
 	}
 	
 	if (ctx->sm) {
 		ltntstools_streammodel_free(ctx->sm);
+		ctx->sm = NULL;
 	}
 
 	if (ctx->iname) {
 		free(ctx->iname);
+		ctx->iname = NULL;
 	}
 	
 	if (ctx->demux_ctx) {
 		ltntstools_demux_free(ctx->demux_ctx);
+		ctx->demux_ctx = NULL;
 	}
+
+	printf("AVC: I/B/P = %" PRIu64 "/%" PRIu64 "/%" PRIu64 ", %" PRIu64 " slices.\n",
+		ctx->count_frames_i, ctx->count_frames_b, ctx->count_frames_p,
+		ctx->count_frames_i + ctx->count_frames_b + ctx->count_frames_p);
 
 	free(ctx);
 
 	return 0;
 }
-
-
