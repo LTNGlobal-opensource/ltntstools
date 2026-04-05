@@ -994,7 +994,8 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 		/* Parse the first dozen or so bytes and dump to console */
 		_parse_AC3_Headers(ctx, pes);
 	} else
-	if (ctx->writeThumbnails) {
+	if (ctx->writeThumbnails || ctx->doH264NalThroughput || ctx->doH265NalThroughput)
+	{
 		/* No packet dumps during thumbnail creation, it's too chatty */
 	} else
 	{
