@@ -61,12 +61,14 @@ struct pid_s
 	struct xorg_list peslist;
 
 	/* Transport packets to be egressed */
-	uint8_t  *pkts;
-	uint32_t  pkts_count;
-	uint32_t  pkts_idx;
-	int64_t  *pkts_outputSTC;
-	uint8_t cc;
-	uint8_t ccRoller;
+	uint8_t  *pkts;             /* Array pf TS packets, that were packetized from PES to TS. */
+	uint32_t  pkts_count;       /* number of packets in the array. */
+	uint32_t  pkts_idx;         /* Index into the array. */
+	int64_t  *pkts_outputSTC;   /* Array. One tick value per TS packet in the array */
+
+	/* */
+	uint8_t   cc;
+	uint8_t   ccRoller;
 
 	struct timespec lastOutputPCR; /* STC ticks */
 	uint8_t pkt_scr[188];
@@ -146,6 +148,8 @@ void input_stream_free(struct input_stream_s *stream);
 int  input_stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
 int  input_stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
 struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr);
+void input_stream_pes_to_ts(struct input_stream_s *stream);
+void input_stream_pes_q_report(struct input_stream_s *is);
 
 struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type);
 void input_pid_free(struct pid_s *pid);

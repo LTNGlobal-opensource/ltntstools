@@ -24,6 +24,7 @@ int timesec_diff(struct timespec next_time, struct timespec last_time)
 
 void service(struct tool_ctx_s *ctx)
 {
+	struct output_stream_s *os = ctx->outputStream;
 	struct pid_s *outputPid = NULL;
 
 	/* Every 950ms print a PES queue size report */
@@ -35,22 +36,11 @@ void service(struct tool_ctx_s *ctx)
 
 		printf("%d.%06d: PES Queues/Size: ", (int)ts.tv_sec, (int)ts.tv_usec);
 		for (int i = 0; i <= ctx->inputNr; i++) {
-			struct input_stream_s *stream = ctx->streams[i];
-			for (int j = 0; j < stream->pidCount; j++) {
-				struct pid_s *pid = stream->pids[j];
-
-				pthread_mutex_lock(&pid->peslistlock);
-				printf("s%d.%04x %05" PRIu64 " ",
-					stream->nr, pid->outputPidNr,
-					pid->peslistcount);
-				pthread_mutex_unlock(&pid->peslistlock);
-
-			}
+			input_stream_pes_q_report(ctx->streams[i]);
 		}
 		printf("\n");
 	}
 
-	struct output_stream_s *os = ctx->outputStream;
 	/* Every 50ms generate new PAT/PMT service information */
 	if (timesec_diff(ctx->next_time, os->last_psip) > 50) {
 		/* Generate the PSIP multiple times a second, and schedule them for output. */
@@ -59,94 +49,13 @@ void service(struct tool_ctx_s *ctx)
 
 	/* Try to ensure we have TS packets available for all input streams, all pids.  */
 	for (int s = 0; s <= ctx->inputNr; s++) {
-		struct input_stream_s *stream = ctx->streams[s];
-		for (int p = 0; p < stream->pidCount; p++) {
-			struct pid_s *pid = stream->pids[p];
-
-			struct pes_item_s *item = NULL;
-
-			/* Cleanup previously used packet lists and related output clocks, free them. */
-			if (pid->pkts && pid->pkts_count && pid->pkts_idx >= pid->pkts_count) {
-				free(pid->pkts);
-				pid->pkts = NULL;
-				pid->pkts_count = 0;
-				pid->pkts_idx = 0;
-				free(pid->pkts_outputSTC);
-				pid->pkts_outputSTC = NULL;
-			}
-
-			/* If this pid doesn't have any packets queued.... convert the next pes into TS */
-			if (pid->pkts_count == 0) {
-				/* Get more ts packets */
-
-				pthread_mutex_lock(&pid->peslistlock);
-				struct pes_item_s *e = NULL, *next = NULL;
-				xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
-					if (e->outputSTC < output_get_computed_stc(ctx->outputStream)) {
-						item = e;
-						xorg_list_del(&e->list);
-						pid->peslistcount--;
-						break;
-					}
-				}
-				pthread_mutex_unlock(&pid->peslistlock);
-
-				if (!item) {
-					continue;
-				}
-
-				if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
-					item->pes->rawBufferLengthBytes,
-					&pid->pkts,
-					&pid->pkts_count,
-					188, &pid->cc, pid->outputPidNr,
-					-1) < 0)
-				{
-					printf("Err\n");
-				}
-
-				if (ctx->verbose) {
-					printf("Created %4d ts packets for pid 0x%04x\n", pid->pkts_count, pid->outputPidNr);
-				}
-				pid->pkts_idx = 0;
-
-				/* Now compute the fine grain packet scheduling from the first, TS packet onwards */
-				pid->pkts_outputSTC = calloc(sizeof(int64_t), pid->pkts_count);
-				for (unsigned int i = 0; i < pid->pkts_count; i++) {
-
-					int64_t ticks_per_ts = 0;
-
-					if (pid->type == PID_VIDEO) {
-						/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
-						double bitrate_mbps = 20.0 - 2; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
-						double bitrate_bps = bitrate_mbps * 1000000.0;
-						double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
-						double ticks_per_packet = packet_duration_sec * 27000000.0;
-						ticks_per_ts = ticks_per_packet;
-					} else
-					if (pid->type == PID_AUDIO) {
-						/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
-						//double bitrate_mbps = 1.0; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
-						//double bitrate_bps = bitrate_mbps * 1000000.0;
-						//double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
-						//double ticks_per_packet = packet_duration_sec * 27000000.0;
-						//ticks_per_ts = ticks_per_packet;
-					}
-
-					pid->pkts_outputSTC[i] = item->outputSTC + (i * ticks_per_ts);
-				}
-
-				ltn_pes_packet_free(item->pes);
-				free(item);
-			}
-		}
+		input_stream_pes_to_ts(ctx->streams[s]);
 	} /* For all input stream, ensure we have TS packets available. */
 
 	/* Each iteration through, we output a single packet. If we don't have a packet
-		* in the schedule to send, then a NULL packet goes out.
-		* "Only one ping Mr Borodin, one ping."
-		*/
-
+	 * in the schedule to send, then a NULL packet goes out.
+	 * "Only one ping Mr Borodin, one ping."
+	 */
 	uint8_t *pkt = NULL;
 
 	if (ctx->output_psip_idx > -1) {
