@@ -47,6 +47,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/bin/tstools_sei_latency_inspector
 /usr/local/bin/tstools_caption_analyzer
 /usr/local/bin/tstools_demux_inspector
+/usr/local/bin/tstools_switcher
 /usr/local/share/man/man8/tstools_pcapts.8
 /usr/local/share/man/man8/tstools_ffmpeg_metadata.8
 /usr/local/lib-ltntstools/libdvbpsi.so.10
@@ -69,6 +70,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_pes_inspector: dump h264 / h265 nal report on program termination
   tstools_pes_inspector: don't dump entire pes payload to console when running nal reports.
   tstools_demux_inspector: ongoing development improvements. Do not use.
+  tstools_switcher: New tool to switch between TS streams. Do not use.
   library: added helper function to allocate and dup entire pes objects
   library: added AC3 type detection to ltn_pes_packet_is_audio()
   library: Add h264 helper functions for slice types

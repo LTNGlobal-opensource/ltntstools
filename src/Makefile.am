@@ -126,6 +126,9 @@ SRC += source-rcts.c
 SRC += timecode.c
 SRC += source-pcap.c
 SRC += demux_inspector.c
+SRC += switcher.c
+SRC += switcher-input.c
+SRC += switcher-output.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
@@ -160,6 +163,7 @@ LINKBINS += tstools_sei_latency_inspector
 LINKBINS += tstools_caption_analyzer
 #LINKBINS += tstools_mpts
 LINKBINS += tstools_demux_inspector
+LINKBINS += tstools_switcher
 
 tstools_util_SOURCES = $(SRC)
 
