@@ -68,6 +68,9 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 - v1.40-dev
   tstools_pes_inspector: dump h264 / h265 nal report on program termination
   tstools_pes_inspector: don't dump entire pes payload to console when running nal reports.
+  library: added helper function to allocate and dup entire pes objects
+  library: added AC3 type detection to ltn_pes_packet_is_audio()
+  library: Add h264 helper functions for slice types
 
 * Fri Apr  3 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.39.7
