@@ -65,8 +65,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 #/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
-* Sun Apr  5 2026 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.40-dev
+* Mon Apr  6 2026 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.39.8
   tstools_pes_inspector: dump h264 / h265 nal report on program termination
   tstools_pes_inspector: don't dump entire pes payload to console when running nal reports.
   tstools_demux_inspector: ongoing development improvements. Do not use.
