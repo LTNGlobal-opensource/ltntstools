@@ -91,7 +91,7 @@ void output_generate_psip(struct output_stream_s *os)
 	/* Generate the PSIP multiple times a second, and schedule them for output. */
 	os->last_psip = ctx->next_time;
 
-	ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
+	ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIP from packet 0 */
 	ltntstools_pat_create_packet_ts(os->pat, os->psip_cc[0]++, &os->psip_pkt[0][0], 188);
 	ltntstools_pmt_create_packet_ts(&os->pat->programs[0].pmt, os->pat->programs[0].program_map_PID, os->psip_cc[1]++, &os->psip_pkt[1][0], 188);
 	ltntstools_pmt_create_packet_ts(&os->pat->programs[1].pmt, os->pat->programs[1].program_map_PID, os->psip_cc[2]++, &os->psip_pkt[2][0], 188);

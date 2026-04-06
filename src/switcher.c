@@ -50,7 +50,7 @@ void service(struct tool_ctx_s *ctx)
 	/* Try to ensure we have TS packets available for all input streams, all pids.  */
 	for (int s = 0; s <= ctx->inputNr; s++) {
 		input_stream_pes_to_ts(ctx->streams[s]);
-	} /* For all input stream, ensure we have TS packets available. */
+	}
 
 	/* Each iteration through, we output a single packet. If we don't have a packet
 	 * in the schedule to send, then a NULL packet goes out.
@@ -58,19 +58,20 @@ void service(struct tool_ctx_s *ctx)
 	 */
 	uint8_t *pkt = NULL;
 
+	/* If PSIP output is required, do that */
 	if (ctx->output_psip_idx > -1) {
 		/* Its time to output a PSIP packet, select one. */
 
-		pkt = &ctx->outputStream->psip_pkt[ ctx->output_psip_idx ][0];
+		pkt = &os->psip_pkt[ ctx->output_psip_idx ][0];
 
 		if (++ctx->output_psip_idx == 3) {
 			ctx->output_psip_idx = -1;
 		}
 
-	}
-	else {
+	} else {
 		/* Its time to output a regular stream packet, select one.
 		 * Using an input schedule forces pid interleaving.
+		 * Take a packet frominput PidA, then B, then C then D, etc, then A, B, C etc
 		 */
 		for (int i = 0; i < ctx->schedule_entries; i++) {
 			ctx->schedule_idx = (ctx->schedule_idx + 1) % ctx->schedule_entries;
@@ -116,6 +117,7 @@ void service(struct tool_ctx_s *ctx)
 		}
 	}
 
+	/* Time to output an actual packet, shine on! */
 	if (pkt) {
 		if (outputPid && outputPid->type == PID_VIDEO) {
 			/* All video pids need to be rolled because we inject PCR 
