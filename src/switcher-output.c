@@ -74,6 +74,23 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 		pat->programs[i].pmt.streams[1].elementary_PID = 0x32 + (0x100 * prog);
 		pat->programs[i].pmt.streams[1].stream_type    = 0x04;
 		//pat->programs[i].pmt.streams[1].stream_type    = 0x81; // AC3
+
+		unsigned char ga94[] = { 'G', 'A', '9', '4' };
+		unsigned char cuei[] = { 'C', 'U', 'E', 'I' };
+		unsigned char smoothing[] = { 0xc0, 0x00, 0x00, 0xc0, 0x00, 0x00 };
+		unsigned char ltn[] = { 0x01, 0x04, 0x07, 0x03 };
+		unsigned char das[] = { 0x01 };
+		unsigned char avc[] = { 0x64, 0x00, 0x29, 0x3f };
+
+		ltntstools_descriptor_list_add(&pat->programs[i].pmt.descr_list, 0x05, &ga94[0], sizeof(ga94));
+		ltntstools_descriptor_list_add(&pat->programs[i].pmt.descr_list, 0x10, &smoothing[0], sizeof(smoothing));
+		ltntstools_descriptor_list_add(&pat->programs[i].pmt.descr_list, 0x05, &cuei[0], sizeof(cuei));
+		ltntstools_descriptor_list_add(&pat->programs[i].pmt.descr_list, 0xa2, &ltn[0], sizeof(ltn));
+
+		ltntstools_descriptor_list_add(&pat->programs[i].pmt.streams[0].descr_list, 0x06, &das[0], sizeof(das));
+		ltntstools_descriptor_list_add(&pat->programs[i].pmt.streams[0].descr_list, 0x28, &avc[0], sizeof(avc));
+		ltntstools_descriptor_list_add(&pat->programs[i].pmt.streams[1].descr_list, 0x06, &das[0], sizeof(das));
+
 	}
 
 	return os;
