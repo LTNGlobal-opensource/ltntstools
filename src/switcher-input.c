@@ -37,6 +37,7 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 	struct pes_item_s *e = malloc(sizeof(*e));
 	if (e) {
 		e->pes = pes;
+		e->created = time(NULL);
 		e->arrivalSTC = output_get_computed_stc(stream->ctx); /* We got the pes at the current STC */
 
 		if (pid->type == PID_VIDEO) {
@@ -151,7 +152,7 @@ static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pk
 				remove(fn);
 			}
 		}
-		stream_write(stream, stream->pids[i], pkts, packetCount);
+		input_stream_write(stream, stream->pids[i], pkts, packetCount);
 	}
 
 	ltntstools_pid_stats_update(stream->libstats, pkts, packetCount);
@@ -175,7 +176,34 @@ static void *_avio_raw_callback_status(struct input_stream_s *stream, enum sourc
 	return NULL;
 }
 
-struct input_stream_s *stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr)
+void input_stream_prune_history(struct input_stream_s *is)
+{
+	/* Lock the pes list
+	 * remove anything older than 10 seconds.
+	 */
+	time_t expire = time(NULL) - 10;
+
+	int pruned = 0;
+
+	for (int i = 0; i < is->pidCount; i++) {
+		struct pid_s *pid = is->pids[i];
+
+		pthread_mutex_lock(&pid->peslistlock);
+		struct pes_item_s *e = NULL, *next = NULL;
+		xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
+			if (e->created < expire) {
+				xorg_list_del(&e->list);
+				ltn_pes_packet_free(e->pes);
+				pid->peslistcount--;
+				pruned++;
+			}
+		}
+		pthread_mutex_unlock(&pid->peslistlock);
+	}
+	// printf("Pruned[%d] %d\n", is->nr, pruned);
+}
+
+struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr)
 {
 	struct input_stream_s *stream = calloc(1, sizeof(*stream));
 	if (!stream) {
@@ -206,30 +234,30 @@ struct input_stream_s *stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr)
 	return stream;
 }
 
-int stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId)
+int input_stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId)
 {
-	struct pid_s *pid = pid_alloc(pidnr, streamId, outputPidNr, streamId == 0xe0 ? PID_VIDEO : PID_AUDIO);
+	struct pid_s *pid = input_pid_alloc(pidnr, streamId, outputPidNr, streamId == 0xe0 ? PID_VIDEO : PID_AUDIO);
 	pid->stream = stream;
 	stream->pids[ stream->pidCount++ ] = pid;
 	return 0; /* Success */
 }
 
-int stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount)
+int input_stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount)
 {
 	return ltntstools_pes_extractor_write(pid->pe, pkts, packetCount);
 }
 
-void stream_free(struct input_stream_s *stream)
+void input_stream_free(struct input_stream_s *stream)
 {
 	ltntstools_source_avio_free(stream->avio_ctx);
 	for (int i = 0; i < stream->pidCount; i++) {
-		pid_free(stream->pids[i]);
+		input_pid_free(stream->pids[i]);
 	}
 	free(stream->iname);
 	free(stream);
 }
 
-struct pid_s *pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type)
+struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type)
 {
 	struct pid_s *pid = calloc(1, sizeof(*pid));
 	if (!pid) {
@@ -262,11 +290,12 @@ struct pid_s *pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, 
 		fprintf(stderr, "\nUnable to allocate pes_extractor object.\n\n");
 		exit(1);
 	}
+
 	uint16_t pcrPid = 0;
 	switch(pidnr) {
 	case 0x31:
 	case 0x32:
-		pcrPid = 0x31;
+		pcrPid = 0x31; /* TODO: hardcoded */
 		break;
 	}
 	ltntstools_pes_extractor_set_pcr_pid(pid->pe, pcrPid);
@@ -281,7 +310,7 @@ struct pid_s *pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, 
 	return pid;
 }
 
-void pid_free(struct pid_s *pid)
+void input_pid_free(struct pid_s *pid)
 {
 	ltntstools_vbv_free(pid->vbv);
 	ltntstools_pes_extractor_free(pid->pe);

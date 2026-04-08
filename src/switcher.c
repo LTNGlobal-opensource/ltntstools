@@ -46,6 +46,12 @@ static void service(struct tool_ctx_s *ctx)
 	struct pid_s *outputPid = NULL;
 
 	if (timesec_diff(ctx->next_time, ctx->last_q_report) >= 950) {
+		for (int i = 0; i <= ctx->inputNr; i++) {
+			input_stream_prune_history(ctx->input_streams[i]);
+		}
+	}
+
+	if (timesec_diff(ctx->next_time, ctx->last_q_report) >= 950) {
 		ctx->last_q_report = ctx->next_time;
 
 		struct timeval ts;
@@ -296,14 +302,14 @@ int switcher_main(int argc, char *argv[])
 			break;
 		case 'i':
 			ctx->inputNr++;
-			ctx->input_streams[ctx->inputNr] = stream_alloc(ctx, optarg, ctx->inputNr);
+			ctx->input_streams[ctx->inputNr] = input_stream_alloc(ctx, optarg, ctx->inputNr);
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x:0x%x", &pid, &streamId) != 2) || (pid > 0x1fff)) {
 				usage(argv[0]);
 				exit(1);
 			}
-			stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid + (0x100 * (ctx->inputNr +1)), streamId);
+			input_stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid + (0x100 * (ctx->inputNr +1)), streamId);
 			break;
 		case 'v':
 			ctx->verbose++;
@@ -318,13 +324,12 @@ int switcher_main(int argc, char *argv[])
 		usage(argv[0]);
 		exit(1);
 	}
-	printf("inputNr: %d\n", ctx->inputNr);
-
+	printf("Number of Inputs: %d\n", ctx->inputNr + 1);
 
 	/* Setup the output schedule to give each stream time in the packet scheduler. */
 	ctx->schedule[0] = ctx->input_streams[0]->pids[0];
 	ctx->schedule[1] = ctx->input_streams[0]->pids[1];
-	//ctx->schedule[2] = ctx->streams[1]->pids[0];
+	//ctx->schedule[2] = ctx->streams[1]->pids[0]; /* Skip any outputs of strem #2 for now */
 	//ctx->schedule[3] = ctx->streams[1]->pids[1];
 
 	/* Build a pid output schedule. Each time we iterate a need to output a packet,
@@ -371,5 +376,10 @@ int switcher_main(int argc, char *argv[])
 		output_stream_free(ctx->outputStream);
 		ctx->outputStream = NULL;
 	}
+
+	for (int i = 0; i < ctx->inputNr; i++) {
+		input_stream_free(ctx->input_streams[i]);
+	}
+
 	return 0;
 }

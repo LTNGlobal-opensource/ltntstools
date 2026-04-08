@@ -12,9 +12,11 @@ int64_t output_get_computed_stc(struct tool_ctx_s *ctx)
 	return (((bitsTransmitted + additionalBits) / bps) * (double)27000000);
 }
 
-int output_write(struct output_stream_s *os, const uint8_t *pkt, int packetCount)
+int output_write(struct output_stream_s *os, const uint8_t *pkts, int packetCount)
 {
-	sendto(os->sockfd, pkt, packetCount * 188, 0, (struct sockaddr *)&os->addr, sizeof(os->addr));
+	ltntstools_pid_stats_update(os->libstats, pkts, packetCount);
+	avio_write(os->avio_ctx, pkts, packetCount * 188);
+
 	return packetCount;
 }
 
@@ -33,11 +35,15 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 	os->ctx = ctx;
 	os->reframer = ltntstools_reframer_alloc(os, 7 * 188, (ltntstools_reframer_callback)reframer_callback);
 
-	/* Setup UDP socket for output */
-    os->sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-	os->addr.sin_family = AF_INET;
-    os->addr.sin_port = htons(4001);
-    inet_pton(AF_INET, "227.1.131.201", &os->addr.sin_addr);
+	os->oname = strdup("udp://227.1.131.201:4001");
+
+	int ret = avio_open2(&os->avio_ctx, os->oname, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "-o syntax error\n");
+		exit(1);
+	}
+
+	ltntstools_pid_stats_alloc(&os->libstats);
 
 	double bitrate_bps = TARGET_BITRATE;
 	double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
@@ -52,6 +58,7 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 	pat->current_next_indicator = 1;
 	pat->program_count = 2;
 
+	/* construct a new PMT */
 	// for (int i = 0; i <= ctx->inputNr; i++) {
 	for (int i = 0; i < 1; i++) {
 		int prog = i + 1;
@@ -76,8 +83,29 @@ void output_stream_free(struct output_stream_s *os)
 {
 	//struct tool_ctx_s *ctx = os->ctx;
 
-	ltntstools_pat_free(os->pat);
+	if (os->pat) {
+		ltntstools_pat_free(os->pat);
+		os->pat = NULL;
+	}
 
-	ltntstools_reframer_free(os->reframer);
-	close(os->sockfd);
+	if (os->reframer) {
+		ltntstools_reframer_free(os->reframer);
+		os->reframer = NULL;
+	}
+
+	if (os->libstats) {
+		ltntstools_pid_stats_free(os->libstats);
+		os->libstats = NULL;
+	}
+
+	if (os->avio_ctx) {
+		avio_close(os->avio_ctx);
+		os->avio_ctx = NULL;
+	}
+
+	if (os->oname) {
+		free(os->oname);
+		os->oname = NULL;
+	}
+
 }
