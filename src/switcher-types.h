@@ -22,7 +22,7 @@ extern int g_running;
 
 #define MAX_INPUT_STREAMS        16
 #define MAX_STREAM_PIDS           2
-#define TARGET_BITRATE     30000000 // bps
+#define TARGET_BITRATE     20000000 // bps
 #define TS_PACKET_SIZE          188
 #define TS_PACKETS_PER_SEC (TARGET_BITRATE / (TS_PACKET_SIZE * 8))
 #define PACKET_INTERVAL_NS (1000000000 / TS_PACKETS_PER_SEC)
@@ -39,7 +39,6 @@ enum pid_type_t {
 };
 
 int64_t output_get_computed_stc(struct tool_ctx_s *ctx);
-
 
 struct pes_item_s
 {

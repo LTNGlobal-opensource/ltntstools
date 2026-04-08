@@ -58,6 +58,7 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 	pat->current_next_indicator = 1;
 	pat->program_count = 2;
 
+	int isAC3Output = 1;
 	/* construct a new PMT */
 	// for (int i = 0; i <= ctx->inputNr; i++) {
 	for (int i = 0; i < 1; i++) {
@@ -72,8 +73,11 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 		pat->programs[i].pmt.streams[0].elementary_PID = 0x31 + (0x100 * prog);
 		pat->programs[i].pmt.streams[0].stream_type    = 0x1b;
 		pat->programs[i].pmt.streams[1].elementary_PID = 0x32 + (0x100 * prog);
-		pat->programs[i].pmt.streams[1].stream_type    = 0x04;
-		//pat->programs[i].pmt.streams[1].stream_type    = 0x81; // AC3
+		if (isAC3Output) {
+			pat->programs[i].pmt.streams[1].stream_type    = 0x81; // AC3
+		} else {
+			pat->programs[i].pmt.streams[1].stream_type    = 0x04; // MP1L2
+		}
 
 		unsigned char ga94[] = { 'G', 'A', '9', '4' };
 		unsigned char cuei[] = { 'C', 'U', 'E', 'I' };
@@ -81,6 +85,7 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 		unsigned char ltn[] = { 0x01, 0x04, 0x07, 0x03 };
 		unsigned char das[] = { 0x01 };
 		unsigned char avc[] = { 0x64, 0x00, 0x29, 0x3f };
+		unsigned char ac3[] = { 'A', 'C', '-', '3' };
 
 		ltntstools_descriptor_list_add(&pat->programs[i].pmt.descr_list, 0x05, &ga94[0], sizeof(ga94));
 		ltntstools_descriptor_list_add(&pat->programs[i].pmt.descr_list, 0x10, &smoothing[0], sizeof(smoothing));
@@ -90,7 +95,10 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 		ltntstools_descriptor_list_add(&pat->programs[i].pmt.streams[0].descr_list, 0x06, &das[0], sizeof(das));
 		ltntstools_descriptor_list_add(&pat->programs[i].pmt.streams[0].descr_list, 0x28, &avc[0], sizeof(avc));
 		ltntstools_descriptor_list_add(&pat->programs[i].pmt.streams[1].descr_list, 0x06, &das[0], sizeof(das));
-
+		if (isAC3Output) {
+			ltntstools_descriptor_list_add(&pat->programs[i].pmt.streams[1].descr_list, 0x05, &ac3[0], sizeof(ac3));
+		}
+		
 	}
 
 	return os;
