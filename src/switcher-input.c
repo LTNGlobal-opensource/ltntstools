@@ -20,32 +20,30 @@ static void *vbv_notifications(void *userContext, enum ltntstools_vbv_event_e ev
 	return NULL;
 }
 
-static void *input_pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
+static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 {
-	struct input_stream_s *is = pid->stream;
-	struct output_stream_s *os = pid->stream->ctx->outputStream;
-
-	if (is->ctx->verbose) {
+	struct input_stream_s *stream = pid->stream;
+	if (stream->ctx->verbose) {
 		printf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 "\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr);
 	}
-	if (pid->pidNr == 0x32) {
+	if (pid->pid == 0x32) {
 		//ltntstools_hexdump(pes->rawBuffer, 188, 32);
 	}
-
+#if 0
 	if (pid->vbv && pid->type == PID_VIDEO && ltntstools_vbv_write(pid->vbv, (const struct ltn_pes_packet_s *)pes) < 0) {
 		fprintf(stderr, "Error writing PES to VBV\n");
 	}
-
+#endif
 	struct pes_item_s *e = malloc(sizeof(*e));
 	if (e) {
 		e->pes = pes;
-		e->arrivalSTC = output_get_computed_stc(os); /* We got the pes at the current STC */
+		e->arrivalSTC = output_get_computed_stc(stream->ctx); /* We got the pes at the current STC */
 
 		if (pid->type == PID_VIDEO) {
-			e->outputSTC = output_get_computed_stc(os) + (27000 * 200); /* We'll schedule for output in 200ms */
+			e->outputSTC = output_get_computed_stc(stream->ctx) + (27000 * 200); /* We'll schedule for output in 200ms */
 		} else 
 		if (pid->type == PID_AUDIO) {
-			e->outputSTC = 0; // get_computed_stc(os);
+			e->outputSTC = 0; // get_computed_stc(stream->ctx);
 		}
 
 		pthread_mutex_lock(&pid->peslistlock);
@@ -57,21 +55,188 @@ static void *input_pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 		ltn_pes_packet_free(pes);
 	}
 
-	if (is->ctx->verbose) {
-		printf("PES Extractor callback %d:%s pid 0x%04x 0x%08" PRIx64 " pes's\n", is->nr, is->iname, pid->pidNr, pid->peslistcount);
+	if (stream->ctx->verbose) {
+		printf("PES Extractor callback %d:%s pid 0x%04x 0x%08" PRIx64 " pes's\n", stream->nr, stream->iname, pid->pid, pid->peslistcount);
 	}
 
 	return NULL;
 }
 
-struct pid_s *input_pid_alloc(uint16_t pidNr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type)
+
+static void *notification_callback(struct input_stream_s *stream, enum ltntstools_notification_event_e event,
+	const struct ltntstools_stream_statistics_s *stats,
+	const struct ltntstools_pid_statistics_s *pid)
+{
+	struct timeval ts;
+	gettimeofday(&ts, NULL);
+
+#if 0
+	printf("%d.%06d: %s stream %p pid %p\n", (int)ts.tv_sec, (int)ts.tv_usec,
+		ltntstools_notification_event_name(event),
+		stats, pid);
+#endif
+
+	if (event == EVENT_UPDATE_STREAM_CC_COUNT) {
+		printf("%d.%06d: %-40s stream %p nr %d %" PRIu64 " cc errors\n",
+			(int)ts.tv_sec,
+			(int)ts.tv_usec,
+			ltntstools_notification_event_name(event),
+			stats,
+			stream->nr,
+			ltntstools_pid_stats_stream_get_cc_errors((struct ltntstools_stream_statistics_s *)stats));
+	} else
+	if (0 && event == EVENT_UPDATE_STREAM_MBPS) {
+		printf("%d.%06d: %-40s stream %p nr %d %5.2f mbps\n", (int)ts.tv_sec, (int)ts.tv_usec,
+			ltntstools_notification_event_name(event),
+			stats,
+			stream->nr,
+			ltntstools_pid_stats_stream_get_mbps((struct ltntstools_stream_statistics_s *)stats));
+	} else
+	if (event == EVENT_UPDATE_STREAM_IAT_HWM) {
+		printf("%d.%06d: %-40s stream %p nr %d %" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
+			ltntstools_notification_event_name(event),
+			stats,
+			stream->nr,
+			ltntstools_pid_stats_stream_get_iat_hwm_us((struct ltntstools_stream_statistics_s *)stats) / 1000);
+	} else
+	if (0 && event == EVENT_UPDATE_PID_PUSI_DELIVERY_TIME) {
+
+		/* Find the pid from the stats in our stream struct */
+		int64_t ms = pid->pusi_time_ms;
+		struct pid_s *opid = NULL;
+		for (int i = 0; i < stream->pidCount; i++) {
+			//printf("pid->pidNr 0x%04x finding.... %04x\n", pid->pidNr, stream->pids[i]->pid);
+			if (stream->pids[i]->pid == pid->pidNr) {
+				opid = stream->pids[i];
+				break;
+			}
+		}
+
+		/* opid can be null if this app is given a pid for which we're not tracking (such as a second audio channel. */
+		if (opid && opid->type == PID_VIDEO) {
+			printf("%d.%06d: %-40s stream %p ipid %p/0x%04x opid %p/0x%04x/0x%04x % 6" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
+				ltntstools_notification_event_name(event),
+				stats,
+				pid, pid->pidNr,
+				opid, opid->pid, opid->outputPidNr,
+				ms);
+		} else {
+#if 0
+			printf("%d.%06d: %s stream %p ipid %p/0x%04x: opid %p %+6" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
+				ltntstools_notification_event_name(event),
+				stats,
+				pid, pid->pidNr,
+				opid,
+				ms);
+#endif
+		}
+	}
+	return NULL;	
+}
+
+
+static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pkts, int packetCount)
+{
+	//printf("AVIO data: %s nr %d %d packets\n", stream->iname, stream->nr, packetCount);
+
+	for (int i = 0; i < stream->pidCount; i++) {
+		if (i == 0) {
+			struct stat s;
+			char fn[64];
+			sprintf(fn, "/tmp/stream%d.drop", stream->nr);
+			if (stat(fn, &s) == 0) {
+				/* Trash the cc in the first packet */
+				unsigned char *p =(unsigned char *)pkts;
+				*(p + 3) = 0x30;
+				remove(fn);
+			}
+		}
+		stream_write(stream, stream->pids[i], pkts, packetCount);
+	}
+
+	ltntstools_pid_stats_update(stream->libstats, pkts, packetCount);
+
+	return NULL;
+}
+
+static void *_avio_raw_callback_status(struct input_stream_s *stream, enum source_avio_status_e status)
+{
+	switch (status) {
+	case AVIO_STATUS_MEDIA_START:
+		printf("AVIO media starts: %s\n", stream->iname);
+		break;
+	case AVIO_STATUS_MEDIA_END:
+		printf("AVIO media ends: %s\n", stream->iname);
+		g_running = 0;
+		break;
+	default:
+		fprintf(stderr, "unsupported avio state %d\n", status);
+	}
+	return NULL;
+}
+
+struct input_stream_s *stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr)
+{
+	struct input_stream_s *stream = calloc(1, sizeof(*stream));
+	if (!stream) {
+		return NULL;
+	}
+
+	stream->nr = nr;
+	stream->ctx = ctx;
+	stream->pidCount = 0;
+	stream->iname = strdup(iname);
+
+	/* We use this specifically for tracking PCR walltime drift */
+	ltntstools_pid_stats_alloc(&stream->libstats);
+	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_STREAM_MBPS, stream, (ltntstools_notification_callback)notification_callback);
+	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_STREAM_IAT_HWM, stream, (ltntstools_notification_callback)notification_callback);
+	ltntstools_pid_stats_pid_set_contains_pcr(stream->libstats, 0x31); /* TODO: Fixed */
+	
+	stream->cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
+	stream->cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
+
+	int ret = ltntstools_source_avio_alloc(&stream->avio_ctx, stream, &stream->cbs, stream->iname);
+	if (ret < 0) {
+		fprintf(stderr, "-i syntax error\n");
+		free(stream);
+		return NULL;
+	}
+
+	return stream;
+}
+
+int stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId)
+{
+	struct pid_s *pid = pid_alloc(pidnr, streamId, outputPidNr, streamId == 0xe0 ? PID_VIDEO : PID_AUDIO);
+	pid->stream = stream;
+	stream->pids[ stream->pidCount++ ] = pid;
+	return 0; /* Success */
+}
+
+int stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount)
+{
+	return ltntstools_pes_extractor_write(pid->pe, pkts, packetCount);
+}
+
+void stream_free(struct input_stream_s *stream)
+{
+	ltntstools_source_avio_free(stream->avio_ctx);
+	for (int i = 0; i < stream->pidCount; i++) {
+		pid_free(stream->pids[i]);
+	}
+	free(stream->iname);
+	free(stream);
+}
+
+struct pid_s *pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type)
 {
 	struct pid_s *pid = calloc(1, sizeof(*pid));
 	if (!pid) {
 		return NULL;
 	}
 
-	pid->pidNr = pidNr;
+	pid->pid = pidnr;
 	pid->outputPidNr = outputPidNr;
 	pid->streamId = streamId;
 	pid->type = type;
@@ -91,14 +256,14 @@ struct pid_s *input_pid_alloc(uint16_t pidNr, uint8_t streamId, uint16_t outputP
 		exit(0);
 	}
 
-	if (ltntstools_pes_extractor_alloc(&pid->pe, pid->pidNr, pid->streamId, (pes_extractor_callback)input_pe_callback,
+	if (ltntstools_pes_extractor_alloc(&pid->pe, pid->pid, pid->streamId, (pes_extractor_callback)pe_callback,
 		pid, (1024 * 1024), (2 * 1024 * 1024)) < 0)
 	{
 		fprintf(stderr, "\nUnable to allocate pes_extractor object.\n\n");
 		exit(1);
 	}
 	uint16_t pcrPid = 0;
-	switch(pidNr) {
+	switch(pidnr) {
 	case 0x31:
 	case 0x32:
 		pcrPid = 0x31;
@@ -116,7 +281,7 @@ struct pid_s *input_pid_alloc(uint16_t pidNr, uint8_t streamId, uint16_t outputP
 	return pid;
 }
 
-void input_pid_free(struct pid_s *pid)
+void pid_free(struct pid_s *pid)
 {
 	ltntstools_vbv_free(pid->vbv);
 	ltntstools_pes_extractor_free(pid->pe);
@@ -135,277 +300,4 @@ void input_pid_free(struct pid_s *pid)
 	pthread_mutex_unlock(&pid->peslistlock);
 
 	free(pid);
-}
-
-
-static void *_avio_raw_callback(struct input_stream_s *is, const uint8_t *pkts, int packetCount)
-{
-	//printf("AVIO data: %s nr %d %d packets\n", is->iname, is->nr, packetCount);
-
-	for (int i = 0; i < is->pidCount; i++) {
-		if (i == 0) {
-			struct stat s;
-			char fn[64];
-			sprintf(fn, "/tmp/stream%d.drop", is->nr);
-			if (stat(fn, &s) == 0) {
-				/* Trash the cc in the first packet */
-				unsigned char *p =(unsigned char *)pkts;
-				*(p + 3) = 0x30;
-				remove(fn);
-			}
-		}
-		input_stream_write(is, is->pids[i], pkts, packetCount);
-	}
-
-	ltntstools_pid_stats_update(is->libstats, pkts, packetCount);
-
-	return NULL;
-}
-
-static void *_avio_raw_callback_status(struct input_stream_s *is, enum source_avio_status_e status)
-{
-	switch (status) {
-	case AVIO_STATUS_MEDIA_START:
-		printf("AVIO media starts: %s\n", is->iname);
-		break;
-	case AVIO_STATUS_MEDIA_END:
-		printf("AVIO media ends: %s\n", is->iname);
-		g_running = 0;
-		break;
-	default:
-		fprintf(stderr, "unsupported avio state %d\n", status);
-	}
-	return NULL;
-}
-
-static void *input_notification_callback(struct input_stream_s *is, enum ltntstools_notification_event_e event,
-	const struct ltntstools_stream_statistics_s *stats,
-	const struct ltntstools_pid_statistics_s *pid)
-{
-	struct timeval ts;
-	gettimeofday(&ts, NULL);
-
-#if 0
-	printf("%d.%06d: %s stream %p pid %p\n", (int)ts.tv_sec, (int)ts.tv_usec,
-		ltntstools_notification_event_name(event),
-		stats, pid);
-#endif
-
-	if (event == EVENT_UPDATE_STREAM_CC_COUNT) {
-		printf("%d.%06d: %-40s stream %p nr %d %" PRIu64 " cc errors\n",
-			(int)ts.tv_sec,
-			(int)ts.tv_usec,
-			ltntstools_notification_event_name(event),
-			stats,
-			is->nr,
-			ltntstools_pid_stats_stream_get_cc_errors((struct ltntstools_stream_statistics_s *)stats));
-	} else
-	if (0 && event == EVENT_UPDATE_STREAM_MBPS) {
-		printf("%d.%06d: %-40s stream %p nr %d %5.2f mbps\n", (int)ts.tv_sec, (int)ts.tv_usec,
-			ltntstools_notification_event_name(event),
-			stats,
-			is->nr,
-			ltntstools_pid_stats_stream_get_mbps((struct ltntstools_stream_statistics_s *)stats));
-	} else
-	if (event == EVENT_UPDATE_STREAM_IAT_HWM) {
-		printf("%d.%06d: %-40s stream %p nr %d %" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
-			ltntstools_notification_event_name(event),
-			stats,
-			is->nr,
-			ltntstools_pid_stats_stream_get_iat_hwm_us((struct ltntstools_stream_statistics_s *)stats) / 1000);
-	} else
-	if (0 && event == EVENT_UPDATE_PID_PUSI_DELIVERY_TIME) {
-
-		/* Find the pid from the stats in our stream struct */
-		int64_t ms = pid->pusi_time_ms;
-		struct pid_s *opid = NULL;
-		for (int i = 0; i < is->pidCount; i++) {
-			//printf("pid->pidNr 0x%04x finding.... %04x\n", pid->pidNr, stream->pids[i]->pid);
-			if (is->pids[i]->pidNr == pid->pidNr) {
-				opid = is->pids[i];
-				break;
-			}
-		}
-
-		/* opid can be null if this app is given a pid for which we're not tracking (such as a second audio channel. */
-		if (opid && opid->type == PID_VIDEO) {
-			printf("%d.%06d: %-40s stream %p ipid %p/0x%04x opid %p/0x%04x/0x%04x % 6" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
-				ltntstools_notification_event_name(event),
-				stats,
-				pid, pid->pidNr,
-				opid, opid->pidNr, opid->outputPidNr,
-				ms);
-		} else {
-#if 0
-			printf("%d.%06d: %s stream %p ipid %p/0x%04x: opid %p %+6" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
-				ltntstools_notification_event_name(event),
-				stats,
-				pid, pid->pidNr,
-				opid,
-				ms);
-#endif
-		}
-	}
-	return NULL;	
-}
-
-struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr)
-{
-	struct input_stream_s *is = calloc(1, sizeof(*is));
-	if (!is) {
-		return NULL;
-	}
-
-	is->nr = nr;
-	is->ctx = ctx;
-	is->pidCount = 0;
-	is->iname = strdup(iname);
-
-	/* We use this specifically for tracking PCR walltime drift */
-	ltntstools_pid_stats_alloc(&is->libstats);
-	ltntstools_notification_register_callback(is->libstats, EVENT_UPDATE_STREAM_MBPS, is, (ltntstools_notification_callback)input_notification_callback);
-	ltntstools_notification_register_callback(is->libstats, EVENT_UPDATE_STREAM_IAT_HWM, is, (ltntstools_notification_callback)input_notification_callback);
-	ltntstools_pid_stats_pid_set_contains_pcr(is->libstats, 0x31); /* TODO: Fixed */
-	
-	is->cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
-	is->cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;
-
-	int ret = ltntstools_source_avio_alloc(&is->avio_ctx, is, &is->cbs, is->iname);
-	if (ret < 0) {
-		fprintf(stderr, "-i syntax error\n");
-		free(is);
-		return NULL;
-	}
-
-	return is;
-}
-
-int input_stream_add_pid(struct input_stream_s *is, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId)
-{
-	struct pid_s *pid = input_pid_alloc(pidnr, streamId, outputPidNr, streamId == 0xe0 ? PID_VIDEO : PID_AUDIO);
-	pid->stream = is;
-	is->pids[ is->pidCount++ ] = pid;
-
-	return 0; /* Success */
-}
-
-int input_stream_write(struct input_stream_s *is, struct pid_s *pid, const uint8_t *pkts, int packetCount)
-{
-	return ltntstools_pes_extractor_write(pid->pe, pkts, packetCount);
-}
-
-void input_stream_free(struct input_stream_s *is)
-{
-	ltntstools_source_avio_free(is->avio_ctx);
-	for (int i = 0; i < is->pidCount; i++) {
-		input_pid_free(is->pids[i]);
-	}
-	free(is->iname);
-	free(is);
-}
-
-void input_stream_pes_to_ts(struct input_stream_s *stream)
-{
-	struct tool_ctx_s *ctx = stream->ctx;
-	struct output_stream_s *os = ctx->outputStream;
-
-	for (int p = 0; p < stream->pidCount; p++) {
-		struct pid_s *pid = stream->pids[p];
-
-		struct pes_item_s *item = NULL;
-
-		/* Cleanup previously used packet lists and related output clocks, free them. */
-		if (pid->pkts && pid->pkts_count && pid->pkts_idx >= pid->pkts_count) {
-			free(pid->pkts);
-			pid->pkts = NULL;
-			pid->pkts_count = 0;
-			pid->pkts_idx = 0;
-			free(pid->pkts_outputSTC);
-			pid->pkts_outputSTC = NULL;
-		}
-
-		/* If this pid doesn't have any packets queued.... get one PES frames from
-			* the current PID and convert them to TS packets.
-			*/
-		if (pid->pkts_count == 0) {
-			/* Get more ts packets */
-
-			pthread_mutex_lock(&pid->peslistlock);
-			struct pes_item_s *e = NULL, *next = NULL;
-			xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
-				if (e->outputSTC < output_get_computed_stc(os)) {
-					item = e;
-					xorg_list_del(&e->list);
-					pid->peslistcount--;
-					break;
-				}
-			}
-			pthread_mutex_unlock(&pid->peslistlock);
-
-			if (!item) {
-				continue;
-			}
-
-			/* Convert a full PES frame including existing timing back into
-				* ts packets, add a PCR.
-				*/
-			if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
-				item->pes->rawBufferLengthBytes,
-				&pid->pkts,
-				&pid->pkts_count,
-				188, &pid->cc, pid->outputPidNr,
-				-1) < 0)
-			{
-				printf("Err\n");
-			}
-
-			if (ctx->verbose) {
-				printf("Created %4d ts packets for pid 0x%04x\n", pid->pkts_count, pid->outputPidNr);
-			}
-			pid->pkts_idx = 0;
-
-			/* Now compute the fine grain packet scheduling from the first, TS packet onwards */
-			pid->pkts_outputSTC = calloc(sizeof(int64_t), pid->pkts_count);
-			for (unsigned int i = 0; i < pid->pkts_count; i++) {
-
-				int64_t ticks_per_ts = 0;
-
-				if (pid->type == PID_VIDEO) {
-					/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
-					double bitrate_mbps = 20.0 - 2; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
-					double bitrate_bps = bitrate_mbps * 1000000.0;
-					double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
-					double ticks_per_packet = packet_duration_sec * 27000000.0;
-					ticks_per_ts = ticks_per_packet;
-				} else
-				if (pid->type == PID_AUDIO) {
-					/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
-					//double bitrate_mbps = 1.0; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
-					//double bitrate_bps = bitrate_mbps * 1000000.0;
-					//double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
-					//double ticks_per_packet = packet_duration_sec * 27000000.0;
-					//ticks_per_ts = ticks_per_packet;
-				}
-
-				pid->pkts_outputSTC[i] = item->outputSTC + (i * ticks_per_ts);
-			}
-
-			ltn_pes_packet_free(item->pes);
-			free(item);
-		}
-	}
-}
-
-void input_stream_pes_q_report(struct input_stream_s *is)
-{
-	for (int j = 0; j < is->pidCount; j++) {
-		struct pid_s *pid = is->pids[j];
-
-		pthread_mutex_lock(&pid->peslistlock);
-		printf("s%d.%04x %05" PRIu64 " ",
-			is->nr, pid->outputPidNr,
-			pid->peslistcount);
-		pthread_mutex_unlock(&pid->peslistlock);
-
-	}
 }

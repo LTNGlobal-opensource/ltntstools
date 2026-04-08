@@ -18,9 +18,11 @@
 #include "source-avio.h"
 #include "xorg-list.h"
 
+extern int g_running;
+
 #define MAX_INPUT_STREAMS        16
 #define MAX_STREAM_PIDS           2
-#define TARGET_BITRATE     40000000 // bps
+#define TARGET_BITRATE     30000000 // bps
 #define TS_PACKET_SIZE          188
 #define TS_PACKETS_PER_SEC (TARGET_BITRATE / (TS_PACKET_SIZE * 8))
 #define PACKET_INTERVAL_NS (1000000000 / TS_PACKETS_PER_SEC)
@@ -30,13 +32,20 @@ struct pid_s;
 struct stream_s;
 struct tool_ctx_s;
 
-extern int g_running;
-
 enum pid_type_t {
 	PID_UNDEFINED,
 	PID_VIDEO,
 	PID_AUDIO
 };
+
+struct input_stream_s *stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr);
+int stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
+int stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
+void stream_free(struct input_stream_s *stream);
+struct pid_s *pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type);
+void pid_free(struct pid_s *pid);
+int64_t output_get_computed_stc(struct tool_ctx_s *ctx);
+
 
 struct pes_item_s
 {
@@ -48,27 +57,25 @@ struct pes_item_s
 
 struct pid_s
 {
-	struct input_stream_s *stream;	/* A single stream has many pids. Each pids needs to have ES extracted. */
+	struct input_stream_s *stream;
 	enum pid_type_t type;
 
-	uint16_t pidNr;
-	uint16_t outputPidNr;		/* Output Pid number we'll generate */
+	uint16_t pid;
+	uint16_t outputPidNr;
 	uint8_t streamId;
-	void *pe;					/* PES Extractor per pid. Stack is called back with PEs's extracted from each input*/
+	void *pe;
 
 	pthread_mutex_t peslistlock;
 	uint64_t peslistcount;
 	struct xorg_list peslist;
 
 	/* Transport packets to be egressed */
-	uint8_t  *pkts;             /* Array pf TS packets, that were packetized from PES to TS. */
-	uint32_t  pkts_count;       /* number of packets in the array. */
-	uint32_t  pkts_idx;         /* Index into the array. */
-	int64_t  *pkts_outputSTC;   /* Array. One tick value per TS packet in the array */
-
-	/* */
-	uint8_t   cc;
-	uint8_t   ccRoller;
+	uint8_t  *pkts;
+	uint32_t  pkts_count;
+	uint32_t  pkts_idx;
+	int64_t  *pkts_outputSTC;
+	uint8_t cc;
+	uint8_t ccRoller;
 
 	struct timespec lastOutputPCR; /* STC ticks */
 	uint8_t pkt_scr[188];
@@ -96,26 +103,14 @@ struct input_stream_s
 struct output_stream_s
 {
 	struct tool_ctx_s *ctx;
-	char *oname;
-
-	int64_t ticks_per_outputts27MHz;
-	
 	struct ltntstools_reframer_ctx_s *reframer;
+
 	struct sockaddr_in addr;
 	int sockfd;
-	int64_t ts_packets_sent;
+
+	int64_t ticks_per_outputts27MHz;
 
 	struct ltntstools_pat_s *pat;
-
-	uint8_t psip_cc[3];
-	uint8_t psip_pkt[3][188];
-	struct timespec last_psip;
-
-//	void *avio_ctx;
-	//struct ltntstools_stream_statistics_s *libstats;
-
-	int pidCount;
-	struct pid_s *pids[MAX_STREAM_PIDS];
 };
 
 struct tool_ctx_s
@@ -126,12 +121,19 @@ struct tool_ctx_s
 	uint8_t null_pkt[188];
 	int64_t null_pkt_outputSTC;
 
+	uint8_t psip_cc[3];
+	uint8_t psip_pkt[3][188];
+
+	int64_t ts_packets_sent;
+
 	struct timespec next_time;
+	struct timespec last_psip;
 	struct timespec last_q_report;
 	int output_psip_idx;
 
 	/* Streams */
-	struct input_stream_s *streams[MAX_INPUT_STREAMS];
+	struct input_stream_s *input_streams[MAX_INPUT_STREAMS];
+
 	struct output_stream_s *outputStream;
 
 	/* Stream scheduling */
@@ -141,23 +143,7 @@ struct tool_ctx_s
 
 };
 
-/* switcher-core.c */
 
-/* switcher-input.c */
-void input_stream_free(struct input_stream_s *stream);
-int  input_stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
-int  input_stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
-struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr);
-void input_stream_pes_to_ts(struct input_stream_s *stream);
-void input_stream_pes_q_report(struct input_stream_s *is);
-
-struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type);
-void input_pid_free(struct pid_s *pid);
-
-/* switcher-output.c */
-int     output_alloc(struct tool_ctx_s *ctx, struct output_stream_s **outputStream);
-void    output_free(struct output_stream_s *outputStream);
-void   *output_reframer_callback(struct output_stream_s *os, const uint8_t *buf, int lengthBytes);
-int     output_write(struct output_stream_s *outputStream, uint8_t *pkt, int packetCount);
-int64_t output_get_computed_stc(struct output_stream_s *os);
-void    output_generate_psip(struct output_stream_s *os);
+struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
+void output_stream_free(struct output_stream_s *os);
+int output_write(struct output_stream_s *os, const uint8_t *pkt, int packetCount);
