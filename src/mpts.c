@@ -616,6 +616,7 @@ void service(struct tool_ctx_s *ctx)
 
 				int64_t pcr;
 				ltntstools_bitrate_calculator_query_stc(pid->stream->libstats, &pcr);
+				pcr -= (27000 * 800); /* The PCR we're going to output is 800ms in the past. This keeps the PTS always ahead of it. */
 				ltntstools_generatePCROnlyPacket(&pid->pkt_scr[0], sizeof(pid->pkt_scr), pid->outputPidNr, &pid->cc, pcr);
 
 				pkt = &pid->pkt_scr[0];
