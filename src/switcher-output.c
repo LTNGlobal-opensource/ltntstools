@@ -52,7 +52,8 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 	pat->current_next_indicator = 1;
 	pat->program_count = 2;
 
-	for (int i = 0; i <= ctx->inputNr; i++) {
+	// for (int i = 0; i <= ctx->inputNr; i++) {
+	for (int i = 0; i < 1; i++) {
 		int prog = i + 1;
 		pat->programs[i].program_number = prog;
 		pat->programs[i].program_map_PID = 0x100 * prog;
@@ -65,7 +66,7 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 		pat->programs[i].pmt.streams[0].stream_type    = 0x1b;
 		pat->programs[i].pmt.streams[1].elementary_PID = 0x32 + (0x100 * prog);
 		pat->programs[i].pmt.streams[1].stream_type    = 0x04;
-		pat->programs[i].pmt.streams[1].stream_type    = 0x81; // AC3
+		//pat->programs[i].pmt.streams[1].stream_type    = 0x81; // AC3
 	}
 
 	return os;
