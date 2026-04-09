@@ -104,6 +104,10 @@ struct output_stream_s
 	AVIOContext *avio_ctx;
 
 	int64_t ticks_per_outputts27MHz;
+	int64_t ts_packets_sent;
+
+	uint8_t null_pkt[188];
+	int64_t null_pkt_outputSTC;
 
 	struct ltntstools_pat_s *pat;
 
@@ -115,13 +119,8 @@ struct tool_ctx_s
 	int verbose;
 	int inputNr;
 
-	uint8_t null_pkt[188];
-	int64_t null_pkt_outputSTC;
-
 	uint8_t psip_cc[3];
 	uint8_t psip_pkt[3][188];
-
-	int64_t ts_packets_sent;
 
 	struct timespec next_time;
 	struct timespec last_psip;

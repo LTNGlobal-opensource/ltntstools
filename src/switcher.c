@@ -228,9 +228,9 @@ static void service(struct tool_ctx_s *ctx)
 
 	if (!pkt) {
 		/* Hmm, not time for PSIP or audio/video. Could be null packet time. */
-		if (ctx->null_pkt_outputSTC < output_get_computed_stc(os)) {
-			pkt = &ctx->null_pkt[0];
-			ctx->null_pkt_outputSTC += ctx->outputStream->ticks_per_outputts27MHz;
+		if (os->null_pkt_outputSTC < output_get_computed_stc(os)) {
+			pkt = &os->null_pkt[0];
+			os->null_pkt_outputSTC += os->ticks_per_outputts27MHz;
 		}
 	}
 
@@ -254,7 +254,7 @@ static void service(struct tool_ctx_s *ctx)
 
 		/* Send a single PKT to the reframer */
 		ltststools_reframer_write(ctx->outputStream->reframer, pkt, 188);
-		ctx->ts_packets_sent++;
+		os->ts_packets_sent++;
 	}
 }
 
@@ -285,8 +285,8 @@ int switcher_main(int argc, char *argv[])
 	ctx->schedule_entries = 2;
 
 	ctx->outputStream = output_stream_alloc(ctx);
-	ctx->null_pkt_outputSTC = output_get_computed_stc(ctx->outputStream);
-	ltntstools_generateNullPacket(&ctx->null_pkt[0]);
+	ctx->outputStream->null_pkt_outputSTC = output_get_computed_stc(ctx->outputStream);
+	ltntstools_generateNullPacket(&ctx->outputStream->null_pkt[0]);
 
 	int ch;
 
