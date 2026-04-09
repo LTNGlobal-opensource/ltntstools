@@ -21,9 +21,33 @@
 #include "switcher-types.h"
 
 int g_running = 1;
-static void signal_handler(int signum)
+struct tool_ctx_s g_ctx;
+
+static void signal_handler(int signr)
 {
-	g_running = 0;
+	struct tool_ctx_s *ctx = &g_ctx;
+
+	switch(signr) {
+	case SIGINT:
+		g_running = 0;
+		break;
+	case SIGUSR1:
+		tprintf("SIGUSR1\n");
+		break;
+	case SIGUSR2:
+		tprintf("SIGUSR2\n");
+		for (int i = 0; i <= ctx->inputNr; i++) {
+			double mbps = ltntstools_pid_stats_stream_get_mbps(ctx->input_streams[i]->libstats);
+			uint64_t cc = ltntstools_pid_stats_stream_get_cc_errors(ctx->input_streams[i]->libstats);
+			tprintf("input  stream[%d] %5.2f mbps, %" PRIu64 " CC errors\n", ctx->input_streams[i]->nr, mbps, cc);
+		}
+		double mbps = ltntstools_pid_stats_stream_get_mbps(ctx->outputStream->libstats);
+		uint64_t cc = ltntstools_pid_stats_stream_get_cc_errors(ctx->outputStream->libstats);
+		tprintf("output stream[0] %5.2f mbps, %" PRIu64 " CC errors\n", mbps, cc);
+		break;
+	default:
+		printf("signr %d\n", signr);
+	}
 }
 
 void tprintf(const char *fmt, ...)
@@ -291,9 +315,9 @@ static void usage(const char *progname)
 
 int switcher_main(int argc, char *argv[])
 {
-	struct tool_ctx_s myctx, *ctx;
-	ctx = &myctx;
+	struct tool_ctx_s *ctx = &g_ctx;
 	memset(ctx, 0, sizeof(*ctx));
+
 	ctx->inputNr = -1;
 	ctx->output_psip_idx = -1;
 	ctx->schedule_entries = 2;
@@ -349,8 +373,10 @@ int switcher_main(int argc, char *argv[])
 	/* Build a pid output schedule. Each time we iterate a need to output a packet,
 	 * we process the threads in this order.
 	 */
-	signal(SIGINT, signal_handler);
+	signal(SIGINT,  signal_handler);
 	signal(SIGTERM, signal_handler);
+	signal(SIGUSR1, signal_handler);
+	signal(SIGUSR2, signal_handler);
 
 	/* Main clock we use to drive the mux */
     clock_gettime(CLOCK_MONOTONIC, &ctx->next_time);
