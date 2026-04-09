@@ -377,13 +377,13 @@ int switcher_main(int argc, char *argv[])
 
 	} /* g_running */
 
+	for (int i = 0; i <= ctx->inputNr; i++) {
+		input_stream_free(ctx->input_streams[i]);
+	}
+
 	if (ctx->outputStream) {
 		output_stream_free(ctx->outputStream);
 		ctx->outputStream = NULL;
-	}
-
-	for (int i = 0; i <= ctx->inputNr; i++) {
-		input_stream_free(ctx->input_streams[i]);
 	}
 
 	return 0;

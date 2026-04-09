@@ -195,6 +195,7 @@ void input_stream_prune_history(struct input_stream_s *is)
 			if (e->created < expire) {
 				xorg_list_del(&e->list);
 				ltn_pes_packet_free(e->pes);
+				free(e);
 				pid->peslistcount--;
 				pruned++;
 			}
@@ -255,6 +256,7 @@ void input_stream_free(struct input_stream_s *stream)
 		input_pid_free(stream->pids[i]);
 	}
 	free(stream->iname);
+	ltntstools_pid_stats_free(stream->libstats);
 	free(stream);
 }
 
@@ -313,10 +315,6 @@ struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputP
 
 void input_pid_free(struct pid_s *pid)
 {
-	ltntstools_vbv_free(pid->vbv);
-	ltntstools_pes_extractor_free(pid->pe);
-	free(pid->pkts);
-
 	pthread_mutex_lock(&pid->peslistlock);
 	while (!xorg_list_is_empty(&pid->peslist)) {
 
@@ -328,6 +326,19 @@ void input_pid_free(struct pid_s *pid)
 
 	}
 	pthread_mutex_unlock(&pid->peslistlock);
+
+	ltntstools_vbv_free(pid->vbv);
+	ltntstools_pes_extractor_free(pid->pe);
+
+	if (pid->pkts) {
+		free(pid->pkts);
+		pid->pkts = NULL;
+	}
+
+	if (pid->pkts_outputSTC) {
+		free(pid->pkts_outputSTC);
+		pid->pkts_outputSTC = NULL;
+	}
 
 	free(pid);
 }

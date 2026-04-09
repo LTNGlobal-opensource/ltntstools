@@ -133,4 +133,5 @@ void output_stream_free(struct output_stream_s *os)
 		os->oname = NULL;
 	}
 
+	free(os);
 }
