@@ -21,7 +21,7 @@
 #include "switcher-types.h"
 
 int g_running = 1;
-struct tool_ctx_s g_ctx;
+static struct tool_ctx_s g_ctx;
 
 static void signal_handler(int signr)
 {

@@ -5,8 +5,6 @@
 static void *vbv_notifications(void *userContext, enum ltntstools_vbv_event_e event)
 {
 	struct pid_s *pid = (struct pid_s *)userContext;
-	//struct stream_s *stream = pid->stream;
-	//struct tool_ctx_s *ctx = stream->ctx;
 
 	struct timeval now;
 	gettimeofday(&now, NULL);

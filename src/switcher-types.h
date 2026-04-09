@@ -40,6 +40,13 @@ enum pid_type_t {
 	PID_AUDIO
 };
 
+enum pid_state_t {
+	PS_UNDEFINED = 0,
+	PS_SCHEDULE_NO_OP,         /* When schedule for a packet, return no packet regardless if something is available */
+	PS_SCHEDULE_NEXT_PACKET,   /* When schedule for a packet, do an actual packet from the TS queue. */  
+	PS_SCHEDULE_STOP_EOL,      /* Stop outputting packets when end of PES occurs, transition to NO_OP */
+};
+
 int64_t output_get_computed_stc(struct output_stream_s *os);
 
 struct pes_item_s
