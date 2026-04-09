@@ -26,11 +26,11 @@ static void signal_handler(int signum)
 	g_running = 0;
 }
 
-static int timesec_diff(struct timespec next_time, struct timespec last_time)
+static int timesec_diff(struct timespec next, struct timespec last)
 {
 	struct timespec diff;
-	diff.tv_sec = next_time.tv_sec - last_time.tv_sec;
-	diff.tv_nsec = next_time.tv_nsec - last_time.tv_nsec;
+	diff.tv_sec = next.tv_sec - last.tv_sec;
+	diff.tv_nsec = next.tv_nsec - last.tv_nsec;
 	if (diff.tv_nsec < 0) {
 		diff.tv_sec -= 1;
 		diff.tv_nsec += 1000000000L;
