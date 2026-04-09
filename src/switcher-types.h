@@ -126,6 +126,7 @@ struct tool_ctx_s
 	struct timespec next_time;       /* Current time */
 	struct timespec last_psip;       /* Last time a PSIP TS packet were output */
 	struct timespec last_q_report;   /* Last time a PES queue report was dumped to console. */
+	struct timespec last_q_purge;    /* Last time the PES queues were purged of old content. */
 
 	/* Streams. Many input, one output. */
 	struct input_stream_s *input_streams[MAX_INPUT_STREAMS];

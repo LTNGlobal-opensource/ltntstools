@@ -45,12 +45,15 @@ static void service(struct tool_ctx_s *ctx)
 	struct output_stream_s *os = ctx->outputStream;
 	struct pid_s *outputPid = NULL;
 
-	if (timesec_diff(ctx->next_time, ctx->last_q_report) >= 950) {
+	/* Periodically, every 950ms, remove PES content from queues older than N seconds */
+	if (timesec_diff(ctx->next_time, ctx->last_q_purge) >= 950) {
+		ctx->last_q_purge = ctx->next_time;
 		for (int i = 0; i <= ctx->inputNr; i++) {
 			input_stream_prune_history(ctx->input_streams[i]);
 		}
 	}
 
+	/* Periodically, every 950ms, show the size of each stream and pid Q to console. */
 	if (timesec_diff(ctx->next_time, ctx->last_q_report) >= 950) {
 		ctx->last_q_report = ctx->next_time;
 
@@ -74,13 +77,14 @@ static void service(struct tool_ctx_s *ctx)
 		printf("\n");
 	}
 
+	/* Periodically, every 50ms, Generate the PSIP and schedule for output. */
 	if (timesec_diff(ctx->next_time, ctx->last_psip) > 50) {
-		/* Generate the PSIP multiple times a second, and schedule them for output. */
 		ctx->last_psip = ctx->next_time;
-		ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
 		ltntstools_pat_create_packet_ts(os->pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
 		ltntstools_pmt_create_packet_ts(&os->pat->programs[0].pmt, os->pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
 		//ltntstools_pmt_create_packet_ts(&ctx->pat->programs[1].pmt, ctx->pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
+
+		ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
 	}
 
 	/* Try to ensure we have TS packets available for all input streams, all pids.  */
@@ -228,6 +232,7 @@ static void service(struct tool_ctx_s *ctx)
 
 	if (!pkt) {
 		/* Hmm, not time for PSIP or audio/video. Could be null packet time. */
+		/* TODO: I don't think we need these timing checks */
 		if (os->null_pkt_outputSTC < output_get_computed_stc(os)) {
 			pkt = &os->null_pkt[0];
 			os->null_pkt_outputSTC += os->ticks_per_outputts27MHz;
