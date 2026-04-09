@@ -26,27 +26,13 @@ static void signal_handler(int signum)
 	g_running = 0;
 }
 
-static int timesec_diff(struct timespec next, struct timespec last)
-{
-	struct timespec diff;
-	diff.tv_sec = next.tv_sec - last.tv_sec;
-	diff.tv_nsec = next.tv_nsec - last.tv_nsec;
-	if (diff.tv_nsec < 0) {
-		diff.tv_sec -= 1;
-		diff.tv_nsec += 1000000000L;
-	}
-
-	int ms = diff.tv_sec + diff.tv_nsec / 1e6;
-	return ms;
-}
-
 static void service(struct tool_ctx_s *ctx)
 {
 	struct output_stream_s *os = ctx->outputStream;
 	struct pid_s *outputPid = NULL;
 
 	/* Periodically, every 950ms, remove PES content from queues older than N seconds */
-	if (timesec_diff(ctx->next_time, ctx->last_q_purge) >= 950) {
+	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_q_purge) >= 950) {
 		ctx->last_q_purge = ctx->next_time;
 		for (int i = 0; i <= ctx->inputNr; i++) {
 			input_stream_prune_history(ctx->input_streams[i]);
@@ -54,7 +40,7 @@ static void service(struct tool_ctx_s *ctx)
 	}
 
 	/* Periodically, every 950ms, show the size of each stream and pid Q to console. */
-	if (timesec_diff(ctx->next_time, ctx->last_q_report) >= 950) {
+	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_q_report) >= 950) {
 		ctx->last_q_report = ctx->next_time;
 
 		struct timeval ts;
@@ -78,8 +64,9 @@ static void service(struct tool_ctx_s *ctx)
 	}
 
 	/* Periodically, every 50ms, Generate the PSIP and schedule for output. */
-	if (timesec_diff(ctx->next_time, ctx->last_psip) > 50) {
+	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_psip) > 50) {
 		ctx->last_psip = ctx->next_time;
+
 		ltntstools_pat_create_packet_ts(os->pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
 		ltntstools_pmt_create_packet_ts(&os->pat->programs[0].pmt, os->pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
 		//ltntstools_pmt_create_packet_ts(&ctx->pat->programs[1].pmt, ctx->pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
@@ -197,9 +184,9 @@ static void service(struct tool_ctx_s *ctx)
 			ctx->schedule_idx = (ctx->schedule_idx + 1) % ctx->schedule_entries;
 			struct pid_s *pid = ctx->schedule[ctx->schedule_idx];
 
-			if (pid->type == PID_VIDEO && timesec_diff(ctx->next_time, pid->lastOutputPCR) > 30) {
+			if (pid->type == PID_VIDEO && libltntstools_timespec_diff_ms(ctx->next_time, pid->last_pcr_output) > 30) {
 				/* Generate the PSIP multiple times a second, and schedule them for output. */
-				pid->lastOutputPCR = ctx->next_time;
+				pid->last_pcr_output = ctx->next_time;
 
 				int64_t pcr;
 				ltntstools_bitrate_calculator_query_stc(pid->stream->libstats, &pcr);
@@ -345,6 +332,10 @@ int switcher_main(int argc, char *argv[])
 
 	/* Main clock we use to drive the mux */
     clock_gettime(CLOCK_MONOTONIC, &ctx->next_time);
+
+	ctx->last_q_purge = ctx->next_time;
+	ctx->last_psip = ctx->next_time;
+	ctx->last_q_report = ctx->next_time;
 
 	/* Main loop.
 	 * Build psip every second.

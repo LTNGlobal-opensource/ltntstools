@@ -73,7 +73,7 @@ struct pid_s
 	uint8_t   cc;                    /* CC creation for output packets */
 	uint8_t   ccRoller;              /* Used when correcting any outgoing CCs */
 
-	struct timespec lastOutputPCR;   /* STC ticks. Last time in ticks we output the STC/PCR  */
+	struct timespec last_pcr_output; /* STC ticks. Last time in ticks we output the STC/PCR  */
 	uint8_t pkt_scr[188];            /* A fully formed PCR packet */
 
 	/* Video Buffer Verifier (VBV) */

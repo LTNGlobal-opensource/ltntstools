@@ -274,6 +274,8 @@ struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputP
 	pthread_mutex_init(&pid->peslistlock, NULL);
 	xorg_list_init(&pid->peslist);
 
+	clock_gettime(CLOCK_MONOTONIC, &pid->last_pcr_output);
+
 	if (ltntstools_vbv_profile_defaults(&pid->dp, VBV_CODEC_H264, 32, 59.94) < 0) {
 		fprintf(stderr, "Unable to allocate VBV size for profile, aborting.\n");
 		exit(0);
