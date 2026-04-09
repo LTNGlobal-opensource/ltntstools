@@ -2,7 +2,6 @@
 
 #include "switcher-types.h"
 
-
 static void *vbv_notifications(void *userContext, enum ltntstools_vbv_event_e event)
 {
 	struct pid_s *pid = (struct pid_s *)userContext;
@@ -12,8 +11,7 @@ static void *vbv_notifications(void *userContext, enum ltntstools_vbv_event_e ev
 	struct timeval now;
 	gettimeofday(&now, NULL);
 
-	printf("%d.%06d: pid 0x%04x (%04d) %s\n",
-		(int)now.tv_sec, (int)now.tv_usec,
+	tprintf("pid 0x%04x (%04d) %s\n",
 		pid->outputPidNr, pid->outputPidNr,
 		ltntstools_vbv_event_name(event));
 
@@ -26,7 +24,7 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 	struct output_stream_s *os = stream->ctx->outputStream;
 
 	if (stream->ctx->verbose) {
-		printf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 "\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr);
+		tprintf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 "\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr);
 	}
 	if (pid->pid == 0x32) {
 		//ltntstools_hexdump(pes->rawBuffer, 188, 32);
@@ -59,7 +57,7 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 	}
 
 	if (stream->ctx->verbose) {
-		printf("PES Extractor callback %d:%s pid 0x%04x 0x%08" PRIx64 " pes's\n",
+		tprintf("PES Extractor callback %d:%s pid 0x%04x 0x%08" PRIx64 " pes's\n",
 			stream->nr, stream->iname, pid->pid, pid->peslistcount);
 	}
 
@@ -148,11 +146,18 @@ static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pk
 
 		if (stream->smcomplete) {
 			if (ltntstools_streammodel_query_model(stream->sm, &stream->smpat) == 0) {
-				printf("stream[%d]: PSIP model arrived\n", stream->nr);
+				tprintf("stream[%d]: PSIP model arrived\n", stream->nr);
 
 				if (stream->ctx->verbose) {
 					ltntstools_pat_dprintf(stream->smpat, STDOUT_FILENO);
 				}
+
+				if (input_stream_model_supported(stream) == 0) {
+					tprintf("stream[%d]: PSIP model is not supported\n", stream->nr);
+				} else {
+					tprintf("stream[%d]: PSIP model is fully supported\n", stream->nr);
+				}
+
 				/* Don't free the pat, we'll don't on to it
 				* ltntstools_pat_free(stream->smpat);
 				*/
@@ -184,10 +189,10 @@ static void *_avio_raw_callback_status(struct input_stream_s *stream, enum sourc
 {
 	switch (status) {
 	case AVIO_STATUS_MEDIA_START:
-		printf("AVIO media starts: %s\n", stream->iname);
+		tprintf("AVIO media starts: %s\n", stream->iname);
 		break;
 	case AVIO_STATUS_MEDIA_END:
-		printf("AVIO media ends: %s\n", stream->iname);
+		tprintf("AVIO media ends: %s\n", stream->iname);
 		g_running = 0;
 		break;
 	default:
@@ -284,7 +289,7 @@ void input_stream_free(struct input_stream_s *stream)
 	ltntstools_pid_stats_free(stream->libstats);
 
 	if (stream->smpat) {
-		stream->smcomplete = 0
+		stream->smcomplete = 0;
 		ltntstools_pat_free(stream->smpat);
 		stream->smpat = NULL;
 	}
@@ -380,4 +385,105 @@ void input_pid_free(struct pid_s *pid)
 	}
 
 	free(pid);
+}
+
+/* Determine if two different models are compatible and supported by this tool. */
+int input_stream_models_compatible(struct input_stream_s *is1, struct input_stream_s *is2)
+{
+	if (!is1 || !is2) {
+		tprintf("stream[?]: missing models, invalid arg\n");
+		return -1; /* Missing models */
+	}
+
+	if (is1->smcomplete == 0 || is1->smpat == NULL) {
+		tprintf("stream[?]: stream 1 or 2 is not yet complete\n");
+		return -1; /* Incomplete model */
+	}
+	if (is2->smcomplete == 0 || is2->smpat == NULL) {
+		tprintf("stream[?]: stream 1 or 2 is not yet complete (PAT)\n");
+		return -1; /* Incomplete model */
+	}
+
+	if (input_stream_model_supported(is1) != 1) {
+		tprintf("stream[%d]: model is not supported\n", is1->nr);
+		return -1; /* Unsupported models */
+	}
+	if (input_stream_model_supported(is2) != 1) {
+		tprintf("stream[%d]: model is not supported\n", is2->nr);
+		return -1; /* Unsupported models */
+	}
+
+	if (is1->smpat->program_count != 1 || is2->smpat->program_count != 1) {
+		tprintf("stream[%d]: program count (%d) is different to model 2 (%d), unsupported\n",
+			is1->nr,
+			is1->smpat->program_count,
+			is2->smpat->program_count);
+		return -1; /* Multiple programs, never sure what we're comparing. */
+	}
+
+	if (is1->smpat->programs[0].pmt.stream_count != is2->smpat->programs[0].pmt.stream_count) {
+		tprintf("stream[%d]: program1 stream count (%d) is different to model2.program1 stream count (%d), unsupported\n",
+			is1->nr,
+			is1->smpat->programs[0].pmt.stream_count,
+			is2->smpat->programs[0].pmt.stream_count);
+		return -1; /* Multiple programs, never sure what we're comparing. */
+	}
+
+	if (ltntstools_pmt_compare(&is1->smpat->programs[0].pmt, &is2->smpat->programs[0].pmt) != 1) {
+		/* Might be something as simple as the ltn encoder version from each stream is different */
+		tprintf("stream[%d]: PMT of first entry doesn't match model 2. Continuing but that's a red flag.\n",
+			is1->nr);
+	}
+
+	return 1; /* Success. Both models are compatible with each other */
+}
+
+/* Check the stream configuration, determine if this tools supports it. */
+int input_stream_model_supported(struct input_stream_s *is)
+{
+	int e = 0;
+	int foundAVC = 0;
+	int foundAC3 = 0;
+	int foundMP1L2 = 0;
+
+	struct ltntstools_pmt_s *pmt = NULL;
+
+	if (!is) {
+		return -1; /* Failed */
+	}
+
+	if (!is->sm || !is->smpat || !is->smcomplete) {
+		/* No model, or model not complete */
+		return -1; /* Failed */
+	}
+
+	/* Rules
+	 * SPTS only.
+	 * AVC only.
+	 * MP1L2 only
+	 * Same format and framerate (we can't check that)
+	*/
+
+	e = 0;
+	pmt = NULL;
+	while (ltntstools_pat_enum_services_video(is->smpat, &e, &pmt) == 0) {
+		for (unsigned int i = 0; i < pmt->stream_count; i++) {
+			if (pmt->streams[i].stream_type == 0x1b /* AVC */) {
+				foundAVC = 1;
+			} else
+			if (pmt->streams[i].stream_type == 0x81 /* AC3 */) {
+				foundAC3 = 1;
+			} else
+			if (pmt->streams[i].stream_type == 0x04 /* MP1L2 */) {
+				foundMP1L2 = 1;
+			}
+		}
+		break; /* The first service with video is checked, SPTS */
+	}
+
+	if (!foundAVC || foundMP1L2 || !foundAC3) {
+		return 0; /* Success, model is not supported */
+	}
+
+	return 1; /* Success, model is supported */
 }

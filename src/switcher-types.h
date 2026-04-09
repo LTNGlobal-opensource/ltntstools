@@ -131,6 +131,7 @@ struct tool_ctx_s
 	struct timespec last_psip;       /* Last time a PSIP TS packet were output */
 	struct timespec last_q_report;   /* Last time a PES queue report was dumped to console. */
 	struct timespec last_q_purge;    /* Last time the PES queues were purged of old content. */
+	struct timespec last_compatability_check; /* Last time we checks that streams 1&2 were compatible. */
 
 	/* Streams. Many input, one output. */
 	struct input_stream_s *input_streams[MAX_INPUT_STREAMS];
@@ -142,6 +143,8 @@ struct tool_ctx_s
 	struct pid_s *schedule[4];       /* Array of pids, we plan to output packets for */
 };
 
+void tprintf(const char *fmt, ...);
+
 struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr);
 struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type);
 void input_pid_free(struct pid_s *pid);
@@ -149,6 +152,8 @@ int  input_stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_
 int  input_stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
 void input_stream_free(struct input_stream_s *stream);
 void input_stream_prune_history(struct input_stream_s *is);
+int  input_stream_model_supported(struct input_stream_s *stream);
+int  input_stream_models_compatible(struct input_stream_s *is1, struct input_stream_s *is2);
 
 struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
 void output_stream_free(struct output_stream_s *os);

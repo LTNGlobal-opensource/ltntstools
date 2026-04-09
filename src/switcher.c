@@ -26,10 +26,32 @@ static void signal_handler(int signum)
 	g_running = 0;
 }
 
+void tprintf(const char *fmt, ...)
+{
+	struct timeval ts;
+	gettimeofday(&ts, NULL);
+
+	printf("%d.%06d: ", (int)ts.tv_sec, (int)ts.tv_usec);
+
+    /* Handle variable arguments */
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);	
+}
+
 static void service(struct tool_ctx_s *ctx)
 {
 	struct output_stream_s *os = ctx->outputStream;
 	struct pid_s *outputPid = NULL;
+
+	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_compatability_check) >= 15000) {
+		ctx->last_compatability_check = ctx->next_time;
+		if (input_stream_models_compatible(ctx->input_streams[0], ctx->input_streams[1]) != 1) {
+			usleep(200 * 1000);
+			return;
+		}
+	}
 
 	/* Periodically, every 950ms, remove PES content from queues older than N seconds */
 	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_q_purge) >= 950) {
@@ -46,7 +68,7 @@ static void service(struct tool_ctx_s *ctx)
 		struct timeval ts;
 		gettimeofday(&ts, NULL);
 
-		printf("%d.%06d: PES Queues/Size: ", (int)ts.tv_sec, (int)ts.tv_usec);
+		tprintf("PES Queues/Size: ");
 		for (int i = 0; i <= ctx->inputNr; i++) {
 			struct input_stream_s *stream = ctx->input_streams[i];
 			for (int j = 0; j < stream->pidCount; j++) {
@@ -123,7 +145,7 @@ static void service(struct tool_ctx_s *ctx)
 				}
 
 				if (ctx->verbose) {
-					printf("Created %4d ts packets for pid 0x%04x\n", pid->pkts_count, pid->outputPidNr);
+					tprintf("Created %4d ts packets for pid 0x%04x\n", pid->pkts_count, pid->outputPidNr);
 				}
 				pid->pkts_idx = 0;
 
@@ -316,7 +338,7 @@ int switcher_main(int argc, char *argv[])
 		usage(argv[0]);
 		exit(1);
 	}
-	printf("Number of Inputs: %d\n", ctx->inputNr + 1);
+	tprintf("Number of Inputs: %d\n", ctx->inputNr + 1);
 
 	/* Setup the output schedule to give each stream time in the packet scheduler. */
 	ctx->schedule[0] = ctx->input_streams[0]->pids[0];
@@ -336,6 +358,7 @@ int switcher_main(int argc, char *argv[])
 	ctx->last_q_purge = ctx->next_time;
 	ctx->last_psip = ctx->next_time;
 	ctx->last_q_report = ctx->next_time;
+	ctx->last_compatability_check = ctx->next_time;
 
 	/* Main loop.
 	 * Build psip every second.
