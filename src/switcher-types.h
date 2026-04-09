@@ -87,6 +87,10 @@ struct input_stream_s
 	int nr;                  /* 0..1 */
 	char *iname;             /* Eg. udp:/227.1.1.1:4001 */
 
+	void *sm;                       /* StreamModel context */
+	int smcomplete;                 /* Is the stream model collected and thus complete? */
+	struct ltntstools_pat_s *smpat; /* When smcomplete=1, this model is valid */
+
 	void *avio_ctx;          /* AVIO framework context */
 	struct ltntstools_source_avio_callbacks_s cbs;    /* Callbacks for our AVIO sources. */
 	struct ltntstools_stream_statistics_s *libstats;  /* Transport Stream packet statistics */

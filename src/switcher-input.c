@@ -141,6 +141,25 @@ static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pk
 {
 	//printf("AVIO data: %s nr %d %d packets\n", stream->iname, stream->nr, packetCount);
 
+	if (stream->sm && stream->smcomplete == 0) {
+		struct timeval nowtv;
+		gettimeofday(&nowtv, NULL);
+		ltntstools_streammodel_write(stream->sm, pkts, packetCount, &stream->smcomplete, &nowtv);
+
+		if (stream->smcomplete) {
+			if (ltntstools_streammodel_query_model(stream->sm, &stream->smpat) == 0) {
+				printf("stream[%d]: PSIP model arrived\n", stream->nr);
+
+				if (stream->ctx->verbose) {
+					ltntstools_pat_dprintf(stream->smpat, STDOUT_FILENO);
+				}
+				/* Don't free the pat, we'll don't on to it
+				* ltntstools_pat_free(stream->smpat);
+				*/
+			}
+		}
+	}
+
 	for (int i = 0; i < stream->pidCount; i++) {
 		if (i == 0) {
 			struct stat s;
@@ -217,6 +236,12 @@ struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, i
 	stream->pidCount = 0;
 	stream->iname = strdup(iname);
 
+	if (ltntstools_streammodel_alloc(&stream->sm, stream) < 0) {
+		fprintf(stderr, "Unable to allocate streammodel object.\n");
+		free(stream);
+		return NULL;
+	}
+
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&stream->libstats);
 	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_STREAM_MBPS, stream, (ltntstools_notification_callback)notification_callback);
@@ -257,6 +282,18 @@ void input_stream_free(struct input_stream_s *stream)
 	}
 	free(stream->iname);
 	ltntstools_pid_stats_free(stream->libstats);
+
+	if (stream->smpat) {
+		stream->smcomplete = 0
+		ltntstools_pat_free(stream->smpat);
+		stream->smpat = NULL;
+	}
+
+	if (stream->sm) {
+		ltntstools_streammodel_free(stream->sm);
+		stream->sm = NULL;
+	}
+
 	free(stream);
 }
 
