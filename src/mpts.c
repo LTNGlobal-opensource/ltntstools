@@ -220,6 +220,8 @@ struct pid_s *pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, 
 	pthread_mutex_init(&pid->peslistlock, NULL);
 	xorg_list_init(&pid->peslist);
 
+	clock_gettime(CLOCK_MONOTONIC, &pid->lastOutputPCR);
+
 	if (ltntstools_vbv_profile_defaults(&pid->dp, VBV_CODEC_H264, 32, 59.94) < 0) {
 		fprintf(stderr, "Unable to allocate VBV size for profile, aborting.\n");
 		exit(0);
@@ -450,25 +452,11 @@ void *reframer_callback(struct tool_ctx_s *ctx, const uint8_t *buf, int lengthBy
 	return NULL;
 }
 
-int timesec_diff(struct timespec next_time, struct timespec last_time)
-{
-	struct timespec diff;
-	diff.tv_sec = next_time.tv_sec - last_time.tv_sec;
-	diff.tv_nsec = next_time.tv_nsec - last_time.tv_nsec;
-	if (diff.tv_nsec < 0) {
-		diff.tv_sec -= 1;
-		diff.tv_nsec += 1000000000L;
-	}
-
-	int ms = diff.tv_sec + diff.tv_nsec / 1e6;
-	return ms;
-}
-
 void service(struct tool_ctx_s *ctx)
 {
 	struct pid_s *outputPid = NULL;
 
-	if (timesec_diff(ctx->next_time, ctx->last_q_report) >= 950) {
+	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_q_report) >= 950) {
 		ctx->last_q_report = ctx->next_time;
 
 		struct timeval ts;
@@ -491,7 +479,7 @@ void service(struct tool_ctx_s *ctx)
 		printf("\n");
 	}
 
-	if (timesec_diff(ctx->next_time, ctx->last_psip) > 50) {
+	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_psip) > 50) {
 		/* Generate the PSIP multiple times a second, and schedule them for output. */
 		ctx->last_psip = ctx->next_time;
 		ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
@@ -610,7 +598,7 @@ void service(struct tool_ctx_s *ctx)
 			ctx->schedule_idx = (ctx->schedule_idx + 1) % ctx->schedule_entries;
 			struct pid_s *pid = ctx->schedule[ctx->schedule_idx];
 
-			if (pid->type == PID_VIDEO && timesec_diff(ctx->next_time, pid->lastOutputPCR) > 30) {
+			if (pid->type == PID_VIDEO && libltntstools_timespec_diff_ms(ctx->next_time, pid->lastOutputPCR) > 30) {
 				/* Generate the PSIP multiple times a second, and schedule them for output. */
 				pid->lastOutputPCR = ctx->next_time;
 
@@ -794,6 +782,9 @@ int mpts(int argc, char *argv[])
 
 	/* Main clock we use to drive the mux */
     clock_gettime(CLOCK_MONOTONIC, &ctx->next_time);
+
+	ctx->last_q_report = ctx->next_time;
+	ctx->last_psip = ctx->next_time;
 
 	/* Main loop.
 	 * Build psip every second.
