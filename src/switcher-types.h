@@ -176,6 +176,7 @@ struct tool_ctx_s
 	struct output_stream_s *outputStream;
 
 	/* Stream scheduling */
+	pthread_mutex_t schedule_lock;   /* protection for list */
 	uint32_t schedule_idx;           /* Index from 0..schedule_entries, or -1 to indicate inactive. */
 	int schedule_entries;            /* Number of pids objects in var schedule[] */
 	struct pid_s *schedule[4];       /* Array of pids, we plan to output packets for */

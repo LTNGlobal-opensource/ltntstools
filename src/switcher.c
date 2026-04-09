@@ -200,8 +200,6 @@ static void service(struct tool_ctx_s *ctx)
 				}
 
 				pes_item_free(item);
-//				ltn_pes_packet_free(item->pes);
-//				free(item);
 			}
 		}
 	} /* For all input stream, ensure we have TS packets available. */
@@ -227,6 +225,7 @@ static void service(struct tool_ctx_s *ctx)
 		/* Its time to output a regular stream packet, select one.
 		 * Using an input schedule forces pid interleaving.
 		 */
+		pthread_mutex_lock(&ctx->schedule_lock);
 		for (int i = 0; i < ctx->schedule_entries; i++) {
 			ctx->schedule_idx = (ctx->schedule_idx + 1) % ctx->schedule_entries;
 			struct pid_s *pid = ctx->schedule[ctx->schedule_idx];
@@ -262,6 +261,8 @@ static void service(struct tool_ctx_s *ctx)
 				break;
 			}
 		}
+		pthread_mutex_unlock(&ctx->schedule_lock);
+
 	}
 
 	if (!pkt) {
@@ -322,6 +323,7 @@ int switcher_main(int argc, char *argv[])
 	ctx->inputNr = -1;
 	ctx->output_psip_idx = -1;
 	ctx->schedule_entries = 2;
+	pthread_mutex_init(&ctx->schedule_lock, NULL);
 
 	ctx->outputStream = output_stream_alloc(ctx);
 	ctx->outputStream->null_pkt_outputSTC = output_get_computed_stc(ctx->outputStream);
@@ -366,10 +368,12 @@ int switcher_main(int argc, char *argv[])
 	tprintf("Number of Inputs: %d\n", ctx->inputNr + 1);
 
 	/* Setup the output schedule to give each stream time in the packet scheduler. */
+	pthread_mutex_lock(&ctx->schedule_lock);
 	ctx->schedule[0] = ctx->input_streams[0]->pids[0];
 	ctx->schedule[1] = ctx->input_streams[0]->pids[1];
 	//ctx->schedule[2] = ctx->streams[1]->pids[0]; /* Skip any outputs of strem #2 for now */
 	//ctx->schedule[3] = ctx->streams[1]->pids[1];
+	pthread_mutex_unlock(&ctx->schedule_lock);
 
 	/* Build a pid output schedule. Each time we iterate a need to output a packet,
 	 * we process the threads in this order.
