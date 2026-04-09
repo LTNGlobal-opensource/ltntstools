@@ -102,7 +102,7 @@ static void signal_handler(int signum)
  * determine of the pes begins with a MP2 sync marker.
  * Returns 1 on success else 0.
  */
-int pes_contains_start_of_mp2_sync(const struct ltn_pes_packet_s *pes)
+static int pes_contains_start_of_mp2_sync(const struct ltn_pes_packet_s *pes)
 {
 	if (!ltn_pes_packet_is_audio((struct ltn_pes_packet_s *)pes))
 		return 0;
@@ -124,7 +124,7 @@ int pes_contains_start_of_mp2_sync(const struct ltn_pes_packet_s *pes)
  * determine of the pes begins with a MP2 sync marker.
  * Returns 1 on success else 0.
  */
-int pes_contains_start_of_ac3_sync(const struct ltn_pes_packet_s *pes)
+static int pes_contains_start_of_ac3_sync(const struct ltn_pes_packet_s *pes)
 {
 	if (!ltn_pes_packet_is_audio((struct ltn_pes_packet_s *)pes))
 		return 0;
@@ -173,7 +173,7 @@ static int pes_contains_start_of_aac_sync(const struct ltn_pes_packet_s *pes)
 	return 1; /* AAC ADTS sync found */
 }
 
-void pes_item_nals_dump(struct pes_item_s *item)
+static void pes_item_nals_dump(struct pes_item_s *item)
 {
 	for (int i = 0; i < item->nalArrayLength; i++) {
 		struct ltn_nal_headers_s *nal = &item->nals[i];
@@ -181,7 +181,7 @@ void pes_item_nals_dump(struct pes_item_s *item)
 	}
 }
 
-void pes_item_nals_free(struct pes_item_s *item)
+static void pes_item_nals_free(struct pes_item_s *item)
 {
 	if (item->nals) {
 		free(item->nals);
@@ -190,7 +190,7 @@ void pes_item_nals_free(struct pes_item_s *item)
 	item->nalArrayLength = 0;
 }
 
-int pes_item_nals_alloc(struct pes_item_s *item)
+static int pes_item_nals_alloc(struct pes_item_s *item)
 {
 	struct tool_ctx_s *ctx = item->input->ctx;
 
@@ -245,7 +245,7 @@ int pes_item_nals_alloc(struct pes_item_s *item)
 	return 0; /* Success */
 }
 
-struct pes_item_s * pes_item_alloc(const struct ltn_pes_packet_s *pes, struct input_pid_s *input)
+static struct pes_item_s * pes_item_alloc(const struct ltn_pes_packet_s *pes, struct input_pid_s *input)
 {
 	//ltn_pes_packet_dump(pes, "");
 	struct pes_item_s *item = calloc(1, sizeof(*item));
@@ -292,7 +292,7 @@ struct pes_item_s * pes_item_alloc(const struct ltn_pes_packet_s *pes, struct in
 	return item;
 }
 
-void pes_item_free(struct pes_item_s *item)
+static void pes_item_free(struct pes_item_s *item)
 {
 	pes_item_nals_free(item);
 
@@ -304,7 +304,7 @@ void pes_item_free(struct pes_item_s *item)
 	free(item);
 }
 
-void pes_item_dump(struct pes_item_s *item)
+static void pes_item_dump(struct pes_item_s *item)
 {
 	const struct ltn_pes_packet_s *pes = item->pes;
 
