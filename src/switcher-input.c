@@ -59,12 +59,12 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 	}
 
 	if (stream->ctx->verbose) {
-		printf("PES Extractor callback %d:%s pid 0x%04x 0x%08" PRIx64 " pes's\n", stream->nr, stream->iname, pid->pid, pid->peslistcount);
+		printf("PES Extractor callback %d:%s pid 0x%04x 0x%08" PRIx64 " pes's\n",
+			stream->nr, stream->iname, pid->pid, pid->peslistcount);
 	}
 
 	return NULL;
 }
-
 
 static void *notification_callback(struct input_stream_s *stream, enum ltntstools_notification_event_e event,
 	const struct ltntstools_stream_statistics_s *stats,
@@ -136,7 +136,6 @@ static void *notification_callback(struct input_stream_s *stream, enum ltntstool
 	}
 	return NULL;	
 }
-
 
 static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pkts, int packetCount)
 {
