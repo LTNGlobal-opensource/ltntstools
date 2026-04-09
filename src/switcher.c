@@ -199,8 +199,9 @@ static void service(struct tool_ctx_s *ctx)
 					pid->pkts_outputSTC[i] = item->outputSTC + (i * ticks_per_ts);
 				}
 
-				ltn_pes_packet_free(item->pes);
-				free(item);
+				pes_item_free(item);
+//				ltn_pes_packet_free(item->pes);
+//				free(item);
 			}
 		}
 	} /* For all input stream, ensure we have TS packets available. */

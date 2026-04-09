@@ -32,21 +32,10 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 		fprintf(stderr, "Error writing PES to VBV\n");
 	}
 #endif
-	struct pes_item_s *e = malloc(sizeof(*e));
-	if (e) {
-		e->pes = pes;
-		e->created = time(NULL);
-		e->arrivalSTC = output_get_computed_stc(os); /* We got the pes at the current STC */
-
-		if (pid->type == PID_VIDEO) {
-			e->outputSTC = output_get_computed_stc(os) + (27000 * 200); /* We'll schedule for output in 200ms */
-		} else 
-		if (pid->type == PID_AUDIO) {
-			e->outputSTC = 0; // get_computed_stc(os);
-		}
-
+	struct pes_item_s *item = pes_item_alloc(pid, pes, os);
+	if (item) {
 		pthread_mutex_lock(&pid->peslistlock);
-		xorg_list_append(&e->list, &pid->peslist);
+		xorg_list_append(&item->list, &pid->peslist);
 		pid->peslistcount++;
 		pthread_mutex_unlock(&pid->peslistlock);
 	} else {
@@ -300,7 +289,7 @@ void input_stream_free(struct input_stream_s *stream)
 	free(stream);
 }
 
-struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type)
+struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_e type)
 {
 	struct pid_s *pid = calloc(1, sizeof(*pid));
 	if (!pid) {
@@ -360,12 +349,11 @@ void input_pid_free(struct pid_s *pid)
 	pthread_mutex_lock(&pid->peslistlock);
 	while (!xorg_list_is_empty(&pid->peslist)) {
 
-		struct pes_item_s *e = xorg_list_first_entry(&pid->peslist, struct pes_item_s, list);
+		struct pes_item_s *item = xorg_list_first_entry(&pid->peslist, struct pes_item_s, list);
 		pid->peslistcount--;
-		xorg_list_del(&e->list);
-		ltn_pes_packet_free(e->pes);
-		free(e);
+		xorg_list_del(&item->list);
 
+		pes_item_free(item);
 	}
 	pthread_mutex_unlock(&pid->peslistlock);
 

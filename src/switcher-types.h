@@ -34,10 +34,16 @@ struct input_stream_s;
 struct output_stream_s;
 struct tool_ctx_s;
 
-enum pid_type_t {
+enum pid_type_e {
 	PID_UNDEFINED,
 	PID_VIDEO,
-	PID_AUDIO
+	PID_AUDIO,
+	PID_OTHER,
+};
+
+enum SliceType_e {
+	SLICE_UNDEFINED = 0,
+	SLICE_I, SLICE_B, SLICE_P
 };
 
 enum pid_state_t {
@@ -53,15 +59,36 @@ struct pes_item_s
 {
 	struct xorg_list list;
 	struct ltn_pes_packet_s *pes; /* Related PES object */
+	struct pid_s *pid;            /* parent */
 	int64_t arrivalSTC;           /* Local STC clock value when we first got the pes */
 	int64_t outputSTC;            /* Local STC clock value when the PES is scheduled for transmission output */
 	time_t created;               /* Object creation time in sections. Used for purging. */
+
+	enum pid_type_e type;         /* PID_UNDEFINED = 0, PID_AUDIO, PID_VIDEO etc */
+
+	/* Metadata as it pertains to the content of the PES */
+	struct {
+		int hasSync_MP1L2;
+		int hasSync_AC3;
+		int hasSync_AAC;
+	} audio;
+
+	struct {
+		enum SliceType_e sliceType;
+		int has_avc_sps;
+		int has_avc_pps;
+		int has_avc_aud;
+	} video;
+
+	int nalArrayLength;
+	struct ltn_nal_headers_s *nals;
+
 };
 
 struct pid_s
 {
 	struct input_stream_s *stream;   /* parent stream context */
-	enum pid_type_t type;            /* Eg. PID_VIDEO, PID_AUDIO */
+	enum pid_type_e type;            /* Eg. PID_VIDEO, PID_AUDIO */
 
 	uint16_t pid;                    /* Transport PID: 0..8191 */
 	uint16_t outputPidNr;            /* Transport PID: 0..8191 */
@@ -82,6 +109,10 @@ struct pid_s
 
 	struct timespec last_pcr_output; /* STC ticks. Last time in ticks we output the STC/PCR  */
 	uint8_t pkt_scr[188];            /* A fully formed PCR packet */
+
+	uint64_t count_frames_i;         /* Count of different video slice types: I */
+	uint64_t count_frames_b;         /* Count of different video slice types: B */
+	uint64_t count_frames_p;         /* Count of different video slice types: P */
 
 	/* Video Buffer Verifier (VBV) */
 	void *vbv;
@@ -153,7 +184,7 @@ struct tool_ctx_s
 void tprintf(const char *fmt, ...);
 
 struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr);
-struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_t type);
+struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_e type);
 void input_pid_free(struct pid_s *pid);
 int  input_stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
 int  input_stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
@@ -165,3 +196,15 @@ int  input_stream_models_compatible(struct input_stream_s *is1, struct input_str
 struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
 void output_stream_free(struct output_stream_s *os);
 int  output_write(struct output_stream_s *os, const uint8_t *pkt, int packetCount);
+
+/* switcher-codecs.h */
+int  pes_contains_start_of_ac3_sync(const struct ltn_pes_packet_s *pes);
+int  pes_contains_start_of_aac_sync(const struct ltn_pes_packet_s *pes);
+int  pes_contains_start_of_mp2_sync(const struct ltn_pes_packet_s *pes);
+void pes_item_nals_dump(struct pes_item_s *item);
+void pes_item_nals_free(struct pes_item_s *item);
+int  pes_item_nals_alloc(struct pes_item_s *item);
+
+struct pes_item_s *pes_item_alloc(struct pid_s *pid, struct ltn_pes_packet_s *pes, struct output_stream_s *os);
+void pes_item_free(struct pes_item_s *item);
+

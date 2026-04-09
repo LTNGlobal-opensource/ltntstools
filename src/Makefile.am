@@ -129,6 +129,7 @@ SRC += demux_inspector.c
 SRC += switcher.c
 SRC += switcher-input.c
 SRC += switcher-output.c
+SRC += switcher-codecs.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector
