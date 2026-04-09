@@ -23,6 +23,8 @@ static void *vbv_notifications(void *userContext, enum ltntstools_vbv_event_e ev
 static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 {
 	struct input_stream_s *stream = pid->stream;
+	struct output_stream_s *os = stream->ctx->outputStream;
+
 	if (stream->ctx->verbose) {
 		printf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 "\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr);
 	}
@@ -38,13 +40,13 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 	if (e) {
 		e->pes = pes;
 		e->created = time(NULL);
-		e->arrivalSTC = output_get_computed_stc(stream->ctx); /* We got the pes at the current STC */
+		e->arrivalSTC = output_get_computed_stc(os); /* We got the pes at the current STC */
 
 		if (pid->type == PID_VIDEO) {
-			e->outputSTC = output_get_computed_stc(stream->ctx) + (27000 * 200); /* We'll schedule for output in 200ms */
+			e->outputSTC = output_get_computed_stc(os) + (27000 * 200); /* We'll schedule for output in 200ms */
 		} else 
 		if (pid->type == PID_AUDIO) {
-			e->outputSTC = 0; // get_computed_stc(stream->ctx);
+			e->outputSTC = 0; // get_computed_stc(os);
 		}
 
 		pthread_mutex_lock(&pid->peslistlock);

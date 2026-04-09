@@ -2,10 +2,10 @@
 
 #include "switcher-types.h"
 
-int64_t output_get_computed_stc(struct tool_ctx_s *ctx)
+int64_t output_get_computed_stc(struct output_stream_s *os)
 {
 	double startupPacketsSent = 10000;
-	double bitsTransmitted = (startupPacketsSent + ctx->ts_packets_sent) * TS_PACKET_SIZE * 8.0;
+	double bitsTransmitted = (startupPacketsSent + os->ctx->ts_packets_sent) * TS_PACKET_SIZE * 8.0;
 	double additionalBits = 0.0;
 	double bps = TARGET_BITRATE;
 

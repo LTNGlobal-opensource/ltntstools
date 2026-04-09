@@ -30,6 +30,7 @@ extern int g_running;
 
 struct pid_s;
 struct stream_s;
+struct output_stream_s;
 struct tool_ctx_s;
 
 enum pid_type_t {
@@ -38,7 +39,7 @@ enum pid_type_t {
 	PID_AUDIO
 };
 
-int64_t output_get_computed_stc(struct tool_ctx_s *ctx);
+int64_t output_get_computed_stc(struct output_stream_s *os);
 
 struct pes_item_s
 {

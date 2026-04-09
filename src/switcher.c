@@ -108,7 +108,7 @@ static void service(struct tool_ctx_s *ctx)
 				pthread_mutex_lock(&pid->peslistlock);
 				struct pes_item_s *e = NULL, *next = NULL;
 				xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
-					if (e->outputSTC < output_get_computed_stc(ctx)) {
+					if (e->outputSTC < output_get_computed_stc(os)) {
 						item = e;
 						xorg_list_del(&e->list);
 						pid->peslistcount--;
@@ -214,7 +214,7 @@ static void service(struct tool_ctx_s *ctx)
 			/* Otherwise leave with item being NULL and a null packet will go out instead */
 			if (pkt == NULL && pid->pkts_idx < pid->pkts_count) {
 				pkt = &pid->pkts[ pid->pkts_idx * 188 ];
-				if (pid->pkts_outputSTC[pid->pkts_idx] <= output_get_computed_stc(ctx)) {
+				if (pid->pkts_outputSTC[pid->pkts_idx] <= output_get_computed_stc(os)) {
 					pid->pkts_idx++;
 					outputPid = pid;
 				} else {
@@ -228,7 +228,7 @@ static void service(struct tool_ctx_s *ctx)
 
 	if (!pkt) {
 		/* Hmm, not time for PSIP or audio/video. Could be null packet time. */
-		if (ctx->null_pkt_outputSTC < output_get_computed_stc(ctx)) {
+		if (ctx->null_pkt_outputSTC < output_get_computed_stc(os)) {
 			pkt = &ctx->null_pkt[0];
 			ctx->null_pkt_outputSTC += ctx->outputStream->ticks_per_outputts27MHz;
 		}
@@ -283,11 +283,10 @@ int switcher_main(int argc, char *argv[])
 	ctx->inputNr = -1;
 	ctx->output_psip_idx = -1;
 	ctx->schedule_entries = 2;
-	ctx->null_pkt_outputSTC = output_get_computed_stc(ctx);
-
-	ltntstools_generateNullPacket(&ctx->null_pkt[0]);
 
 	ctx->outputStream = output_stream_alloc(ctx);
+	ctx->null_pkt_outputSTC = output_get_computed_stc(ctx->outputStream);
+	ltntstools_generateNullPacket(&ctx->null_pkt[0]);
 
 	int ch;
 
@@ -378,7 +377,7 @@ int switcher_main(int argc, char *argv[])
 		ctx->outputStream = NULL;
 	}
 
-	for (int i = 0; i < ctx->inputNr; i++) {
+	for (int i = 0; i <= ctx->inputNr; i++) {
 		input_stream_free(ctx->input_streams[i]);
 	}
 
