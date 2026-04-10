@@ -201,12 +201,11 @@ void input_stream_prune_history(struct input_stream_s *is)
 		struct pid_s *pid = is->pids[i];
 
 		pthread_mutex_lock(&pid->peslistlock);
-		struct pes_item_s *e = NULL, *next = NULL;
-		xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
-			if (e->created < expire) {
-				xorg_list_del(&e->list);
-				ltn_pes_packet_free(e->pes);
-				free(e);
+		struct pes_item_s *item = NULL, *next = NULL;
+		xorg_list_for_each_entry_safe(item, next, &pid->peslist, list) {
+			if (item->created < expire) {
+				xorg_list_del(&item->list);
+				pes_item_free(item);
 				pid->peslistcount--;
 				pruned++;
 			}
