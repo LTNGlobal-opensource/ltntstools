@@ -197,16 +197,7 @@ static void service(struct tool_ctx_s *ctx)
 				printf("Err\n");
 				exit(1);
 			}
-#if 0
-			if (item->pes->PTS == 5153500907) {
-				printf("Pulled off the magic packet, pkts_count %d\n", pid->pkts_count);
-				ltntstools_hexdump(&pid->pkts[0], 188, 32);
-				ltn_pes_packet_dump(item->pes, " ");
-				printf("What we're packing... %d bytes\n", item->pes->rawBufferLengthBytes);
-				ltntstools_hexdump(item->pes->rawBuffer, item->pes->rawBufferLengthBytes, 32);
-				//exit(1);
-			}
-#endif
+			
 			if (pid->pkts_count < 1) {
 				tprintf("Send pes for packetization and nothing came out, something went wrong\n");
 				exit(1);
@@ -466,7 +457,6 @@ int switcher_main(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
-//			input_stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid + (0x100 * (ctx->inputNr +1)), streamId);
 			input_stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid + 0x100, streamId);
 			break;
 		case 'v':
