@@ -74,7 +74,8 @@ static void service(struct tool_ctx_s *ctx)
 	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_compatability_check) >= 15000) {
 		ctx->last_compatability_check = ctx->next_time;
 		if (input_stream_models_compatible(ctx->input_streams[0], ctx->input_streams[1]) != 1) {
-			usleep(200 * 1000);
+			tprintf("Model compatability issue - Inducing stall because I want you to deal with it. ExpectIAT issue\n");
+			usleep(1000 * 1000);
 			return;
 		}
 	}
@@ -134,11 +135,18 @@ static void service(struct tool_ctx_s *ctx)
 	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_psip) > 50) {
 		ctx->last_psip = ctx->next_time;
 
+#if 1
+		if (stream->smpat) {
+			ltntstools_pat_create_packet_ts(stream->smpat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
+			ltntstools_pmt_create_packet_ts(&stream->smpat->programs[0].pmt, stream->smpat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
+			ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
+		}
+#else
 		ltntstools_pat_create_packet_ts(os->pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
 		ltntstools_pmt_create_packet_ts(&os->pat->programs[0].pmt, os->pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
 		//ltntstools_pmt_create_packet_ts(&ctx->pat->programs[1].pmt, ctx->pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
-
 		ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
+#endif
 	}
 
 	/* Try to ensure we have TS packets available for all input streams, all pids.  */
@@ -361,9 +369,9 @@ static void service(struct tool_ctx_s *ctx)
 			}
 		}
 #endif
+
 		/* Send a single PKT to the reframer */
 		ltststools_reframer_write(ctx->outputStream->reframer, pkt, 188);
-
 		os->ts_packets_sent++;
 	}
 
@@ -460,7 +468,7 @@ int switcher_main(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
-			input_stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid + 0x100, streamId);
+			input_stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid, streamId);
 			break;
 		case 'v':
 			ctx->verbose++;

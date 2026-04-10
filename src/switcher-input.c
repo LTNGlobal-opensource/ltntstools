@@ -254,7 +254,8 @@ struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, i
 	ltntstools_pid_stats_alloc(&stream->libstats);
 	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_STREAM_MBPS, stream, (ltntstools_notification_callback)notification_callback);
 	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_STREAM_IAT_HWM, stream, (ltntstools_notification_callback)notification_callback);
-	ltntstools_pid_stats_pid_set_contains_pcr(stream->libstats, 0x31); /* TODO: Fixed */
+	//ltntstools_pid_stats_pid_set_contains_pcr(stream->libstats, 0x31); /* TODO: Fixed */
+	ltntstools_pid_stats_pid_set_contains_pcr(stream->libstats, 0x101); /* TODO: Fixed */
 	
 	stream->cbs.raw = (ltntstools_source_avio_raw_callback)_avio_raw_callback;
 	stream->cbs.status = (ltntstools_source_avio_raw_callback_status)_avio_raw_callback_status;

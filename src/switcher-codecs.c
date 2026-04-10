@@ -174,7 +174,8 @@ struct pes_item_s *pes_item_alloc(struct pid_s *pid, struct ltn_pes_packet_s *pe
         item->outputSTC = output_get_computed_stc(os) + (27000 * 200); /* We'll schedule for output in 200ms */
     } else 
     if (pid->type == PID_AUDIO) {
-        item->outputSTC = 0; // TODO: get_computed_stc(os);
+        item->outputSTC = output_get_computed_stc(os) + (27000 * 200); /* We'll schedule for output in 200ms */
+//        item->outputSTC = 0; // TODO: get_computed_stc(os);
     }
 
     if (ltn_pes_packet_is_video((struct ltn_pes_packet_s *)item->pes)) {
