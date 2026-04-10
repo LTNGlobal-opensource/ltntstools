@@ -524,8 +524,9 @@ int input_stream_flush_to_frame(struct input_stream_s *is)
 
 					/* Validate assumptions. We're assuming we'll have these along with the iframe. */
 
-					if ((item->pes->PTS_DTS_flags & 2) == 0) {
+					if (!ltn_pes_packet_has_PTS(item->pes)) {
 						tprintf("stream[%d] trimming to iframe, but iframe doesn't have a PTS. Warning.\n");
+					} else {
 						if (item->pes->PTS <= 0) {
 							tprintf("stream[%d] trimming to iframe, but iframe PTS is 0 or < 0. Warning.\n");
 						}
