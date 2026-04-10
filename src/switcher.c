@@ -424,7 +424,7 @@ static void usage(const char *progname)
 	printf("  -h Display command line help.\n");
 	printf("\n  Eg. %s -i 'udp://227.1.20.80:4002?buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -P 0x31:0xe0 -P 0x32:0xc0 \\\n", progname);
 	printf("                     -i 'udp://227.1.20.80:4002?buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -P 0x31:0xe0 -P 0x32:0xc0\n");
-	printf("\n  Eg. %s -v -B 50000000 -T sample.ts\n", progname);
+	//printf("\n  Eg. %s -v -B 50000000 -T sample.ts\n", progname);
 	printf("\n");
 }
 
