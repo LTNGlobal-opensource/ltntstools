@@ -477,6 +477,10 @@ int input_stream_model_supported(struct input_stream_s *is)
 	 * Same format and framerate (we can't check that)
 	*/
 
+	if (ltntstools_streammodel_is_model_mpts(is->smpmt)) {
+		return -1; /* Failed */
+	}
+
 	e = 0;
 	pmt = NULL;
 	while (ltntstools_pat_enum_services_video(is->smpat, &e, &pmt) == 0) {
