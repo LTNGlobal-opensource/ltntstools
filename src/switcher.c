@@ -32,7 +32,8 @@ static void signal_handler(int signr)
 		g_running = 0;
 		break;
 	case SIGUSR1:
-		tprintf("SIGUSR1\n");
+		tprintf("SIGUSR1 - flushing inputs\n");
+		ctx->flushInput = 1;
 		break;
 	case SIGUSR2:
 		tprintf("SIGUSR2\n");
@@ -64,10 +65,19 @@ void tprintf(const char *fmt, ...)
     va_end(args);	
 }
 
+static void schedule_stream(struct tool_ctx_s *ctx, struct input_stream_s *is)
+{
+	pthread_mutex_lock(&ctx->schedule_lock);
+	ctx->schedule[0] = is->pids[0];
+	ctx->schedule[1] = is->pids[1];
+	pthread_mutex_unlock(&ctx->schedule_lock);
+}
+
 static void service(struct tool_ctx_s *ctx)
 {
 	struct output_stream_s *os = ctx->outputStream;
 	struct pid_s *outputPid = NULL;
+	struct input_stream_s *stream = ctx->input_streams[ ctx->activeInputNr ];
 
 	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_compatability_check) >= 15000) {
 		ctx->last_compatability_check = ctx->next_time;
@@ -121,88 +131,94 @@ static void service(struct tool_ctx_s *ctx)
 	}
 
 	/* Try to ensure we have TS packets available for all input streams, all pids.  */
-	for (int s = 0; s <= ctx->inputNr; s++) {
-		struct input_stream_s *stream = ctx->input_streams[s];
-		for (int p = 0; p < stream->pidCount; p++) {
-			struct pid_s *pid = stream->pids[p];
+	for (int p = 0; p < stream->pidCount; p++) { /* For each input pid */
+		struct pid_s *pid = stream->pids[p];
 
-			struct pes_item_s *item = NULL;
+		struct pes_item_s *item = NULL;
 
-			/* Cleanup previously used packet lists and related output clocks, free them. */
-			if (pid->pkts && pid->pkts_count && pid->pkts_idx >= pid->pkts_count) {
-				free(pid->pkts);
-				pid->pkts = NULL;
-				pid->pkts_count = 0;
-				pid->pkts_idx = 0;
-				free(pid->pkts_outputSTC);
-				pid->pkts_outputSTC = NULL;
-			}
+		/* Cleanup previously used packet lists and related output clocks, free them. */
+		if (pid->pkts && pid->pkts_count && pid->pkts_idx >= pid->pkts_count) {
 
-			/* If this pid doesn't have any packets queued.... convert the next pes into TS */
-			if (pid->pkts_count == 0) {
-				/* Get more ts packets */
+			free(pid->pkts);
+			pid->pkts = NULL;
+			pid->pkts_count = 0;
+			pid->pkts_idx = 0;
+			free(pid->pkts_outputSTC);
+			pid->pkts_outputSTC = NULL;
 
-				pthread_mutex_lock(&pid->peslistlock);
-				struct pes_item_s *e = NULL, *next = NULL;
-				xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
-					if (e->outputSTC < output_get_computed_stc(os)) {
-						item = e;
-						xorg_list_del(&e->list);
-						pid->peslistcount--;
-						break;
-					}
-				}
-				pthread_mutex_unlock(&pid->peslistlock);
-
-				if (!item) {
-					continue;
-				}
-
-				if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
-					item->pes->rawBufferLengthBytes,
-					&pid->pkts,
-					&pid->pkts_count,
-					188, &pid->cc, pid->outputPidNr,
-					-1) < 0)
-				{
-					printf("Err\n");
-				}
-
-				if (ctx->verbose) {
-					tprintf("Created %4d ts packets for pid 0x%04x\n", pid->pkts_count, pid->outputPidNr);
-				}
-				pid->pkts_idx = 0;
-
-				/* Now compute the fine grain packet scheduling from the first, TS packet onwards */
-				pid->pkts_outputSTC = calloc(sizeof(int64_t), pid->pkts_count);
-				for (unsigned int i = 0; i < pid->pkts_count; i++) {
-
-					int64_t ticks_per_ts = 0;
-
-					if (pid->type == PID_VIDEO) {
-						/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
-						double bitrate_mbps = 20.0 - 2; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
-						double bitrate_bps = bitrate_mbps * 1000000.0;
-						double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
-						double ticks_per_packet = packet_duration_sec * 27000000.0;
-						ticks_per_ts = ticks_per_packet;
-					} else
-					if (pid->type == PID_AUDIO) {
-						/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
-						//double bitrate_mbps = 1.0; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
-						//double bitrate_bps = bitrate_mbps * 1000000.0;
-						//double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
-						//double ticks_per_packet = packet_duration_sec * 27000000.0;
-						//ticks_per_ts = ticks_per_packet;
-					}
-
-					pid->pkts_outputSTC[i] = item->outputSTC + (i * ticks_per_ts);
-				}
-
-				pes_item_free(item);
+			if (ctx->flushInput == 1) {
+				input_pid_set_state(pid, PS_SCHEDULE_EOL);
+				tprintf("stream[%d].pid 0x%04x WENT EOL\n", stream->nr, pid->pid);
+			} else {
+				input_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
 			}
 		}
-	} /* For all input stream, ensure we have TS packets available. */
+
+		/* If this pid doesn't have any packets queued.... convert the next pes into TS */
+		if (input_pid_get_state(pid) == PS_SCHEDULE_NEXT_PACKET && pid->pkts_count == 0) {
+			/* Get more ts packets */
+
+			pthread_mutex_lock(&pid->peslistlock);
+			struct pes_item_s *e = NULL, *next = NULL;
+			xorg_list_for_each_entry_safe(e, next, &pid->peslist, list) {
+				if (e->outputSTC < output_get_computed_stc(os)) {
+					item = e;
+					xorg_list_del(&e->list);
+					pid->peslistcount--;
+					break;
+				}
+			}
+			pthread_mutex_unlock(&pid->peslistlock);
+
+			if (!item) {
+				/* Nothing to output */
+				continue;
+			}
+
+			if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
+				item->pes->rawBufferLengthBytes,
+				&pid->pkts,
+				&pid->pkts_count,
+				188, &pid->cc, pid->outputPidNr,
+				-1) < 0)
+			{
+				printf("Err\n");
+			}
+
+			if (ctx->verbose) {
+				tprintf("Created %4d ts packets for pid 0x%04x\n", pid->pkts_count, pid->outputPidNr);
+			}
+			pid->pkts_idx = 0;
+
+			/* Now compute the fine grain packet scheduling from the first, TS packet onwards */
+			pid->pkts_outputSTC = calloc(sizeof(int64_t), pid->pkts_count);
+			for (unsigned int i = 0; i < pid->pkts_count; i++) {
+
+				int64_t ticks_per_ts = 0;
+
+				if (pid->type == PID_VIDEO) {
+					/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
+					double bitrate_mbps = 20.0 - 2; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
+					double bitrate_bps = bitrate_mbps * 1000000.0;
+					double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
+					double ticks_per_packet = packet_duration_sec * 27000000.0;
+					ticks_per_ts = ticks_per_packet;
+				} else
+				if (pid->type == PID_AUDIO) {
+					/* Determine for a given bitrate and packet size, how the output schedule should be timed. */
+					//double bitrate_mbps = 1.0; /* TODO: hardcoded 20mb mux, using 18mbps for video. */
+					//double bitrate_bps = bitrate_mbps * 1000000.0;
+					//double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
+					//double ticks_per_packet = packet_duration_sec * 27000000.0;
+					//ticks_per_ts = ticks_per_packet;
+				}
+
+				pid->pkts_outputSTC[i] = item->outputSTC + (i * ticks_per_ts);
+			}
+
+			pes_item_free(item);
+		}
+	}
 
 	/* Each iteration through, we output a single packet. If we don't have a packet
 		* in the schedule to send, then a NULL packet goes out.
@@ -249,7 +265,7 @@ static void service(struct tool_ctx_s *ctx)
 			/* Find the next packet and check its scheduling time. */
 			/* Make sure its scheduled to go out */
 			/* Otherwise leave with item being NULL and a null packet will go out instead */
-			if (pkt == NULL && pid->pkts_idx < pid->pkts_count) {
+			if (pkt == NULL && input_pid_get_state(pid) == PS_SCHEDULE_NEXT_PACKET && pid->pkts_idx < pid->pkts_count) {
 				pkt = &pid->pkts[ pid->pkts_idx * 188 ];
 				if (pid->pkts_outputSTC[pid->pkts_idx] <= output_get_computed_stc(os)) {
 					pid->pkts_idx++;
@@ -296,6 +312,42 @@ static void service(struct tool_ctx_s *ctx)
 		ltststools_reframer_write(ctx->outputStream->reframer, pkt, 188);
 		os->ts_packets_sent++;
 	}
+
+	/* if we're flushing and all pids are in a EOL state... adjust the schedule */
+	if (ctx->flushInput) {
+		int eolCount = 0;
+		for (int p = 0; p < stream->pidCount; p++) { /* For each input pid */
+			struct pid_s *pid = stream->pids[p];
+			if (input_pid_get_state(pid) == PS_SCHEDULE_EOL) {
+				tprintf("stream[%d].pid 0x%04x EOL\n", stream->nr, pid->pid);
+				eolCount++;
+			}
+		}
+		if (eolCount == stream->pidCount) {
+			tprintf("stream[%d] all pids are flushed, preparing for schedule adjustment\n", stream->nr);
+
+			/* adjust the schedule, start outputting payload from the alternate stream */
+
+			/* Toggle the active input. */
+			ctx->activeInputNr = (~ctx->activeInputNr) & 1;
+			stream = ctx->input_streams[ctx->activeInputNr ];
+			schedule_stream(ctx, stream);
+			tprintf("stream[%d] became active input\n", stream->nr);
+
+			/* Walk the active input pes queues, remove everything up to the next iframe */
+			if (input_stream_flush_to_frame(stream) < 0) {
+				tprintf("error flushing stream, ignoring\n");
+			}
+
+			for (int p = 0; p < stream->pidCount; p++) { /* For each input pid */
+				struct pid_s *pid = stream->pids[p];
+				input_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
+				tprintf("stream[%d].pid 0x%04x SCHEDULED\n", stream->nr, pid->pid);
+			}
+			ctx->flushInput = 0;
+		}
+	}
+
 }
 
 static void usage(const char *progname)
@@ -321,6 +373,7 @@ int switcher_main(int argc, char *argv[])
 	memset(ctx, 0, sizeof(*ctx));
 
 	ctx->inputNr = -1;
+	ctx->activeInputNr = 0;
 	ctx->output_psip_idx = -1;
 	ctx->schedule_entries = 2;
 	pthread_mutex_init(&ctx->schedule_lock, NULL);
@@ -350,7 +403,8 @@ int switcher_main(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
-			input_stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid + (0x100 * (ctx->inputNr +1)), streamId);
+//			input_stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid + (0x100 * (ctx->inputNr +1)), streamId);
+			input_stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid + 0x100, streamId);
 			break;
 		case 'v':
 			ctx->verbose++;
@@ -368,12 +422,7 @@ int switcher_main(int argc, char *argv[])
 	tprintf("Number of Inputs: %d\n", ctx->inputNr + 1);
 
 	/* Setup the output schedule to give each stream time in the packet scheduler. */
-	pthread_mutex_lock(&ctx->schedule_lock);
-	ctx->schedule[0] = ctx->input_streams[0]->pids[0];
-	ctx->schedule[1] = ctx->input_streams[0]->pids[1];
-	//ctx->schedule[2] = ctx->streams[1]->pids[0]; /* Skip any outputs of strem #2 for now */
-	//ctx->schedule[3] = ctx->streams[1]->pids[1];
-	pthread_mutex_unlock(&ctx->schedule_lock);
+	schedule_stream(ctx, ctx->input_streams[0]);
 
 	/* Build a pid output schedule. Each time we iterate a need to output a packet,
 	 * we process the threads in this order.

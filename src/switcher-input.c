@@ -303,6 +303,8 @@ struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputP
 	pthread_mutex_init(&pid->peslistlock, NULL);
 	xorg_list_init(&pid->peslist);
 
+	input_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
+
 	clock_gettime(CLOCK_MONOTONIC, &pid->last_pcr_output);
 
 	if (ltntstools_vbv_profile_defaults(&pid->dp, VBV_CODEC_H264, 32, 59.94) < 0) {
@@ -371,6 +373,16 @@ void input_pid_free(struct pid_s *pid)
 	}
 
 	free(pid);
+}
+
+void input_pid_set_state(struct pid_s *pid, enum pid_state_e state)
+{
+	pid->state = state;
+}
+
+enum pid_state_e input_pid_get_state(struct pid_s *pid)
+{
+	return pid->state;
 }
 
 /* Determine if two different models are compatible and supported by this tool. */
@@ -472,4 +484,83 @@ int input_stream_model_supported(struct input_stream_s *is)
 	}
 
 	return 1; /* Success, model is supported */
+}
+
+int input_stream_flush_to_frame(struct input_stream_s *is)
+{
+	tprintf("stream[%d] discarding everything to next iframe\n", is->nr);
+	struct pes_item_s *itemVideo = NULL;
+
+	/* For each input pid, find video FIRST */
+	for (int p = 0; p < is->pidCount; p++) {
+		struct pid_s *pid = is->pids[p];
+
+		if (pid->type == PID_VIDEO) {
+
+			int dropped = 0;
+
+			/* Drop everything until the next iframe */
+			pthread_mutex_lock(&pid->peslistlock);
+			struct pes_item_s *item = NULL, *next = NULL;
+			xorg_list_for_each_entry_safe(item, next, &pid->peslist, list) {
+
+				if (item->video.sliceType == SLICE_I) {
+					itemVideo = item; /* We want the item for later */
+					break;
+				}
+
+				xorg_list_del(&item->list);
+				pid->peslistcount--;
+
+				pes_item_free(item);
+
+				dropped++;
+			}
+			pthread_mutex_unlock(&pid->peslistlock);
+			tprintf("stream[%d].pid 0x%04x dropped %d VideoPES items, found iframe\n", is->nr, pid->pid, dropped);
+
+		}
+	}
+
+	/* For each input pid, other than video */
+	for (int p = 0; p < is->pidCount; p++) {
+		struct pid_s *pid = is->pids[p];
+
+		if (pid->type == PID_AUDIO) {
+
+			int dropped = 0;
+
+			/* Drop everything until the next PTS >= video.pts */
+			pthread_mutex_lock(&pid->peslistlock);
+			struct pes_item_s *item = NULL, *next = NULL;
+			xorg_list_for_each_entry_safe(item, next, &pid->peslist, list) {
+
+/* TODO: Assuming we have a pts */
+				if (item->pes->PTS < itemVideo->pes->PTS) {
+					xorg_list_del(&item->list);
+					pid->peslistcount--;
+					pes_item_free(item);
+
+					dropped++;
+				} else {
+					break;
+				}
+
+			}
+			pthread_mutex_unlock(&pid->peslistlock);
+			tprintf("stream[%d].pid 0x%04x dropped %d AudioPES items, until PTS %" PRIi64 "\n",
+				is->nr, pid->pid, dropped, itemVideo->pes->PTS);
+		}
+
+	}
+
+	/* For each input pid, everything else */
+	for (int p = 0; p < is->pidCount; p++) {
+		struct pid_s *pid = is->pids[p];
+		if (pid->type == PID_OTHER) {
+			tprintf("stream[%d].pid 0x%04x IMPLEMENT ME\n", is->nr, pid->pid);
+		}
+	}
+
+	return 0; /* Success */
 }

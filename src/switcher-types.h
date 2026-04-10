@@ -46,11 +46,11 @@ enum SliceType_e {
 	SLICE_I, SLICE_B, SLICE_P
 };
 
-enum pid_state_t {
+enum pid_state_e {
 	PS_UNDEFINED = 0,
 	PS_SCHEDULE_NO_OP,         /* When schedule for a packet, return no packet regardless if something is available */
 	PS_SCHEDULE_NEXT_PACKET,   /* When schedule for a packet, do an actual packet from the TS queue. */  
-	PS_SCHEDULE_STOP_EOL,      /* Stop outputting packets when end of PES occurs, transition to NO_OP */
+	PS_SCHEDULE_EOL,           /* pid at end of list, mot ts packets required. */
 };
 
 int64_t output_get_computed_stc(struct output_stream_s *os);
@@ -82,13 +82,13 @@ struct pes_item_s
 
 	int nalArrayLength;
 	struct ltn_nal_headers_s *nals;
-
 };
 
 struct pid_s
 {
 	struct input_stream_s *stream;   /* parent stream context */
 	enum pid_type_e type;            /* Eg. PID_VIDEO, PID_AUDIO */
+	enum pid_state_e state;          /* Processing state. Eg. PS_SCHEDULE_NEXT_PACKET */
 
 	uint16_t pid;                    /* Transport PID: 0..8191 */
 	uint16_t outputPidNr;            /* Transport PID: 0..8191 */
@@ -160,6 +160,8 @@ struct tool_ctx_s
 {
 	int verbose;                     /* -v option increments this higher and higher */
 	int inputNr;                     /* */
+	int activeInputNr;               /* 0..inputNr */
+	int flushInput;                  /* prepare to switch inputs */
 
 	int output_psip_idx;             /* Index pointer into psip_pkt[n] */
 	uint8_t psip_cc[3];              /* Keeping track of the CC for any PSIP packets */
@@ -193,6 +195,9 @@ void input_stream_free(struct input_stream_s *stream);
 void input_stream_prune_history(struct input_stream_s *is);
 int  input_stream_model_supported(struct input_stream_s *stream);
 int  input_stream_models_compatible(struct input_stream_s *is1, struct input_stream_s *is2);
+int  input_stream_flush_to_frame(struct input_stream_s *is);
+void input_pid_set_state(struct pid_s *pid, enum pid_state_e state);
+enum pid_state_e input_pid_get_state(struct pid_s *pid);
 
 struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
 void output_stream_free(struct output_stream_s *os);
