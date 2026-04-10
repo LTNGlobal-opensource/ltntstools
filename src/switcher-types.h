@@ -75,6 +75,8 @@ struct pes_item_s
 
 	struct {
 		enum SliceType_e sliceType;
+		int has_avc_closed_gop;
+		int has_avc_filler;
 		int has_avc_sps;
 		int has_avc_pps;
 		int has_avc_aud;
@@ -113,6 +115,7 @@ struct pid_s
 	uint64_t count_frames_i;         /* Count of different video slice types: I */
 	uint64_t count_frames_b;         /* Count of different video slice types: B */
 	uint64_t count_frames_p;         /* Count of different video slice types: P */
+	uint64_t count_frames_idr;       /* Number of nal type 5 (AVC) IDR close gop frames */
 
 	/* Video Buffer Verifier (VBV) */
 	void *vbv;

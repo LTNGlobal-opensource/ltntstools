@@ -70,13 +70,22 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 		pat->programs[i].program_number = prog;
 		pat->programs[i].program_map_PID = 0x100 * prog;
 		pat->programs[i].pmt.current_next_indicator = 1;
-		pat->programs[i].pmt.PCR_PID = 0x31 + (0x100 * prog);
 		pat->programs[i].pmt.program_number = prog;
 		pat->programs[i].pmt.version_number = 1;
 		pat->programs[i].pmt.stream_count = 2;
+#if 1
+		printf("LTN Encoder fixed values\n");
+		pat->programs[i].pmt.PCR_PID = 0x31 + (0x100 * prog);
 		pat->programs[i].pmt.streams[0].elementary_PID = 0x31 + (0x100 * prog);
 		pat->programs[i].pmt.streams[0].stream_type    = 0x1b;
 		pat->programs[i].pmt.streams[1].elementary_PID = 0x32 + (0x100 * prog);
+#else
+		printf("CM5000 fixed values\n");
+		pat->programs[i].pmt.PCR_PID = 0x101 + (0x100 * prog);
+		pat->programs[i].pmt.streams[0].elementary_PID = 0x101 + (0x100 * prog);
+		pat->programs[i].pmt.streams[0].stream_type    = 0x1b;
+		pat->programs[i].pmt.streams[1].elementary_PID = 0x102 + (0x100 * prog);
+#endif
 		if (isAC3Output) {
 			pat->programs[i].pmt.streams[1].stream_type    = 0x81; // AC3
 		} else {

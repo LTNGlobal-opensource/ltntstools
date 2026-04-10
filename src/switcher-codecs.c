@@ -116,8 +116,14 @@ int pes_item_nals_alloc(struct pes_item_s *item)
 		switch (nal->nalType) {
 		case 1: /* slice_layer_without_partitioning_rbsp */
 		case 2: /* slice_data_partition_a_layer_rbsp */
-		case 5: /* slice_layer_without_partitioning_rbsp */
+		case 5: /* Closed GOP - slice_layer_without_partitioning_rbsp */
 		case 19: /* slice_layer_without_partitioning_rbsp */
+
+            if (nal->nalType == 5) {
+                item->video.has_avc_closed_gop = 1; /* Closed GOP - slice_layer_without_partitioning_rbsp */
+                pid->count_frames_idr++;
+            }
+
 			if (h264_nal_get_slice_type_for_nal(nal, &sliceType) == 0) {
 				//printf("SLICE TYPE %d, %s\n", sliceType, h264_slice_name_ascii(sliceType));
 				if (h264_is_slice_type_iframe(sliceType)) {
@@ -143,7 +149,10 @@ int pes_item_nals_alloc(struct pes_item_s *item)
 		case 9:
 			item->video.has_avc_aud = 1;
 			break;
-		}
+        case 0xc: /* FILLER */
+            item->video.has_avc_filler = 1;
+            break;
+        }
 	}
 
 	return 0; /* Success */

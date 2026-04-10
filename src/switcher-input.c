@@ -194,10 +194,11 @@ void input_stream_show_codec_stats(struct input_stream_s *is)
 		struct pid_s *pid = is->pids[i];
 
 		if (pid->type == PID_VIDEO) {
-			tprintf("stream[%d].pid 0x%04x AVC: I/B/P = %" PRIu64 "/%" PRIu64 "/%" PRIu64 ", %" PRIu64 " slices.\n",
+			tprintf("stream[%d].pid 0x%04x AVC: I/B/P = %" PRIu64 "/%" PRIu64 "/%" PRIu64 ", %" PRIu64 " slices, %s GOP.\n",
 				is->nr, pid->pid,
 				pid->count_frames_i, pid->count_frames_b, pid->count_frames_p,
-				pid->count_frames_i + pid->count_frames_b + pid->count_frames_p);
+				pid->count_frames_i + pid->count_frames_b + pid->count_frames_p,
+				pid->count_frames_idr ? "Closed" : "Open");
 		}
 
 	}
@@ -477,7 +478,7 @@ int input_stream_model_supported(struct input_stream_s *is)
 	 * Same format and framerate (we can't check that)
 	*/
 
-	if (ltntstools_streammodel_is_model_mpts(is->smpmt)) {
+	if (ltntstools_streammodel_is_model_mpts(NULL, is->smpat)) {
 		return -1; /* Failed */
 	}
 
