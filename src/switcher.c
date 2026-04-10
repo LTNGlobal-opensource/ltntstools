@@ -94,15 +94,16 @@ static void service(struct tool_ctx_s *ctx)
 			input_stream_show_codec_stats(ctx->input_streams[i]);
 		}
 		for (int i = 0; i <= ctx->inputNr; i++) {
-			double mbps = ltntstools_pid_stats_stream_get_mbps(ctx->input_streams[i]->libstats);
-			uint64_t cc = ltntstools_pid_stats_stream_get_cc_errors(ctx->input_streams[i]->libstats);
 			tprintf("input  stream[%d] %5.2f mbps, %" PRIu64 " CC errors, %s\n",
-				ctx->input_streams[i]->nr, mbps, cc, ctx->input_streams[i]->iname);
+				ctx->input_streams[i]->nr,
+				ltntstools_pid_stats_stream_get_mbps(ctx->input_streams[i]->libstats),
+				ltntstools_pid_stats_stream_get_cc_errors(ctx->input_streams[i]->libstats),
+				ctx->input_streams[i]->iname);
 		}
-		double mbps = ltntstools_pid_stats_stream_get_mbps(ctx->outputStream->libstats);
-		uint64_t cc = ltntstools_pid_stats_stream_get_cc_errors(ctx->outputStream->libstats);
-		tprintf("output stream[0] %5.2f mbps, %" PRIu64 " CC errors, %s\n", mbps, cc, ctx->outputStream->oname);
-
+		tprintf("output stream[0] %5.2f mbps, %" PRIu64 " CC errors, %s\n",
+			ltntstools_pid_stats_stream_get_mbps(ctx->outputStream->libstats),
+			ltntstools_pid_stats_stream_get_cc_errors(ctx->outputStream->libstats),
+			ctx->outputStream->oname);
 	}
 
 	/* Periodically, every 950ms, show the size of each stream and pid Q to console. */
