@@ -80,8 +80,8 @@ struct pes_item_s
 		int has_avc_aud;
 	} video;
 
-	int nalArrayLength;
-	struct ltn_nal_headers_s *nals;
+	int nalArrayLength;              /* AVC ONLY. Number of items in nals[]. */
+	struct ltn_nal_headers_s *nals;  /* AVC ONLY. Array of nal objects. Eg. SEI, AUD, PPS, SPS, IDR, non-IDR slice etc */
 };
 
 struct pid_s
