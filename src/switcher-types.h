@@ -167,10 +167,11 @@ struct tool_ctx_s
 	uint8_t psip_cc[3];              /* Keeping track of the CC for any PSIP packets */
 	uint8_t psip_pkt[3][188];        /* Enough space to hold a PAT in psip_pkt[0], and two single stream PMTs in psip_pkt[1] and psip_pkt[2] */
 
-	struct timespec next_time;       /* Current time */
-	struct timespec last_psip;       /* Last time a PSIP TS packet were output */
-	struct timespec last_q_report;   /* Last time a PES queue report was dumped to console. */
-	struct timespec last_q_purge;    /* Last time the PES queues were purged of old content. */
+	struct timespec next_time;           /* Current time */
+	struct timespec last_psip;           /* Last time a PSIP TS packet were output */
+	struct timespec last_q_report;       /* Last time a PES queue report was dumped to console. */
+	struct timespec last_codec_report;   /* Last time a PES queue report was dumped to console. */
+	struct timespec last_q_purge;        /* Last time the PES queues were purged of old content. */
 	struct timespec last_compatability_check; /* Last time we checks that streams 1&2 were compatible. */
 
 	/* Streams. Many input, one output. */
@@ -198,6 +199,7 @@ int  input_stream_models_compatible(struct input_stream_s *is1, struct input_str
 int  input_stream_flush_to_frame(struct input_stream_s *is);
 void input_pid_set_state(struct pid_s *pid, enum pid_state_e state);
 enum pid_state_e input_pid_get_state(struct pid_s *pid);
+void input_stream_show_codec_stats(struct input_stream_s *is);
 
 struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
 void output_stream_free(struct output_stream_s *os);
@@ -210,6 +212,7 @@ int  pes_contains_start_of_mp2_sync(const struct ltn_pes_packet_s *pes);
 void pes_item_nals_dump(struct pes_item_s *item);
 void pes_item_nals_free(struct pes_item_s *item);
 int  pes_item_nals_alloc(struct pes_item_s *item);
+void pes_item_dump(struct pes_item_s *item, int dumpNals);
 
 struct pes_item_s *pes_item_alloc(struct pid_s *pid, struct ltn_pes_packet_s *pes, struct output_stream_s *os);
 void pes_item_free(struct pes_item_s *item);

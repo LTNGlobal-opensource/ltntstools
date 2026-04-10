@@ -38,7 +38,7 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 #if 0
 	os->oname = strdup("udp://227.1.131.201:4001");
 #else
-	os->oname = strdup("udp://227.1.131.51:4051"); /* ltnt-col-videolab-e3 */
+	os->oname = strdup("udp://227.1.131.51:4051?pkt_size=1316"); /* ltnt-col-videolab-e3 */
 #endif
 
 	int ret = avio_open2(&os->avio_ctx, os->oname, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);

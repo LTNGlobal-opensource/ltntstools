@@ -22,11 +22,23 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 	struct output_stream_s *os = stream->ctx->outputStream;
 
 	if (stream->ctx->verbose) {
-		tprintf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 "\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr);
+		tprintf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 ", length %d\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr, pes->dataLengthBytes);
+	}
+#if 0
+	if (pid->pid == 0x31 && pes->dataLengthBytes == 165) {
+		ltn_pes_packet_dump(pes, "");
+		printf("rawBufferLengthBytes %d, pts %" PRIi64 "\n", pes->rawBufferLengthBytes, pes->PTS);
+		ltntstools_hexdump(pes->rawBuffer, pes->rawBufferLengthBytes, 32);
+	}
+	if (pid->pid == 0x31 && pes->dataLengthBytes == 152) {
+		ltn_pes_packet_dump(pes, "");
+		printf("rawBufferLengthBytes %d\n", pes->rawBufferLengthBytes);
+		ltntstools_hexdump(pes->rawBuffer, pes->rawBufferLengthBytes, 32);
 	}
 	if (pid->pid == 0x32) {
 		//ltntstools_hexdump(pes->rawBuffer, 188, 32);
 	}
+#endif
 #if 0
 	if (pid->vbv && pid->type == PID_VIDEO && ltntstools_vbv_write(pid->vbv, (const struct ltn_pes_packet_s *)pes) < 0) {
 		fprintf(stderr, "Error writing PES to VBV\n");
@@ -180,12 +192,28 @@ static void *_avio_raw_callback_status(struct input_stream_s *stream, enum sourc
 		break;
 	case AVIO_STATUS_MEDIA_END:
 		tprintf("AVIO media ends: %s\n", stream->iname);
-		g_running = 0;
+		//g_running = 0;
 		break;
 	default:
 		fprintf(stderr, "unsupported avio state %d\n", status);
 	}
 	return NULL;
+}
+
+void input_stream_show_codec_stats(struct input_stream_s *is)
+{
+	for (int i = 0; i < is->pidCount; i++) {
+		struct pid_s *pid = is->pids[i];
+
+		if (pid->type == PID_VIDEO) {
+			tprintf("stream[%d].pid 0x%04x AVC: I/B/P = %" PRIu64 "/%" PRIu64 "/%" PRIu64 ", %" PRIu64 " slices.\n",
+				is->nr, pid->pid,
+				pid->count_frames_i, pid->count_frames_b, pid->count_frames_p,
+				pid->count_frames_i + pid->count_frames_b + pid->count_frames_p);
+		}
+
+	}
+	// printf("Pruned[%d] %d\n", is->nr, pruned);
 }
 
 void input_stream_prune_history(struct input_stream_s *is)

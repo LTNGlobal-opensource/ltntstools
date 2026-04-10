@@ -87,11 +87,19 @@ static void service(struct tool_ctx_s *ctx)
 		}
 	}
 
-	/* Periodically, every 950ms, remove PES content from queues older than N seconds */
-	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_q_purge) >= 950) {
+	/* Periodically, every 5 seconds, remove PES content from queues older than N seconds */
+	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_q_purge) >= 5000) {
 		ctx->last_q_purge = ctx->next_time;
 		for (int i = 0; i <= ctx->inputNr; i++) {
 			input_stream_prune_history(ctx->input_streams[i]);
+		}
+	}
+
+	/* Periodically, every 15 seconds, report codec statistics */
+	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_codec_report) >= 15000) {
+		ctx->last_codec_report = ctx->next_time;
+		for (int i = 0; i <= ctx->inputNr; i++) {
+			input_stream_show_codec_stats(ctx->input_streams[i]);
 		}
 	}
 
@@ -175,6 +183,10 @@ static void service(struct tool_ctx_s *ctx)
 				continue;
 			}
 
+#if 0
+			printf("About to schedule: ");
+			pes_item_dump(item, 0);
+#endif
 			if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
 				item->pes->rawBufferLengthBytes,
 				&pid->pkts,
@@ -183,8 +195,22 @@ static void service(struct tool_ctx_s *ctx)
 				-1) < 0)
 			{
 				printf("Err\n");
+				exit(1);
 			}
-
+#if 0
+			if (item->pes->PTS == 5153500907) {
+				printf("Pulled off the magic packet, pkts_count %d\n", pid->pkts_count);
+				ltntstools_hexdump(&pid->pkts[0], 188, 32);
+				ltn_pes_packet_dump(item->pes, " ");
+				printf("What we're packing... %d bytes\n", item->pes->rawBufferLengthBytes);
+				ltntstools_hexdump(item->pes->rawBuffer, item->pes->rawBufferLengthBytes, 32);
+				//exit(1);
+			}
+#endif
+			if (pid->pkts_count < 1) {
+				tprintf("Send pes for packetization and nothing came out, something went wrong\n");
+				exit(1);
+			}
 			if (ctx->verbose) {
 				tprintf("Created %4d ts packets for pid 0x%04x\n", pid->pkts_count, pid->outputPidNr);
 			}
@@ -266,8 +292,8 @@ static void service(struct tool_ctx_s *ctx)
 			/* Make sure its scheduled to go out */
 			/* Otherwise leave with item being NULL and a null packet will go out instead */
 			if (pkt == NULL && input_pid_get_state(pid) == PS_SCHEDULE_NEXT_PACKET && pid->pkts_idx < pid->pkts_count) {
-				pkt = &pid->pkts[ pid->pkts_idx * 188 ];
 				if (pid->pkts_outputSTC[pid->pkts_idx] <= output_get_computed_stc(os)) {
+					pkt = &pid->pkts[ pid->pkts_idx * 188 ];
 					pid->pkts_idx++;
 					outputPid = pid;
 				} else {
@@ -295,21 +321,56 @@ static void service(struct tool_ctx_s *ctx)
 			/* All video pids need to be rolled because we inject PCR 
 			 * packet randomly into the schedule, messing up the pre-allocated CC's
 			 */
-			if (ltntstools_has_adaption(pkt)) {
-				if (ltntstools_adaption_field_control(pkt) == 0x02 /* Adaption only */) {
-					/* Don't roll the cc for adaption only packets. issue the last counter. */
-					pkt[3] &= 0xf0;
-					pkt[3] |= ((outputPid->ccRoller - 1) & 0x0f);
-				}
+			if (ltntstools_has_adaption(pkt) && ltntstools_adaption_field_control(pkt) == 0x02 /* Adaption only */) {
+				/* Don't roll the cc for adaption only packets. issue the last counter. */
+				pkt[3] &= 0xf0;
+				pkt[3] |= ((outputPid->ccRoller - 1) & 0x0f);
 			} else {
 				pkt[3] &= 0xf0;
 				pkt[3] |= (outputPid->ccRoller & 0x0f);
 				outputPid->ccRoller++;
 			}
 		}
+#if 0
+		/* Sanity Lookup this packet expensively in the pkts array.
+		 * If we're about to send it, mark its STC delivery time as -2.
+		 * We'll check all STC times are -2 when we destroy the packet array,
+		 * hence checking that all packets were output.
+		 */
+		unsigned char magic[] = { 0x18, 0x00, 0x00, 0x03, 0x03, 0xae };
+		if (memcmp(pkt + 182, &magic[0], sizeof(magic)) == 0) {
+			printf("About to output the magic packet\n");
+			ltntstools_hexdump(pkt, 188, 32);
+			exit(1);
+		}
 
+		int found = 0;
+		for (int p = 0; p < stream->pidCount; p++) { /* For each input pid */
+			struct pid_s *pid = stream->pids[p];
+			for (unsigned int i = 0; i < pid->pkts_count; i++) {
+				if (memcmp(pkt, &pid->pkts[i * 188], 188) == 0) {
+					pid->pkts_outputSTC[i] = -2;
+					found++;
+					break;
+				}
+			}
+		}
+		if (!found) {
+			if (ltntstools_pid(pkt) != 0x1fff && ltntstools_pid(pkt) != 0x100 && ltntstools_pid(pkt) != 0x0) {
+				if (pkt[187] != 0xff && pkt[186] != 0xff && pkt[185] != 0xff && pkt[184] != 0xff) { /* Adaptioon packet*/
+					printf("didn't find pkt for pid 0x%04x\n", ltntstools_pid(pkt));
+					ltntstools_hexdump(pkt, 188, 32);
+					exit(1);
+				}
+			}
+		}
+#endif
 		/* Send a single PKT to the reframer */
+#if 0
+		output_write(os, pkt, 1);
+#else
 		ltststools_reframer_write(ctx->outputStream->reframer, pkt, 188);
+#endif
 		os->ts_packets_sent++;
 	}
 
@@ -387,8 +448,10 @@ int switcher_main(int argc, char *argv[])
 	uint32_t pid;
 	uint32_t streamId;
 
-	while ((ch = getopt(argc, argv, "?hvi:P:")) != -1) {
+	while ((ch = getopt(argc, argv, "?D:hvi:P:")) != -1) {
 		switch (ch) {
+		case 'D':
+			return ffmpeg_demux_test(optarg);
 		case '?':
 		case 'h':
 			usage(argv[0]);
@@ -438,6 +501,7 @@ int switcher_main(int argc, char *argv[])
 	ctx->last_q_purge = ctx->next_time;
 	ctx->last_psip = ctx->next_time;
 	ctx->last_q_report = ctx->next_time;
+	ctx->last_codec_report = ctx->next_time;
 	ctx->last_compatability_check = ctx->next_time;
 
 	/* Main loop.
