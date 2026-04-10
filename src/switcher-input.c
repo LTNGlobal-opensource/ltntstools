@@ -521,6 +521,25 @@ int input_stream_flush_to_frame(struct input_stream_s *is)
 
 				if (item->video.sliceType == SLICE_I) {
 					itemVideo = item; /* We want the item for later */
+
+					/* Validate assumptions. We're assuming we'll have these along with the iframe. */
+
+					if ((item->pes->PTS_DTS_flags & 2) == 0) {
+						tprintf("stream[%d] trimming to iframe, but iframe doesn't have a PTS. Warning.\n");
+						if (item->pes->PTS <= 0) {
+							tprintf("stream[%d] trimming to iframe, but iframe PTS is 0 or < 0. Warning.\n");
+						}
+					}
+					if (!item->video.has_avc_aud) {
+						tprintf("stream[%d] trimming to iframe, but iframe doesn't have an attached AUD. Warning.\n");
+					}
+					if (!item->video.has_avc_sps) {
+						tprintf("stream[%d] trimming to iframe, but iframe doesn't have an attached SPS. Warning.\n");
+					}
+					if (!item->video.has_avc_pps) {
+						tprintf("stream[%d] trimming to iframe, but iframe doesn't have an attached PPS. Warning.\n");
+					}
+
 					break;
 				}
 
