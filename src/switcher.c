@@ -37,14 +37,6 @@ static void signal_handler(int signr)
 		break;
 	case SIGUSR2:
 		tprintf("SIGUSR2\n");
-		for (int i = 0; i <= ctx->inputNr; i++) {
-			double mbps = ltntstools_pid_stats_stream_get_mbps(ctx->input_streams[i]->libstats);
-			uint64_t cc = ltntstools_pid_stats_stream_get_cc_errors(ctx->input_streams[i]->libstats);
-			tprintf("input  stream[%d] %5.2f mbps, %" PRIu64 " CC errors\n", ctx->input_streams[i]->nr, mbps, cc);
-		}
-		double mbps = ltntstools_pid_stats_stream_get_mbps(ctx->outputStream->libstats);
-		uint64_t cc = ltntstools_pid_stats_stream_get_cc_errors(ctx->outputStream->libstats);
-		tprintf("output stream[0] %5.2f mbps, %" PRIu64 " CC errors\n", mbps, cc);
 		break;
 	default:
 		printf("signr %d\n", signr);
@@ -101,6 +93,16 @@ static void service(struct tool_ctx_s *ctx)
 		for (int i = 0; i <= ctx->inputNr; i++) {
 			input_stream_show_codec_stats(ctx->input_streams[i]);
 		}
+		for (int i = 0; i <= ctx->inputNr; i++) {
+			double mbps = ltntstools_pid_stats_stream_get_mbps(ctx->input_streams[i]->libstats);
+			uint64_t cc = ltntstools_pid_stats_stream_get_cc_errors(ctx->input_streams[i]->libstats);
+			tprintf("input  stream[%d] %5.2f mbps, %" PRIu64 " CC errors, %s\n",
+				ctx->input_streams[i]->nr, mbps, cc, ctx->input_streams[i]->iname);
+		}
+		double mbps = ltntstools_pid_stats_stream_get_mbps(ctx->outputStream->libstats);
+		uint64_t cc = ltntstools_pid_stats_stream_get_cc_errors(ctx->outputStream->libstats);
+		tprintf("output stream[0] %5.2f mbps, %" PRIu64 " CC errors, %s\n", mbps, cc, ctx->outputStream->oname);
+
 	}
 
 	/* Periodically, every 950ms, show the size of each stream and pid Q to console. */
@@ -197,7 +199,7 @@ static void service(struct tool_ctx_s *ctx)
 				printf("Err\n");
 				exit(1);
 			}
-			
+
 			if (pid->pkts_count < 1) {
 				tprintf("Send pes for packetization and nothing came out, something went wrong\n");
 				exit(1);
