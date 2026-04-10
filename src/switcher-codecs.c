@@ -2,7 +2,6 @@
 
 #include "switcher-types.h"
 
-
 /* For a given pes, look at the vars and stream content.
  * determine of the pes begins with a MP2 sync marker.
  * Returns 1 on success else 0.
@@ -223,9 +222,18 @@ void pes_item_free(struct pes_item_s *item)
 
 void pes_item_dump(struct pes_item_s *item, int dumpNals)
 {
-    printf("item %p pes %p, pid %p,", item, item->pes, item->pid);
-    printf(" arrivalSTC %14" PRIi64 " outputSTC %14" PRIi64 " created %d type %d,", item->arrivalSTC, item->outputSTC, (int)item->created, item->type);
-    printf(" pes->dataLengthBytes %8d\n", item->pes->dataLengthBytes);
+    printf("item %p pes %p, pid %p", item, item->pes, item->pid);
+    printf(", arrivalSTC %14" PRIi64 " outputSTC %14" PRIi64 " created %d type %d", item->arrivalSTC, item->outputSTC, (int)item->created, item->type);
+    printf(", pes->dataLengthBytes %8d", item->pes->dataLengthBytes);
+    if (item->type == PID_VIDEO) {
+        printf(", item->video.sliceType %s (%d)",
+            item->video.sliceType == SLICE_I ? "I" :
+            item->video.sliceType == SLICE_B ? "B" :
+            item->video.sliceType == SLICE_P ? "P" : "UNDEFINED",
+            item->video.sliceType);
+
+    }
+    printf("\n");
 
     if (dumpNals) {
         pes_item_nals_dump(item);

@@ -50,6 +50,9 @@ static void *pe_callback(struct pid_s *pid, struct ltn_pes_packet_s *pes)
 		xorg_list_append(&item->list, &pid->peslist);
 		pid->peslistcount++;
 		pthread_mutex_unlock(&pid->peslistlock);
+
+		// pes_item_dump(item, 1);
+
 	} else {
 		//ltn_pes_packet_dump(pes, "");
 		ltn_pes_packet_free(pes);
