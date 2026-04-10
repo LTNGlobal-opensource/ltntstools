@@ -200,7 +200,7 @@ int  input_stream_flush_to_frame(struct input_stream_s *is);
 void input_pid_set_state(struct pid_s *pid, enum pid_state_e state);
 enum pid_state_e input_pid_get_state(struct pid_s *pid);
 void input_stream_show_codec_stats(struct input_stream_s *is);
-
+int  ffmpeg_demux_test(const char *filename);
 struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
 void output_stream_free(struct output_stream_s *os);
 int  output_write(struct output_stream_s *os, const uint8_t *pkt, int packetCount);

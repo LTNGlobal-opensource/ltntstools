@@ -331,10 +331,10 @@ static void service(struct tool_ctx_s *ctx)
 				outputPid->ccRoller++;
 			}
 		}
-		
+
 #if 0
-		/* COdec I used to track down a pes extraction / ts packetization bug 
-		/* Sanity Lookup this packet expensively in the pkts array.
+		/* Codec I used to track down a pes extraction / ts packetization bug 
+		 * Sanity Lookup this packet expensively in the pkts array.
 		 * If we're about to send it, mark its STC delivery time as -2.
 		 * We'll check all STC times are -2 when we destroy the packet array,
 		 * hence checking that all packets were output.
