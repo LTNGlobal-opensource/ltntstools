@@ -397,7 +397,7 @@ static void service(struct tool_ctx_s *ctx)
 			tprintf("stream[%d] became active input\n", stream->nr);
 
 			/* Walk the active input pes queues, remove everything up to the next iframe */
-			if (input_stream_flush_to_frame(stream) < 0) {
+			if (input_stream_flush_to_transition_point(stream) < 0) {
 				tprintf("error flushing stream, ignoring\n");
 			}
 

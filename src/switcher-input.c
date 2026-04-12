@@ -507,7 +507,7 @@ int input_stream_model_supported(struct input_stream_s *is)
 	return 1; /* Success, model is supported */
 }
 
-int input_stream_flush_to_frame(struct input_stream_s *is)
+int input_stream_flush_to_transition_point(struct input_stream_s *is)
 {
 	tprintf("stream[%d] discarding everything to next iframe\n", is->nr);
 	struct pes_item_s *itemVideo = NULL;
