@@ -104,7 +104,9 @@ static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pk
 		}
 	}
 
+	/* Write the TS to any pids we have assigned to the stream */
 	for (int i = 0; i < stream->pidCount; i++) {
+#if 0
 		if (i == 0) {
 			struct stat s;
 			char fn[64];
@@ -116,6 +118,7 @@ static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pk
 				remove(fn);
 			}
 		}
+#endif
 		input_stream_pid_write(stream->pids[i], pkts, packetCount);
 	}
 
