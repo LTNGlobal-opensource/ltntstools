@@ -103,6 +103,70 @@ void timing_item_free(struct timing_item_s *ti)
 	free(ti);
 }
 
+void timing_item_dump(struct timing_item_s *ti)
+{
+    printf("ti %p, PTS_DTS_flags %d, PTS %" PRIi64 ", DTS %" PRIi64 "\n", ti, ti->PTS_DTS_flags, ti->PTS, ti->DTS);
+}
+
+static int timing_item_compute_pts_delta(struct timing_item_s *a, struct timing_item_s *b, int64_t *resultTicks)
+{
+    if (!a || !b) {
+        return -1;
+    }
+    /* Ensure we have a PTS set on both timing contexts */
+    if ((a->PTS_DTS_flags & 2) == 0 || (a->PTS_DTS_flags & 2) == 0) {
+        return -2;
+    }
+
+    *resultTicks = a->PTS - b->PTS;
+
+    return 0; /* Success */
+}
+
+static int timing_item_compute_dts_delta(struct timing_item_s *a, struct timing_item_s *b, int64_t *resultTicks)
+{
+    if (!a || !b) {
+        return -1;
+    }
+    /* Ensure we have a PTS set on both timing contexts */
+    if ((a->PTS_DTS_flags & 1) == 0 || (a->PTS_DTS_flags & 1) == 0) {
+        return -2;
+    }
+
+    /* TODO: Deal with wrapping */
+    *resultTicks = a->DTS - b->DTS;
+
+    return 0; /* Success */
+}
+
+int timing_item_compute_delta(struct timing_item_s *a, struct timing_item_s *b, int64_t *resultTicks)
+{
+    int64_t ticks = 0;
+    int ret = -1; /* Failed */
+
+    if (timing_item_compute_dts_delta(a, b, &ticks) == 0) {
+        /* Success, two frames each with a DTS, go with this value, typically VIDEO where a B frames is present */
+        *resultTicks = ticks;
+        ret = 0;
+    } else
+    if (timing_item_compute_pts_delta(a, b, &ticks) == 0) {
+        /* Success, two frames each with a PTS, go with this value, typically AUDIO */
+        *resultTicks = ticks;
+        ret = 0;
+    } else
+    if (a->PTS_DTS_flags == 0 && b->PTS_DTS_flags == 0) {
+        /* No timing on the contexts, therefore no tick difference. */
+        *resultTicks = 0;
+        ret = 0;
+    } else {
+        tprintf("BOOOOOOO, timing compute problem, aborting.\n");
+        timing_item_dump(a);
+        timing_item_dump(b);
+    }
+
+    return ret;
+}
+
 void pes_item_nals_dump(struct pes_item_s *item)
 {
 	for (int i = 0; i < item->nalArrayLength; i++) {

@@ -17,6 +17,7 @@
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
 #include "xorg-list.h"
+#include "klbitstream_readwriter.h"
 
 #include "switcher-types.h"
 
@@ -57,6 +58,7 @@ void tprintf(const char *fmt, ...)
     va_end(args);	
 }
 
+/* Place the input stream into the active schedule */
 static void schedule_stream(struct tool_ctx_s *ctx, struct input_stream_s *is)
 {
 	pthread_mutex_lock(&ctx->schedule_lock);
@@ -198,6 +200,79 @@ static void service(struct tool_ctx_s *ctx)
 			printf("About to schedule: ");
 			pes_item_dump(item, 0);
 #endif
+
+#if 1
+			/* Adjust the PES prior to packetization, apply clock adjustment
+			 * so our timing model remains consistent rehrdless of input stream.
+			 */
+			if (pid->performClockAdjustmentPTS && ltn_pes_packet_has_PTS(item->pes)) {
+				pid->clockAdjustmentPTS = (pid->lastOutputPTS + pid->lastOutputPTSDelta) - item->pes->PTS;
+
+				printf("decoder(pts) pid 0x%04x wanted PTS %" PRIi64 " we gave it %" PRIi64 ", new Adjust %" PRIi64 "\n",
+					pid->pid,
+					pid->lastOutputPTS + pid->lastOutputPTSDelta,
+					item->pes->PTS,
+					pid->clockAdjustmentPTS);
+
+				pid->performClockAdjustmentPTS = 0;
+
+			}
+			if (pid->performClockAdjustmentDTS && ltn_pes_packet_has_DTS(item->pes)) {
+				pid->clockAdjustmentDTS = (pid->lastOutputDTS + pid->lastOutputDTSDelta) - item->pes->DTS;
+
+				printf("decoder(dts) pid 0x%04x wanted DTS %" PRIi64 " we gave it %" PRIi64 ", new Adjust %" PRIi64 "\n",
+					pid->pid,
+					pid->lastOutputDTS + pid->lastOutputDTSDelta,
+					item->pes->DTS,
+					pid->clockAdjustmentDTS);
+
+				pid->performClockAdjustmentDTS = 0;
+
+			}
+
+			if (ltn_pes_packet_has_PTS(item->pes)) {
+				item->pes->PTS += pid->clockAdjustmentPTS; /* TODO: Deal with wrapping */
+			}
+			if (ltn_pes_packet_has_DTS(item->pes)) {
+				item->pes->DTS += pid->clockAdjustmentDTS; /* TODO: Deal with wrapping */
+			}
+			if (pid->lastOutputPTS) {
+				pid->lastOutputPTSDelta = item->pes->PTS - pid->lastOutputPTS;
+			}
+			if (pid->lastOutputDTS) {
+				pid->lastOutputDTSDelta = item->pes->DTS - pid->lastOutputDTS;
+			}
+			pid->lastOutputPTS = item->pes->PTS;
+			pid->lastOutputDTS = item->pes->DTS;
+
+			/* Create a bistream object, needed for PES packing. */
+			struct klbs_context_s lbs;
+			klbs_init(&lbs);
+			int bslen = ((item->pes->rawBufferLengthBytes / 4096) + 1) * 4096;
+			uint8_t *buf = malloc(bslen);
+
+			if (buf) {
+				klbs_write_set_buffer(&lbs, buf, bslen);
+				klbs_read_set_buffer(&lbs, buf, bslen);
+
+				/* Pack the modified PES */
+				unsigned int bitsPacked = ltn_pes_packet_pack(item->pes, &lbs);
+				unsigned int bytesPacked = bitsPacked / 8;
+
+				if (bytesPacked == item->pes->rawBufferLengthBytes) {
+					if (ltntstools_ts_packetizer_with_pcr(buf, bytesPacked, &pid->pkts, &pid->pkts_count, 188, &pid->cc, pid->outputPidNr, -1) < 0) {
+						printf("Err packetizing to TS\n");
+						exit(1);
+					}
+				} else {
+					tprintf("PES packing error, needed to pack %d bytes, instead packed %d. Magic smoke escaping? Dropped PES.\n",
+						item->pes->rawBufferLengthBytes, bytesPacked);
+				}
+
+				free(buf);
+				buf = NULL;
+			}
+#else
 			if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
 				item->pes->rawBufferLengthBytes,
 				&pid->pkts,
@@ -208,7 +283,7 @@ static void service(struct tool_ctx_s *ctx)
 				printf("Err\n");
 				exit(1);
 			}
-
+#endif
 			if (pid->pkts_count < 1) {
 				tprintf("Send pes for packetization and nothing came out, something went wrong\n");
 				exit(1);
@@ -377,6 +452,8 @@ static void service(struct tool_ctx_s *ctx)
 
 	/* if we're flushing and all pids are in a EOL state... adjust the schedule */
 	if (ctx->flushInput) {
+
+		/* Count the number of pids in EOL state */
 		int eolCount = 0;
 		for (int p = 0; p < stream->pidCount; p++) { /* For each input pid */
 			struct pid_s *pid = stream->pids[p];
@@ -385,11 +462,33 @@ static void service(struct tool_ctx_s *ctx)
 				eolCount++;
 			}
 		}
+
+		/* When all the pids are in the EOL state */
 		if (eolCount == stream->pidCount) {
 			tprintf("stream[%d] all pids are flushed, preparing for schedule adjustment\n", stream->nr);
 
-			/* adjust the schedule, start outputting payload from the alternate stream */
+			/* compute the new timing bias for the input PES, to retain the output constant timing */
+			struct input_stream_s *streamPrimary = ctx->input_streams[ ctx->activeInputNr ];
+			struct input_stream_s *streamBackup  = ctx->input_streams[ (~ctx->activeInputNr) & 1 ]; 
+			for (int p = 0; p < streamPrimary->pidCount; p++) {
+				struct pid_s *pidPrimary = stream->pids[p];
+				struct pid_s *pidBackup = input_stream_pid_lookup(pidPrimary, streamBackup);
 
+				pidPrimary->clockAdjustmentPTS = 0;
+				pidPrimary->clockAdjustmentDTS = 0;
+				pidPrimary->performClockAdjustmentPTS = 0;
+				pidPrimary->performClockAdjustmentDTS = 0;
+				pidBackup->clockAdjustmentPTS = 0;
+				pidBackup->clockAdjustmentDTS = 0;
+				pidBackup->performClockAdjustmentPTS = 1;
+				pidBackup->performClockAdjustmentDTS = 1;
+				pidBackup->lastOutputPTS = pidPrimary->lastOutputPTS;
+				pidBackup->lastOutputDTS = pidPrimary->lastOutputDTS;
+				pidBackup->lastOutputPTSDelta = pidPrimary->lastOutputPTSDelta;
+				pidBackup->lastOutputDTSDelta = pidPrimary->lastOutputDTSDelta;
+			}
+
+			/* adjust the schedule, start outputting payload from the alternate stream */
 			/* Toggle the active input. */
 			ctx->activeInputNr = (~ctx->activeInputNr) & 1;
 			stream = ctx->input_streams[ctx->activeInputNr ];

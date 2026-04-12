@@ -2,6 +2,19 @@
 
 #include "switcher-types.h"
 
+
+static const char *pidTypeNames[] = {
+	"PID_UNDEFINED",
+	"PID_VIDEO",
+	"PID_AUDIO",
+	"PID_OTHER",
+};
+
+const char *getPidTypeDescription(enum pid_type_e type)
+{
+	return pidTypeNames[type]; 
+}
+
 static void *input_stream_pid_vbv_callback(void *userContext, enum ltntstools_vbv_event_e event)
 {
 	struct pid_s *pid = (struct pid_s *)userContext;
@@ -10,10 +23,14 @@ static void *input_stream_pid_vbv_callback(void *userContext, enum ltntstools_vb
 	struct timeval now;
 	gettimeofday(&now, NULL);
 
+#if 0
+
+/* TODO: Disabled */
 	tprintf("stream[%d] pid 0x%04x (%04d) %s\n",
 		is->nr,
 		pid->outputPidNr, pid->outputPidNr,
 		ltntstools_vbv_event_name(event));
+#endif
 
 	return NULL;
 }
@@ -175,4 +192,16 @@ void input_stream_pid_set_state(struct pid_s *pid, enum pid_state_e state)
 enum pid_state_e input_stream_pid_get_state(struct pid_s *pid)
 {
 	return pid->state;
+}
+
+struct pid_s *input_stream_pid_lookup(struct pid_s *pid, struct input_stream_s *is)
+{
+	for (int i = 0; i < is->pidCount; i++) {
+		/* Find a matching pid, for now we'll match exclusively on transport pid number */
+		if (pid->pid == is->pids[i]->pid) {
+			return is->pids[i]; /* Success */
+		}
+	}
+
+	return NULL; /* Failed */
 }

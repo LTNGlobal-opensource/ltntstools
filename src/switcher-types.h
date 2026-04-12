@@ -136,6 +136,17 @@ struct pid_s
 	 */
 	pthread_mutex_t  tilistlock;     /* protection for list */
 	struct xorg_list tilist;         /* fifo list of (PES) timing objects. */
+
+	int64_t clockAdjustmentPTS;      /* Value we add to each pes inorder to match the alternative input */
+	int64_t clockAdjustmentDTS;      /* Value we add to each pes inorder to match the alternative input */
+
+	int64_t lastOutputPTS;           /* Value of last PTS we packetizied*/
+	int64_t lastOutputPTSDelta;
+	int64_t lastOutputDTS;           /* Value of last DTS we packetizied*/
+	int64_t lastOutputDTSDelta;
+
+	int performClockAdjustmentPTS;
+	int performClockAdjustmentDTS;
 };
 
 struct input_stream_s
@@ -220,6 +231,9 @@ int  input_stream_pid_write(struct pid_s *pid, const uint8_t *pkts, int packetCo
 void input_stream_pid_set_state(struct pid_s *pid, enum pid_state_e state);
 enum pid_state_e input_stream_pid_get_state(struct pid_s *pid);
 
+const char *getPidTypeDescription(enum pid_type_e type);
+struct pid_s *input_stream_pid_lookup(struct pid_s *pid, struct input_stream_s *is);
+
 /* switcher-output.c */
 struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
 void    output_stream_free(struct output_stream_s *os);
@@ -239,3 +253,5 @@ int  ffmpeg_demux_test(const char *filename);
 
 struct timing_item_s *timing_item_alloc(struct pes_item_s *item);
 void timing_item_free(struct timing_item_s *ti);
+void timing_item_dump(struct timing_item_s *ti);
+int timing_item_compute_delta(struct timing_item_s *a, struct timing_item_s *b, int64_t *resultTicks);
