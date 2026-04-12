@@ -12,17 +12,14 @@ int64_t output_get_computed_stc(struct output_stream_s *os)
 	return (((bitsTransmitted + additionalBits) / bps) * (double)27000000);
 }
 
-int output_write(struct output_stream_s *os, const uint8_t *pkts, int packetCount)
-{
-	ltntstools_pid_stats_update(os->libstats, pkts, packetCount);
-	avio_write(os->avio_ctx, pkts, packetCount * 188);
-
-	return packetCount;
-}
-
 static void *reframer_callback(struct output_stream_s *os, const uint8_t *buf, int lengthBytes)
 {
-	output_write(os, buf, lengthBytes / 188);
+	/* The reframe hands us 7*188 buffers os TS packets... update the TS stats... */
+	ltntstools_pid_stats_update(os->libstats, buf, lengthBytes / 188);
+
+	/* And write the packets to the network */
+	avio_write(os->avio_ctx, buf, lengthBytes);
+
 	return NULL;
 }
 
