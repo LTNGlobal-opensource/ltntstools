@@ -152,8 +152,6 @@ struct output_stream_s
 	uint8_t null_pkt[188];              /* Holds fully formed null packet */
 	int64_t null_pkt_outputSTC;         /* TODO: I don't think we need these timing checks */
 
-	struct ltntstools_pat_s *pat;       /* newly format output PAT/PMT PSIP object, describing entire of transport stream. */
-
 	struct ltntstools_stream_statistics_s *libstats; /* Transport Stream packet statistics */
 };
 
