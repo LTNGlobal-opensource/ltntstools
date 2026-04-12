@@ -26,11 +26,11 @@ static void *input_stream_pid_pe_callback(struct pid_s *pid, struct ltn_pes_pack
 	if (stream->ctx->verbose) {
 		tprintf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 ", length %d\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr, pes->dataLengthBytes);
 	}
-#if 1
+	
 	if (pid->vbv && pid->type == PID_VIDEO && ltntstools_vbv_write(pid->vbv, (const struct ltn_pes_packet_s *)pes) < 0) {
 		fprintf(stderr, "Error writing PES to VBV\n");
 	}
-#endif
+
 	struct pes_item_s *item = pes_item_alloc(pid, pes, os);
 	if (item) {
 		pthread_mutex_lock(&pid->peslistlock);
