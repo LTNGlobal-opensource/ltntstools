@@ -53,6 +53,17 @@ enum pid_state_e {
 	PS_SCHEDULE_EOL,           /* pid at end of list, mot ts packets required. */
 };
 
+struct timing_item_s			/* We cache any clocks per PID, so there are derised from struct ltn_pes_packet_s objects. */
+{
+	struct   xorg_list list;
+	uint32_t PTS_DTS_flags;		/* ISO13818-1 Table 2-17. bitmask. bit 1 = PTS is present. Bit 0 = DTS is present. */
+	int64_t  PTS;				/* taken from struct ltn_pes_packet_s object */
+	int64_t  DTS;				/* taken from struct ltn_pes_packet_s object */
+	int64_t  arrivalSTC;		/* taken from struct pes_item_s object */
+	int64_t  outputSTC;			/* taken from struct pes_item_s object */
+	time_t   created;           /* Object creation time in seconds. Used for purging. */
+};
+
 struct pes_item_s
 {
 	struct xorg_list list;
@@ -60,7 +71,7 @@ struct pes_item_s
 	struct pid_s *pid;            /* parent */
 	int64_t arrivalSTC;           /* Local STC clock value when we first got the pes */
 	int64_t outputSTC;            /* Local STC clock value when the PES is scheduled for transmission output */
-	time_t created;               /* Object creation time in sections. Used for purging. */
+	time_t created;               /* Object creation time in seconds. Used for purging. */
 
 	enum pid_type_e type;         /* PID_UNDEFINED = 0, PID_AUDIO, PID_VIDEO etc */
 
@@ -118,6 +129,13 @@ struct pid_s
 	/* Video Buffer Verifier (VBV) */
 	void *vbv;
 	struct vbv_decoder_profile_s dp;
+
+	/* Timing model, where we track all input and output clocks for this pid.
+	 * We'll use this history to help us determine new timing for the output
+	 * frames when steram switch.
+	 */
+	pthread_mutex_t  tilistlock;     /* protection for list */
+	struct xorg_list tilist;         /* fifo list of (PES) timing objects. */
 };
 
 struct input_stream_s
@@ -218,3 +236,6 @@ int  pes_contains_start_of_ac3_sync(const struct ltn_pes_packet_s *pes);
 int  pes_contains_start_of_aac_sync(const struct ltn_pes_packet_s *pes);
 int  pes_contains_start_of_mp2_sync(const struct ltn_pes_packet_s *pes);
 int  ffmpeg_demux_test(const char *filename);
+
+struct timing_item_s *timing_item_alloc(struct pes_item_s *item);
+void timing_item_free(struct timing_item_s *ti);

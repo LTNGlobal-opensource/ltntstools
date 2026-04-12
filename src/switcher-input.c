@@ -163,24 +163,42 @@ void input_stream_prune_history(struct input_stream_s *is)
 	 */
 	time_t expire = time(NULL) - 10;
 
-	int pruned = 0;
+	int pruned[2] = { 0, 0 };
 
 	for (int i = 0; i < is->pidCount; i++) {
 		struct pid_s *pid = is->pids[i];
 
-		pthread_mutex_lock(&pid->peslistlock);
-		struct pes_item_s *item = NULL, *next = NULL;
-		xorg_list_for_each_entry_safe(item, next, &pid->peslist, list) {
-			if (item->created < expire) {
-				xorg_list_del(&item->list);
-				pes_item_free(item);
-				pid->peslistcount--;
-				pruned++;
+		{
+			pthread_mutex_lock(&pid->peslistlock);
+			struct pes_item_s *item = NULL, *next = NULL;
+			xorg_list_for_each_entry_safe(item, next, &pid->peslist, list) {
+				if (item->created < expire) {
+					xorg_list_del(&item->list);
+					pes_item_free(item);
+					pid->peslistcount--;
+					pruned[0]++;
+				}
 			}
+			pthread_mutex_unlock(&pid->peslistlock);
 		}
-		pthread_mutex_unlock(&pid->peslistlock);
+
+		{
+			pthread_mutex_lock(&pid->tilistlock);
+			struct timing_item_s *ti = NULL, *next = NULL;
+			xorg_list_for_each_entry_safe(ti, next, &pid->tilist, list) {
+				if (ti->created < expire) {
+					xorg_list_del(&ti->list);
+					timing_item_free(ti);
+					pruned[1]++;
+				}
+			}
+			pthread_mutex_unlock(&pid->tilistlock);
+		}
+
 	}
-	// printf("Pruned[%d] %d\n", is->nr, pruned);
+	if (is->ctx->verbose) {
+		tprintf("stream[%d] Pruned %d/%d\n", is->nr, pruned[0], pruned[1]);
+	}
 }
 
 struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr)

@@ -77,6 +77,31 @@ int pes_contains_start_of_aac_sync(const struct ltn_pes_packet_s *pes)
 	return 1; /* AAC ADTS sync found */
 }
 
+struct timing_item_s *timing_item_alloc(struct pes_item_s *item)
+{
+    if (!item)
+        return NULL;
+
+    if (!item->pes)
+        return NULL;
+
+	struct timing_item_s *ti = calloc(1, sizeof(*ti));
+    if (ti) {
+        ti->arrivalSTC    = item->arrivalSTC;
+        ti->outputSTC     = item->outputSTC;
+        ti->PTS_DTS_flags = item->pes->PTS_DTS_flags;
+        ti->PTS           = item->pes->PTS;
+        ti->DTS           = item->pes->DTS;
+        ti->created       = time(NULL);
+    }
+
+	return ti;
+}
+
+void timing_item_free(struct timing_item_s *ti)
+{
+	free(ti);
+}
 
 void pes_item_nals_dump(struct pes_item_s *item)
 {

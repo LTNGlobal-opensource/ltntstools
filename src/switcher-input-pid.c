@@ -26,19 +26,27 @@ static void *input_stream_pid_pe_callback(struct pid_s *pid, struct ltn_pes_pack
 	if (stream->ctx->verbose) {
 		tprintf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 ", length %d\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr, pes->dataLengthBytes);
 	}
-	
+
 	if (pid->vbv && pid->type == PID_VIDEO && ltntstools_vbv_write(pid->vbv, (const struct ltn_pes_packet_s *)pes) < 0) {
 		fprintf(stderr, "Error writing PES to VBV\n");
 	}
 
 	struct pes_item_s *item = pes_item_alloc(pid, pes, os);
 	if (item) {
+
+		/* Cache the pes, payload and other things. We're re-packetize them later. */
 		pthread_mutex_lock(&pid->peslistlock);
 		xorg_list_append(&item->list, &pid->peslist);
 		pid->peslistcount++;
 		pthread_mutex_unlock(&pid->peslistlock);
 
 		// pes_item_dump(item, 1);
+
+		/* Cache the timing specific context - We're reference this when regenerating timing */
+		struct timing_item_s *ti = timing_item_alloc(item); 
+		pthread_mutex_lock(&pid->tilistlock);
+		xorg_list_append(&ti->list, &pid->tilist); 
+		pthread_mutex_unlock(&pid->tilistlock);
 
 	} else {
 		//ltn_pes_packet_dump(pes, "");
@@ -71,6 +79,8 @@ struct pid_s *input_stream_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t 
 	pid->type = type;
 	pthread_mutex_init(&pid->peslistlock, NULL);
 	xorg_list_init(&pid->peslist);
+	pthread_mutex_init(&pid->tilistlock, NULL);
+	xorg_list_init(&pid->tilist);
 
 	input_stream_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
 
@@ -113,6 +123,7 @@ struct pid_s *input_stream_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t 
 
 void input_stream_pid_free(struct pid_s *pid)
 {
+	/* Free any pes item obejcts */
 	pthread_mutex_lock(&pid->peslistlock);
 	while (!xorg_list_is_empty(&pid->peslist)) {
 
@@ -123,6 +134,15 @@ void input_stream_pid_free(struct pid_s *pid)
 		pes_item_free(item);
 	}
 	pthread_mutex_unlock(&pid->peslistlock);
+
+	/* Free any timing item contexts */
+	pthread_mutex_lock(&pid->tilistlock);
+	while (!xorg_list_is_empty(&pid->tilist)) {
+		struct timing_item_s *ti = xorg_list_first_entry(&pid->tilist, struct timing_item_s, list);
+		xorg_list_del(&ti->list);
+		timing_item_free(ti);
+	}
+	pthread_mutex_unlock(&pid->tilistlock);
 
 	if (pid->vbv) {
 		ltntstools_vbv_free(pid->vbv);
