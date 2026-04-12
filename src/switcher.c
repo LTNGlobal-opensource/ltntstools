@@ -166,15 +166,15 @@ static void service(struct tool_ctx_s *ctx)
 			pid->pkts_outputSTC = NULL;
 
 			if (ctx->flushInput == 1) {
-				input_pid_set_state(pid, PS_SCHEDULE_EOL);
+				input_stream_pid_set_state(pid, PS_SCHEDULE_EOL);
 				tprintf("stream[%d].pid 0x%04x WENT EOL\n", stream->nr, pid->pid);
 			} else {
-				input_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
+				input_stream_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
 			}
 		}
 
 		/* If this pid doesn't have any packets queued.... convert the next pes into TS */
-		if (input_pid_get_state(pid) == PS_SCHEDULE_NEXT_PACKET && pid->pkts_count == 0) {
+		if (input_stream_pid_get_state(pid) == PS_SCHEDULE_NEXT_PACKET && pid->pkts_count == 0) {
 			/* Get more ts packets */
 
 			pthread_mutex_lock(&pid->peslistlock);
@@ -293,7 +293,7 @@ static void service(struct tool_ctx_s *ctx)
 			/* Find the next packet and check its scheduling time. */
 			/* Make sure its scheduled to go out */
 			/* Otherwise leave with item being NULL and a null packet will go out instead */
-			if (pkt == NULL && input_pid_get_state(pid) == PS_SCHEDULE_NEXT_PACKET && pid->pkts_idx < pid->pkts_count) {
+			if (pkt == NULL && input_stream_pid_get_state(pid) == PS_SCHEDULE_NEXT_PACKET && pid->pkts_idx < pid->pkts_count) {
 				if (pid->pkts_outputSTC[pid->pkts_idx] <= output_get_computed_stc(os)) {
 					pkt = &pid->pkts[ pid->pkts_idx * 188 ];
 					pid->pkts_idx++;
@@ -380,7 +380,7 @@ static void service(struct tool_ctx_s *ctx)
 		int eolCount = 0;
 		for (int p = 0; p < stream->pidCount; p++) { /* For each input pid */
 			struct pid_s *pid = stream->pids[p];
-			if (input_pid_get_state(pid) == PS_SCHEDULE_EOL) {
+			if (input_stream_pid_get_state(pid) == PS_SCHEDULE_EOL) {
 				tprintf("stream[%d].pid 0x%04x EOL\n", stream->nr, pid->pid);
 				eolCount++;
 			}
@@ -403,7 +403,7 @@ static void service(struct tool_ctx_s *ctx)
 
 			for (int p = 0; p < stream->pidCount; p++) { /* For each input pid */
 				struct pid_s *pid = stream->pids[p];
-				input_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
+				input_stream_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
 				tprintf("stream[%d].pid 0x%04x SCHEDULED\n", stream->nr, pid->pid);
 			}
 			ctx->flushInput = 0;

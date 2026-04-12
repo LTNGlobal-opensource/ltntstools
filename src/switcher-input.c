@@ -320,7 +320,7 @@ struct pid_s *input_stream_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t 
 	pthread_mutex_init(&pid->peslistlock, NULL);
 	xorg_list_init(&pid->peslist);
 
-	input_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
+	input_stream_pid_set_state(pid, PS_SCHEDULE_NEXT_PACKET);
 
 	clock_gettime(CLOCK_MONOTONIC, &pid->last_pcr_output);
 
@@ -392,12 +392,12 @@ void input_stream_pid_free(struct pid_s *pid)
 	free(pid);
 }
 
-void input_pid_set_state(struct pid_s *pid, enum pid_state_e state)
+void input_stream_pid_set_state(struct pid_s *pid, enum pid_state_e state)
 {
 	pid->state = state;
 }
 
-enum pid_state_e input_pid_get_state(struct pid_s *pid)
+enum pid_state_e input_stream_pid_get_state(struct pid_s *pid)
 {
 	return pid->state;
 }
