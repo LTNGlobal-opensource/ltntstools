@@ -287,7 +287,7 @@ void input_stream_free(struct input_stream_s *stream)
 {
 	ltntstools_source_avio_free(stream->avio_ctx);
 	for (int i = 0; i < stream->pidCount; i++) {
-		input_pid_free(stream->pids[i]);
+		input_stream_pid_free(stream->pids[i]);
 	}
 	free(stream->iname);
 	ltntstools_pid_stats_free(stream->libstats);
@@ -363,7 +363,7 @@ struct pid_s *input_stream_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t 
 	return pid;
 }
 
-void input_pid_free(struct pid_s *pid)
+void input_stream_pid_free(struct pid_s *pid)
 {
 	pthread_mutex_lock(&pid->peslistlock);
 	while (!xorg_list_is_empty(&pid->peslist)) {
