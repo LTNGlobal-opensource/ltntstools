@@ -468,7 +468,7 @@ int switcher_main(int argc, char *argv[])
 				usage(argv[0]);
 				exit(1);
 			}
-			input_stream_add_pid(ctx->input_streams[ctx->inputNr], pid, pid, streamId);
+			input_stream_pid_add(ctx->input_streams[ctx->inputNr], pid, pid, streamId);
 			break;
 		case 'v':
 			ctx->verbose++;

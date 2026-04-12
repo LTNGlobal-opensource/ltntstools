@@ -164,7 +164,7 @@ static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pk
 				remove(fn);
 			}
 		}
-		input_stream_write(stream, stream->pids[i], pkts, packetCount);
+		input_stream_pid_write(stream, stream->pids[i], pkts, packetCount);
 	}
 
 	ltntstools_pid_stats_update(stream->libstats, pkts, packetCount);
@@ -270,15 +270,15 @@ struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, i
 	return stream;
 }
 
-int input_stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId)
+int input_stream_pid_add(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId)
 {
-	struct pid_s *pid = input_pid_alloc(pidnr, streamId, outputPidNr, streamId == 0xe0 ? PID_VIDEO : PID_AUDIO);
+	struct pid_s *pid = input_stream_pid_alloc(pidnr, streamId, outputPidNr, streamId == 0xe0 ? PID_VIDEO : PID_AUDIO);
 	pid->stream = stream;
 	stream->pids[ stream->pidCount++ ] = pid;
 	return 0; /* Success */
 }
 
-int input_stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount)
+int input_stream_pid_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount)
 {
 	return ltntstools_pes_extractor_write(pid->pe, pkts, packetCount);
 }
@@ -306,7 +306,7 @@ void input_stream_free(struct input_stream_s *stream)
 	free(stream);
 }
 
-struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_e type)
+struct pid_s *input_stream_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_e type)
 {
 	struct pid_s *pid = calloc(1, sizeof(*pid));
 	if (!pid) {

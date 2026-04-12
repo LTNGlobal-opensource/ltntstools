@@ -191,10 +191,10 @@ struct tool_ctx_s
 void tprintf(const char *fmt, ...);
 
 struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr);
-struct pid_s *input_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_e type);
+struct pid_s *input_stream_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_e type);
 void input_pid_free(struct pid_s *pid);
-int  input_stream_add_pid(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
-int  input_stream_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
+int  input_stream_pid_add(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
+int  input_stream_pid_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
 void input_stream_free(struct input_stream_s *stream);
 void input_stream_prune_history(struct input_stream_s *is);
 int  input_stream_model_supported(struct input_stream_s *stream);
