@@ -3,7 +3,7 @@
 #include "switcher-types.h"
 
 
-static void *notification_callback(struct input_stream_s *stream, enum ltntstools_notification_event_e event,
+static void *notification_callback(struct input_stream_s *is, enum ltntstools_notification_event_e event,
 	const struct ltntstools_stream_statistics_s *stats,
 	const struct ltntstools_pid_statistics_s *pid)
 {
@@ -17,26 +17,18 @@ static void *notification_callback(struct input_stream_s *stream, enum ltntstool
 #endif
 
 	if (event == EVENT_UPDATE_STREAM_CC_COUNT) {
-		printf("%d.%06d: %-40s stream %p nr %d %" PRIu64 " cc errors\n",
-			(int)ts.tv_sec,
-			(int)ts.tv_usec,
+		tprintf("stream[%d]: %-40s %" PRIu64 " cc errors\n", is->nr,
 			ltntstools_notification_event_name(event),
-			stats,
-			stream->nr,
 			ltntstools_pid_stats_stream_get_cc_errors((struct ltntstools_stream_statistics_s *)stats));
 	} else
 	if (0 && event == EVENT_UPDATE_STREAM_MBPS) {
-		printf("%d.%06d: %-40s stream %p nr %d %5.2f mbps\n", (int)ts.tv_sec, (int)ts.tv_usec,
+		tprintf("stream[%d] %-40s %5.2f mbps\n", is->nr,
 			ltntstools_notification_event_name(event),
-			stats,
-			stream->nr,
 			ltntstools_pid_stats_stream_get_mbps((struct ltntstools_stream_statistics_s *)stats));
 	} else
 	if (event == EVENT_UPDATE_STREAM_IAT_HWM) {
-		printf("%d.%06d: %-40s stream %p nr %d %" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
+		tprintf("stream[%d] %-40s %" PRIi64 " ms\n", is->nr,
 			ltntstools_notification_event_name(event),
-			stats,
-			stream->nr,
 			ltntstools_pid_stats_stream_get_iat_hwm_us((struct ltntstools_stream_statistics_s *)stats) / 1000);
 	} else
 	if (0 && event == EVENT_UPDATE_PID_PUSI_DELIVERY_TIME) {
@@ -44,21 +36,25 @@ static void *notification_callback(struct input_stream_s *stream, enum ltntstool
 		/* Find the pid from the stats in our stream struct */
 		int64_t ms = pid->pusi_time_ms;
 		struct pid_s *opid = NULL;
-		for (int i = 0; i < stream->pidCount; i++) {
+		for (int i = 0; i < is->pidCount; i++) {
 			//printf("pid->pidNr 0x%04x finding.... %04x\n", pid->pidNr, stream->pids[i]->pid);
-			if (stream->pids[i]->pid == pid->pidNr) {
-				opid = stream->pids[i];
+			if (is->pids[i]->pid == pid->pidNr) {
+				opid = is->pids[i];
 				break;
 			}
 		}
 
 		/* opid can be null if this app is given a pid for which we're not tracking (such as a second audio channel. */
 		if (opid && opid->type == PID_VIDEO) {
-			printf("%d.%06d: %-40s stream %p ipid %p/0x%04x opid %p/0x%04x/0x%04x % 6" PRIi64 " ms\n", (int)ts.tv_sec, (int)ts.tv_usec,
+			tprintf("stream[%d] %-40s pidNr 0x%04x % 6" PRIi64 " ms\n", is->nr,
 				ltntstools_notification_event_name(event),
-				stats,
-				pid, pid->pidNr,
-				opid, opid->pid, opid->outputPidNr,
+				pid->pidNr,
+				ms);
+		} else 
+		if (opid && opid->type == PID_AUDIO) {
+			tprintf("stream[%d] %-40s pidNr 0x%04x % 6" PRIi64 " ms\n", is->nr,
+				ltntstools_notification_event_name(event),
+				pid->pidNr,
 				ms);
 		} else {
 #if 0
@@ -209,6 +205,7 @@ struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, i
 	ltntstools_pid_stats_alloc(&stream->libstats);
 	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_STREAM_MBPS, stream, (ltntstools_notification_callback)notification_callback);
 	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_STREAM_IAT_HWM, stream, (ltntstools_notification_callback)notification_callback);
+	ltntstools_notification_register_callback(stream->libstats, EVENT_UPDATE_PID_PUSI_DELIVERY_TIME, stream, (ltntstools_notification_callback)notification_callback);
 	//ltntstools_pid_stats_pid_set_contains_pcr(stream->libstats, 0x31); /* TODO: Fixed */
 	ltntstools_pid_stats_pid_set_contains_pcr(stream->libstats, 0x101); /* TODO: Fixed */
 	
