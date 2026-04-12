@@ -128,6 +128,7 @@ SRC += source-pcap.c
 SRC += demux_inspector.c
 SRC += switcher.c
 SRC += switcher-input.c
+SRC += switcher-input-pid.c
 SRC += switcher-output.c
 SRC += switcher-codecs.c
 
