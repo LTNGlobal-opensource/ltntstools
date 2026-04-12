@@ -190,18 +190,19 @@ void tprintf(const char *fmt, ...);
 
 /* switcher-input.c */
 struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr);
-struct pid_s *input_stream_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_e type);
-void input_stream_pid_free(struct pid_s *pid);
-int  input_stream_pid_add(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
-int  input_stream_pid_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
-void input_stream_free(struct input_stream_s *stream);
+void                   input_stream_free(struct input_stream_s *stream);
+void input_stream_show_codec_stats(struct input_stream_s *is);
 void input_stream_prune_history(struct input_stream_s *is);
 int  input_stream_model_supported(struct input_stream_s *stream);
 int  input_stream_models_compatible(struct input_stream_s *is1, struct input_stream_s *is2);
 int  input_stream_flush_to_transition_point(struct input_stream_s *is);
+
+struct pid_s *input_stream_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t outputPidNr, enum pid_type_e type);
+void          input_stream_pid_free(struct pid_s *pid);
+int  input_stream_pid_add(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
+int  input_stream_pid_write(struct input_stream_s *stream, struct pid_s *pid, const uint8_t *pkts, int packetCount);
 void input_stream_pid_set_state(struct pid_s *pid, enum pid_state_e state);
 enum pid_state_e input_stream_pid_get_state(struct pid_s *pid);
-void input_stream_show_codec_stats(struct input_stream_s *is);
 
 /* switcher-output.c */
 struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
