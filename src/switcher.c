@@ -217,7 +217,9 @@ static void service(struct tool_ctx_s *ctx)
 				pid->performClockAdjustmentPTS = 0;
 
 			}
-			if (pid->performClockAdjustmentDTS && ltn_pes_packet_has_DTS(item->pes)) {
+#if 1
+			if (pid->performClockAdjustmentDTS && item->pes->DTS) {
+
 				pid->clockAdjustmentDTS = (pid->lastOutputDTS + pid->lastOutputDTSDelta) - item->pes->DTS;
 
 				printf("decoder(dts) pid 0x%04x wanted DTS %" PRIi64 " we gave it %" PRIi64 ", new Adjust %" PRIi64 "\n",
@@ -229,21 +231,55 @@ static void service(struct tool_ctx_s *ctx)
 				pid->performClockAdjustmentDTS = 0;
 
 			}
+#if 0
+			if (item->pes->PTS == (item->pes->DTS - 1)) {
+				pid->clockAdjustmentDTS + 1;
+				item->pes->DTS = item->pes->PTS;
+			} else
+			if (item->pes->PTS == (item->pes->DTS + 1)) {
+				pid->clockAdjustmentDTS - 1;				
+				item->pes->DTS = item->pes->PTS;
+			}
+#endif
+#else
+			if (pid->performClockAdjustmentDTS && ltn_pes_packet_has_DTS(item->pes)) {
 
+				pid->clockAdjustmentDTS = (pid->lastOutputDTS + pid->lastOutputDTSDelta) - item->pes->DTS;
+
+				printf("decoder(dts) pid 0x%04x wanted DTS %" PRIi64 " we gave it %" PRIi64 ", new Adjust %" PRIi64 "\n",
+					pid->pid,
+					pid->lastOutputDTS + pid->lastOutputDTSDelta,
+					item->pes->DTS,
+					pid->clockAdjustmentDTS);
+
+				pid->performClockAdjustmentDTS = 0;
+
+			}
+#endif
+			/* Go ahead and modify the PES, we'll transmit this to network. */
 			if (ltn_pes_packet_has_PTS(item->pes)) {
 				item->pes->PTS += pid->clockAdjustmentPTS; /* TODO: Deal with wrapping */
 			}
 			if (ltn_pes_packet_has_DTS(item->pes)) {
 				item->pes->DTS += pid->clockAdjustmentDTS; /* TODO: Deal with wrapping */
 			}
+
 			if (pid->lastOutputPTS) {
 				pid->lastOutputPTSDelta = item->pes->PTS - pid->lastOutputPTS;
 			}
 			if (pid->lastOutputDTS) {
 				pid->lastOutputDTSDelta = item->pes->DTS - pid->lastOutputDTS;
+//				if (pid->pid == 0x101 && stream->nr == 0)
+//					printf("DTS delta %" PRIi64 "\n", pid->lastOutputDTSDelta);
 			}
-			pid->lastOutputPTS = item->pes->PTS;
-			pid->lastOutputDTS = item->pes->DTS;
+
+			if (ltn_pes_packet_has_PTS(item->pes)) {
+				pid->lastOutputPTS = item->pes->PTS;
+			}
+
+			if (item->pes->DTS) {
+				pid->lastOutputDTS = item->pes->DTS;
+			}
 
 			/* Create a bistream object, needed for PES packing. */
 			struct klbs_context_s lbs;
@@ -288,7 +324,7 @@ static void service(struct tool_ctx_s *ctx)
 				tprintf("Send pes for packetization and nothing came out, something went wrong\n");
 				exit(1);
 			}
-			if (ctx->verbose) {
+			if (ctx->verbose > 3) {
 				tprintf("Created %4d ts packets for pid 0x%04x\n", pid->pkts_count, pid->outputPidNr);
 			}
 			pid->pkts_idx = 0;
@@ -478,6 +514,7 @@ static void service(struct tool_ctx_s *ctx)
 				pidPrimary->clockAdjustmentDTS = 0;
 				pidPrimary->performClockAdjustmentPTS = 0;
 				pidPrimary->performClockAdjustmentDTS = 0;
+				pidBackup->cc = pidPrimary->cc;
 				pidBackup->clockAdjustmentPTS = 0;
 				pidBackup->clockAdjustmentDTS = 0;
 				pidBackup->performClockAdjustmentPTS = 1;

@@ -40,14 +40,20 @@ static void *input_stream_pid_pe_callback(struct pid_s *pid, struct ltn_pes_pack
 	struct input_stream_s *stream = pid->stream;
 	struct output_stream_s *os = stream->ctx->outputStream;
 
-	if (stream->ctx->verbose) {
+#if 0
+	if (!ltn_pes_packet_has_DTS(pes)) {
+		pes->DTS = pes->PTS;
+	}
+#endif
+
+	if (stream->ctx->verbose && pid->pid == 0x101 && stream->nr == 0) {
 		tprintf("pes->pid 0x%02x pts %14" PRIi64 " dts %14" PRIi64 " pcr %14" PRIi64 ", length %d\n", pid->outputPidNr, pes->PTS, pes->DTS, pes->pcr, pes->dataLengthBytes);
 	}
-
+#if 0
 	if (pid->vbv && pid->type == PID_VIDEO && ltntstools_vbv_write(pid->vbv, (const struct ltn_pes_packet_s *)pes) < 0) {
 		fprintf(stderr, "Error writing PES to VBV\n");
 	}
-
+#endif
 	struct pes_item_s *item = pes_item_alloc(pid, pes, os);
 	if (item) {
 
@@ -69,12 +75,12 @@ static void *input_stream_pid_pe_callback(struct pid_s *pid, struct ltn_pes_pack
 		//ltn_pes_packet_dump(pes, "");
 		ltn_pes_packet_free(pes);
 	}
-
+#if 0
 	if (stream->ctx->verbose) {
 		tprintf("PES Extractor callback %d:%s pid 0x%04x 0x%08" PRIx64 " pes's\n",
 			stream->nr, stream->iname, pid->pid, pid->peslistcount);
 	}
-
+#endif
 	return NULL;
 }
 
