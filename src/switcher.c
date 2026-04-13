@@ -137,18 +137,12 @@ static void service(struct tool_ctx_s *ctx)
 	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_psip) > 50) {
 		ctx->last_psip = ctx->next_time;
 
-#if 1
 		if (stream->smpat) {
 			ltntstools_pat_create_packet_ts(stream->smpat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
 			ltntstools_pmt_create_packet_ts(&stream->smpat->programs[0].pmt, stream->smpat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
 			ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
 		}
-#else
-		ltntstools_pat_create_packet_ts(os->pat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
-		ltntstools_pmt_create_packet_ts(&os->pat->programs[0].pmt, os->pat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
-		//ltntstools_pmt_create_packet_ts(&ctx->pat->programs[1].pmt, ctx->pat->programs[1].program_map_PID, ctx->psip_cc[2]++, &ctx->psip_pkt[2][0], 188);
-		ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
-#endif
+
 	}
 
 	/* Try to ensure we have TS packets available for all input streams, all pids.  */
@@ -201,7 +195,6 @@ static void service(struct tool_ctx_s *ctx)
 			pes_item_dump(item, 0);
 #endif
 
-#if 1
 			/* Adjust the PES prior to packetization, apply clock adjustment
 			 * so our timing model remains consistent rehrdless of input stream.
 			 */
@@ -217,7 +210,7 @@ static void service(struct tool_ctx_s *ctx)
 				pid->performClockAdjustmentPTS = 0;
 
 			}
-#if 1
+
 			if (pid->performClockAdjustmentDTS && item->pes->DTS) {
 
 				pid->clockAdjustmentDTS = (pid->lastOutputDTS + pid->lastOutputDTSDelta) - item->pes->DTS;
@@ -231,31 +224,7 @@ static void service(struct tool_ctx_s *ctx)
 				pid->performClockAdjustmentDTS = 0;
 
 			}
-#if 0
-			if (item->pes->PTS == (item->pes->DTS - 1)) {
-				pid->clockAdjustmentDTS + 1;
-				item->pes->DTS = item->pes->PTS;
-			} else
-			if (item->pes->PTS == (item->pes->DTS + 1)) {
-				pid->clockAdjustmentDTS - 1;				
-				item->pes->DTS = item->pes->PTS;
-			}
-#endif
-#else
-			if (pid->performClockAdjustmentDTS && ltn_pes_packet_has_DTS(item->pes)) {
 
-				pid->clockAdjustmentDTS = (pid->lastOutputDTS + pid->lastOutputDTSDelta) - item->pes->DTS;
-
-				printf("decoder(dts) pid 0x%04x wanted DTS %" PRIi64 " we gave it %" PRIi64 ", new Adjust %" PRIi64 "\n",
-					pid->pid,
-					pid->lastOutputDTS + pid->lastOutputDTSDelta,
-					item->pes->DTS,
-					pid->clockAdjustmentDTS);
-
-				pid->performClockAdjustmentDTS = 0;
-
-			}
-#endif
 			/* Go ahead and modify the PES, we'll transmit this to network. */
 			if (ltn_pes_packet_has_PTS(item->pes)) {
 				item->pes->PTS += pid->clockAdjustmentPTS; /* TODO: Deal with wrapping */
@@ -296,7 +265,11 @@ static void service(struct tool_ctx_s *ctx)
 				unsigned int bytesPacked = bitsPacked / 8;
 
 				if (bytesPacked == item->pes->rawBufferLengthBytes) {
-					if (ltntstools_ts_packetizer_with_pcr(buf, bytesPacked, &pid->pkts, &pid->pkts_count, 188, &pid->cc, pid->outputPidNr, -1) < 0) {
+					int64_t pcr = -1; /* Don't output a PCR by default */
+					if (pid->type == PID_VIDEO) {
+						pcr = 0; /* Unless this is a video stream. */
+					}
+					if (ltntstools_ts_packetizer_with_pcr(buf, bytesPacked, &pid->pkts, &pid->pkts_count, 188, &pid->cc, pid->outputPidNr, pcr) < 0) {
 						printf("Err packetizing to TS\n");
 						exit(1);
 					}
@@ -308,18 +281,7 @@ static void service(struct tool_ctx_s *ctx)
 				free(buf);
 				buf = NULL;
 			}
-#else
-			if (ltntstools_ts_packetizer_with_pcr(item->pes->rawBuffer,
-				item->pes->rawBufferLengthBytes,
-				&pid->pkts,
-				&pid->pkts_count,
-				188, &pid->cc, pid->outputPidNr,
-				-1) < 0)
-			{
-				printf("Err\n");
-				exit(1);
-			}
-#endif
+
 			if (pid->pkts_count < 1) {
 				tprintf("Send pes for packetization and nothing came out, something went wrong\n");
 				exit(1);
@@ -385,6 +347,9 @@ static void service(struct tool_ctx_s *ctx)
 			ctx->schedule_idx = (ctx->schedule_idx + 1) % ctx->schedule_entries;
 			struct pid_s *pid = ctx->schedule[ctx->schedule_idx];
 
+#if 0
+			/* Disabling seperate PCR generation until. We're currently generate a PCR in the packetization stage. */
+
 			if (pid->type == PID_VIDEO && libltntstools_timespec_diff_ms(ctx->next_time, pid->last_pcr_output) > 30) {
 				/* Generate the PSIP multiple times a second, and schedule them for output. */
 				pid->last_pcr_output = ctx->next_time;
@@ -398,7 +363,7 @@ static void service(struct tool_ctx_s *ctx)
 				outputPid = pid;
 				break;
 			}
-
+#endif
 			//	printf("i %d pid->pid 0x%04x, sidx %d, pkts_count %d\n", i, pid->pid, schedule_idx, pid->pkts_count);
 
 			/* Find the next packet and check its scheduling time. */
