@@ -265,11 +265,17 @@ static void service(struct tool_ctx_s *ctx)
 				unsigned int bytesPacked = bitsPacked / 8;
 
 				if (bytesPacked == item->pes->rawBufferLengthBytes) {
-					int64_t pcr = -1; /* Don't output a PCR by default */
-					if (pid->type == PID_VIDEO) {
-						pcr = 0; /* Unless this is a video stream. */
+
+					int random_access_indicator = 0;
+					int elementary_stream_priority_indicator = 0;
+
+					if (pid->type == PID_AUDIO) {
+						random_access_indicator = 1;
+						elementary_stream_priority_indicator = 1;
 					}
-					if (ltntstools_ts_packetizer_with_pcr(buf, bytesPacked, &pid->pkts, &pid->pkts_count, 188, &pid->cc, pid->outputPidNr, pcr) < 0) {
+
+					if (ltntstools_ts_packetizer_with_pcr(buf, bytesPacked, &pid->pkts, &pid->pkts_count,
+						188, &pid->cc, pid->outputPidNr, -1, random_access_indicator, elementary_stream_priority_indicator) < 0) {
 						printf("Err packetizing to TS\n");
 						exit(1);
 					}
@@ -346,9 +352,6 @@ static void service(struct tool_ctx_s *ctx)
 		for (int i = 0; i < ctx->schedule_entries; i++) {
 			ctx->schedule_idx = (ctx->schedule_idx + 1) % ctx->schedule_entries;
 			struct pid_s *pid = ctx->schedule[ctx->schedule_idx];
-
-#if 0
-			/* Disabling seperate PCR generation until. We're currently generate a PCR in the packetization stage. */
 
 			if (pid->type == PID_VIDEO && libltntstools_timespec_diff_ms(ctx->next_time, pid->last_pcr_output) > 30) {
 				/* Generate the PSIP multiple times a second, and schedule them for output. */

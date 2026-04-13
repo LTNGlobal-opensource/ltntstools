@@ -598,6 +598,7 @@ struct tool_ctx_s
 	int writeES_h264;
 	int writeES_h265;
 	int writeES_payload;
+	int writePES_payload;
 	int writeThumbnails;
 	uint64_t esSeqNr;
 	int dumpPICTIMING;
@@ -610,7 +611,8 @@ struct tool_ctx_s
 
 	NALBitReader br;
 
-	struct ltn_pes_packet_writer_ctx writer_ctx;
+	struct ltn_pes_packet_writer_ctx es_writer_ctx;
+	struct ltn_pes_packet_writer_ctx pes_writer_ctx;
 
 	/* Video Buffer Verifier (VBV) */
 	void *vbv;
@@ -967,7 +969,12 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 		}
 	}
 	if (ctx->writeES_payload) {
-		ltn_pes_packet_save_es(&ctx->writer_ctx, pes);
+		ltn_pes_packet_save_es(&ctx->es_writer_ctx, pes);
+		ltn_pes_packet_free(pes);
+		return NULL;
+	}
+	if (ctx->writePES_payload) {
+		ltn_pes_packet_save_pes(&ctx->pes_writer_ctx, pes);
 		ltn_pes_packet_free(pes);
 		return NULL;
 	}
@@ -1275,8 +1282,10 @@ static void usage(const char *progname)
 	printf("  -s create H.264 specific SEI Report [def: disabled]\n");
 	printf("  -t <framerate> dump H.264 PIC TIMING headers (experimental with PTS reordering) [def: disabled]\n");
 	printf("  -V Run the Video Bitrate Verifier across this pid [def: no]\n");
+	printf("  -K <dirname> write PES packets to individual sequences files [def: no]\n"
+	       "     Eg. pes-seq00000000000000-pts00000000000000-dts00000000000000-len00000000-crc00000000\n");
 	printf("  -G <dirname> write ES payload to individual sequences files [def: no]\n"
-	       "     Eg. seq00000000000000-pts00000000000000-dts00000000000000-len00000000-crc00000000\n");
+	       "     Eg. es-seq00000000000000-pts00000000000000-dts00000000000000-len00000000-crc00000000\n");
 	printf("  -F write H.265 PES ES Nals to individual sequences files [def: no]\n");
 	printf("  -E write H.264 PES ES Nals to individual sequences files [def: no]\n");
 	printf("     Eg. 00000000046068-es-pid-0064-streamId-e0-nal-06-name-SEI.bin\n"
@@ -1295,7 +1304,8 @@ int pes_inspector(int argc, char *argv[])
 	ctx = &myctx;
 	memset(ctx, 0, sizeof(*ctx));
 
-	ltn_pes_packet_writer_init(&ctx->writer_ctx, "./");
+	ltn_pes_packet_writer_init(&ctx->es_writer_ctx, "./");
+	ltn_pes_packet_writer_init(&ctx->pes_writer_ctx, "./");
 
 	nal_throughput_init(&ctx->throughput);
 
@@ -1306,7 +1316,7 @@ int pes_inspector(int argc, char *argv[])
 	char *iname = NULL;
 	int headersOnly = 0;
 
-	while ((ch = getopt(argc, argv, "@:45?AEFG:Hhvi:P:sS:Tt:V")) != -1) {
+	while ((ch = getopt(argc, argv, "@:45?AEFG:HhK:vi:P:sS:Tt:V")) != -1) {
 		switch (ch) {
 		case '@':
 			ctx->testcase_validate = atoi(optarg);
@@ -1346,13 +1356,17 @@ int pes_inspector(int argc, char *argv[])
 			break;
 		case 'G':
 			ctx->writeES_payload = 1;
-			ltn_pes_packet_writer_init(&ctx->writer_ctx, optarg);
+			ltn_pes_packet_writer_init(&ctx->es_writer_ctx, optarg);
 			break;
 		case 'H':
 			headersOnly = 1;
 			break;
 		case 'i':
 			iname = optarg;
+			break;
+		case 'K':
+			ctx->writePES_payload = 1;
+			ltn_pes_packet_writer_init(&ctx->pes_writer_ctx, optarg);
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x", &ctx->pid) != 1) || (ctx->pid > 0x1fff)) {
