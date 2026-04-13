@@ -66,6 +66,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Mon Apr  6 2026 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.39.8 - dev
+  tstools_pes_inspector: add feature to serialize PES objects to disk
+
+* Mon Apr  6 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.39.8
   tstools_pes_inspector: dump h264 / h265 nal report on program termination
   tstools_pes_inspector: don't dump entire pes payload to console when running nal reports.
