@@ -366,7 +366,7 @@ static void service(struct tool_ctx_s *ctx)
 				outputPid = pid;
 				break;
 			}
-#endif
+
 			//	printf("i %d pid->pid 0x%04x, sidx %d, pkts_count %d\n", i, pid->pid, schedule_idx, pid->pkts_count);
 
 			/* Find the next packet and check its scheduling time. */
