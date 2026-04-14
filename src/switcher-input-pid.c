@@ -17,13 +17,13 @@ const char *getPidTypeDescription(enum pid_type_e type)
 
 static void *input_stream_pid_vbv_callback(void *userContext, enum ltntstools_vbv_event_e event)
 {
+#if 0
 	struct pid_s *pid = (struct pid_s *)userContext;
 	struct input_stream_s *is = pid->stream;
 
 	struct timeval now;
 	gettimeofday(&now, NULL);
 
-#if 0
 
 /* TODO: Disabled */
 	tprintf("stream[%d] pid 0x%04x (%04d) %s\n",
