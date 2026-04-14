@@ -38,6 +38,14 @@ static void *reframer_callback(struct output_stream_s *os, const uint8_t *buf, i
 	/* The reframe hands us 7*188 buffers os TS packets... update the TS stats... */
 	ltntstools_pid_stats_update(os->libstats, buf, lengthBytes / 188);
 
+#if TS_RECORDING
+	static FILE *ofh = NULL;
+	if (ofh == NULL)
+		ofh = fopen("output.ts", "wb");
+	if (ofh)
+		fwrite(buf, 1, lengthBytes, ofh);
+#endif
+
 	/* And write the packets to the network */
 	avio_write(os->avio_ctx, buf, lengthBytes);
 

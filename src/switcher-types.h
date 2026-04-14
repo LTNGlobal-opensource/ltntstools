@@ -20,6 +20,7 @@
 
 extern int g_running;
 
+#define TS_RECORDING 1
 #define MAX_INPUT_STREAMS        16
 #define MAX_STREAM_PIDS           2
 #define TARGET_BITRATE     20000000 // bps
