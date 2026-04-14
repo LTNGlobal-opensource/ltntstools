@@ -353,7 +353,7 @@ static void service(struct tool_ctx_s *ctx)
 			ctx->schedule_idx = (ctx->schedule_idx + 1) % ctx->schedule_entries;
 			struct pid_s *pid = ctx->schedule[ctx->schedule_idx];
 
-			if (pid->type == PID_VIDEO && libltntstools_timespec_diff_ms(ctx->next_time, pid->last_pcr_output) > 30) {
+			if (pid->type == PID_VIDEO && libltntstools_timespec_diff_ms(ctx->next_time, pid->last_pcr_output) >= 30) {
 				/* Generate the PSIP multiple times a second, and schedule them for output. */
 				pid->last_pcr_output = ctx->next_time;
 
