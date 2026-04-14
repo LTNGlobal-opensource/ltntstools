@@ -140,7 +140,7 @@ static void service(struct tool_ctx_s *ctx)
 		if (stream->smpat) {
 			ltntstools_pat_create_packet_ts(stream->smpat, ctx->psip_cc[0]++, &ctx->psip_pkt[0][0], 188);
 			ltntstools_pmt_create_packet_ts(&stream->smpat->programs[0].pmt, stream->smpat->programs[0].program_map_PID, ctx->psip_cc[1]++, &ctx->psip_pkt[1][0], 188);
-			ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIO from packet 0 */
+			ctx->output_psip_idx = 0; /* Throw a flag, start outputting the PSIP from packet 0 */
 		}
 
 	}
