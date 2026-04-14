@@ -39,6 +39,7 @@ static void *reframer_callback(struct output_stream_s *os, const uint8_t *buf, i
 	ltntstools_pid_stats_update(os->libstats, buf, lengthBytes / 188);
 
 #if TS_RECORDING
+#pragma message "WARNING: TS IS ACTIVE, remove before flight."
 	static FILE *ofh = NULL;
 	if (ofh == NULL)
 		ofh = fopen("output.ts", "wb");
