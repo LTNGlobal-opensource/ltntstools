@@ -390,7 +390,8 @@ int input_stream_model_supported(struct input_stream_s *is)
 int input_stream_flush_to_transition_point(struct input_stream_s *is)
 {
 	tprintf("stream[%d] discarding everything to next iframe\n", is->nr);
-	struct pes_item_s *itemVideo = NULL;
+	//struct pes_item_s *itemVideo = NULL;
+	int64_t trimToPTS = -1;
 
 	/* For each input pid, find video FIRST */
 	for (int p = 0; p < is->pidCount; p++) {
@@ -400,44 +401,62 @@ int input_stream_flush_to_transition_point(struct input_stream_s *is)
 
 			int dropped = 0;
 
-			/* Drop everything until the next iframe */
+			/* Find PTS of second last iframe */
 			pthread_mutex_lock(&pid->peslistlock);
-			struct pes_item_s *item = NULL, *next = NULL;
-			xorg_list_for_each_entry_safe(item, next, &pid->peslist, list) {
-
+			struct pes_item_s *item = NULL;
+			int count = 0;
+			xorg_list_for_each_entry_reverse(item, &pid->peslist, list) {
 				if (item->video.sliceType == SLICE_I) {
-					itemVideo = item; /* We want the item for later */
+					if (++count == 2) {
+						trimToPTS = item->pes->PTS;
 
-					/* Validate assumptions. We're assuming we'll have these along with the iframe. */
+						/* Validate assumptions. We're assuming we'll have these along with the iframe. */
 
-					if (!ltn_pes_packet_has_PTS(item->pes)) {
-						tprintf("stream[%d] trimming to iframe, but iframe doesn't have a PTS. Warning.\n");
-					} else {
-						if (item->pes->PTS <= 0) {
-							tprintf("stream[%d] trimming to iframe, but iframe PTS is 0 or < 0. Warning.\n");
+						if (!ltn_pes_packet_has_PTS(item->pes)) {
+							tprintf("stream[%d] trimming to iframe, but iframe doesn't have a PTS. Warning.\n");
+						} else {
+							if (item->pes->PTS <= 0) {
+								tprintf("stream[%d] trimming to iframe, but iframe PTS is 0 or < 0. Warning.\n");
+							}
 						}
+						if (!item->video.has_avc_aud) {
+							tprintf("stream[%d] trimming to iframe, but iframe doesn't have an attached AUD. Warning.\n");
+						}
+						if (!item->video.has_avc_sps) {
+							tprintf("stream[%d] trimming to iframe, but iframe doesn't have an attached SPS. Warning.\n");
+						}
+						if (!item->video.has_avc_pps) {
+							tprintf("stream[%d] trimming to iframe, but iframe doesn't have an attached PPS. Warning.\n");
+						}
+						break;
 					}
-					if (!item->video.has_avc_aud) {
-						tprintf("stream[%d] trimming to iframe, but iframe doesn't have an attached AUD. Warning.\n");
-					}
-					if (!item->video.has_avc_sps) {
-						tprintf("stream[%d] trimming to iframe, but iframe doesn't have an attached SPS. Warning.\n");
-					}
-					if (!item->video.has_avc_pps) {
-						tprintf("stream[%d] trimming to iframe, but iframe doesn't have an attached PPS. Warning.\n");
-					}
-
-					break;
 				}
-
-				xorg_list_del(&item->list);
-				pid->peslistcount--;
-
-				pes_item_free(item);
-
-				dropped++;
 			}
 			pthread_mutex_unlock(&pid->peslistlock);
+
+			if (trimToPTS == -1) {
+				printf("Something went wrong, can't find more than two iframes in the peslist\n");
+				exit(1);
+			}
+
+			/* Drop everything until trimToPTS, else we have a ton of unwanted latency and
+			 * time moves backwards after the switch (visually for viewer).
+			 */
+			pthread_mutex_lock(&pid->peslistlock);
+			item = NULL;
+			struct pes_item_s *next = NULL;
+			xorg_list_for_each_entry_safe(item, next, &pid->peslist, list) {
+
+				if (item->pes->PTS < trimToPTS) {
+					xorg_list_del(&item->list);
+					pid->peslistcount--;
+					pes_item_free(item);
+					dropped++;
+				}
+
+			}
+			pthread_mutex_unlock(&pid->peslistlock);
+
 			tprintf("stream[%d].pid 0x%04x dropped %d VideoPES items, found iframe\n", is->nr, pid->pid, dropped);
 
 		}
@@ -457,7 +476,7 @@ int input_stream_flush_to_transition_point(struct input_stream_s *is)
 			xorg_list_for_each_entry_safe(item, next, &pid->peslist, list) {
 
 /* TODO: Assuming we have a pts */
-				if (item->pes->PTS < itemVideo->pes->PTS) {
+				if (item->pes->PTS < trimToPTS) {
 					xorg_list_del(&item->list);
 					pid->peslistcount--;
 					pes_item_free(item);
@@ -470,7 +489,7 @@ int input_stream_flush_to_transition_point(struct input_stream_s *is)
 			}
 			pthread_mutex_unlock(&pid->peslistlock);
 			tprintf("stream[%d].pid 0x%04x dropped %d AudioPES items, until PTS %" PRIi64 "\n",
-				is->nr, pid->pid, dropped, itemVideo->pes->PTS);
+				is->nr, pid->pid, dropped, trimToPTS);
 		}
 
 	}
