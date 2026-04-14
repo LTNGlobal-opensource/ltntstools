@@ -201,7 +201,7 @@ static void service(struct tool_ctx_s *ctx)
 			if (pid->performClockAdjustmentPTS && ltn_pes_packet_has_PTS(item->pes)) {
 				pid->clockAdjustmentPTS = (pid->lastOutputPTS + pid->lastOutputPTSDelta) - item->pes->PTS;
 
-				printf("decoder(pts) pid 0x%04x wanted PTS %" PRIi64 " we gave it %" PRIi64 ", new Adjust %" PRIi64 "\n",
+				printf("decoder(pts) pid 0x%04x wanted PTS %" PRIi64 " we're offering %" PRIi64 ", new adjust %" PRIi64 "\n",
 					pid->pid,
 					pid->lastOutputPTS + pid->lastOutputPTSDelta,
 					item->pes->PTS,
@@ -215,7 +215,7 @@ static void service(struct tool_ctx_s *ctx)
 
 				pid->clockAdjustmentDTS = (pid->lastOutputDTS + pid->lastOutputDTSDelta) - item->pes->DTS;
 
-				printf("decoder(dts) pid 0x%04x wanted DTS %" PRIi64 " we gave it %" PRIi64 ", new Adjust %" PRIi64 "\n",
+				printf("decoder(dts) pid 0x%04x wanted DTS %" PRIi64 " we're offering %" PRIi64 ", new adjust %" PRIi64 "\n",
 					pid->pid,
 					pid->lastOutputDTS + pid->lastOutputDTSDelta,
 					item->pes->DTS,
