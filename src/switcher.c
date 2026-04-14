@@ -358,7 +358,11 @@ static void service(struct tool_ctx_s *ctx)
 				pid->last_pcr_output = ctx->next_time;
 
 				int64_t pcr;
+#if 1
+				pcr = output_get_computed_stc(os);
+#else
 				ltntstools_bitrate_calculator_query_stc(pid->stream->libstats, &pcr);
+#endif
 				pcr -= (27000 * 800); /* The PCR we're going to output is 800ms in the past. This keeps the PTS always ahead of it. */
 				ltntstools_generatePCROnlyPacket(&pid->pkt_scr[0], sizeof(pid->pkt_scr), pid->outputPidNr, &pid->cc, pcr);
 
@@ -389,12 +393,8 @@ static void service(struct tool_ctx_s *ctx)
 	}
 
 	if (!pkt) {
-		/* Hmm, not time for PSIP or audio/video. Could be null packet time. */
-		/* TODO: I don't think we need these timing checks */
-		if (os->null_pkt_outputSTC < output_get_computed_stc(os)) {
-			pkt = &os->null_pkt[0];
-			os->null_pkt_outputSTC += os->ticks_per_outputts27MHz;
-		}
+		/* Hmm, it's not time for PSIP or audio/video. Could be null packet time. */
+		pkt = &os->null_pkt[0];
 	}
 
 	if (pkt) {
@@ -555,8 +555,6 @@ int switcher_main(int argc, char *argv[])
 	pthread_mutex_init(&ctx->schedule_lock, NULL);
 
 	ctx->outputStream = output_stream_alloc(ctx);
-	ctx->outputStream->null_pkt_outputSTC = output_get_computed_stc(ctx->outputStream);
-	ltntstools_generateNullPacket(&ctx->outputStream->null_pkt[0]);
 
 	int ch;
 

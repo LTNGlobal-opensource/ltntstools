@@ -40,6 +40,11 @@ static void *input_stream_pid_pe_callback(struct pid_s *pid, struct ltn_pes_pack
 	struct input_stream_s *stream = pid->stream;
 	struct output_stream_s *os = stream->ctx->outputStream;
 
+	if (!output_computed_stc_established(os)) {
+		if (ltn_pes_packet_has_PTS(pes)) {
+			output_set_computed_stc(os, pes->PTS);
+		}
+	}
 #if 0
 	if (!ltn_pes_packet_has_DTS(pes)) {
 		pes->DTS = pes->PTS;

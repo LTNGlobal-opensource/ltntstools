@@ -2,14 +2,35 @@
 
 #include "switcher-types.h"
 
+int output_computed_stc_established(struct output_stream_s *os)
+{
+	return os->stc_established;
+}
+
+void output_set_computed_stc(struct output_stream_s *os, int64_t PTS)
+{
+	/* Convert PTS into meaningful STC. */
+	double stc = (PTS * 300);
+	double bps = TARGET_BITRATE;
+	double bitsTransmitted = (stc / 27000) * (bps / 1000);
+	double ts_packet_sent = bitsTransmitted / 8 / 188;
+
+	os->ts_packets_sent = ts_packet_sent;
+	os->stc_established = 1;
+}
+
 int64_t output_get_computed_stc(struct output_stream_s *os)
 {
-	double startupPacketsSent = 10000;
-	double bitsTransmitted = (startupPacketsSent + os->ts_packets_sent) * TS_PACKET_SIZE * 8.0;
-	double additionalBits = 0.0;
+	if (!os->stc_established) {
+		printf("how does this happen?\n");
+		//exit(1);
+		return 0;
+	}
+
+	double bitsTransmitted = os->ts_packets_sent * 188 * 8.0;
 	double bps = TARGET_BITRATE;
 
-	return (((bitsTransmitted + additionalBits) / bps) * (double)27000000);
+	return (bitsTransmitted / bps) * (double)27000000;
 }
 
 static void *reframer_callback(struct output_stream_s *os, const uint8_t *buf, int lengthBytes)
@@ -30,6 +51,7 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 		return NULL;
 
 	os->ctx = ctx;
+	os->stc_established = 0;
 	os->reframer = ltntstools_reframer_alloc(os, 7 * 188, (ltntstools_reframer_callback)reframer_callback);
 	if (os->reframer == NULL) {
 		free(os);
@@ -59,6 +81,8 @@ struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
 	double packet_duration_sec = (double)(188.0 * 8.0) / bitrate_bps;
 	double ticks_per_packet = packet_duration_sec * 27000000.0;
 	os->ticks_per_outputts27MHz = ticks_per_packet;
+
+	ltntstools_generateNullPacket(&os->null_pkt[0]);
 
 	return os;
 }

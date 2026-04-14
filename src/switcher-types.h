@@ -177,9 +177,9 @@ struct output_stream_s
 
 	int64_t ticks_per_outputts27MHz;
 	int64_t ts_packets_sent;            /* Total number of transport packets transmitted */
+	int     stc_established;            /* Boolean. Is the STC initialized */
 
 	uint8_t null_pkt[188];              /* Holds fully formed null packet */
-	int64_t null_pkt_outputSTC;         /* TODO: I don't think we need these timing checks */
 
 	struct ltntstools_stream_statistics_s *libstats; /* Transport Stream packet statistics */
 };
@@ -238,6 +238,8 @@ struct pid_s *input_stream_pid_lookup(struct pid_s *pid, struct input_stream_s *
 struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
 void    output_stream_free(struct output_stream_s *os);
 int64_t output_get_computed_stc(struct output_stream_s *os);
+void    output_set_computed_stc(struct output_stream_s *os, int64_t PTS);
+int     output_computed_stc_established(struct output_stream_s *os);
 
 /* switcher-codecs.h */
 struct pes_item_s *pes_item_alloc(struct pid_s *pid, struct ltn_pes_packet_s *pes, struct output_stream_s *os);
