@@ -488,19 +488,21 @@ static void service(struct tool_ctx_s *ctx)
 
 static void usage(const char *progname)
 {
-	printf("\nA demonstration tool to merge two SPTS input streams into a single MPTS.\n");
+	printf("\nA tool that switches between two SPTS input streams, outputting a clean and consistent output stream.\n");
 	printf("Highly experimental development. Not for use in any test or production environment.\n");
 	printf("Many things are hardcoded and tuned for use in a developers single environment\n\n");
 	printf("Usage:\n");
 	printf("  -i <url> Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
                "           192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -o <url> Eg: udp|rtp://234.1.1.1:4560?pkt_size=1316\n");
 	printf("  -D <filename> Test function, exercises ffmpeg's demux for developer use. (don't use)\n");
-	printf("  -P 0xPID:0xSTREAMID\n");
+	printf("  -P 0xPID:0xSTREAMID (pass this immediate after the -i url input)\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
-	printf("\n  Eg. %s -i 'udp://227.1.20.80:4002?buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -P 0x31:0xe0 -P 0x32:0xc0 \\\n", progname);
-	printf("                     -i 'udp://227.1.20.80:4002?buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -P 0x31:0xe0 -P 0x32:0xc0\n");
-	//printf("\n  Eg. %s -v -B 50000000 -T sample.ts\n", progname);
+	printf("\n  Eg. %s \\\n", progname);
+	printf("              -i udp://227.1.20.80:4001 -P 0x31:0xe0 -P 0x32:0xc0 \\\n");
+	printf("              -i udp://227.1.20.82:4001 -P 0x31:0xe0 -P 0x32:0xc0 \\\n");
+	printf("              -o udp://227.1.20.80:4002?pkt_size=1316\n");
 	printf("\n");
 }
 
@@ -515,14 +517,12 @@ int switcher_main(int argc, char *argv[])
 	ctx->schedule_entries = 2;
 	pthread_mutex_init(&ctx->schedule_lock, NULL);
 
-	ctx->outputStream = output_stream_alloc(ctx);
-
 	int ch;
 
 	uint32_t pid;
 	uint32_t streamId;
 
-	while ((ch = getopt(argc, argv, "?D:hvi:P:")) != -1) {
+	while ((ch = getopt(argc, argv, "?D:hvi:o:P:")) != -1) {
 		switch (ch) {
 		case 'D':
 			return ffmpeg_demux_test(optarg);
@@ -534,6 +534,9 @@ int switcher_main(int argc, char *argv[])
 		case 'i':
 			ctx->inputNr++;
 			ctx->input_streams[ctx->inputNr] = input_stream_alloc(ctx, optarg, ctx->inputNr);
+			break;
+		case 'o':
+			ctx->outputStream = output_stream_alloc(ctx, optarg);
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x:0x%x", &pid, &streamId) != 2) || (pid > 0x1fff)) {
@@ -553,9 +556,16 @@ int switcher_main(int argc, char *argv[])
 
 	if (ctx->inputNr < 0) {
 		usage(argv[0]);
+		fprintf(stderr, "-i missing or illegal\n");
 		exit(1);
 	}
 	tprintf("Number of Inputs: %d\n", ctx->inputNr + 1);
+
+	if (ctx->outputStream == NULL) {
+		usage(argv[0]);
+		fprintf(stderr, "-o missing or illegal\n");
+		exit(1);
+	}
 
 	/* Setup the output schedule to give each stream time in the packet scheduler. */
 	schedule_stream(ctx, ctx->input_streams[0]);

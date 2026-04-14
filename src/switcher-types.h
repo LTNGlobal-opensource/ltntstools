@@ -236,7 +236,7 @@ const char *getPidTypeDescription(enum pid_type_e type);
 struct pid_s *input_stream_pid_lookup(struct pid_s *pid, struct input_stream_s *is);
 
 /* switcher-output.c */
-struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx);
+struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx, const char *url);
 void    output_stream_free(struct output_stream_s *os);
 int64_t output_get_computed_stc(struct output_stream_s *os);
 void    output_set_computed_stc(struct output_stream_s *os, int64_t PTS);

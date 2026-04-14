@@ -51,34 +51,43 @@ static void *reframer_callback(struct output_stream_s *os, const uint8_t *buf, i
 	return NULL;
 }
 
-struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx)
+struct output_stream_s *output_stream_alloc(struct tool_ctx_s *ctx, const char *url)
 {
+	if (!url) {
+		return NULL;
+	}
+
 	struct output_stream_s *os = calloc(1, sizeof(*os));
 	if (!os)
 		return NULL;
 
 	os->ctx = ctx;
 	os->stc_established = 0;
+	os->oname = strdup(url);
 	os->reframer = ltntstools_reframer_alloc(os, 7 * 188, (ltntstools_reframer_callback)reframer_callback);
 	if (os->reframer == NULL) {
+		fprintf(stderr, "unable to alloc framer\n");
 		free(os);
 		return NULL;
 	}
 
 #if 0
-	os->oname = strdup("udp://227.1.131.201:4001");
-#else
 	os->oname = strdup("udp://227.1.131.51:4051?pkt_size=1316"); /* ltnt-col-videolab-e3 */
+#else
+
 #endif
 
 	int ret = avio_open2(&os->avio_ctx, os->oname, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 	if (ret < 0) {
 		fprintf(stderr, "-o syntax error\n");
-		exit(1);
+		free(os);
+		return NULL;
 	}
 
 	ltntstools_pid_stats_alloc(&os->libstats);
 	if (os->libstats == NULL) {
+		fprintf(stderr, "unable to allocate pid stats\n");
+		avio_close(os->avio_ctx);
 		ltntstools_reframer_free(os->reframer);
 		free(os);
 		return NULL;
