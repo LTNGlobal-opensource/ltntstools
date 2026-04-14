@@ -471,6 +471,15 @@ static void service(struct tool_ctx_s *ctx)
 		if (eolCount == stream->pidCount) {
 			tprintf("stream[%d] all pids are flushed, preparing for schedule adjustment\n", stream->nr);
 
+#if 1
+			/* Tell our external debug tools (clock inspector) the pids are EOL, send a cheeky PCR on an unused pid. */
+			uint8_t pkt[188];
+			uint8_t cc = 0;
+			ltntstools_generatePCROnlyPacket(&pkt[0], sizeof(pkt), 0x1ffe, &cc, 0);
+			ltststools_reframer_write(ctx->outputStream->reframer, pkt, 188);
+			os->ts_packets_sent++;
+#endif
+
 			/* compute the new timing bias for the input PES, to retain the output constant timing */
 			struct input_stream_s *streamPrimary = ctx->input_streams[ ctx->activeInputNr ];
 			struct input_stream_s *streamBackup  = ctx->input_streams[ (~ctx->activeInputNr) & 1 ]; 
