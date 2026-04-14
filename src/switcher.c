@@ -76,7 +76,7 @@ static void service(struct tool_ctx_s *ctx)
 	if (libltntstools_timespec_diff_ms(ctx->next_time, ctx->last_compatability_check) >= 15000) {
 		ctx->last_compatability_check = ctx->next_time;
 		if (input_stream_models_compatible(ctx->input_streams[0], ctx->input_streams[1]) != 1) {
-			tprintf("Model compatability issue - Inducing stall because I want you to deal with it. ExpectIAT issue\n");
+			tprintf("Model compatability issue - Inducing stall because I want you to deal with it. Expect IAT issue\n");
 			usleep(1000 * 1000);
 			return;
 		}
@@ -335,17 +335,16 @@ static void service(struct tool_ctx_s *ctx)
 	uint8_t *pkt = NULL;
 
 	if (ctx->output_psip_idx > -1) {
-		/* Its time to output a PSIP packet, select one. */
-
+		/* We're flagged to output a PSIP packet, select next. */
 		pkt = &ctx->psip_pkt[ ctx->output_psip_idx ][0];
 
 		if (++ctx->output_psip_idx == 2) {
-			ctx->output_psip_idx = -1;
+			ctx->output_psip_idx = -1; /* End of PSIP packet list */
 		}
-
 	}
-	else {
-		/* Its time to output a regular stream packet, select one.
+
+	if (!pkt) {
+		/* Output a regular codec stream packet, select one.
 		 * Using an input schedule forces pid interleaving.
 		 */
 		pthread_mutex_lock(&ctx->schedule_lock);
@@ -370,8 +369,6 @@ static void service(struct tool_ctx_s *ctx)
 				outputPid = pid;
 				break;
 			}
-
-			//	printf("i %d pid->pid 0x%04x, sidx %d, pkts_count %d\n", i, pid->pid, schedule_idx, pid->pkts_count);
 
 			/* Find the next packet and check its scheduling time. */
 			/* Make sure its scheduled to go out */
@@ -412,42 +409,6 @@ static void service(struct tool_ctx_s *ctx)
 				outputPid->ccRoller++;
 			}
 		}
-
-#if 0
-		/* Codec I used to track down a pes extraction / ts packetization bug 
-		 * Sanity Lookup this packet expensively in the pkts array.
-		 * If we're about to send it, mark its STC delivery time as -2.
-		 * We'll check all STC times are -2 when we destroy the packet array,
-		 * hence checking that all packets were output.
-		 */
-		unsigned char magic[] = { 0x18, 0x00, 0x00, 0x03, 0x03, 0xae };
-		if (memcmp(pkt + 182, &magic[0], sizeof(magic)) == 0) {
-			printf("About to output the magic packet\n");
-			ltntstools_hexdump(pkt, 188, 32);
-			exit(1);
-		}
-
-		int found = 0;
-		for (int p = 0; p < stream->pidCount; p++) { /* For each input pid */
-			struct pid_s *pid = stream->pids[p];
-			for (unsigned int i = 0; i < pid->pkts_count; i++) {
-				if (memcmp(pkt, &pid->pkts[i * 188], 188) == 0) {
-					pid->pkts_outputSTC[i] = -2;
-					found++;
-					break;
-				}
-			}
-		}
-		if (!found) {
-			if (ltntstools_pid(pkt) != 0x1fff && ltntstools_pid(pkt) != 0x100 && ltntstools_pid(pkt) != 0x0) {
-				if (pkt[187] != 0xff && pkt[186] != 0xff && pkt[185] != 0xff && pkt[184] != 0xff) { /* Adaptioon packet*/
-					printf("didn't find pkt for pid 0x%04x\n", ltntstools_pid(pkt));
-					ltntstools_hexdump(pkt, 188, 32);
-					exit(1);
-				}
-			}
-		}
-#endif
 
 		/* Send a single PKT to the reframer */
 		ltststools_reframer_write(ctx->outputStream->reframer, pkt, 188);
@@ -521,7 +482,7 @@ static void service(struct tool_ctx_s *ctx)
 			}
 			ctx->flushInput = 0;
 		}
-	}
+	} /* if (ctx->flushInput) */
 
 }
 
