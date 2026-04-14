@@ -22,8 +22,6 @@ void output_set_computed_stc(struct output_stream_s *os, int64_t PTS)
 int64_t output_get_computed_stc(struct output_stream_s *os)
 {
 	if (!os->stc_established) {
-		printf("how does this happen?\n");
-		//exit(1);
 		return 0;
 	}
 
