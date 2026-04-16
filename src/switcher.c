@@ -453,6 +453,7 @@ static void service(struct tool_ctx_s *ctx)
 				pidPrimary->performClockAdjustmentPTS = 0;
 				pidPrimary->performClockAdjustmentDTS = 0;
 				pidBackup->cc = pidPrimary->cc;
+				pidBackup->ccRoller = pidPrimary->ccRoller;
 				pidBackup->clockAdjustmentPTS = 0;
 				pidBackup->clockAdjustmentDTS = 0;
 				pidBackup->performClockAdjustmentPTS = 1;
