@@ -191,6 +191,7 @@ struct tool_ctx_s
 	int inputNr;                     /* */
 	int activeInputNr;               /* 0..inputNr */
 	int flushInput;                  /* prepare to switch inputs */
+	int insert1FFESCROnSwitch;       /* insert an undocumented PCR on pid 0x1ffe prior to the switch */
 
 	int output_psip_idx;             /* Index pointer into psip_pkt[n] */
 	uint8_t psip_cc[3];              /* Keeping track of the CC for any PSIP packets */

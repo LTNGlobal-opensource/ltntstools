@@ -432,15 +432,14 @@ static void service(struct tool_ctx_s *ctx)
 		if (eolCount == stream->pidCount) {
 			tprintf("stream[%d] all pids are flushed, preparing for schedule adjustment\n", stream->nr);
 
-#if 1
-			/* Tell our external debug tools (clock inspector) the pids are EOL, send a cheeky PCR on an unused pid. */
-			uint8_t pkt[188];
-			uint8_t cc = 0;
-			ltntstools_generatePCROnlyPacket(&pkt[0], sizeof(pkt), 0x1ffe, &cc, 0);
-			ltststools_reframer_write(ctx->outputStream->reframer, pkt, 188);
-			os->ts_packets_sent++;
-#endif
-
+			if (ctx->insert1FFESCROnSwitch) {
+				/* Tell our external debug tools (clock inspector) the pids are EOL, send a cheeky PCR on an unused pid. */
+				uint8_t pkt[188];
+				uint8_t cc = 0;
+				ltntstools_generatePCROnlyPacket(&pkt[0], sizeof(pkt), 0x1ffe, &cc, 0);
+				ltststools_reframer_write(ctx->outputStream->reframer, pkt, 188);
+				os->ts_packets_sent++;
+			}
 
 			/* compute the new timing bias for the input PES, to retain the output constant timing */
 			struct input_stream_s *streamPrimary = ctx->input_streams[ ctx->activeInputNr ];
@@ -507,6 +506,7 @@ static void usage(const char *progname)
 	printf("  -P 0xPID:0xSTREAMID (pass this immediate after the -i url input)\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
+	printf("  -Z Insert a dummy PCR on pid 0x1ffe immediately before the stream switch\n");
 	printf("\n  Eg. %s \\\n", progname);
 	printf("              -i udp://227.1.20.80:4001 -P 0x31:0xe0 -P 0x32:0xc0 \\\n");
 	printf("              -i udp://227.1.20.82:4001 -P 0x31:0xe0 -P 0x32:0xc0 \\\n");
@@ -530,7 +530,7 @@ int switcher_main(int argc, char *argv[])
 	uint32_t pid;
 	uint32_t streamId;
 
-	while ((ch = getopt(argc, argv, "?D:hvi:o:P:")) != -1) {
+	while ((ch = getopt(argc, argv, "?D:hvi:o:P:Z")) != -1) {
 		switch (ch) {
 		case 'D':
 			return ffmpeg_demux_test(optarg);
@@ -555,6 +555,9 @@ int switcher_main(int argc, char *argv[])
 			break;
 		case 'v':
 			ctx->verbose++;
+			break;
+		case 'Z':
+			ctx->insert1FFESCROnSwitch = 1;
 			break;
 		default:
 			usage(argv[0]);
