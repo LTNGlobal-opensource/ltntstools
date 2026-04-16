@@ -74,16 +74,16 @@ static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pk
 {
 	//printf("AVIO data: %s nr %d %d packets\n", stream->iname, stream->nr, packetCount);
 
-#if TS_RECORDING
-	static FILE *ofh[2] = { NULL, NULL };
-	if (ofh[stream->nr] == NULL) {
-		char fn[64];
-		sprintf(fn, "input%d.ts", stream->nr);
-		ofh[stream->nr] = fopen(fn, "wb");
+	if (stream->ctx->createTSRecordings) {
+		static FILE *ofh[2] = { NULL, NULL };
+		if (ofh[stream->nr] == NULL) {
+			char fn[64];
+			sprintf(fn, "input%d.ts", stream->nr);
+			ofh[stream->nr] = fopen(fn, "wb");
+		}
+		if (ofh[stream->nr])
+			fwrite(pkts, 1, packetCount * 188, ofh[stream->nr]);
 	}
-	if (ofh[stream->nr])
-		fwrite(pkts, 1, packetCount * 188, ofh[stream->nr]);
-#endif
 
 	if (stream->sm && stream->smcomplete == 0) {
 		struct timeval nowtv;

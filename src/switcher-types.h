@@ -20,7 +20,6 @@
 
 extern int g_running;
 
-#define TS_RECORDING 1
 #define MAX_INPUT_STREAMS        16
 #define MAX_STREAM_PIDS           2
 #define TARGET_BITRATE     20000000 // bps
@@ -192,6 +191,7 @@ struct tool_ctx_s
 	int activeInputNr;               /* 0..inputNr */
 	int flushInput;                  /* prepare to switch inputs */
 	int insert1FFESCROnSwitch;       /* insert an undocumented PCR on pid 0x1ffe prior to the switch */
+	int createTSRecordings;          /* Create debug recordings for inputs and outputs */
 
 	int output_psip_idx;             /* Index pointer into psip_pkt[n] */
 	uint8_t psip_cc[3];              /* Keeping track of the CC for any PSIP packets */
