@@ -504,7 +504,7 @@ static void usage(const char *progname)
 	printf("  -o <url> Eg: udp|rtp://234.1.1.1:4560?pkt_size=1316\n");
 	printf("  -D <filename> Test function, exercises ffmpeg's demux for developer use. (don't use)\n");
 	printf("  -P 0xPID:0xSTREAMID (pass this immediate after the -i url input)\n");
-	printf("  -T create input[01].ts and output.ts recordings (debug feature)\n");
+	printf("  -R create input[01].ts and output.ts recordings (debug feature)\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -Z Insert a dummy PCR on pid 0x1ffe immediately before the stream switch\n");
@@ -531,7 +531,7 @@ int switcher_main(int argc, char *argv[])
 	uint32_t pid;
 	uint32_t streamId;
 
-	while ((ch = getopt(argc, argv, "?D:hvi:o:P:RTZ")) != -1) {
+	while ((ch = getopt(argc, argv, "?D:hvi:o:P:RZ")) != -1) {
 		switch (ch) {
 		case 'D':
 			return ffmpeg_demux_test(optarg);
