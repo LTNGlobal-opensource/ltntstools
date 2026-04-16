@@ -441,9 +441,16 @@ static void service(struct tool_ctx_s *ctx)
 			os->ts_packets_sent++;
 #endif
 
+
 			/* compute the new timing bias for the input PES, to retain the output constant timing */
 			struct input_stream_s *streamPrimary = ctx->input_streams[ ctx->activeInputNr ];
-			struct input_stream_s *streamBackup  = ctx->input_streams[ (~ctx->activeInputNr) & 1 ]; 
+			struct input_stream_s *streamBackup  = ctx->input_streams[ (~ctx->activeInputNr) & 1 ];
+
+			tprintf("Timing dump of Primary and backup streams, pcr is %" PRIi64 "\n",
+				output_get_computed_stc(os));
+			input_stream_timing_dump(streamPrimary);
+			input_stream_timing_dump(streamBackup);
+			tprintf("Timing dump complete\n");
 			for (int p = 0; p < streamPrimary->pidCount; p++) {
 				struct pid_s *pidPrimary = stream->pids[p];
 				struct pid_s *pidBackup = input_stream_pid_lookup(pidPrimary, streamBackup);

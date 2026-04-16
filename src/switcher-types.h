@@ -229,6 +229,7 @@ struct pid_s *input_stream_pid_alloc(uint16_t pidnr, uint8_t streamId, uint16_t 
 void          input_stream_pid_free(struct pid_s *pid);
 int  input_stream_pid_add(struct input_stream_s *stream, uint16_t pidnr, uint16_t outputPidNr, uint8_t streamId);
 int  input_stream_pid_write(struct pid_s *pid, const uint8_t *pkts, int packetCount);
+void input_stream_timing_dump(struct input_stream_s *is);
 void input_stream_pid_set_state(struct pid_s *pid, enum pid_state_e state);
 enum pid_state_e input_stream_pid_get_state(struct pid_s *pid);
 

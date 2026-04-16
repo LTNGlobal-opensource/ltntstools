@@ -212,6 +212,16 @@ void input_stream_prune_history(struct input_stream_s *is)
 	}
 }
 
+void input_stream_timing_dump(struct input_stream_s *is)
+{
+	for (int i = 0; i < is->pidCount; i++) {
+		struct pid_s *pid = is->pids[i];
+		tprintf("stream[%d].pid %04x pts %" PRIi64 " dts %" PRIi64 "\n",
+			is->nr,
+			pid->pid, pid->lastOutputPTS, pid->lastOutputDTS);
+	}
+}
+
 struct input_stream_s *input_stream_alloc(struct tool_ctx_s *ctx, char *iname, int nr)
 {
 	struct input_stream_s *stream = calloc(1, sizeof(*stream));
