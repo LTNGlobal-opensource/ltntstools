@@ -131,6 +131,10 @@ SRC += switcher-input.c
 SRC += switcher-input-pid.c
 SRC += switcher-output.c
 SRC += switcher-codecs.c
+SRC += avc-core.c
+SRC += avc-sps.c
+SRC += avc-pps.c
+SRC += avc-slice.c
 
 bin_PROGRAMS  = tstools_util
 LINKBINS  = tstools_pat_inspector

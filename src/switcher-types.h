@@ -17,6 +17,7 @@
 #include "ffmpeg-includes.h"
 #include "source-avio.h"
 #include "xorg-list.h"
+#include "avc-types.h"
 
 extern int g_running;
 
