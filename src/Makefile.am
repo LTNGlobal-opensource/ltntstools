@@ -169,7 +169,7 @@ LINKBINS += tstools_sei_latency_inspector
 LINKBINS += tstools_caption_analyzer
 #LINKBINS += tstools_mpts
 LINKBINS += tstools_demux_inspector
-LINKBINS += tstools_switcher
+LINKBINS += tstools_splicer
 
 tstools_util_SOURCES = $(SRC)
 

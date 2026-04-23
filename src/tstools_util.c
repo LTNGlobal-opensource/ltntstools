@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 		{ "tstools_caption_analyzer",   caption_analyzer, },
 		{ "tstools_demux_inspector",    demux_inspector, },
 //		{ "tstools_mpts",   			mpts, },
-		{ "tstools_swplicer",   		splicer_main, },
+		{ "tstools_splicer",   			splicer_main, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);
