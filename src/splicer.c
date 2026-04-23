@@ -19,7 +19,7 @@
 #include "xorg-list.h"
 #include "klbitstream_readwriter.h"
 
-#include "switcher-types.h"
+#include "splicer-types.h"
 
 int g_running = 1;
 static struct tool_ctx_s g_ctx;
@@ -515,7 +515,7 @@ static void usage(const char *progname)
 	printf("\n");
 }
 
-int switcher_main(int argc, char *argv[])
+int splicer_main(int argc, char *argv[])
 {
 	struct tool_ctx_s *ctx = &g_ctx;
 	memset(ctx, 0, sizeof(*ctx));

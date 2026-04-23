@@ -35,7 +35,7 @@ extern int sei_latency_inspector(int argc, char *argv[]);
 extern int caption_analyzer(int argc, char *argv[]);
 extern int demux_inspector(int argc, char *argv[]);
 //extern int mpts(int argc, char *argv[]);
-extern int switcher_main(int argc, char *argv[]);
+extern int splicer_main(int argc, char *argv[]);
 
 typedef int (*func_ptr)(int, char *argv[]);
 
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 		{ "tstools_caption_analyzer",   caption_analyzer, },
 		{ "tstools_demux_inspector",    demux_inspector, },
 //		{ "tstools_mpts",   			mpts, },
-		{ "tstools_switcher",   		switcher_main, },
+		{ "tstools_swplicer",   		splicer_main, },
 		{ 0, 0 },
 	};
 	char *appname = basename(argv[0]);

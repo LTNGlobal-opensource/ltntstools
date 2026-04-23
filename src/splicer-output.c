@@ -1,6 +1,6 @@
 /* Copyright LiveTimeNet, Inc. 2026. All Rights Reserved. */
 
-#include "switcher-types.h"
+#include "splicer-types.h"
 
 int output_computed_stc_established(struct output_stream_s *os)
 {
