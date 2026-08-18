@@ -7,6 +7,7 @@ License:	GPLv2+
 URL:		www.ltnglobal.com
 
 %global __provides_exclude_from ^/usr/local/lib-ltntstools/.*$
+%global __requires_exclude ^(libavcodec\.so\.58|libavformat\.so\.58|libavutil\.so\.56|libdvbpsi\.so\.10|libklscte35\.so\.0|libklvanc\.so\.0|libltntstools\.so\.0|libjson-c\.so\.4|libzvbi\.so\.0|libsrt\.so\.1\.4|libswresample\.so\.3|libswscale\.so\.5).*
 
 #BuildRequires:	
 BuildRequires:	zlib-devel
@@ -68,7 +69,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Tue Aug 18 2026 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.39.14
+- v1.39.15
   tstools_nic_monitor: Much smaller memory usages
   tstools_nic_monitor: Less CPU, performance improvements
   tstools_nic_monitor: Updates and optimizations based on upgraded libltntstools
