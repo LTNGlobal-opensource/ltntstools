@@ -1007,6 +1007,9 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 	} else
 	{
 		/* Else, dump all the PES packets */
+		struct timeval ts;
+		gettimeofday(&ts, NULL);
+		printf("@time: %d.%06d, PTS %12ld DTS %12ld\n", (int)ts.tv_sec, (int)ts.tv_usec, pes->PTS, pes->DTS);
 		ltn_pes_packet_dump(pes, "");
 	}
 
