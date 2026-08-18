@@ -67,14 +67,15 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 #/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
-* Tue Jun  9 2026 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.39.12 - DEVELOPMENT
+* Tue Aug 18 2026 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.39.14
   tstools_nic_monitor: Much smaller memory usages
   tstools_nic_monitor: Less CPU, performance improvements
   tstools_nic_monitor: Updates and optimizations based on upgraded libltntstools
   tstools_nic_monitor: Don't access deprecated struct vars, use getters instead
   tstools_bitrate_smoother: Updates and optimizations based on upgraded libltntstools
   tstools_bitrate_smoother: Don't access deprecated struct vars, use getters instead
+  rpm: Ensure all libraries in this packages are excluded from RPMS 'provides' solution.
 
 * Fri May 22 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.39.12
