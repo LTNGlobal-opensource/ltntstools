@@ -6,6 +6,8 @@ Summary:	ISO13818 MPEG-TS Packet Monitor
 License:	GPLv2+
 URL:		www.ltnglobal.com
 
+%global __provides_exclude_from ^/usr/local/lib-ltntstools/.*$
+
 #BuildRequires:	
 BuildRequires:	zlib-devel
 BuildRequires:	libpcap-devel
