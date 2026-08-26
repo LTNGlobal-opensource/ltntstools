@@ -124,7 +124,7 @@ static void analyze_text(struct tool_ctx_s *ctx, struct input_pid_s *p, char *di
 				sprintf(secs, "%12d", idlesecs);
 			}
 
-			printf("%4s %7ld    %7ld    %7ld     %5.0f%%   %24s  %24s   %8" PRIu64 " %12s\n",
+			printf("%4s %7" PRIu64 "    %7" PRIu64 "    %7" PRIu64 "     %5.0f%%   %24s  %24s   %8" PRIu64 " %12s\n",
 				langname[i], s->found, s->missing, s->processed, s->accuracypct,
 				a, b, p->syntaxError,
 				secs);
