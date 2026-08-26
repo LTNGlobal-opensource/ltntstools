@@ -42,7 +42,7 @@ void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos,
 	ctx->current_stream_time = dt;
 
 	char str[64];
-	sprintf(str, "%s", ctime(&dt));
+	snprintf(str, sizeof(str), "%s", ctime(&dt));
 	str[ strlen(str) - 1] = 0;
 
 	char *scr_ascii = NULL;
@@ -53,14 +53,14 @@ void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos,
 	char walltimePCRReport[32] = { 0 };
 	int64_t PCRWalltimeDriftMs = 0;
 	if (ltntstools_pid_stats_pid_get_pcr_walltime_driftms(ctx->libstats, pid, &PCRWalltimeDriftMs) == 0) {
-		sprintf(walltimePCRReport, "%5" PRIi64, PCRWalltimeDriftMs);
+		snprintf(walltimePCRReport, sizeof(walltimePCRReport), "%5" PRIi64, PCRWalltimeDriftMs);
 	} else {
-		sprintf(walltimePCRReport, "    NA");
+		snprintf(walltimePCRReport, sizeof(walltimePCRReport), "    NA");
 	}
 
 	time_t now = time(NULL);
 	char time_str[64];
-	sprintf(time_str, "%s", ctime(&now));
+	snprintf(time_str, sizeof(time_str), "%s", ctime(&now));
 	time_str[ strlen(time_str) - 1] = 0;
 
 	printf("SCR #%09" PRIu64 " -- %011" PRIx64 " %13" PRIu64 "  %04x  %14" PRIu64 "  %10" PRIu64 "  %9" PRIu64 "  %s  %s %08d.%03d %6s\n",
