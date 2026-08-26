@@ -862,6 +862,7 @@ int bitrate_smoother(int argc, char *argv[])
 		ctx->spts_pmt_sm = NULL;
 	}
 
+	(void)errCount;
 	ret = 0;
 
 no_output:
