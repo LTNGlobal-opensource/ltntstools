@@ -146,7 +146,7 @@ static void _compute_dbFS_fltp(struct ltntstools_audioanalyzer_stream_s *stream,
 #if 0
 printf("x %f\n", x);
 #endif
-    stream->pcm[channelNr].pcm_dbFS = 20 * log10(abs(x));
+    stream->pcm[channelNr].pcm_dbFS = 20 * log10(fabs(x));
 
     if (isinf(stream->pcm[channelNr].pcm_dbFS)) {
         sprintf((char *)stream->pcm[channelNr].pcm_dbFSDescription, "N/A");
