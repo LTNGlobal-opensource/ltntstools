@@ -112,7 +112,7 @@ static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllinear
 
 	char t[64];
 	time_t now = time(NULL);
-	sprintf(t, "%s", ctime(&now));
+	snprintf(t, sizeof(t), "%s", ctime(&now));
 	t[ strlen(t) - 1] = 0;
 
 	printf("PID 0x%04x - Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f, r2 is %12.8f @ %s\n",
@@ -175,7 +175,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	char time_str[64];
 
 	time_t now = time(NULL);
-	sprintf(time_str, "%s", ctime(&now));
+	snprintf(time_str, sizeof(time_str), "%s", ctime(&now));
 	time_str[ strlen(time_str) - 1] = 0;
 
 	struct pid_s *p = &ctx->pids[pid];
@@ -194,7 +194,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		/* Initialize the trend if needed */
 		if (p->trend_pts.clkToScrTicksDeltaTrend == NULL) {
 			char label[64];
-			sprintf(&label[0], "PTS 0x%04x to Wallclock delta", pid);
+			snprintf(&label[0], sizeof(label), "PTS 0x%04x to Wallclock delta", pid);
 			pthread_mutex_init(&p->trend_pts.trendLock, NULL);
 			p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(ctx->trendSize, label);
 		}
@@ -212,7 +212,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if (p->trend_dts.clkToScrTicksDeltaTrend == NULL) {
 			char label[64];
-			sprintf(&label[0], "DTS 0x%04x to SCR tick delta", pid);
+			snprintf(&label[0], sizeof(label), "DTS 0x%04x to SCR tick delta", pid);
 			pthread_mutex_init(&p->trend_dts.trendLock, NULL);
 			p->trend_dts.clkToScrTicksDeltaTrend = kllineartrend_alloc(ctx->trendSize, label);
 		}
@@ -296,7 +296,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if (d_pts_minus_scr_ticks < 0 && ctx->enableNonTimingConformantMessages) {
 			char str[64];
-			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
 			printf("!PTS #%09" PRIi64 " Error. The PTS is arriving BEHIND the PCR, the PTS is late. The stream is not timing conformant @ %s\n",
 				p->pts_count,
@@ -305,7 +305,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if ((PTS_TICKS_TO_MS(p->pts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
-			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
 			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current 90KHz clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->pts_count,
@@ -316,7 +316,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if ((pts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
-			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
 			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current PTS frame measured in SCR ticks >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->pts_count,
@@ -418,7 +418,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if ((PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
-			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
 			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current 90KHz clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->dts_count,
@@ -429,7 +429,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if ((dts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
-			sprintf(str, "%s", ctime(&ctx->current_stream_time));
+			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
 			str[ strlen(str) - 1] = 0;
 			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current DTS frame measured in SCR ticks >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->dts_count,
