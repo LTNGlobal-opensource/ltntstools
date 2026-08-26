@@ -444,6 +444,7 @@ int langdict_parse(void *handle, const char *display, int lengthBytes)
         di++;
     }
 
+    (void)updatets;
     return 0;
 }
 
