@@ -55,7 +55,14 @@ void obe_timecode_reset(struct timecode_context_s *ctx)
 
 void obe_timecode_reset_after_discontinuity(struct timecode_context_s *ctx)
 {
-    ctx->curr.corrected_frame = ctx->curr.frame;
+    if (ctx->intendedFPS <= 30) {
+        ctx->curr.corrected_frame = ctx->curr.frame;
+    } else {
+        /* Match the >30fps 'waiting for sync' sentinel used in obe_timecode_update(),
+         * rather than treating the raw sub-frame counter as if it were the
+         * corrected frame count. */
+        ctx->curr.corrected_frame = -1;
+    }
     ctx->prev.corrected_frame = ctx->intendedFPS - 1;
 }
 
@@ -73,7 +80,9 @@ static void obe_timecode_raise_discontinuity(struct timecode_context_s *ctx, int
     gettimeofday(&ctx->lastDiscontinuity, NULL);
     
     time_t now = time(0);
-    printf(MESSAGE_PREFIX "timecode discontinuity detected reason %d @ %s", reason, ctime(&now));
+    char nowStr[32];
+    ctime_r(&now, nowStr);
+    printf(MESSAGE_PREFIX "timecode discontinuity detected reason %d @ %s", reason, nowStr);
     printf(MESSAGE_PREFIX "timecode prev %02d:%02d:%02d.%03d (seq %08x) curr %02d:%02d:%02d.%03d (seq %08x)\n",
         ctx->prev.hours, ctx->prev.minutes, ctx->prev.seconds, ctx->prev.frame, ctx->prev.seqNr,
         ctx->curr.hours, ctx->curr.minutes, ctx->curr.seconds, ctx->curr.frame, ctx->curr.seqNr);
@@ -174,7 +183,8 @@ printf(MESSAGE_PREFIX "ctx->prev.corrected_frame %d ctx->curr.corrected_frame %d
         /* Time has moved forward, good */
         time_ok++;
         ctx->dup_time = 0;
-    } if ((t2 - (t1 + 1) % 86400) == 0) {
+    } else
+    if ((t2 - (t1 + 1) % 86400) == 0) {
         /* Clock wrapped 23:59:59 to 00:00:00 */
         time_ok++;
     } else {
@@ -202,7 +212,7 @@ printf("PIC TIMING PRE, time_ok %d, tx->prev.corrected_frame %d ctx->curr.correc
         if (ctx->prev.frame == ctx->curr.frame) {
             /* dup frame we allow */
         } else
-        if (((ctx->prev.corrected_frame + 1) % ctx->intendedFPS) == (unsigned int)ctx->curr.corrected_frame) {
+        if (ctx->intendedFPS > 0 && ((ctx->prev.corrected_frame + 1) % ctx->intendedFPS) == (unsigned int)ctx->curr.corrected_frame) {
             /* next frame in sequence we allow */
         } else
         if (ctx->curr.corrected_frame == -1) {
@@ -226,8 +236,7 @@ printf(MESSAGE_PREFIX  "time_ok %d booo tx->prev.corrected_frame %d ctx->curr.co
         discontinuity = 0; /* time is ok */
     }
 
-    if (g_timecode_trigger_discontinuity) {
-        g_timecode_trigger_discontinuity = 0;
+    if (__atomic_exchange_n(&g_timecode_trigger_discontinuity, 0, __ATOMIC_RELAXED)) {
         discontinuity = 1;
         ctx->curr.seconds = 61;
     }

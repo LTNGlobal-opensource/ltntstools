@@ -1303,6 +1303,10 @@ int pes_inspector(int argc, char *argv[])
 		case 't':
 			ctx->dumpPICTIMING = 1;
 			ctx->ptFrameRate = atoi(optarg);
+			if (ctx->ptFrameRate <= 0) {
+				usage(argv[0]);
+				exit(1);
+			}
 			obe_timecode_clear(&ctx->tc, ctx->ptFrameRate);
 			break;
 		case 'v':
