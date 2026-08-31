@@ -86,10 +86,20 @@ static void dumpPids(struct tool_ctx_s *ctx)
 
 static void setPidType(struct tool_ctx_s *ctx, uint16_t pid, enum pid_type_e pt)
 {
+	int alreadyEnabled = ctx->pids[pid].enabled;
+
 	ctx->pids[pid].enabled = 1;
 	ctx->pids[pid].payloadType = pt;
 	ctx->pids[pid].pid = pid;
 	ctx->pids[pid].ctx = ctx;
+
+	if (alreadyEnabled) {
+		/* Already inserted into pidsOrdered[] -- avoid a duplicate entry,
+		 * which would otherwise cause this pid to be double-processed on
+		 * every packet.
+		 */
+		return;
+	}
 
 	/* Put this into a sorted array for optimized lookup */
 	for (int i = 0; i < MAX_PIDS; i++) {
@@ -162,6 +172,11 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 		struct udphdr *udphdr = (struct udphdr *)((u_char *)iphdr + sizeof(struct iphdr));
 		uint8_t *ptr = (uint8_t *)((uint8_t *)udphdr + sizeof(struct udphdr));
 
+		int availPayload = (int)hdr->len -
+			(int)(sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr));
+		if (availPayload < 0)
+			availPayload = 0;
+
 		if (ctx->verbose > 2) {
 			struct in_addr dstaddr, srcaddr;
 #ifdef __APPLE__
@@ -183,16 +198,19 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 #endif
 
-			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
-				
+			printf("%s -> %s : %4d :",
 				src, dst,
 #ifdef __linux__
-				ntohs(udphdr->len),
+				ntohs(udphdr->len)
 #endif
 #ifdef __APPLE__
-				ntohs(udphdr->uh_ulen),
+				ntohs(udphdr->uh_ulen)
 #endif
-				ptr[0], ptr[1], ptr[2], ptr[3]);
+				);
+			if (availPayload >= 4) {
+				printf(" %02x %02x %02x %02x", ptr[0], ptr[1], ptr[2], ptr[3]);
+			}
+			printf("\n");
 		}
 
 #ifdef __linux__
@@ -201,7 +219,11 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 #ifdef __APPLE__
 		int lengthPayloadBytes = ntohs(udphdr->uh_ulen) - sizeof(struct udphdr);
 #endif
-		
+		if (lengthPayloadBytes < 0)
+			lengthPayloadBytes = 0;
+		if (lengthPayloadBytes > availPayload)
+			lengthPayloadBytes = availPayload; /* Never claim more payload than was actually captured. */
+
 		if ((lengthPayloadBytes > 12) && ((lengthPayloadBytes - 12) % 188 == 0)) {
 			/* It's RTP */
 			ptr += 12;
@@ -426,13 +448,13 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 				struct scte35_splice_info_section_s *s = scte35_splice_info_section_parse(dst, len);
 				if (s) {
 					/* Dump struct to console */
-					if (ctx->pids[p->pid].pid && ctx->pids[p->pid].lastVideoPTS) {
-						s->user_current_video_pts = ctx->pids[p->pid].lastVideoPTS;
+					if (ctx->pids[relatedVideoPid].pid && ctx->pids[relatedVideoPid].lastVideoPTS) {
+						s->user_current_video_pts = ctx->pids[relatedVideoPid].lastVideoPTS;
 					}
 
 					char *json;
-					uint16_t byteCount;
-					if (ctx->outputJSON && scte35_create_json_message(s, &json, &byteCount, ctx->outputJSON == 1 ? 0 : 1) == 0) {
+					uint16_t jsonByteCount;
+					if (ctx->outputJSON && scte35_create_json_message(s, &json, &jsonByteCount, ctx->outputJSON == 1 ? 0 : 1) == 0) {
 						printf("%s\n", json);
 						free(json);
 					}
@@ -525,7 +547,7 @@ int scte35_inspector(int argc, char *argv[])
 	ctx->mode = MODE_SOURCE_AVIO;
 
 	int ch;
-	int pid;
+	unsigned int pid;
 
 	while ((ch = getopt(argc, argv, "?hvi:J:F:P:V:")) != -1) {
 		switch (ch) {
@@ -545,10 +567,10 @@ int scte35_inspector(int argc, char *argv[])
 			ctx->outputJSON = atoi(optarg);
 			if (ctx->outputJSON < 0) {
 				ctx->outputJSON = 0;
-			} else 
+			} else
 			if (ctx->outputJSON > 2) {
 				ctx->outputJSON = 2;
-			} else 
+			}
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x", &pid) != 1) || (pid > 0x1fff)) {
