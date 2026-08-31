@@ -1129,7 +1129,9 @@ int pcap_queue_rebalance(struct tool_context_s *ctx)
 
 		/* Try to keep 50% free buffers for platform stall/spikes. */
 		double demand = (double)ctx->rebalance_last_buffers_used * 0.15;
+		pthread_mutex_lock(&ctx->lockpcap);
 		double avail = (double)ctx->listpcapFreeDepth;
+		pthread_mutex_unlock(&ctx->lockpcap);
 		if (avail > demand) {
 			double balance = avail - demand;
 			if (balance > 100000) {
