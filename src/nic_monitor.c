@@ -2036,6 +2036,16 @@ int nic_monitor(int argc, char *argv[])
 
 	discovered_items_abort(ctx);
 
+	/* discovered_items_abort() only sets DI_STATE_PCAP_RECORD_STOP /
+	 * DI_STATE_STREAM_FORWARD_STOP -- those flags are observed and acted on
+	 * (closing di->pcapRecorder / di->forwardAVIO) inside per-packet
+	 * processing on the pcap/stats threads we are about to terminate below.
+	 * Give any still-active stream a brief window to receive one more
+	 * packet and gracefully close, rather than having its recorder/forwarder
+	 * torn down uncleanly by the terminate flags set immediately after.
+	 */
+	usleep(250 * 1000);
+
 	time_t periodEnds = time(NULL);
 
 	/* Shutdown stats collection */
