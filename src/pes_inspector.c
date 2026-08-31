@@ -393,7 +393,7 @@ static int ltntstools_h264_iframe_thumbnailer_avframe_encode(struct ltntstools_h
 
 		char fn[256];
 		static int idx = 0;
-		sprintf(fn, "%08d.jpg", idx++);
+		snprintf(fn, sizeof(fn), "%08d.jpg", idx++);
 
 		time_t now = time(0);
 
@@ -868,7 +868,7 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 
 				char lbl[128];
 				if (obe_timecode_get_discontinuity(&ctx->tc)) {
-					sprintf(lbl, "DISCONTINUITY MEASURED, PTS 0x%09" PRIx64"\n", pes->PTS);
+					snprintf(lbl, sizeof(lbl), "DISCONTINUITY MEASURED, PTS 0x%09" PRIx64"\n", pes->PTS);
 				} else {
 					lbl[0] = 0;
 				}
@@ -1032,7 +1032,7 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 				struct ltn_nal_headers_s *e = array + i;
 
 				char fn[256];
-				sprintf(&fn[0], "%014" PRIu64 "-es-pid-%04x-streamId-%02x-nal-%02x-name-%s.bin",
+				snprintf(&fn[0], sizeof(fn), "%014" PRIu64 "-es-pid-%04x-streamId-%02x-nal-%02x-name-%s.bin",
 					ctx->esSeqNr++,
 					ctx->pid,
 					ctx->streamId,
@@ -1079,7 +1079,7 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 				if (ctx->writeES_h264) {
 					char fn[256];
-					sprintf(&fn[0], "%014" PRIu64 "-es-pid-%04x-streamId-%02x-nal-%02x-name-%s.bin",
+					snprintf(&fn[0], sizeof(fn), "%014" PRIu64 "-es-pid-%04x-streamId-%02x-nal-%02x-name-%s.bin",
 						ctx->esSeqNr++,
 						ctx->pid,
 						ctx->streamId,
