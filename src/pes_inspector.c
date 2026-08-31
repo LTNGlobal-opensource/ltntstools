@@ -1041,10 +1041,9 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 						}
 					}
 				}
-
 			}
-			free(array);
 #endif
+			free(array);
 		} /* if find headers */
 
 	}
@@ -1238,6 +1237,7 @@ int pes_inspector(int argc, char *argv[])
 				test_2a();
 				printf("---\n");
 				test_3a();
+				nal_throughput_free(&ctx->throughput);
 				return 0;
 			}
 			break;
@@ -1379,6 +1379,12 @@ int pes_inspector(int argc, char *argv[])
 	int ret = ltntstools_source_avio_alloc(&srcctx, ctx, &cbs, iname);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
+		ltntstools_pes_extractor_free(ctx->pe);
+		if (ctx->vbv) {
+			ltntstools_vbv_free(ctx->vbv);
+			ctx->vbv = NULL;
+		}
+		nal_throughput_free(&ctx->throughput);
 		return 1;
 	}
 
