@@ -21,7 +21,6 @@
 #include "timecode.h"
 
 #define LOCAL_DEBUG 0
-#define DEBUG_PIC_TIMING 0
 #define H264_IFRAME_THUMBNAILING 0
 
 static int g_running = 1;
@@ -609,8 +608,6 @@ struct tool_ctx_s
 	void *h264Thumbnailer;
 #endif
 
-	NALBitReader br;
-
 	struct ltn_pes_packet_writer_ctx es_writer_ctx;
 	struct ltn_pes_packet_writer_ctx pes_writer_ctx;
 
@@ -730,50 +727,15 @@ static void _pes_packet_measure_nal_throughput(struct tool_ctx_s *ctx, struct lt
 
 static void _parse_PIC_TIMING(struct tool_ctx_s *ctx, struct ltn_nal_headers_s *e, struct ltn_pes_packet_s *pes)
 {
-	/* Quick basic PIC timing parsing, we're assuming pic_struct_present is true,
-	 * and CpbDpbDelaysPresentFlag is false, and we'll only look at the first clock in any stream.
-	 * Tested against the LTN Encoder.
+	/* Parsing itself lives in libltntstools (ltn_nal_h264_parse_pic_timing()) --
+	 * see nal_h264.c / nal_h264.h and test_nal_h264.c for the bit-level details
+	 * and a decoded real-world LTN Encoder capture. This function just supplies
+	 * the LTN-deployment-specific pid quirks and reports the result.
 	 */
 
-	/*
-	 * 3 - SEI NAL (6)
-	 * 4 - payloadType (1 = pic timing)
-	 */      
-
-/* Content dump of e->ptr
-             0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
-PIC_TIMING: 00 00 01 06 01 08 02 60 80 90 41 fd 12 7c 80 00 
-PIC TIMING 15:18:52.31 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_dropped:0
-PIC_TIMING: 00 00 01 06 01 08 02 80 20 90 41 dd 12 7c 80 00 
-PIC_TIMING: 00 00 01 06 01 08 02 a0 20 90 41 ed 12 7c 80 00 
-PIC_TIMING: 00 00 01 06 01 08 02 c0 80 90 42 2d 12 7c 80 00 
-PIC TIMING 15:18:52.34 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_dropped:0
-PIC_TIMING: 00 00 01 06 01 08 02 e0 20 90 42 0d 12 7c 80 00 
-PIC_TIMING: 00 00 01 06 01 08 03 00 20 90 42 1d 12 7c 80 00 
-PIC_TIMING: 00 00 01 06 01 08 03 20 80 90 42 5d 12 7c 80 00 
-PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_dropped:0
-*/
-
-#if DEBUG_PIC_TIMING
-	printf("PIC_TIMING: ");
-	for (int z = 0; z < e->lengthBytes; z++) {
-		printf("%02x ", e->ptr[z]);
-	}
-	printf("\n");
-#endif
-
-	if (e->lengthBytes < 5) {
-		return;
-	}
-
-	NALBitReader_init(&ctx->br, &e->ptr[5], (e->lengthBytes - 5) * 8);
-
-	int CpbDpbDelaysPresentFlag = 1; /* When NAL HRD present = 1 */
-	int pic_struct_present_flag = 1;
-	int clock_timestamp_flag[8];
 	int cpb_removal_delay_length = 15; /* Video Engine - hardcoded */
 	int dpb_removal_delay_length = 11; /* Video Engine - hardcoded */
-	int time_offset_length = 0;
+	int pic_struct_override = -1;
 
 	if (ctx->pid == 0x31) {
 		/* Hardcoded - LTN Encoder */
@@ -781,113 +743,49 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 		dpb_removal_delay_length = 0;
 	}
 
-	if (CpbDpbDelaysPresentFlag) {
-		/* int cpb_removal_delay = */ NALBitReader_read_bits(&ctx->br, cpb_removal_delay_length);
-		/* int dpb_removal_delay = */ NALBitReader_read_bits(&ctx->br, dpb_removal_delay_length);
-#if DEBUG_PIC_TIMING
-		//printf("TIMING: cpb_removal_delay %d, dpb_removal_delay %d\n", cpb_removal_delay, dpb_removal_delay);
-#endif
+	if ((ctx->pid == 0x101) || (ctx->pid == 0x8d)) {
+		pic_struct_override = 8; /* Hardcoded - Video Engine */
 	}
 
-	if (pic_struct_present_flag) {
-		int clocks[16] = { 1, 1, 1, 2, 2, 3, 3, 2, 3, 0, 0, 0, 0, 0, 0 };
+	struct ltn_nal_h264_pic_timing_s timing;
+	if (ltn_nal_h264_parse_pic_timing(e->ptr, e->lengthBytes, cpb_removal_delay_length,
+		dpb_removal_delay_length, pic_struct_override, &timing) < 0)
+	{
+		return;
+	}
 
-		int pic_struct = NALBitReader_read_bits(&ctx->br, 4);
-#if DEBUG_PIC_TIMING
-		printf("TIMING: pic_struct %d (stream))\n", pic_struct);
-#endif
-
-		if ((ctx->pid == 0x101) || (ctx->pid == 0x8d)) {
-			pic_struct = 8; /* Hardcoded - Video Engine */
+	for (int i = 0; i < timing.clockCount; i++) {
+		struct ltn_nal_h264_pic_timing_clock_s *c = &timing.clocks[i];
+		if (!c->present) {
+			continue;
 		}
 
-//
-//  PIC_TIMING: 00 00 01 06 01 09 3b 34 18 ef b0 00 00 03 00 20 80
-//        PIC TIMING 00:59:59.24 struct:3 disc:0 ct:1 counting_type:6 nuit:1 full_timestamp:1 cnt_dropped:0
-//  PIC_TIMING: 00 00 01 06 01 09 3b 34 00 00 03 00 80 00 00 20 80
-//        PIC TIMING 06:00:00.00 struct:3 disc:0 ct:1 counting_type:6 nuit:1 full_timestamp:1 cnt_dropped:0
-//
-//    
-//      PPPP C CC N           TTTT T F D F          NNNN|NNNN        SSSS|SSMM      MMMM|HHHH      H...|....      ....|.... 
-//      0011 1 01 1    (3b)   0011 0 1 0 0    (34)  0000 0000   (00) 0000 0000 (00) 0000 0011 (03) 0000 0000 (00) 0000 1000 (08)     06:00:00.00
-//      0011 1 01 1    (3b)   0011 0 1 0 0    (34)  0000 0000   (00) 0000 0000 (00) 0000 0000 (00) 0000 1000 (08)                    06:00:00.00
-//
+		obe_timecode_update(&ctx->tc, c->hours, c->minutes, c->seconds, c->n_frames);
+		if (obe_timecode_get_corrected_frame(&ctx->tc) < 0) {
+			/* The timecode is > 30fps and we need to wait for the
+			 * incoming frame counter to reach 0 so we can syncronize
+			 * our corrected frame count with a known good frame count.
+			 * In practise this means we don't apply a timecode to the
+			 * first N frames, until a second has wrapped.
+			 */
+		}
 
-		int NumClocksTS = clocks[ pic_struct ];
+		char lbl[128];
+		if (obe_timecode_get_discontinuity(&ctx->tc)) {
+			snprintf(lbl, sizeof(lbl), "DISCONTINUITY MEASURED, PTS 0x%09" PRIx64"\n", pes->PTS);
+		} else {
+			lbl[0] = 0;
+		}
 
-#if DEBUG_PIC_TIMING
-		printf("TIMING: pic_struct %d NumClocksTS %d\n", pic_struct, NumClocksTS);
-#endif
-
-		for (int i = 0; i < NumClocksTS; i++) {
-			clock_timestamp_flag[i] = NALBitReader_read_bits(&ctx->br, 1);
-			if (clock_timestamp_flag[i]) {
-				int ct_type               = NALBitReader_read_bits(&ctx->br, 2);
-				int nuit_field_based_flag = NALBitReader_read_bits(&ctx->br, 1);
-				int counting_type         = NALBitReader_read_bits(&ctx->br, 5);
-				int full_timestamp_flag   = NALBitReader_read_bits(&ctx->br, 1);
-				int discontinuity_flag    = NALBitReader_read_bits(&ctx->br, 1);
-				int cnt_dropped_flag      = NALBitReader_read_bits(&ctx->br, 1);
-				int n_frames              = NALBitReader_read_bits(&ctx->br, 8);
-
-				int seconds               = 0;
-				int minutes               = -1;
-				int hours                 = -1;
-				if (full_timestamp_flag) {
-					seconds = NALBitReader_read_bits(&ctx->br, 6);
-					minutes = NALBitReader_read_bits(&ctx->br, 6);
-					hours   = NALBitReader_read_bits(&ctx->br, 5);
-				} else {
-					int seconds_flag          = NALBitReader_read_bits(&ctx->br, 1);
-					if (seconds_flag) {
-						seconds               = NALBitReader_read_bits(&ctx->br, 6);
-						int minutes_flag      = NALBitReader_read_bits(&ctx->br, 1);
-						if (minutes_flag) {
-							minutes           = NALBitReader_read_bits(&ctx->br, 6);
-							int hours_flag    = NALBitReader_read_bits(&ctx->br, 1);
-							if (hours_flag) {
-								hours         = NALBitReader_read_bits(&ctx->br, 5);
-							}
-						}
-					} else {
-						seconds = -1;
-					}
-				}
-
-				obe_timecode_update(&ctx->tc, hours, minutes, seconds, n_frames);
-				if (obe_timecode_get_corrected_frame(&ctx->tc) >= 0) {
-					/* */
-				} else {
-					/* The timecode is > 30fps and we need to wait for the
-					* incoming frame counter to reach 0 so we can syncronize
-					* our corrected frame count with a known good frame count.
-					* In practise this means we don't apply a timecode to the
-					* first N frames, until a second has wrapped.
-					*/
-				}
-
-				char lbl[128];
-				if (obe_timecode_get_discontinuity(&ctx->tc)) {
-					snprintf(lbl, sizeof(lbl), "DISCONTINUITY MEASURED, PTS 0x%09" PRIx64"\n", pes->PTS);
-				} else {
-					lbl[0] = 0;
-				}
-
-				printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d %s\n",
-					hours, minutes, seconds, n_frames,
-					pic_struct,
-					discontinuity_flag,
-					ct_type, counting_type, nuit_field_based_flag,
-					full_timestamp_flag,
-					cnt_dropped_flag,
-					lbl);
-
-				if (time_offset_length > 0) {
-					/* int time_offset = */ NALBitReader_read_bits(&ctx->br, time_offset_length);
-				}
-			} /* if (clock_timestamp_flag[i]) */
-		} /* for (int i = 0; i < NumClocksTS; i++) */
-	} /* if (pic_struct_present_flag) */
+		printf("\tPIC TIMING %02d:%02d:%02d.%02d struct:%d disc:%d ct:%d counting_type:%d nuit:%d full_timestamp:%d cnt_dropped:%d %s\n",
+			c->hours, c->minutes, c->seconds, c->n_frames,
+			timing.pic_struct,
+			c->discontinuity_flag,
+			c->ct_type, c->counting_type, c->nuit_field_based_flag,
+			c->full_timestamp_flag,
+			c->cnt_dropped_flag,
+			lbl);
+	}
 }
 
 static void _parse_AC3_Headers(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes)
