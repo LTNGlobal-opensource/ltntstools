@@ -889,7 +889,8 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 static void _parse_AC3_Headers(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes)
 {
 	printf("\nAC3: ");
-	for (int i = 0; i < (8 + 14); i++) {
+	int dumpLen = (8 + 14) < pes->dataLengthBytes ? (8 + 14) : pes->dataLengthBytes;
+	for (int i = 0; i < dumpLen; i++) {
 		printf("%02x ", pes->data[i]);
 	}
 	printf(" ...\n");
@@ -937,6 +938,7 @@ static void _parse_SEI(struct tool_ctx_s *ctx, struct ltn_pes_packet_s *pes)
 	}
 
 	free(seiArray);
+	free(nalArray);
 }
 
 static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
