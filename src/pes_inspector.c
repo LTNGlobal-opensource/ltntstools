@@ -1341,15 +1341,15 @@ int pes_inspector(int argc, char *argv[])
 	if (ctx->doVBV) {
 		if (ltntstools_vbv_profile_defaults(&ctx->dp, VBV_CODEC_H264, 32, 59.94) < 0) {
 			fprintf(stderr, "Unable to allocate VBV size for profile, aborting.\n");
-			exit(0);
+			exit(1);
 		}
 		if (ltntstools_vbv_profile_validate(&ctx->dp) == 0) {
 			fprintf(stderr, "invalid decoder profile, aborting.\n");
-			exit(0);
+			exit(1);
 		}
 		if (ltntstools_vbv_alloc(&ctx->vbv, ctx->pid, (vbv_callback)vbv_notifications, ctx, &ctx->dp) < 0) {
 			fprintf(stderr, "invalid vbv context, aborting.\n");
-			exit(0);
+			exit(1);
 		}
 	}
 
