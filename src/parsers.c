@@ -29,8 +29,8 @@ int parsers_ippid_parse(const char *str, struct parser_ippid_s *dst)
 
 	char addr[64];
 	int port;
-	if (sscanf(str, "udp://%99[^:]:%d", &addr[0], &port) == 2) {
-		strcpy(dst->address, addr);
+	if (sscanf(str, "udp://%63[^:]:%d", &addr[0], &port) == 2) {
+		snprintf(dst->address, sizeof(dst->address), "%s", addr);
 		dst->port = port;
 		snprintf(dst->ui_address_ip, sizeof(dst->ui_address_ip), "%s:%d",
 			dst->address, dst->port);
