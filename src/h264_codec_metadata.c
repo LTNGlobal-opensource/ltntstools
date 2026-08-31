@@ -291,24 +291,24 @@ out1:
 // ----
     strcpy(&sps->profile_idc_ascii[0], h264_profile_idc_lookup(sps->profile_idc));
     strcpy(&sps->chroma_format_idc_ascii[0], h264_chroma_format_idc_lookup(sps->chroma_format_idc));
-    sprintf(&sps->level_idc_ascii[0], "%.1f", (double)sps->level_idc / 10);
+    snprintf(&sps->level_idc_ascii[0], sizeof(sps->level_idc_ascii), "%.1f", (double)sps->level_idc / 10);
 
-    sprintf(&sps->bit_depth_luma_ascii[0], "%dbit", sps->bit_depth_luma_minus8 + 8);
+    snprintf(&sps->bit_depth_luma_ascii[0], sizeof(sps->bit_depth_luma_ascii), "%dbit", sps->bit_depth_luma_minus8 + 8);
 
     if (sps->timing_info_present_flag) {
-        sprintf(&sps->timing_info_fps_ascii[0], "%.2ffps %s", (double)sps->time_scale / (double)sps->num_units_in_tick,
+        snprintf(&sps->timing_info_fps_ascii[0], sizeof(sps->timing_info_fps_ascii), "%.2ffps %s", (double)sps->time_scale / (double)sps->num_units_in_tick,
             sps->fixed_frame_rate_flag ? "fixed" : "variable");
     } else {
         sps->timing_info_fps_ascii[0] = 0;
     }
 
-    sprintf(&sps->video_colorspace_ascii[0], "%s profile %s, %s, %s",
+    snprintf(&sps->video_colorspace_ascii[0], sizeof(sps->video_colorspace_ascii), "%s profile %s, %s, %s",
         sps->profile_idc_ascii,
         sps->level_idc_ascii,
         sps->chroma_format_idc_ascii,
         sps->bit_depth_luma_ascii);
 
-    sprintf(&sps->video_format_ascii[0], "%dx%d %s",
+    snprintf(&sps->video_format_ascii[0], sizeof(sps->video_format_ascii), "%dx%d %s",
         sps->pic_width, sps->pic_height,
         sps->timing_info_fps_ascii);
 

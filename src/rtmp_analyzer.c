@@ -143,9 +143,9 @@ static int analyze_frame(AVFrame *frm, int stream_idx)
 
 	char frameType[3];
 	if (frm->channels)
-		sprintf(frameType, "A%02d", stream_idx);
+		snprintf(frameType, sizeof(frameType), "A%02d", stream_idx);
 	else
-		sprintf(frameType, "V%02d", stream_idx);
+		snprintf(frameType, sizeof(frameType), "V%02d", stream_idx);
 
 	if (pager-- == 0) {
 		pager = 24;
@@ -178,13 +178,13 @@ static int analyze_packet(struct stream_s *strm, int cached, AVPacket *pkt)
 
 	char id[16];
 	if (pkt->stream_index == video_stream_idx)
-		sprintf(id, "V   %d", pkt->stream_index);
+		snprintf(id, sizeof(id), "V   %d", pkt->stream_index);
 	else
-		sprintf(id, "A   %d", pkt->stream_index);
+		snprintf(id, sizeof(id), "A   %d", pkt->stream_index);
 
 	char ts[64];
 	time_t now = time(NULL);
-	sprintf(ts, "%s", ctime(&now));
+	snprintf(ts, sizeof(ts), "%s", ctime(&now));
 	ts[ strlen(ts) - 1] = 0;
 
 	if (pager-- == 0) {

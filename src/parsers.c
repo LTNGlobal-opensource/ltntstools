@@ -32,9 +32,9 @@ int parsers_ippid_parse(const char *str, struct parser_ippid_s *dst)
 	if (sscanf(str, "udp://%99[^:]:%d", &addr[0], &port) == 2) {
 		strcpy(dst->address, addr);
 		dst->port = port;
-		sprintf(dst->ui_address_ip, "%s:%d",
+		snprintf(dst->ui_address_ip, sizeof(dst->ui_address_ip), "%s:%d",
 			dst->address, dst->port);
-		sprintf(dst->ui_address_ip_pid, "%s:%d.0x%x",
+		snprintf(dst->ui_address_ip_pid, sizeof(dst->ui_address_ip_pid), "%s:%d.0x%x",
 			dst->address, dst->port, dst->pid);
 
 		return 0; /* Success */
@@ -43,11 +43,11 @@ int parsers_ippid_parse(const char *str, struct parser_ippid_s *dst)
 	int ret = sscanf(str, "%d.%d.%d.%d:%d.0x%x",
 		&dst->digit[0], &dst->digit[1], &dst->digit[2], &dst->digit[3], &dst->port, &dst->pid);
 	if (ret == 6 && ippid_parse_args_ok(dst)) {
-		sprintf(dst->address, "%d.%d.%d.%d",
+		snprintf(dst->address, sizeof(dst->address), "%d.%d.%d.%d",
 			dst->digit[0], dst->digit[1], dst->digit[2], dst->digit[3]);
-		sprintf(dst->ui_address_ip, "%d.%d.%d.%d:%d",
+		snprintf(dst->ui_address_ip, sizeof(dst->ui_address_ip), "%d.%d.%d.%d:%d",
 			dst->digit[0], dst->digit[1], dst->digit[2], dst->digit[3], dst->port);
-		sprintf(dst->ui_address_ip_pid, "%d.%d.%d.%d:%d.0x%x",
+		snprintf(dst->ui_address_ip_pid, sizeof(dst->ui_address_ip_pid), "%d.%d.%d.%d:%d.0x%x",
 			dst->digit[0], dst->digit[1], dst->digit[2], dst->digit[3], dst->port, dst->pid);
 		return 0; /* Success */
 	}
@@ -55,11 +55,11 @@ int parsers_ippid_parse(const char *str, struct parser_ippid_s *dst)
 	ret = sscanf(str, "%d.%d.%d.%d:%d.%d",
 		&dst->digit[0], &dst->digit[1], &dst->digit[2], &dst->digit[3], &dst->port, &dst->pid);
 	if (ret == 6 && ippid_parse_args_ok(dst)) {
-		sprintf(dst->address, "%d.%d.%d.%d",
+		snprintf(dst->address, sizeof(dst->address), "%d.%d.%d.%d",
 			dst->digit[0], dst->digit[1], dst->digit[2], dst->digit[3]);
-		sprintf(dst->ui_address_ip, "%d.%d.%d.%d:%d",
+		snprintf(dst->ui_address_ip, sizeof(dst->ui_address_ip), "%d.%d.%d.%d:%d",
 			dst->digit[0], dst->digit[1], dst->digit[2], dst->digit[3], dst->port);
-		sprintf(dst->ui_address_ip_pid, "%d.%d.%d.%d:%d.%d",
+		snprintf(dst->ui_address_ip_pid, sizeof(dst->ui_address_ip_pid), "%d.%d.%d.%d:%d.%d",
 			dst->digit[0], dst->digit[1], dst->digit[2], dst->digit[3], dst->port, dst->pid);
 		return 0; /* Success */
 	}

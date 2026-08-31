@@ -78,7 +78,7 @@ static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pk
 		static FILE *ofh[2] = { NULL, NULL };
 		if (ofh[stream->nr] == NULL) {
 			char fn[64];
-			sprintf(fn, "input%d.ts", stream->nr);
+			snprintf(fn, sizeof(fn), "input%d.ts", stream->nr);
 			ofh[stream->nr] = fopen(fn, "wb");
 		}
 		if (ofh[stream->nr])
@@ -117,7 +117,7 @@ static void *_avio_raw_callback(struct input_stream_s *stream, const uint8_t *pk
 		if (i == 0) {
 			struct stat s;
 			char fn[64];
-			sprintf(fn, "/tmp/stream%d.drop", stream->nr);
+			snprintf(fn, sizeof(fn), "/tmp/stream%d.drop", stream->nr);
 			if (stat(fn, &s) == 0) {
 				/* Trash the cc in the first packet */
 				unsigned char *p =(unsigned char *)pkts;

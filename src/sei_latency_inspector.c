@@ -180,7 +180,7 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 			ISO8601_UTC_CreateTimestamp(&element->ts_seen, &t2);
 
 			// { "instance": "BBC1", "upstream":{ "uri": "udp://233.1.1.1:11111", "pts":12345, "timestamp":"2023-01-02T12:23:34.12345Z" }, "downstream":{ "uri": "udp://233.1.1.2:22222", "pts":23456, "timestamp":"2023-01-02T12:23:34.22345Z" }, "latency": 1000 }
-			sprintf(msg, "{ \"instance\": \"%s\", \"upstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
+			snprintf(msg, 512, "{ \"instance\": \"%s\", \"upstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
 					", \"timestamp\":\"%s\" }, \"downstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
 					", \"timestamp\":\"%s\" }, \"latency\":%" PRIi64 " }\n",
 				ctx->instanceName,
@@ -503,15 +503,15 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 			srcaddr.s_addr = iphdr->ip_src.s_addr;
 			dstaddr.s_addr = iphdr->ip_dst.s_addr;
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 #endif
 #ifdef __linux__
 			srcaddr.s_addr = iphdr->saddr;
 			dstaddr.s_addr = iphdr->daddr;
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
 #endif
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",

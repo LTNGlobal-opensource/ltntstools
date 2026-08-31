@@ -112,10 +112,10 @@ static void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *buf)
 		struct in_addr s, d;
 		s.s_addr = ip->saddr;
 		d.s_addr = ip->daddr;
-		sprintf(dst, "%s", inet_ntoa(d));
+		snprintf(dst, sizeof(dst), "%s", inet_ntoa(d));
 #endif
 #if defined(__APPLE__)
-		sprintf(dst, "%s", inet_ntoa(ip->ip_dst));
+		snprintf(dst, sizeof(dst), "%s", inet_ntoa(ip->ip_dst));
 #endif
 
 		printf("%s:%d -> %s:%d  = ",

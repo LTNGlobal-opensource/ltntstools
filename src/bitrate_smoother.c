@@ -122,7 +122,7 @@ static int smoother_pcr_cb(void *userContext, unsigned char *buf, int byteCount,
 			if (pid->internal_packetCount > 1 && pidnr != 0x1fff) { /* TODO: don't reference internal vars */
 				char ts[256];
 				time_t now = time(0);
-				sprintf(ts, "%s", ctime(&now));
+				snprintf(ts, sizeof(ts), "%s", ctime(&now));
 				ts[ strlen(ts) - 1] = 0;
 				printf("%s: %s() CC Error : pid %04x -- Got 0x%x wanted 0x%x\n", ts, __func__, pidnr, cc, (pid->lastCC + 1) & 0x0f);
 				printf("scb %02x %02x %02x %02x %02x %02x %02x %02x\n",
@@ -225,7 +225,7 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 			if (pid->internal_packetCount > 1 && pidnr != 0x1fff) { /* TODO: don't reference internal vars */
 				char ts[256];
 				time_t now = time(0);
-				sprintf(ts, "%s", ctime(&now));
+				snprintf(ts, sizeof(ts), "%s", ctime(&now));
 				ts[ strlen(ts) - 1] = 0;
 				printf("%s: %s() CC Error : pid %04x -- Got 0x%x wanted 0x%x\n", ts, __func__, pidnr, cc, (pid->lastCC + 1) & 0x0f);
 				printf("pcb %02x %02x %02x %02x %02x %02x %02x %02x\n",
@@ -288,7 +288,7 @@ static void *thread_packet_rx(void *p)
 	char ts[256];
 	time_t now = time(0);
 	time_t bannerPrint = 0;
-	sprintf(ts, "%s", ctime(&now));
+	snprintf(ts, sizeof(ts), "%s", ctime(&now));
 	ts[ strlen(ts) - 1] = 0;
 	printf("%s: Smoother starting\n", ts);
 
@@ -298,7 +298,7 @@ static void *thread_packet_rx(void *p)
 
 			char ts[256];
 			time_t now = time(0);
-			sprintf(ts, "%s", ctime(&now));
+			snprintf(ts, sizeof(ts), "%s", ctime(&now));
 			ts[ strlen(ts) - 1] = 0;
 
 			struct smoother_pcr_statistics s;
@@ -319,7 +319,7 @@ static void *thread_packet_rx(void *p)
 		if (ctx->terminateLOSSeconds && (lastPacketTime + ctx->terminateLOSSeconds <= now)) {
 			char ts[256];
 			time_t now = time(0);
-			sprintf(ts, "%s", ctime(&now));
+			snprintf(ts, sizeof(ts), "%s", ctime(&now));
 			ts[ strlen(ts) - 1] = 0;
 
 			/* We lost input packets for N seconds. Terminate cleanly. */
@@ -451,7 +451,7 @@ static void *thread_packet_rx(void *p)
 
 						char ts[256];
 						time_t now = time(0);
-						sprintf(ts, "%s", ctime(&now));
+						snprintf(ts, sizeof(ts), "%s", ctime(&now));
 						ts[ strlen(ts) - 1] = 0;
 
 						printf("%s: Found program %5d, PCR pid 0x%04x, video pid 0x%04x\n",

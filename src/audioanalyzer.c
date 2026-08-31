@@ -115,9 +115,9 @@ static void _compute_dbFS_s16p(struct ltntstools_audioanalyzer_stream_s *stream,
     }
 
     if (isinf(stream->pcm[channelNr].pcm_dbFS)) {
-        sprintf((char *)stream->pcm[channelNr].pcm_dbFSDescription, "N/A");
+        snprintf((char *)stream->pcm[channelNr].pcm_dbFSDescription, sizeof(stream->pcm[channelNr].pcm_dbFSDescription), "N/A");
     } else {
-        sprintf((char *)stream->pcm[channelNr].pcm_dbFSDescription, "% 04.02f", stream->pcm[channelNr].pcm_dbFS);
+        snprintf((char *)stream->pcm[channelNr].pcm_dbFSDescription, sizeof(stream->pcm[channelNr].pcm_dbFSDescription), "% 04.02f", stream->pcm[channelNr].pcm_dbFS);
     }
 #if 0
     printf("S16P pid 0x%04x/ch#%d: %s\n", stream->pid, channelNr, stream->pcm[channelNr].pcm_dbFSDescription);
@@ -149,9 +149,9 @@ printf("x %f\n", x);
     stream->pcm[channelNr].pcm_dbFS = 20 * log10(fabs(x));
 
     if (isinf(stream->pcm[channelNr].pcm_dbFS)) {
-        sprintf((char *)stream->pcm[channelNr].pcm_dbFSDescription, "N/A");
+        snprintf((char *)stream->pcm[channelNr].pcm_dbFSDescription, sizeof(stream->pcm[channelNr].pcm_dbFSDescription), "N/A");
     } else {
-        sprintf((char *)stream->pcm[channelNr].pcm_dbFSDescription, "% 04.02f", stream->pcm[channelNr].pcm_dbFS);
+        snprintf((char *)stream->pcm[channelNr].pcm_dbFSDescription, sizeof(stream->pcm[channelNr].pcm_dbFSDescription), "% 04.02f", stream->pcm[channelNr].pcm_dbFS);
     }
 #if 0
     printf("FLPT pid 0x%04x/ch#%d: %s\n", stream->pid, channelNr, stream->pcm[channelNr].pcm_dbFSDescription);

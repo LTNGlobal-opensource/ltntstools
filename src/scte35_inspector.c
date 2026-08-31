@@ -175,12 +175,12 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 
 			char src[24], dst[24];
 #ifdef __linux__
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
 #endif
 #ifdef __APPLE__
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 #endif
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",

@@ -69,7 +69,7 @@ int str_to_videotime(char *t, struct videotime_s *vt)
 char *videotime_to_str(struct videotime_s *vt)
 {
 	char *t = malloc(32);
-	sprintf(t, "%d.%02d:%02d:%02d.%d",
+	snprintf(t, 32, "%d.%02d:%02d:%02d.%d",
 		vt->days,
 		vt->hours,
 		vt->mins,
@@ -107,7 +107,7 @@ struct tool_context_s
 static int indexSave(struct tool_context_s *ctx)
 {
 	char ofn[256];
-	sprintf(ofn, "%s.idx", ctx->ifn);
+	snprintf(ofn, sizeof(ofn), "%s.idx", ctx->ifn);
 
 	printf("Writing index %s\n", ofn);
 	FILE *ofh = fopen(ofn, "wb");
@@ -144,7 +144,7 @@ static void indexRefreshContext(struct tool_context_s *ctx)
 static int indexLoad(struct tool_context_s *ctx)
 {
 	char ofn[256];
-	sprintf(ofn, "%s.idx", ctx->ifn);
+	snprintf(ofn, sizeof(ofn), "%s.idx", ctx->ifn);
 
 	printf("\nReading index %s\n", ofn);
 	FILE *fh = fopen(ofn, "rb");

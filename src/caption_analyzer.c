@@ -110,18 +110,18 @@ static void analyze_text(struct tool_ctx_s *ctx, struct input_pid_s *p, char *di
 		if (langdict_get_stats(p->langdict_ctx, langs[i], s) == 0) {
 
 			char a[256];
-			sprintf(a, "%s", ctime(&s->time_last_search));
+			snprintf(a, sizeof(a), "%s", ctime(&s->time_last_search));
 			a[ strlen(a) - 1] = 0;
 
 			char b[256];
-			sprintf(b, "%s", ctime(&s->time_last_found));
+			snprintf(b, sizeof(b), "%s", ctime(&s->time_last_found));
 			b[ strlen(b) - 1] = 0;
 
 			int idlesecs = -1;
 			char secs[16] = "-";
 			if (s->time_last_search && s->time_last_found) {
 				idlesecs = s->time_last_search - s->time_last_found;
-				sprintf(secs, "%12d", idlesecs);
+				snprintf(secs, sizeof(secs), "%12d", idlesecs);
 			}
 
 			printf("%4s %7" PRIu64 "    %7" PRIu64 "    %7" PRIu64 "     %5.0f%%   %24s  %24s   %8" PRIu64 " %12s\n",
@@ -310,8 +310,8 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 			srcaddr.s_addr = iphdr->ip_src.s_addr;
 			dstaddr.s_addr = iphdr->ip_dst.s_addr;
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
 				src, dst, ntohs(udphdr->uh_ulen), ptr[0], ptr[1], ptr[2], ptr[3]);
@@ -320,8 +320,8 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 			srcaddr.s_addr = iphdr->saddr;
 			dstaddr.s_addr = iphdr->daddr;
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
 				src, dst, ntohs(udphdr->len), ptr[0], ptr[1], ptr[2], ptr[3]);
@@ -717,7 +717,7 @@ static void process_transport_buffer(struct tool_ctx_s *ctx, const unsigned char
 											mag = 8;
 										}
 										char pn[7];
-										sprintf(pn, "%d%x", mag, page);
+										snprintf(pn, sizeof(pn), "%d%x", mag, page);
 
 										printf("Found pid 0x%04x (%d) teletext lang '%s' @ page %d, type %d (%s)\n",
 											se->elementary_PID, se->elementary_PID,

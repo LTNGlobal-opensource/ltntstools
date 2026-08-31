@@ -687,23 +687,23 @@ static int h265_parse_sps(struct h265_codec_metadata_ctx_s *ctx)
 
     strcpy(&r->profile_idc_ascii[0], h265_profile_idc_lookup(sps->ptl.general_profile_idc));
     strcpy(&r->chroma_format_idc_ascii[0], h265_chroma_format_idc_lookup(sps->chroma_format_idc));
-    sprintf(&r->bit_depth_luma_ascii[0], "%dbit", sps->bit_depth_luma_minus8 + 8);
-    sprintf(&r->level_idc_ascii[0], "%.1f", (double)sps->ptl.general_level_idc / 30.0);
+    snprintf(&r->bit_depth_luma_ascii[0], sizeof(r->bit_depth_luma_ascii), "%dbit", sps->bit_depth_luma_minus8 + 8);
+    snprintf(&r->level_idc_ascii[0], sizeof(r->level_idc_ascii), "%.1f", (double)sps->ptl.general_level_idc / 30.0);
 
     if (sps->vui_timing_info_present_flag) {
-        sprintf(&r->timing_info_fps_ascii[0], "%.2ffps fixed",
+        snprintf(&r->timing_info_fps_ascii[0], sizeof(r->timing_info_fps_ascii), "%.2ffps fixed",
             (double)sps->vui_time_scale / (double)sps->vui_num_units_in_tick);
     } else {
         r->timing_info_fps_ascii[0] = 0;
     }
 
-    sprintf(&r->video_colorspace_ascii[0], "%s profile %s, %s, %s",
+    snprintf(&r->video_colorspace_ascii[0], sizeof(r->video_colorspace_ascii), "%s profile %s, %s, %s",
         r->profile_idc_ascii,
         r->level_idc_ascii,
         r->chroma_format_idc_ascii,
         r->bit_depth_luma_ascii);
 
-    sprintf(&r->video_format_ascii[0], "%dx%d %s",
+    snprintf(&r->video_format_ascii[0], sizeof(r->video_format_ascii), "%dx%d %s",
         sps->pic_width_in_luma_samples, sps->pic_height_in_luma_samples,
         r->timing_info_fps_ascii);
 

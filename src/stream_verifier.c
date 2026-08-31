@@ -330,7 +330,7 @@ int stream_verifier(int argc, char *argv[])
 #define RECORD_INPUT 0
 #if RECORD_INPUT
 		char ofn[64];
-		sprintf(ofn, "verifier-record-%d.ts", getpid());
+		snprintf(ofn, sizeof(ofn), "verifier-record-%d.ts", getpid());
 		FILE *ofh = fopen(ofn, "wb");
 #endif
 		while(running) {
@@ -369,7 +369,7 @@ int stream_verifier(int argc, char *argv[])
 
 					time_t now = time(NULL);
 					char ts[64];
-					sprintf(ts, "%s", ctime(&now));
+					snprintf(ts, sizeof(ts), "%s", ctime(&now));
 					ts[ strlen(ts) - 1] = 0;
 					
 					printf("\r%s: Expected %" PRIu64 " found %"PRIu64 ", %" PRIu64 " bad packets\n", ts, lastCounter, currentCounter, badMatches);

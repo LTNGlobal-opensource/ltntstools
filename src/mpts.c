@@ -289,7 +289,7 @@ static void *_avio_raw_callback(struct stream_s *stream, const uint8_t *pkts, in
 		if (i == 0) {
 			struct stat s;
 			char fn[64];
-			sprintf(fn, "/tmp/stream%d.drop", stream->nr);
+			snprintf(fn, sizeof(fn), "/tmp/stream%d.drop", stream->nr);
 			if (stat(fn, &s) == 0) {
 				/* Trash the cc in the first packet */
 				unsigned char *p =(unsigned char *)pkts;

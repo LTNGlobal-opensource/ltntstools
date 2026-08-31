@@ -205,7 +205,7 @@ int ltntstools_kplatform_alloc(void **hdl)
 
 	pthread_mutex_init(&ctx->listLock, NULL);
 	xorg_list_init(&ctx->list);
-	sprintf(ctx->topicName, "feed_%s", "something");
+	snprintf(ctx->topicName, sizeof(ctx->topicName), "feed_%s", "something");
 
 	printf("%s() topic '%s'\n", __func__, ctx->topicName);
 

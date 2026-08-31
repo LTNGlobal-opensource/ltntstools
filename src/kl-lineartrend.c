@@ -113,7 +113,7 @@ int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn)
 
 	char t[64];
 	time_t now = time(NULL);
-	sprintf(t, "%s", ctime(&now));
+	snprintf(t, sizeof(t), "%s", ctime(&now));
 	t[ strlen(t) - 1] = 0;
 
 	dprintf(fd, "# Created %s\n", t);
