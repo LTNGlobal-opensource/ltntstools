@@ -74,7 +74,7 @@ static void *ui_thread_func(void *p)
 		time_t now;
 		time(&now);
 
-		if (ctx->freezeDisplay & 1) {
+		if (__atomic_load_n(&ctx->freezeDisplay, __ATOMIC_RELAXED) & 1) {
 			usleep(50 * 1000);
 			continue;
 		}
@@ -865,7 +865,7 @@ static void *ui_thread_func(void *p)
 
 		pthread_mutex_unlock(&ctx->lock);
 
-		if (ctx->showUIOptions) {
+		if (__atomic_load_n(&ctx->showUIOptions, __ATOMIC_RELAXED)) {
 			streamCount++;
 			mvprintw(streamCount + 2, 0, "Stream Selection - Press right arrow key, then use up/down arrow to select individual stream");
 
@@ -1936,7 +1936,7 @@ int nic_monitor(int argc, char *argv[])
 		if (c == 'q')
 			break;
 		if (c == 'f') {
-			ctx->freezeDisplay++;
+			__atomic_fetch_add(&ctx->freezeDisplay, 1, __ATOMIC_RELAXED);
 		}
 		if (c == 'r') {
 			time(&ctx->lastResetTime);
@@ -1995,7 +1995,7 @@ int nic_monitor(int argc, char *argv[])
 			ctx->recordWithSegments = (ctx->recordWithSegments + 1) & 0x1;
 		}
 		if (c == 'h') {
-			ctx->showUIOptions = ~ctx->showUIOptions;
+			__atomic_store_n(&ctx->showUIOptions, ~ctx->showUIOptions, __ATOMIC_RELAXED);
 		}
 #if 0
 		if (c == '3') {
