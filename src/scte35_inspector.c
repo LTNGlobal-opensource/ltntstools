@@ -177,6 +177,13 @@ static void *source_pcap_raw_cb(void *userContext, const struct pcap_pkthdr *hdr
 		if (availPayload < 0)
 			availPayload = 0;
 
+#ifdef __APPLE__
+		/* Apple streams via loopback don't have an ethernet header, they have a 02 00 00 00 header */
+		if (*(pkt + 0) == 0x02 && *(pkt + 1) == 0x00 && *(pkt + 2) == 0x00 && *(pkt + 3) == 0x00) {
+			availPayload = (int)hdr->caplen - (int)(4 + sizeof(struct iphdr) + sizeof(struct udphdr));
+		}
+#endif
+
 		if (ctx->verbose > 2) {
 			struct in_addr dstaddr, srcaddr;
 #ifdef __APPLE__
