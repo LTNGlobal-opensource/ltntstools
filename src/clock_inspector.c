@@ -64,6 +64,10 @@ int clock_inspector(int argc, char *argv[])
 	int ch;
 
 	struct tool_context_s *ctx = calloc(1, sizeof(*ctx));
+	for (int i = 0; i < MAX_PIDS; i++) {
+		pthread_mutex_init(&ctx->pids[i].trend_pts.trendLock, NULL);
+		pthread_mutex_init(&ctx->pids[i].trend_dts.trendLock, NULL);
+	}
 	ctx->doPacketStatistics = 1;
 	ctx->doSCRStatistics = 0;
 	ctx->doPESStatistics = 0;
@@ -258,7 +262,10 @@ int clock_inspector(int argc, char *argv[])
 
 		streamPosition += rlen;
 
-		for (int i = 0; i < rlen; i += 188) {
+		/* Only process whole 188-byte packets. A trailing short packet (rlen not a
+		 * multiple of 188) is discarded rather than processed, since buf is reused
+		 * across reads and any bytes past rlen are stale or uninitialized. */
+		for (int i = 0; i + 188 <= rlen; i += 188) {
 
 			filepos = (streamPosition - rlen) + i;
 

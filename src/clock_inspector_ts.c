@@ -35,7 +35,7 @@ void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filep
 
 	if (ltntstools_isPayloadPUSIInError(pkt)) {
 		char str[64];
-		snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
+		ctime_r(&ctx->current_stream_time, str);
 		str[ strlen(str) - 1] = 0;
 		printf("!PUSI/Adaption bits - combination is illegal. Adaption Field = %x PUSI = %d, %02x %02x %02x %02x, PID %04x : %s @ %s\n",
 			ltntstools_adaption_field_control(pkt),
@@ -53,7 +53,7 @@ void processPacketStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filep
 				/* Don't CC check null pid. */
 				if (pid != 0x1fff) {
 					char str[64];
-					snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
+					ctime_r(&ctx->current_stream_time, str);
 					str[ strlen(str) - 1] = 0;
 					printf("!CC Error. PID %04x expected %02x got %02x : %s @ %s\n",
 						pid, (ctx->pids[pid].cc + 1) & 0x0f, cc, ctx->iname, str);

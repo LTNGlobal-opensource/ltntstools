@@ -29,6 +29,9 @@ void ordered_clock_insert(struct xorg_list *list, struct ordered_clock_item_s *s
 			return;
 		}
 	}
+
+	/* src->clock is smaller than every existing entry, it belongs at the head. */
+	xorg_list_add(&e->list, list);
 }
 
 void ordered_clock_dump(struct xorg_list *list, unsigned short pid)
@@ -67,11 +70,18 @@ void ordered_clock_dump(struct xorg_list *list, unsigned short pid)
 
 /* End: Ordered PTS handling */
 
-static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllineartrend_context_s *trend, pthread_mutex_t *mutex)
+static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllineartrend_context_s **trendPtr, pthread_mutex_t *mutex)
 {
-	/* Lock the struct, briefly prevent additional adds */
+	/* Lock the struct, briefly prevent additional adds, and check/clone the trend
+	 * pointer under the same lock used to initialize it, so we never dereference or
+	 * clone it while it's concurrently being allocated by the packet processing thread.
+	 */
 	pthread_mutex_lock(mutex);
-	struct kllineartrend_context_s *trendDup = kllineartrend_clone(trend);
+	if (!*trendPtr) {
+		pthread_mutex_unlock(mutex);
+		return;
+	}
+	struct kllineartrend_context_s *trendDup = kllineartrend_clone(*trendPtr);
 	if (!trendDup) {
 		pthread_mutex_unlock(mutex);
 		return;
@@ -112,7 +122,7 @@ static void printTrend(struct tool_context_s *ctx, uint16_t pid, struct kllinear
 
 	char t[64];
 	time_t now = time(NULL);
-	snprintf(t, sizeof(t), "%s", ctime(&now));
+	ctime_r(&now, t);
 	t[ strlen(t) - 1] = 0;
 
 	printf("PID 0x%04x - Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f, r2 is %12.8f @ %s\n",
@@ -139,12 +149,8 @@ void trendReportFree(struct tool_context_s *ctx)
 void trendReport(struct tool_context_s *ctx)
 {
 	for (int i = 0; i <= 0x1fff; i++) {
-		if (ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend) {
-			printTrend(ctx, i, ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend, &ctx->pids[i].trend_pts.trendLock);
-		}
-		if (ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend) {
-			printTrend(ctx, i, ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend, &ctx->pids[i].trend_dts.trendLock);
-		}
+		printTrend(ctx, i, &ctx->pids[i].trend_pts.clkToScrTicksDeltaTrend, &ctx->pids[i].trend_pts.trendLock);
+		printTrend(ctx, i, &ctx->pids[i].trend_dts.clkToScrTicksDeltaTrend, &ctx->pids[i].trend_dts.trendLock);
 	}
 }
 
@@ -175,7 +181,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	char time_str[64];
 
 	time_t now = time(NULL);
-	snprintf(time_str, sizeof(time_str), "%s", ctime(&now));
+	ctime_r(&now, time_str);
 	time_str[ strlen(time_str) - 1] = 0;
 
 	struct pid_s *p = &ctx->pids[pid];
@@ -191,16 +197,20 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		}
 		ltntstools_clock_set_ticks(&p->clk_pts, p->pes.PTS);
 
-		/* Initialize the trend if needed */
+		/* Initialize the trend if needed. trendLock is pre-initialized for every PID
+		 * at startup, so it's always safe to lock here, even against a concurrent
+		 * unlocked read of the pointer by the trend_report_thread.
+		 */
+		pthread_mutex_lock(&p->trend_pts.trendLock);
 		if (p->trend_pts.clkToScrTicksDeltaTrend == NULL) {
 			char label[64];
 			snprintf(&label[0], sizeof(label), "PTS 0x%04x to Wallclock delta", pid);
-			pthread_mutex_init(&p->trend_pts.trendLock, NULL);
 			p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(ctx->trendSize, label);
 			if (!p->trend_pts.clkToScrTicksDeltaTrend) {
 				fprintf(stderr, "Unable to allocate PTS trend for PID 0x%04x, trend reporting disabled for this PID\n", pid);
 			}
 		}
+		pthread_mutex_unlock(&p->trend_pts.trendLock);
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
 		ltn_pes_packet_copy(&p->dts_last, &p->pes);
@@ -213,15 +223,16 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		}
 		ltntstools_clock_set_ticks(&p->clk_dts, p->pes.DTS);
 
+		pthread_mutex_lock(&p->trend_dts.trendLock);
 		if (p->trend_dts.clkToScrTicksDeltaTrend == NULL) {
 			char label[64];
 			snprintf(&label[0], sizeof(label), "DTS 0x%04x to SCR tick delta", pid);
-			pthread_mutex_init(&p->trend_dts.trendLock, NULL);
 			p->trend_dts.clkToScrTicksDeltaTrend = kllineartrend_alloc(ctx->trendSize, label);
 			if (!p->trend_dts.clkToScrTicksDeltaTrend) {
 				fprintf(stderr, "Unable to allocate DTS trend for PID 0x%04x, trend reporting disabled for this PID\n", pid);
 			}
 		}
+		pthread_mutex_unlock(&p->trend_dts.trendLock);
 	}
 
 	struct klbs_context_s pbs, *bs = &pbs;
@@ -230,11 +241,14 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 	ssize_t len = ltn_pes_packet_parse(&p->pes, bs, 1 /* SkipDataExtraction */);
 
-	/* Track the difference in SCR clocks between this PTS header and the prior. */
+	/* Track the difference in SCR clocks between this PTS header and the prior.
+	 * len <= 0 means ltn_pes_packet_parse() failed and left p->pes untouched, so
+	 * everything below that reads p->pes.PTS_DTS_flags/PTS/DTS must be skipped,
+	 * else we'd silently reprocess the previous packet's timestamps as current. */
 	int64_t pts_scr_diff_ms = 0;
 	int64_t dts_scr_diff_ms = 0;
 
-	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
+	if (len > 0 && ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3))) {
 		p->pts_diff_ticks = ltntstools_pts_diff(p->pts_last.PTS, p->pes.PTS);
 		if (p->pts_diff_ticks > (10 * 90000)) {
 			p->pts_diff_ticks -= MAX_PTS_VALUE;
@@ -244,7 +258,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		pts_scr_diff_ms = ltntstools_scr_diff(p->pts_last_scr, p->scr) / 27000;
 		p->pts_last_scr = p->scr;
 	}
-	if (p->pes.PTS_DTS_flags == 3) {
+	if (len > 0 && p->pes.PTS_DTS_flags == 3) {
 		p->dts_diff_ticks = ltntstools_pts_diff(p->pts_last.DTS, p->pes.DTS);
 		p->dts_count++;
 		dts_scr_diff_ms = ltntstools_scr_diff(p->dts_last_scr, p->scr) / 27000;
@@ -259,7 +273,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		ctx->pts_linenr = 0;
 
 	/* Process a PTS if present. */
-	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
+	if (len > 0 && ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3))) {
 
 		int64_t ptsWalltimeDriftMs = 0;
 		if (p->clk_pts_initialized) {
@@ -304,7 +318,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if (d_pts_minus_scr_ticks < 0 && ctx->enableNonTimingConformantMessages) {
 			char str[64];
-			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
+			ctime_r(&ctx->current_stream_time, str);
 			str[ strlen(str) - 1] = 0;
 			printf("!PTS #%09" PRIi64 " Error. The PTS is arriving BEHIND the PCR, the PTS is late. The stream is not timing conformant @ %s\n",
 				p->pts_count,
@@ -313,7 +327,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if ((PTS_TICKS_TO_MS(p->pts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
-			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
+			ctime_r(&ctx->current_stream_time, str);
 			str[ strlen(str) - 1] = 0;
 			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current 90KHz clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->pts_count,
@@ -324,7 +338,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if ((pts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
-			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
+			ctime_r(&ctx->current_stream_time, str);
 			str[ strlen(str) - 1] = 0;
 			printf("!PTS #%09" PRIi64 " Error. Difference between previous and current PTS frame measured in SCR ticks >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->pts_count,
@@ -383,7 +397,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 	}
 	/* Process a DTS if present. */
-	if (p->pes.PTS_DTS_flags == 3) {
+	if (len > 0 && p->pes.PTS_DTS_flags == 3) {
 
 		/* Disabled for now, TODO */
 		int64_t dtsWalltimeDriftMs = 0;
@@ -428,7 +442,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if ((PTS_TICKS_TO_MS(p->dts_diff_ticks)) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
-			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
+			ctime_r(&ctx->current_stream_time, str);
 			str[ strlen(str) - 1] = 0;
 			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current 90KHz clock >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->dts_count,
@@ -439,7 +453,7 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 
 		if ((dts_scr_diff_ms) >= ctx->maxAllowablePTSDTSDrift) {
 			char str[64];
-			snprintf(str, sizeof(str), "%s", ctime(&ctx->current_stream_time));
+			ctime_r(&ctx->current_stream_time, str);
 			str[ strlen(str) - 1] = 0;
 			printf("!DTS #%09" PRIi64 " Error. Difference between previous and current DTS frame measured in SCR ticks >= +-%" PRIi64 "ms (is %" PRIi64 ") @ %s\n",
 				p->dts_count,
