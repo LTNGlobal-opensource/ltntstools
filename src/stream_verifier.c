@@ -141,7 +141,6 @@ int stream_verifier(int argc, char *argv[])
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->totalSeconds = DEFAULT_TOTAL_SECONDS;
 	ctx->bps = DEFAULT_BPS;
-	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
 
 	while ((ch = getopt(argc, argv, "?hi:b:d:o:v")) != -1) {
 		switch (ch) {
@@ -177,6 +176,15 @@ int stream_verifier(int argc, char *argv[])
 		exit(1);
 	}
 
+	if (ctx->bps <= 0) {
+		usage(argv[0]);
+		printf("\n");
+		printf("-b must be a positive number, aborting.\n\n");
+		exit(1);
+	}
+
+	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
+
 	/* We generate "frames" comprised of
 	 * PCR TS packet, PAT TS packet, PMT TS packet, then a caluclated number of "video" like TS packets.
 	 *
@@ -192,6 +200,12 @@ int stream_verifier(int argc, char *argv[])
 
 	packetsPerPCR -= 2; /* We'll pull a PAT and PMT out after each PCR */
 
+	if (packetsPerPCR < 0) {
+		fprintf(stderr, "Warning: -b %d is too low to carry any counter packets at this PCR interval, "
+			"the generated stream will contain only PCR/PAT/PMT packets.\n", ctx->bps);
+		packetsPerPCR = 0;
+	}
+
 	if (ctx->verbose) {
 		printf("totalSeconds  %d\n", ctx->totalSeconds);
 		printf("pcrsPerSecond %d\n", pcrsPerSecond);
@@ -204,9 +218,14 @@ int stream_verifier(int argc, char *argv[])
 	if (ctx->ofn && strncasecmp(ctx->ofn, "udp:", 4) == 0) {
 		/* 15000 items supports up to 800Mb/ps, possibly more. */
 		int ret = smoother_pcr_alloc(&ctx->smoother, ctx, &callback_smoother, 15000, 7 * 188, 0x31, 200 /* ms */);
+		if (ret < 0) {
+			fprintf(stderr, "Unable to allocate PCR smoother, aborting\n");
+			exit(1);
+		}
 
 		ret = avio_open2(&ctx->o_puc, ctx->ofn, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 		if (ret < 0) {
+			smoother_pcr_free(ctx->smoother);
 			fprintf(stderr, "-o syntax error\n");
 			exit(1);
 		}
@@ -322,6 +341,10 @@ int stream_verifier(int argc, char *argv[])
 
 		int blen = 7 * 188;
 		uint8_t *buf = malloc(blen);
+		if (!buf) {
+			fprintf(stderr, "\nError, unable to allocate buffer, aborting.\n");
+			exit(1);
+		}
 		int running = 1;
 		uint64_t reads = 0;
 		uint64_t lastCounter = 0;
@@ -353,7 +376,7 @@ int stream_verifier(int argc, char *argv[])
 				fwrite(buf, 1, rlen, ofh);
 			}
 #endif	
-			for (int i = 0; i < rlen; i += 188) {
+			for (int i = 0; i + 188 <= rlen; i += 188) {
 				uint8_t *pkt = &buf[i];
 				if (ltntstools_pid(pkt) != 0x32)
 					continue;
