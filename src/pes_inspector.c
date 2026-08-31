@@ -90,9 +90,9 @@ struct nal_throughput_s
 	void     *throughputCtx; /* precise throughput framework handle */
 	int64_t   bps;           /* Entire NAL stream bps */
 
-// 31 Nals in H.264
-// 63 Nals in H.265
-#define MAX_NALS 63
+// 32 Nal types in H.264 (0-31)
+// 64 Nal types in H.265 (0-63)
+#define MAX_NALS 64
 	struct nal_statistic_s stats[MAX_NALS];
 };
 
