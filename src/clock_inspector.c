@@ -3,7 +3,7 @@
 int gRunning = 1;
 static void signal_handler(int signum)
 {
-	gRunning = 0;
+	__atomic_store_n(&gRunning, 0, __ATOMIC_RELAXED);
 }
 
 static void *notification_callback(struct tool_context_s *ctx, enum ltntstools_notification_event_e event,
@@ -225,7 +225,7 @@ int clock_inspector(int argc, char *argv[])
 	/* TODO: Migrate this to use the source-avio.[ch] framework */
 	uint64_t filepos = 0;
 	uint64_t streamPosition = 0;
-	while (gRunning) {
+	while (__atomic_load_n(&gRunning, __ATOMIC_RELAXED)) {
 
 		if (stopSeconds) {
 			time_t now = time(NULL);

@@ -154,7 +154,7 @@ void *trend_report_thread(void *tool_context)
 	pthread_detach(ctx->trendThreadId);
 
 	time_t next = time(NULL) + ctx->reportPeriod;
-    while (ctx->enableTrendReport && gRunning) {
+    while (ctx->enableTrendReport && __atomic_load_n(&gRunning, __ATOMIC_RELAXED)) {
 		usleep(250 * 1000);
 		if (time(NULL) < next)
 			continue;
