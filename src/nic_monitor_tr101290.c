@@ -59,12 +59,12 @@ int nic_monitor_tr101290_alloc(struct discovered_item_s *di)
 		/* Prefer LTN logs if it exists, else tmp */
 		struct stat buf;
 		if (stat("/storage/ltn/logs", &buf) == 0) {
-			strcpy(dirprefix, "/storage/ltn/logs");
+			snprintf(dirprefix, sizeof(dirprefix), "/storage/ltn/logs");
 		}
 
 		/* TODO: Recording dir override, really? */
 		if (di->ctx->recordingDir) {
-			strcpy(dirprefix, di->ctx->recordingDir);
+			snprintf(dirprefix, sizeof(dirprefix), "%s", di->ctx->recordingDir);
 		}
 		snprintf(fname, sizeof(fname), "%s/tr101290-%s-%s.log", dirprefix, di->ctx->ifname, di->dstaddr);
 

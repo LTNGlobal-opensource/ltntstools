@@ -1811,7 +1811,7 @@ int nic_monitor(int argc, char *argv[])
 	ctx->iatMax = g_max_iat_ms;
 	ctx->iftype = IF_TYPE_PCAP;
 	ctx->startTime = time(NULL);
-	strcpy(ctx->json_http_url, "http://127.0.0.1:13400/nicmonitor");
+	snprintf(ctx->json_http_url, sizeof(ctx->json_http_url), "http://127.0.0.1:13400/nicmonitor");
 
 	for (int i = 0; i < 3; i++) {
 		snprintf(&ctx->url_forwards[i].addr[0], sizeof(ctx->url_forwards[i].addr), "227.1.240.%d", i + 7);

@@ -685,8 +685,8 @@ static int h265_parse_sps(struct h265_codec_metadata_ctx_s *ctx)
     sps->valid = 1;
     /* Abort parsing */
 
-    strcpy(&r->profile_idc_ascii[0], h265_profile_idc_lookup(sps->ptl.general_profile_idc));
-    strcpy(&r->chroma_format_idc_ascii[0], h265_chroma_format_idc_lookup(sps->chroma_format_idc));
+    snprintf(&r->profile_idc_ascii[0], sizeof(r->profile_idc_ascii), "%s", h265_profile_idc_lookup(sps->ptl.general_profile_idc));
+    snprintf(&r->chroma_format_idc_ascii[0], sizeof(r->chroma_format_idc_ascii), "%s", h265_chroma_format_idc_lookup(sps->chroma_format_idc));
     snprintf(&r->bit_depth_luma_ascii[0], sizeof(r->bit_depth_luma_ascii), "%dbit", sps->bit_depth_luma_minus8 + 8);
     snprintf(&r->level_idc_ascii[0], sizeof(r->level_idc_ascii), "%.1f", (double)sps->ptl.general_level_idc / 30.0);
 
