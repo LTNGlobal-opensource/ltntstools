@@ -971,12 +971,16 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 		}
 	}
 	if (ctx->writeES_payload) {
-		ltn_pes_packet_save_es(&ctx->es_writer_ctx, pes);
+		if (ltn_pes_packet_save_es(&ctx->es_writer_ctx, pes) < 0) {
+			fprintf(stderr, "Error writing PES to ES\n");
+		}
 		ltn_pes_packet_free(pes);
 		return NULL;
 	}
 	if (ctx->writePES_payload) {
-		ltn_pes_packet_save_pes(&ctx->pes_writer_ctx, pes);
+		if (ltn_pes_packet_save_pes(&ctx->pes_writer_ctx, pes) < 0) {
+			fprintf(stderr, "Error writing PES to PES\n");
+		}
 		ltn_pes_packet_free(pes);
 		return NULL;
 	}
