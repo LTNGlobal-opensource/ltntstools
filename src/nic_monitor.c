@@ -1508,10 +1508,10 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		{ "pcap-buffer-size",			required_argument,	0, 'B' },
 		{ "stats-summary-dir",			required_argument,	0, 'd' },
 		{ "pcap-filter",				required_argument,	0, 'F' },
-		{ "help",						required_argument,	0, 'h' },
+		{ "help",						no_argument,		0, 'h' },
 
 		// 5 - 9
-		{ "help",						required_argument,	0, '?' },
+		{ "help",						no_argument,		0, '?' },
 		{ "input",						required_argument,	0, 'i' },
 		{ "iat-max",					required_argument,	0, 'I' },
 		{ "stats-write-interval",		required_argument,	0, 'n' },
