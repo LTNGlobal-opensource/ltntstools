@@ -111,6 +111,11 @@ static void *ui_thread_func(void *p)
 		}
 
 		int blen = 111 - (strlen(title_a) + strlen(title_c));
+		if (blen < 0) {
+			blen = 0;
+		} else if (blen > (int)sizeof(title_b) - 1) {
+			blen = sizeof(title_b) - 1;
+		}
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
 
@@ -936,6 +941,11 @@ static void *ui_thread_func(void *p)
 		}
 		snprintf(tail_c, sizeof(tail_c), "Since: %s", ctime(&ctx->lastResetTime));
 		blen = 112 - (strlen(tail_a) + strlen(tail_c));
+		if (blen < 0) {
+			blen = 0;
+		} else if (blen > (int)sizeof(tail_b) - 1) {
+			blen = sizeof(tail_b) - 1;
+		}
 		memset(tail_b, 0x20, sizeof(tail_b));
 		tail_b[blen] = 0;
 
@@ -1184,8 +1194,11 @@ static void reformat_to_pcap(struct tool_context_s *ctx, const uint8_t *pkts, in
 		 * Of the two possible callers:
 		 * RCTS reframes to guarantee to 7 packets.
 		 * SRT AVcodec reframes to guarantee to 7 packets.
+		 * file_pktdata is a fixed-size buffer sized for exactly 7 packets --
+		 * refuse anything else rather than writing past its bounds.
 		 */
 		printf("nic_monitor: file input, packetcount != 7, got %d, reframing not working.\n", packetCount);
+		return;
 	}
 
 	gettimeofday(&file_pkthdr.ts, NULL);
@@ -1699,7 +1712,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 				break;
 			case 23: /* http-json-reporting */
 				ctx->automaticallyJSONProbeStreams = 1;
-				strcpy(&ctx->json_http_url[0], optarg);
+				snprintf(&ctx->json_http_url[0], sizeof(ctx->json_http_url), "%s", optarg);
 				break;
 			case 24: /* report-rtp-headers */
 				ctx->reportRTPHeaders = 1;

@@ -1749,11 +1749,15 @@ int display_doc_append(struct display_doc_s *doc, const char *line)
 	}
 
 	pthread_mutex_lock(&doc->lock);
-	doc->lines = realloc(doc->lines, (doc->lineCount + 1) * sizeof(uint8_t *));
-	if (!doc->lines) {
+	uint8_t **newlines = realloc(doc->lines, (doc->lineCount + 1) * sizeof(uint8_t *));
+	if (!newlines) {
+		/* doc->lines / doc->lineCount are left untouched, still describing the
+		 * valid, unmodified array from before this call.
+		 */
 		pthread_mutex_unlock(&doc->lock);
 		return -1;
 	}
+	doc->lines = newlines;
 
 	int slen = strlen(line) + 1;
 

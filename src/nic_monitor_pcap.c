@@ -18,6 +18,12 @@ int pcap_queue_initialize(struct tool_context_s *ctx)
 				free(item);
 				continue;
 			}
+			/* item->h->len must start at a known value (0) so the very first
+			 * pcap_queue_push() reuse of this item correctly detects whether
+			 * the 1700-byte item->pkt needs growing, rather than comparing
+			 * against uninitialized memory.
+			 */
+			memset(item->h, 0, sizeof(struct pcap_pkthdr));
 			memset(item->pkt, 0xcd, 1700);
 			xorg_list_append(&item->list, &ctx->listpcapFree);
 			ctx->listpcapFreeDepth++;
@@ -90,7 +96,7 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 				free(item);
 				break;
 			}
-			item->pkt = malloc(h->len);
+			item->pkt = malloc(h->caplen);
 			if (!item->pkt) {
 				ctx->pcap_malloc_miss++;
 				free(item->h);
@@ -102,8 +108,13 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 			xorg_list_del(&item->list);
 			ctx->listpcapFreeDepth--;
 
-			if (item->h->len < h->len) {
-				void *newpkt = realloc(item->pkt, h->len);
+			/* item->h->caplen tracks the size item->pkt was last allocated/copied to --
+			 * libpcap only guarantees h->caplen valid bytes in pkt (h->len is the
+			 * original on-wire length and can exceed caplen when snaplen truncates
+			 * a packet), so buffer capacity must be tracked by caplen, not len.
+			 */
+			if (item->h->caplen < h->caplen) {
+				void *newpkt = realloc(item->pkt, h->caplen);
 				if (!newpkt) {
 					ctx->pcap_malloc_miss++;
 					free(item->pkt);
@@ -117,7 +128,7 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 		}
 
 		memcpy(item->h, h, sizeof(*h));
-		memcpy(item->pkt, pkt, h->len);
+		memcpy(item->pkt, pkt, h->caplen);
 		xorg_list_append(&item->list, &ctx->listpcapUsed);
 		ctx->listpcapUsedDepth++;
 
@@ -240,27 +251,27 @@ printf("\n");
 
 	/* Table 6.1 - Spec A/324:2018 7 Jan 2020 */
 	/* Confirm version == 2 and marker == 97 and protocol == 1 */
-	if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 97)) {
+	if (lengthBytes >= 2 && ((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 97)) {
 		di->a324_found++;
 		if (di->a324_found > 2) {
 			return PAYLOAD_A324_CTP;
 		}
-	} else 
-	if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 96)) {
+	} else
+	if (lengthBytes >= 2 && ((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 96)) {
 		/* This isn't particularly robust, tighten this up */
 		di->smpte2110_video_found++;
 		if (di->smpte2110_video_found > 4) {
 			return PAYLOAD_SMPTE2110_20_VIDEO;
 		}
-	} else 
-	if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 98)) {
+	} else
+	if (lengthBytes >= 2 && ((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 98)) {
 		/* This isn't particularly robust, tighten this up */
 		di->smpte2110_audio_found++;
 		if (di->smpte2110_audio_found > 4) {
 			return PAYLOAD_SMPTE2110_30_AUDIO;
 		}
-	} else 
-	if (((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 100)) {
+	} else
+	if (lengthBytes >= 2 && ((ptr[0] & 0xcf) == 0x80) && ((ptr[1] & 0x7f) == 100)) {
 		/* This isn't particularly robust, tighten this up */
 		di->smpte2110_anc_found++;
 		if (di->smpte2110_anc_found > 4) {
@@ -557,11 +568,11 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		char prefix[512];
 		char dirprefix[256] = "/tmp";
 		if (ctx->recordingDir) {
-			strcpy(dirprefix, ctx->recordingDir);
+			snprintf(dirprefix, sizeof(dirprefix), "%s", ctx->recordingDir);
 		} else {
 			struct stat buf;
 			if (stat(DEFAULT_STORAGE_LOCATION, &buf) == 0) {
-				strcpy(dirprefix, DEFAULT_STORAGE_LOCATION);
+				snprintf(dirprefix, sizeof(dirprefix), "%s", DEFAULT_STORAGE_LOCATION);
 			}
 		}
 	
@@ -632,7 +643,11 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 
 		void *obj = NULL;
 		uint8_t *ptr = NULL;
-		int ret = ltntstools_segmentwriter_object_alloc(di->pcapRecorder, 16 + cb_h->len, &obj, &ptr);
+		/* cb_pkt only guarantees cb_h->caplen valid bytes (cb_h->len is the
+		 * original on-wire length and can exceed caplen when snaplen
+		 * truncates a packet), so size and copy against caplen.
+		 */
+		int ret = ltntstools_segmentwriter_object_alloc(di->pcapRecorder, 16 + cb_h->caplen, &obj, &ptr);
 		if (ret < 0 || !ptr || !obj) {
 			return;
 		}
@@ -643,7 +658,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		memcpy(dst +  0, src +  0, 4);
 		memcpy(dst +  4, src +  8, 4);
 		memcpy(dst +  8, src + 16, 8);
-		memcpy(dst + 16, cb_pkt, cb_h->len);
+		memcpy(dst + 16, cb_pkt, cb_h->caplen);
 
 		ssize_t len = ltntstools_segmentwriter_object_write(di->pcapRecorder, obj);
 		if (len < 0) {
@@ -715,8 +730,8 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		if (complete) {
 			struct h264_codec_metadata_results_s r;
 			if (ltntstools_h264_codec_metadata_query(di->h264_metadata_parser, &r) == 0) {
-				strcpy(&di->h264_video_colorspace[0], &r.sps.video_colorspace_ascii[0]);
-				strcpy(&di->h264_video_format[0], &r.sps.video_format_ascii[0]);
+				snprintf(&di->h264_video_colorspace[0], sizeof(di->h264_video_colorspace), "%s", &r.sps.video_colorspace_ascii[0]);
+				snprintf(&di->h264_video_format[0], sizeof(di->h264_video_format), "%s", &r.sps.video_format_ascii[0]);
 			}
 		}
 	}
@@ -730,8 +745,8 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		if (complete) {
 			struct h265_codec_metadata_results_s r;
 			if (ltntstools_h265_codec_metadata_query(di->h265_metadata_parser, &r) == 0) {
-				strcpy(&di->h265_video_colorspace[0], &r.video_colorspace_ascii[0]);
-				strcpy(&di->h265_video_format[0], &r.video_format_ascii[0]);
+				snprintf(&di->h265_video_colorspace[0], sizeof(di->h265_video_colorspace), "%s", &r.video_colorspace_ascii[0]);
+				snprintf(&di->h265_video_format[0], sizeof(di->h265_video_format), "%s", &r.video_format_ascii[0]);
 			}
 		}
 	}
@@ -748,7 +763,7 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 {
 	int isRTP = 0;
 
-	if (h->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
+	if (h->caplen < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
 		return;
 
 	struct ether_header *eth = (struct ether_header *)pkt;
@@ -776,6 +791,16 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 		struct udphdr *udp = (struct udphdr *)((u_char *)ip + sizeof(struct iphdr));
 		uint8_t *ptr = (uint8_t *)((uint8_t *)udp + sizeof(struct udphdr));
 
+		/* Only h->caplen bytes are guaranteed present in pkt (h->len is the
+		 * original on-wire length and can exceed caplen when snaplen truncates
+		 * a packet), so every direct read of ptr[] below must stay within the
+		 * bytes actually captured after the ether/ip/udp headers.
+		 */
+		int availPayload = (int)h->caplen -
+			(int)(sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr));
+		if (availPayload < 0)
+			availPayload = 0;
+
 		if (ctx->verbose) {
 			struct in_addr dstaddr, srcaddr;
 #ifdef __APPLE__
@@ -794,51 +819,53 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udp->dest));
 #endif
 
-			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
+			printf("%s -> %s : %4d :",
 				src, dst,
 #ifdef __linux__
-				ntohs(udp->len),
+				ntohs(udp->len)
 #endif
 #ifdef __APPLE__
-				ntohs(udp->uh_ulen),
+				ntohs(udp->uh_ulen)
 #endif
-				ptr[0], ptr[1], ptr[2], ptr[3]);
-			//if (ntohs(udp->dest) == 4100)
-			{
-				for (int i = 0; i < 40; i++)
-					printf("%02x ", ptr[i]);
-				printf("\n");
+				);
+			if (availPayload >= 4) {
+				printf(" %02x %02x %02x %02x", ptr[0], ptr[1], ptr[2], ptr[3]);
 			}
+			printf("\n");
+
+			int n = availPayload < 40 ? availPayload : 40;
+			for (int i = 0; i < n; i++)
+				printf("%02x ", ptr[i]);
+			printf("\n");
 		}
 
 		/* TODO: Handle RTP with FEC correctly. */
 
-		if (ptr[0] != 0x47) {
+		if (availPayload >= 1 && ptr[0] != 0x47) {
 			/* Make a rash assumption that's it's RTP where possible. */
-			if (ptr[12] == 0x47) {
+			if (availPayload >= 13 && ptr[12] == 0x47) {
 				ptr += 12;
 				isRTP = 1;
+				availPayload -= 12;
 			}
 		}
-
-#if 0
-	for (unsigned int i = 0; i < (h->len > 30 ? 30 : h->len); i++) {
-		printf("%02x ", ptr[i]);
-	}
-	printf("\n");
-#endif
-
 
 		/* TS Packet, almost certainly */
 		/* We can safely assume there are len / 188 packets. */
 #ifdef __linux__
-		int pktCount = ntohs(udp->len) / 188;
-		int lengthBytes = ntohs(udp->len);
+		int lengthBytes = ntohs(udp->len) - (int)sizeof(struct udphdr);
 #endif
 #ifdef __APPLE__
-		int pktCount = ntohs(udp->uh_ulen) / 188;
-		int lengthBytes = ntohs(udp->uh_ulen);
+		int lengthBytes = ntohs(udp->uh_ulen) - (int)sizeof(struct udphdr);
 #endif
+		if (isRTP)
+			lengthBytes -= 12;
+		if (lengthBytes < 0)
+			lengthBytes = 0;
+		if (lengthBytes > availPayload)
+			lengthBytes = availPayload; /* Never claim more payload than was actually captured. */
+		int pktCount = lengthBytes / 188;
+
 		_processPackets_IO(ctx, eth, ip, udp, ptr, pktCount, isRTP, h, pkt, lengthBytes);
 	}
 }
@@ -848,7 +875,7 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 { 
 	enum payload_type_e payloadType = PAYLOAD_UNDEFINED;
 
-	if (h->len < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
+	if (h->caplen < sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr))
 		return;
 
 	struct ether_header *ethhdr = (struct ether_header *)pkt;
@@ -876,6 +903,16 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		struct udphdr *udphdr = (struct udphdr *)((u_char *)iphdr + sizeof(struct iphdr));
 		uint8_t *ptr = (uint8_t *)((uint8_t *)udphdr + sizeof(struct udphdr));
 
+		/* Only h->caplen bytes are guaranteed present in pkt (h->len is the
+		 * original on-wire length and can exceed caplen when snaplen truncates
+		 * a packet), so bound every direct read of ptr[] below to what was
+		 * actually captured after the ether/ip/udp headers.
+		 */
+		int availPayload = (int)h->caplen -
+			(int)(sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr));
+		if (availPayload < 0)
+			availPayload = 0;
+
 		if (ctx->verbose > 2) {
 			struct in_addr dstaddr, srcaddr;
 #ifdef __APPLE__
@@ -894,15 +931,19 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
 #endif
 
-			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
+			printf("%s -> %s : %4d :",
 				src, dst,
 #ifdef __linux__
-				ntohs(udphdr->len),
+				ntohs(udphdr->len)
 #endif
 #ifdef __APPLE__
-				ntohs(udphdr->uh_ulen),
+				ntohs(udphdr->uh_ulen)
 #endif
-				ptr[0], ptr[1], ptr[2], ptr[3]);
+				);
+			if (availPayload >= 4) {
+				printf(" %02x %02x %02x %02x", ptr[0], ptr[1], ptr[2], ptr[3]);
+			}
+			printf("\n");
 		}
 
 		struct discovered_item_s *di = discovered_item_findcreate(ctx, ethhdr, iphdr, udphdr);
@@ -921,6 +962,10 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 #ifdef __APPLE__
 		int lengthPayloadBytes = ntohs(udphdr->uh_ulen) - sizeof(struct udphdr);
 #endif
+		if (lengthPayloadBytes < 0)
+			lengthPayloadBytes = 0;
+		if (lengthPayloadBytes > availPayload)
+			lengthPayloadBytes = availPayload; /* Never claim more payload than was actually captured. */
 #if 0
 		/* Mangle incoming stream so we can check our payload detection code */
 		/* Trash anything on port 4011 */
@@ -941,13 +986,18 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		}
 
 		if (di->payloadType == PAYLOAD_SRT_ENCRYPTED) {
-			struct srt_control_pkt_hdr_s *p = (struct srt_control_pkt_hdr_s *)ptr;
-			if (SRT__IS_DATA_RETRANMITTED(p)) {
-				di->srt_retransmittion_count++;
+			if (availPayload >= (int)sizeof(struct srt_control_pkt_hdr_s)) {
+				struct srt_control_pkt_hdr_s *p = (struct srt_control_pkt_hdr_s *)ptr;
+				if (SRT__IS_DATA_RETRANMITTED(p)) {
+					di->srt_retransmittion_count++;
+				}
 			}
 		}
 
 		if (di->payloadType == PAYLOAD_SRT_TS) {
+			if (availPayload < (int)sizeof(struct srt_control_pkt_hdr_s)) {
+				return;
+			}
 			struct srt_control_pkt_hdr_s *p = (struct srt_control_pkt_hdr_s *)ptr;
 			if (!SRT__IS_DATA_PACKET(p)) {
 				return;
