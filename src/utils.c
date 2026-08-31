@@ -194,12 +194,12 @@ char *network_stream_ascii(struct iphdr *iphdr, struct udphdr *udphdr)
 
 	char *str = malloc(256);
 #ifdef __linux__
-	sprintf(str, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
-	sprintf(str + strlen(str), " -> %s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
+	snprintf(str, 256, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
+	snprintf(str + strlen(str), 256 - strlen(str), " -> %s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
 #endif
 #ifdef __APPLE__
-	sprintf(str, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
-	sprintf(str + strlen(str), " -> %s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+	snprintf(str, 256, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+	snprintf(str + strlen(str), 256 - strlen(str), " -> %s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 #endif
 
 	return str;
@@ -296,7 +296,7 @@ int process_memory_dprintf(int fd, struct statm_context_s *ctx, int reportSecond
 	ctx->lastReportTime = now;
 
 	char ts[80];
-	sprintf(ts, "%s", ctime(&now));
+	snprintf(ts, sizeof(ts), "%s", ctime(&now));
 	ts[ strlen(ts) - 1] = 0;
 
 	struct statm_s *s = &ctx->startup;
@@ -325,7 +325,7 @@ int process_memory_dprintf(int fd, struct statm_context_s *ctx, int reportSecond
 	return 0; /* Success */
 }
 
-int process_memory_sprintf(char *dst, struct statm_context_s *ctx, int reportSeconds, int includeTimestamp)
+int process_memory_snprintf(char *dst, size_t dstLength, struct statm_context_s *ctx, int reportSeconds, int includeTimestamp)
 {
 	if (!ctx->initialized)
 		return -1;
@@ -342,16 +342,16 @@ int process_memory_sprintf(char *dst, struct statm_context_s *ctx, int reportSec
 
 	if (includeTimestamp) {
 		char ts[80];
-		sprintf(ts, "%s", ctime(&now));
+		snprintf(ts, sizeof(ts), "%s", ctime(&now));
 		ts[ strlen(ts) - 1] = 0;
 
 		/* Report current memory sizes plus and any growth since startup */
-		sprintf(dst, "%s: pid %d, size %ld (%.0f%% growth)\n",
+		snprintf(dst, dstLength, "%s: pid %d, size %ld (%.0f%% growth)\n",
 			ts,
 			getpid(),
 			c->size,     (((double)c->size - (double)s->size) / (double)s->size) * 100.0);
 	} else {
-		sprintf(dst, "pid %d, size %ld (%.0f%% growth)\n",
+		snprintf(dst, dstLength, "pid %d, size %ld (%.0f%% growth)\n",
 			getpid(),
 			c->size,     (((double)c->size - (double)s->size) / (double)s->size) * 100.0);
 	}
@@ -389,7 +389,7 @@ int ISO8601_UTC_CreateTimestamp(struct timeval *tv, char **dst)
 
 	char *buf = malloc(sizeof "2023-10-16T07:07:09.000Z    ");
 	char *p = buf + strftime(buf, sizeof("2023-10-16T07:07:09.000Z    "), "%FT%T", gmtime(&curTime.tv_sec));
-	sprintf(p, ".%03dZ", x);
+	snprintf(p, sizeof("2023-10-16T07:07:09.000Z    ") - (p - buf), ".%03dZ", x);
 
 	*dst = buf;
 
@@ -404,7 +404,7 @@ void printToolBanner(char *toolname, char *version)
 	char ts[256] = { 0 };
 
 	time_t now = time(0);
-	sprintf(ts, "%s", ctime(&now));
+	snprintf(ts, sizeof(ts), "%s", ctime(&now));
 	ts[ strlen(ts) - 1] = 0;
 
 	printf("%s: %s %s\n", ts, toolname, version);

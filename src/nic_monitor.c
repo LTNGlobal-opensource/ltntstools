@@ -899,7 +899,7 @@ static void *ui_thread_func(void *p)
 
 
 		if (ctx->reportProcessMemoryUsage) {
-			if (process_memory_sprintf(&ctx->memUsageStatus[0], &ctx->memUsage, 5, FALSE) == 0) {
+			if (process_memory_snprintf(&ctx->memUsageStatus[0], sizeof(ctx->memUsageStatus), &ctx->memUsage, 5, FALSE) == 0) {
 				streamCount++;
 				mvprintw(streamCount + 2, 0, "Memory: %s", ctx->memUsageStatus);
 				streamCount++;

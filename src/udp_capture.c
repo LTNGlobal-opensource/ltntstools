@@ -73,7 +73,7 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 			if (pid->packetCount > 1 && pidnr != 0x1fff) {
 				char ts[256];
 				time_t now = time(0);
-				sprintf(ts, "%s", ctime(&now));
+				snprintf(ts, sizeof(ts), "%s", ctime(&now));
 				ts[ strlen(ts) - 1] = 0;
 				printf("%s: CC Error : pid %04x -- Got 0x%x wanted 0x%x\n", ts, pidnr, cc, (pid->lastCC + 1) & 0x0f);
 				pid->ccErrors++;
@@ -167,11 +167,11 @@ static void *thread_func(void *p)
 		clear();
 
 		char title_a[160], title_b[160], title_c[160];
-		sprintf(title_a, "%s", ctx->iname);
+		snprintf(title_a, sizeof(title_a), "%s", ctx->iname);
 
 		int64_t val = throughput_hires_sumtotal_i64(ctx->hires_throughput, 0, NULL, NULL);
 		throughput_hires_expire(ctx->hires_throughput, NULL);
-		sprintf(title_c, "%2.2f Mb/s", ((double)val * 8) / 1000000.0);
+		snprintf(title_c, sizeof(title_c), "%2.2f Mb/s", ((double)val * 8) / 1000000.0);
 		int blen = 75 - (strlen(title_a) + strlen(title_c));
 		memset(title_b, 0x20, sizeof(title_b));
 		title_b[blen] = 0;
@@ -208,8 +208,8 @@ static void *thread_func(void *p)
 
 		char tail_a[160], tail_b[160], tail_c[160];
 		memset(tail_b, '-', sizeof(tail_b));
-		sprintf(tail_a, "TSTOOLS_UDP_CAPTURE");
-		sprintf(tail_c, "%s", ctime(&now));
+		snprintf(tail_a, sizeof(tail_a), "TSTOOLS_UDP_CAPTURE");
+		snprintf(tail_c, sizeof(tail_c), "%s", ctime(&now));
 		blen = 76 - (strlen(tail_a) + strlen(tail_c));
 		memset(tail_b, 0x20, sizeof(tail_b));
 		tail_b[blen] = 0;
