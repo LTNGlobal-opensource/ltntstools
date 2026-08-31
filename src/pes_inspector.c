@@ -949,33 +949,22 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 	}
 
-	if (ctx->dumpPICTIMING) {
+	if (ctx->dumpPICTIMING || ctx->writeThumbnails || ctx->writeES_h264) {
+
+		/* Shared between the PIC_TIMING and ES/thumbnail passes below, to avoid
+		 * parsing the same H.264 NAL headers out of this packet twice. writeES_h264
+		 * runs first because dumpPICTIMING's _parse_PIC_TIMING() strips emulation
+		 * prevention bytes from matching entries in place -- writing ES data before
+		 * that pass keeps its output always the original, unmodified bytes.
+		 */
 		int arrayLength = 0;
 		struct ltn_nal_headers_s *array = NULL;
 		if (ltn_nal_h264_find_headers(pes->data, pes->dataLengthBytes, &array, &arrayLength) == 0) {
 
-			for (int i = 0; i < arrayLength; i++) {
-				struct ltn_nal_headers_s *e = array + i;
-				if (e->lengthBytes >= 5 && e->nalType == 0x6 /* SEI */ && e->ptr[4] == 0x01 /* SEI PAYLOAD_TYPE == PIC_TIMING */) {
-					ltn_nal_h264_strip_emulation_prevention(e);
-					_parse_PIC_TIMING(ctx, e, pes);
-				}
-			} /* for (int i = 0; i < arrayLength; i++) */
+			if (ctx->writeES_h264) {
+				for (int i = 0; i < arrayLength; i++) {
+					struct ltn_nal_headers_s *e = array + i;
 
-			free(array);
-		}
-	}
-
-	if (ctx->writeThumbnails || ctx->writeES_h264) {
-
-		int arrayLength = 0;
-		struct ltn_nal_headers_s *array = NULL;
-		if (ltn_nal_h264_find_headers(pes->data, pes->dataLengthBytes, &array, &arrayLength) == 0) {
-
-			for (int i = 0; i < arrayLength; i++) {
-				struct ltn_nal_headers_s *e = array + i;
-
-				if (ctx->writeES_h264) {
 					char fn[256];
 					snprintf(&fn[0], sizeof(fn), "%014" PRIu64 "-es-pid-%04x-streamId-%02x-nal-%02x-name-%s.bin",
 						ctx->esSeqNr++,
@@ -990,6 +979,16 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 						fclose(fh);
 					}
 				}
+			}
+
+			if (ctx->dumpPICTIMING) {
+				for (int i = 0; i < arrayLength; i++) {
+					struct ltn_nal_headers_s *e = array + i;
+					if (e->lengthBytes >= 5 && e->nalType == 0x6 /* SEI */ && e->ptr[4] == 0x01 /* SEI PAYLOAD_TYPE == PIC_TIMING */) {
+						ltn_nal_h264_strip_emulation_prevention(e);
+						_parse_PIC_TIMING(ctx, e, pes);
+					}
+				} /* for (int i = 0; i < arrayLength; i++) */
 			}
 
 #if H264_IFRAME_THUMBNAILING
