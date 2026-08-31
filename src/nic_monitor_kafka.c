@@ -40,7 +40,7 @@ int kafka_initialize(struct discovered_item_s *di)
 
 	pthread_mutex_init(&k->listLock, NULL);
 	xorg_list_init(&k->list);
-	sprintf(k->topicName, "feed_%s", di->dstaddr);
+	snprintf(k->topicName, sizeof(k->topicName), "feed_%s", di->dstaddr);
 
 	character_replace(k->topicName, ':', '_');
 	printf("%s() topic '%s'\n", __func__, k->topicName);

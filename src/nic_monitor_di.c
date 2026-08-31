@@ -126,13 +126,13 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 #endif
 
 #ifdef __linux__
-		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.source));
-		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.dest));
+		snprintf(di->srcaddr, sizeof(di->srcaddr), "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.source));
+		snprintf(di->dstaddr, sizeof(di->dstaddr), "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.dest));
 		di->dstport = ntohs(di->udphdr.dest);
 #endif
 #ifdef __APPLE__
-		sprintf(di->srcaddr, "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
-		sprintf(di->dstaddr, "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
+		snprintf(di->srcaddr, sizeof(di->srcaddr), "%s:%d", inet_ntoa(srcaddr), ntohs(di->udphdr.uh_sport));
+		snprintf(di->dstaddr, sizeof(di->dstaddr), "%s:%d", inet_ntoa(dstaddr), ntohs(di->udphdr.uh_dport));
 		di->dstport = ntohs(di->udphdr.uh_dport);
 #endif
 
@@ -142,7 +142,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 
 		/* Detect if the stream originated from this host */
 		char ip[32];
-		sprintf(ip, "%s", inet_ntoa(srcaddr));
+		snprintf(ip, sizeof(ip), "%s", inet_ntoa(srcaddr));
 		if (networkInterfaceExistsByAddress(ip) == 1) {
 			di->srcOriginRemoteHost = 0;
 		} else {
@@ -555,10 +555,10 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 			json_object *nr = json_object_new_int64(m->programs[p].program_number);
 			
 			char pidstr[64];
-			sprintf(pidstr, "0x%04x", m->programs[p].program_map_PID);
+			snprintf(pidstr, sizeof(pidstr), "0x%04x", m->programs[p].program_map_PID);
 			json_object *pmtpid = json_object_new_string(pidstr);
 
-			sprintf(pidstr, "0x%04x", m->programs[p].pmt.PCR_PID);
+			snprintf(pidstr, sizeof(pidstr), "0x%04x", m->programs[p].pmt.PCR_PID);
 			json_object *pcrpid = json_object_new_string(pidstr);
 
 			json_object *escount = json_object_new_int64(m->programs[p].pmt.stream_count);
@@ -576,10 +576,10 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 				json_object *item = json_object_new_object();
 
 				char pidstr[64];
-				sprintf(pidstr, "0x%04x", m->programs[p].pmt.streams[s].elementary_PID);
+				snprintf(pidstr, sizeof(pidstr), "0x%04x", m->programs[p].pmt.streams[s].elementary_PID);
 				json_object *espid = json_object_new_string(pidstr);
 
-				sprintf(pidstr, "0x%02x", m->programs[p].pmt.streams[s].stream_type);
+				snprintf(pidstr, sizeof(pidstr), "0x%02x", m->programs[p].pmt.streams[s].stream_type);
 				json_object *estype = json_object_new_string(pidstr);
 				json_object *esdesc = json_object_new_string(d);
 
@@ -608,7 +608,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 			continue;
 
 		char pidstr[64];
-		sprintf(pidstr, "0x%04x", i);
+		snprintf(pidstr, sizeof(pidstr), "0x%04x", i);
 		json_object *pid = json_object_new_string(pidstr);
 		json_object *pc = json_object_new_int64( ltntstools_pid_stats_pid_get_packet_count(di->stats, i));
 		json_object *cc = json_object_new_int64( ltntstools_pid_stats_pid_get_cc_errors(di->stats, i));
@@ -642,7 +642,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	struct json_item_s *qi = json_item_alloc(ctx, 65536);
 	if (qi) {
 		/* double crlf, keep the cheap base64encoder happy. */
-		sprintf((char *)qi->buf, "%s\n\n", json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PRETTY));
+		snprintf((char *)qi->buf, qi->lengthBytesMax, "%s\n\n", json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PRETTY));
 		qi->lengthBytes = strlen((char *)qi->buf);	
 		json_queue_push(ctx, qi);
 	}
@@ -652,7 +652,7 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	struct kafka_item_s *ki = kafka_item_alloc(di, 65536);
 	if (ki) {
 		/* double crlf, keep the cheap base64encoder happy. */
-		sprintf((char *)ki->buf, "%s\n\n", json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PRETTY));
+		snprintf((char *)ki->buf, ki->lengthBytesMax, "%s\n\n", json_object_to_json_string_ext(feed, JSON_C_TO_STRING_PRETTY));
 		ki->lengthBytes = strlen((char *)ki->buf);	
 		kafka_queue_push(di, ki);
 	}
@@ -797,8 +797,8 @@ void discovered_items_housekeeping(struct tool_context_s *ctx)
 
 #if VISUALIZE_PURGE
 			char stream[128];
-			sprintf(stream, "%s", e->srcaddr);
-			sprintf(stream + strlen(stream), " -> %s", e->dstaddr);
+			snprintf(stream, sizeof(stream), "%s", e->srcaddr);
+			snprintf(stream + strlen(stream), sizeof(stream) - strlen(stream), " -> %s", e->dstaddr);
 			printf("Purging object '%s'\n", stream);
 #endif
 			/* Object is N minutes old, destroy it. */
@@ -899,8 +899,8 @@ void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct
 void discovered_item_fd_per_pid_report(struct tool_context_s *ctx, struct discovered_item_s *di, int fd)
 {
 	char stream[128];
-	sprintf(stream, "%s", di->srcaddr);
-	sprintf(stream + strlen(stream), " -> %s", di->dstaddr);
+	snprintf(stream, sizeof(stream), "%s", di->srcaddr);
+	snprintf(stream + strlen(stream), sizeof(stream) - strlen(stream), " -> %s", di->dstaddr);
 
 	dprintf(fd, "   PID   PID     PacketCount     CCErrors    TEIErrors @ %6.2f : %s (%s)\n",
 		ltntstools_pid_stats_stream_get_mbps(di->stats), stream,
@@ -974,13 +974,13 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 	if (di->detailed_filename[0] == 0) {
 		if (ctx->detailed_file_prefix) {
 			if (strlen(ctx->detailed_file_prefix) == 1 && ctx->detailed_file_prefix[0] == '.') {
-				sprintf(di->detailed_filename, "%s/", ctx->detailed_file_prefix);
+				snprintf(di->detailed_filename, sizeof(di->detailed_filename), "%s/", ctx->detailed_file_prefix);
 			} else {
-				sprintf(di->detailed_filename, "%s", ctx->detailed_file_prefix);
+				snprintf(di->detailed_filename, sizeof(di->detailed_filename), "%s", ctx->detailed_file_prefix);
 			}
 		}
 
-		sprintf(di->detailed_filename + strlen(di->detailed_filename), "%s", di->dstaddr);
+		snprintf(di->detailed_filename + strlen(di->detailed_filename), sizeof(di->detailed_filename) - strlen(di->detailed_filename), "%s", di->dstaddr);
 	}
 
 	int fd = open(di->detailed_filename, O_CREAT | O_RDWR | O_APPEND, 0644);
@@ -1053,12 +1053,12 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 
 				int64_t encoderLatencyMS = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
 				if (encoderLatencyMS >= 0) {
-					sprintf(enclat, "%" PRIi64, encoderLatencyMS);
+					snprintf(enclat, sizeof(enclat), "%" PRIi64, encoderLatencyMS);
 				} else {
-					sprintf(enclat, "n/a");
+					snprintf(enclat, sizeof(enclat), "n/a");
 				}
 			} else {
-				sprintf(enclat, "n/a");
+				snprintf(enclat, sizeof(enclat), "n/a");
 			}
 
 		}
@@ -1097,13 +1097,13 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 	if (di->filename[0] == 0) {
 		if (ctx->file_prefix) {
 			if (strlen(ctx->file_prefix) == 1 && ctx->file_prefix[0] == '.') {
-				sprintf(di->filename, "%s/", ctx->file_prefix);
+				snprintf(di->filename, sizeof(di->filename), "%s/", ctx->file_prefix);
 			} else {
-				sprintf(di->filename, "%s", ctx->file_prefix);
+				snprintf(di->filename, sizeof(di->filename), "%s", ctx->file_prefix);
 			}
 		}
 
-		sprintf(di->filename + strlen(di->filename), "%s", di->dstaddr);
+		snprintf(di->filename + strlen(di->filename), sizeof(di->filename) - strlen(di->filename), "%s", di->dstaddr);
 	}
 
 	int fd = open(di->filename, O_CREAT | O_RDWR | O_APPEND, 0644);
@@ -1176,12 +1176,12 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 
 				int64_t encoderLatencyMS = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
 				if (encoderLatencyMS >= 0) {
-					sprintf(enclat, "%" PRIi64, encoderLatencyMS);
+					snprintf(enclat, sizeof(enclat), "%" PRIi64, encoderLatencyMS);
 				} else {
-					sprintf(enclat, "n/a");
+					snprintf(enclat, sizeof(enclat), "n/a");
 				}
 			} else {
-				sprintf(enclat, "n/a");
+				snprintf(enclat, sizeof(enclat), "n/a");
 			}
 
 		}
@@ -1774,7 +1774,7 @@ int display_doc_append_cc_error(struct display_doc_s *doc, uint16_t pid, time_t 
 
 	libltntstools_getTimestamp_seperated(&line[0], sizeof(line), &t);
 
-	sprintf(line + strlen(line), ": CC Errors in stream");
+	snprintf(line + strlen(line), sizeof(line) - strlen(line), ": CC Errors in stream");
 
 	return display_doc_append(doc, line);
 }
@@ -1793,7 +1793,7 @@ int display_doc_append_with_time(struct display_doc_s *doc, const char *msg, tim
 
 	libltntstools_getTimestamp_seperated(line, len, &t);
 
-	sprintf(line + strlen(line), ": %s", msg);
+	snprintf(line + strlen(line), len - strlen(line), ": %s", msg);
 
 	int ret = display_doc_append(doc, line);
 

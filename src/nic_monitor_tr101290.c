@@ -66,7 +66,7 @@ int nic_monitor_tr101290_alloc(struct discovered_item_s *di)
 		if (di->ctx->recordingDir) {
 			strcpy(dirprefix, di->ctx->recordingDir);
 		}
-		sprintf(fname, "%s/tr101290-%s-%s.log", dirprefix, di->ctx->ifname, di->dstaddr);
+		snprintf(fname, sizeof(fname), "%s/tr101290-%s-%s.log", dirprefix, di->ctx->ifname, di->dstaddr);
 
 		/* Cleanup the filename so we don't have :, they mess up handing recordings via scp. */
 		/* Substitute : for . */

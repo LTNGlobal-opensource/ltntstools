@@ -90,24 +90,24 @@ static void *ui_thread_func(void *p)
 		//printf("   mask: %s\n", inet_ntoa(ip_mask));
 
 		char title_a[160], title_b[160], title_c[160];
-		sprintf(title_a, "%s", ctx->pcap_filter);
+		snprintf(title_a, sizeof(title_a), "%s", ctx->pcap_filter);
 		char mask[64];
-		sprintf(mask, "%s", inet_ntoa(ip_mask));
+		snprintf(mask, sizeof(mask), "%s", inet_ntoa(ip_mask));
 		if (ctx->iftype == IF_TYPE_PCAP) {
-			sprintf(title_c, "NIC: %s (%s/%s) Dropped: %d/%d", ctx->ifname, inet_ntoa(ip_net), mask,
+			snprintf(title_c, sizeof(title_c), "NIC: %s (%s/%s) Dropped: %d/%d", ctx->ifname, inet_ntoa(ip_net), mask,
 				ctx->pcap_stats.ps_drop,
 				ctx->pcap_stats.ps_ifdrop);
 		} else
 		if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
 			if (ctx->fileLoops) {
-				sprintf(title_c, "LOOP: %s @ %6.2f%%", ctx->ifname, ctx->fileLoopPct);
+				snprintf(title_c, sizeof(title_c), "LOOP: %s @ %6.2f%%", ctx->ifname, ctx->fileLoopPct);
 			} else {
-				sprintf(title_c, "FILE: %s @ %6.2f%%", ctx->ifname, ctx->fileLoopPct);
+				snprintf(title_c, sizeof(title_c), "FILE: %s @ %6.2f%%", ctx->ifname, ctx->fileLoopPct);
 			}
 		} else
 		if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
-			sprintf(title_a, "NIC Monitor");
-			sprintf(title_c, "URL: %s", ctx->ifname);
+			snprintf(title_a, sizeof(title_a), "NIC Monitor");
+			snprintf(title_c, sizeof(title_c), "URL: %s", ctx->ifname);
 		}
 
 		int blen = 111 - (strlen(title_a) + strlen(title_c));
@@ -241,7 +241,7 @@ static void *ui_thread_func(void *p)
 				char fn[512] = { 0 };
 				int ret = ltntstools_segmentwriter_get_current_filename(di->pcapRecorder, &fn[0], sizeof(fn));
 				if (ret < 0)
-					sprintf(fn, "pending open file");
+					snprintf(fn, sizeof(fn), "pending open file");
 
 				double fsusedpct = 100.0 - ltntstools_segmentwriter_get_freespace_pct(di->pcapRecorder);
 				int segcount = ltntstools_segmentwriter_get_segment_count(di->pcapRecorder);
@@ -255,7 +255,7 @@ static void *ui_thread_func(void *p)
 
 				time_t startTime = ltntstools_segmentwriter_get_recording_start_time(di->pcapRecorder);
 				char st[64];
-				sprintf(st, "%s", ctime(&startTime));
+				snprintf(st, sizeof(st), "%s", ctime(&startTime));
 				st[ strlen(st) - 1] = 0;
 
 				streamCount++;
@@ -674,7 +674,7 @@ static void *ui_thread_func(void *p)
 							unsigned char lbl[16] = { 0 };
 							int x = ltntstools_descriptor_list_contains_iso639_audio_descriptor(&m->programs[p].pmt.streams[s].descr_list, &lbl[0], &audio_type);
 							if (x) {
-								sprintf(&iso639_lang[0], "'%s' Type: %s",
+								snprintf(&iso639_lang[0], sizeof(iso639_lang), "'%s' Type: %s",
 									lbl,
 									audio_type == 0 ? "None" :
 									audio_type == 1 ? "Clean effects" :
@@ -922,15 +922,15 @@ static void *ui_thread_func(void *p)
 		attron(COLOR_PAIR(1));
 
 		char s[64];
-		sprintf(s, "%s", ctime(&now));
+		snprintf(s, sizeof(s), "%s", ctime(&now));
 		s[ strlen(s) - 1 ] = 0;
 		memset(tail_b, '-', sizeof(tail_b));
 		if (totalStreams == 1) {
-			sprintf(tail_a, "%s       T:%7.02f R:%7.02f %7.02f / %d stream", s, totalTxMbps, totalRxMbps, totalMbps, totalStreams);
+			snprintf(tail_a, sizeof(tail_a), "%s       T:%7.02f R:%7.02f %7.02f / %d stream", s, totalTxMbps, totalRxMbps, totalMbps, totalStreams);
 		} else {
-			sprintf(tail_a, "%s       T:%7.02f R:%7.02f %7.02f / %d streams", s, totalTxMbps, totalRxMbps, totalMbps, totalStreams);
+			snprintf(tail_a, sizeof(tail_a), "%s       T:%7.02f R:%7.02f %7.02f / %d streams", s, totalTxMbps, totalRxMbps, totalMbps, totalStreams);
 		}
-		sprintf(tail_c, "Since: %s", ctime(&ctx->lastResetTime));
+		snprintf(tail_c, sizeof(tail_c), "Since: %s", ctime(&ctx->lastResetTime));
 		blen = 112 - (strlen(tail_a) + strlen(tail_c));
 		memset(tail_b, 0x20, sizeof(tail_b));
 		tail_b[blen] = 0;
@@ -1795,9 +1795,9 @@ int nic_monitor(int argc, char *argv[])
 	strcpy(ctx->json_http_url, "http://127.0.0.1:13400/nicmonitor");
 
 	for (int i = 0; i < 3; i++) {
-		sprintf(&ctx->url_forwards[i].addr[0], "227.1.240.%d", i + 7);
+		snprintf(&ctx->url_forwards[i].addr[0], sizeof(ctx->url_forwards[i].addr), "227.1.240.%d", i + 7);
 		ctx->url_forwards[i].port = 4001;
-		sprintf(&ctx->url_forwards[i].uilabel[0], "%s:%d", ctx->url_forwards[i].addr, ctx->url_forwards[i].port);
+		snprintf(&ctx->url_forwards[i].uilabel[0], sizeof(ctx->url_forwards[i].uilabel), "%s:%d", ctx->url_forwards[i].addr, ctx->url_forwards[i].port);
 	}
 
 	if (processArguments(ctx, argc, argv) < 0) {
@@ -2040,11 +2040,11 @@ int nic_monitor(int argc, char *argv[])
 
 	/* Prepare stats window messages for later print. */
 	char ts_b[64];
-	sprintf(&ts_b[0], "%s", ctime(&ctx->lastResetTime));
+	snprintf(&ts_b[0], sizeof(ts_b), "%s", ctime(&ctx->lastResetTime));
 	ts_b[ strlen(ts_b) - 1] = 0;
 
 	char ts_e[64];
-	sprintf(&ts_e[0], "%s", ctime(&periodEnds));
+	snprintf(&ts_e[0], sizeof(ts_e), "%s", ctime(&periodEnds));
 	ts_e[ strlen(ts_e) - 1] = 0;
 
 	time_t d = periodEnds - ctx->lastResetTime;

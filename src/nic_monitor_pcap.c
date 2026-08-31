@@ -453,8 +453,8 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 
 			if (ctx->reportRTPHeaders) {
 				char stream[128];
-				sprintf(stream, "%s", di->srcaddr);
-				sprintf(stream + strlen(stream), " -> %s : ", di->dstaddr);
+				snprintf(stream, sizeof(stream), "%s", di->srcaddr);
+				snprintf(stream + strlen(stream), sizeof(stream) - strlen(stream), " -> %s : ", di->dstaddr);
 
 				dprintf(STDOUT_FILENO, "%s", stream);
 				for (int i = 0; i < 12; i++) {
@@ -488,7 +488,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		discovered_item_state_set(di, DI_STATE_STREAM_FORWARDING);
 
 		/* Allocate any resources */
-		sprintf(di->forwardURL, "udp://%s:%d?pkt_size=1316&ttl=3",
+		snprintf(di->forwardURL, sizeof(di->forwardURL), "udp://%s:%d?pkt_size=1316&ttl=3",
 			ctx->url_forwards[di->forwardSlotNr - 7].addr,
 			ctx->url_forwards[di->forwardSlotNr - 7].port);
 
@@ -553,13 +553,13 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 		}
 
 		if (ctx->iftype == IF_TYPE_PCAP) {
-			sprintf(prefix, "%s%snic_monitor-%s-%s", dirprefix, fn_sep, ctx->ifname, di->dstaddr);
+			snprintf(prefix, sizeof(prefix), "%s%snic_monitor-%s-%s", dirprefix, fn_sep, ctx->ifname, di->dstaddr);
 		} else
 		if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
-			sprintf(prefix, "%s%snic_monitor-%s-%s", dirprefix, fn_sep, "file", di->dstaddr);
+			snprintf(prefix, sizeof(prefix), "%s%snic_monitor-%s-%s", dirprefix, fn_sep, "file", di->dstaddr);
 		} else
 		if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
-			sprintf(prefix, "%s%snic_monitor-%s-%s", dirprefix, fn_sep, "avdevice", di->dstaddr);
+			snprintf(prefix, sizeof(prefix), "%s%snic_monitor-%s-%s", dirprefix, fn_sep, "avdevice", di->dstaddr);
 		}
 
 		/* Cleanup the filename so we don't have :, they mess up handing recordings via scp. */
@@ -760,16 +760,16 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 			srcaddr.s_addr = ip->ip_src.s_addr;
 			dstaddr.s_addr = ip->ip_dst.s_addr;
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->uh_sport));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->uh_dport));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udp->uh_sport));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udp->uh_dport));
 #endif
 #ifdef __linux__
 			srcaddr.s_addr = ip->saddr;
 			dstaddr.s_addr = ip->daddr;
 
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udp->source));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udp->dest));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udp->source));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udp->dest));
 #endif
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
@@ -860,16 +860,16 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 			srcaddr.s_addr = iphdr->ip_src.s_addr;
 			dstaddr.s_addr = iphdr->ip_dst.s_addr;
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->uh_sport));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->uh_dport));
 #endif
 #ifdef __linux__
 			srcaddr.s_addr = iphdr->saddr;
 			dstaddr.s_addr = iphdr->daddr;
 
 			char src[24], dst[24];
-			sprintf(src, "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
-			sprintf(dst, "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
+			snprintf(src, sizeof(src), "%s:%d", inet_ntoa(srcaddr), ntohs(udphdr->source));
+			snprintf(dst, sizeof(dst), "%s:%d", inet_ntoa(dstaddr), ntohs(udphdr->dest));
 #endif
 
 			printf("%s -> %s : %4d : %02x %02x %02x %02x\n",
