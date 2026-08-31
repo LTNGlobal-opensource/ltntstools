@@ -23,7 +23,7 @@ struct kllineartrend_context_s *kllineartrend_alloc(uint32_t maxItems, const cha
 
 	ctx->maxCount = maxItems;
 	ctx->list = (struct kllineartrend_item_s *)calloc(maxItems, sizeof(struct kllineartrend_item_s));
-	strcpy(&ctx->name[0], name);
+	snprintf(&ctx->name[0], sizeof(ctx->name), "%s", name);
 
 	return ctx;
 }

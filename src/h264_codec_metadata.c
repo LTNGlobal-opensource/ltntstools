@@ -289,8 +289,8 @@ static int h264_parse_sps(struct h264_codec_metadata_ctx_s *ctx)
 out1:
 
 // ----
-    strcpy(&sps->profile_idc_ascii[0], h264_profile_idc_lookup(sps->profile_idc));
-    strcpy(&sps->chroma_format_idc_ascii[0], h264_chroma_format_idc_lookup(sps->chroma_format_idc));
+    snprintf(&sps->profile_idc_ascii[0], sizeof(sps->profile_idc_ascii), "%s", h264_profile_idc_lookup(sps->profile_idc));
+    snprintf(&sps->chroma_format_idc_ascii[0], sizeof(sps->chroma_format_idc_ascii), "%s", h264_chroma_format_idc_lookup(sps->chroma_format_idc));
     snprintf(&sps->level_idc_ascii[0], sizeof(sps->level_idc_ascii), "%.1f", (double)sps->level_idc / 10);
 
     snprintf(&sps->bit_depth_luma_ascii[0], sizeof(sps->bit_depth_luma_ascii), "%dbit", sps->bit_depth_luma_minus8 + 8);
