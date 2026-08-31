@@ -145,14 +145,12 @@ static int smoother_pcr_cb(void *userContext, unsigned char *buf, int byteCount,
 			pid->teiErrors++;
 
 		if (ctx->verbose & 2) {
-			for (int i = 0; i < byteCount; i += 188) {
-				for (int j = 0; j < 24; j++) {
-					printf("%02x ", buf[i + j]);
-					if (j == 3)
-						printf("-- 0x%04x(%4d) -- ", pidnr, pidnr);
-				}
-				printf("\n");
+			for (int j = 0; j < 24; j++) {
+				printf("%02x ", buf[i + j]);
+				if (j == 3)
+					printf("-- 0x%04x(%4d) -- ", pidnr, pidnr);
 			}
+			printf("\n");
 		}
 	}
 
@@ -248,14 +246,12 @@ static void *packet_cb(struct tool_context_s *ctx, unsigned char *buf, int byteC
 			pid->teiErrors++;
 
 		if (ctx->verbose & 1) {
-			for (int i = 0; i < byteCount; i += 188) {
-				for (int j = 0; j < 24; j++) {
-					printf("%02x ", buf[i + j]);
-					if (j == 3)
-						printf("-- 0x%04x(%4d) -- ", pidnr, pidnr);
-				}
-				printf("\n");
+			for (int j = 0; j < 24; j++) {
+				printf("%02x ", buf[i + j]);
+				if (j == 3)
+					printf("-- 0x%04x(%4d) -- ", pidnr, pidnr);
 			}
+			printf("\n");
 		}
 	}
 
@@ -273,6 +269,12 @@ static void *thread_packet_rx(void *p)
 
 	int buflen = 188 * 1024;
 	unsigned char *buf = malloc(buflen);
+	if (!buf) {
+		fprintf(stderr, "Unable to allocate rx buffer, aborting.\n");
+		__atomic_store_n(&ctx->ffmpeg_threadTerminated, 1, __ATOMIC_RELAXED);
+		__atomic_store_n(&gRunning, 0, __ATOMIC_RELAXED);
+		pthread_exit(NULL);
+	}
 	int boffset = 0;
 
 	if (ctx->isRTP) {
@@ -292,7 +294,7 @@ static void *thread_packet_rx(void *p)
 	ts[ strlen(ts) - 1] = 0;
 	printf("%s: Smoother starting\n", ts);
 
-	while (!ctx->ffmpeg_threadTerminate) {
+	while (!__atomic_load_n(&ctx->ffmpeg_threadTerminate, __ATOMIC_RELAXED)) {
 		if (ctx->smoother && ctx->showDeveloperStatisticsSeconds && (lastDevStatsTime + ctx->showDeveloperStatisticsSeconds <= now)) {
 			lastDevStatsTime = now;
 
@@ -345,7 +347,7 @@ static void *thread_packet_rx(void *p)
 		} else
 		if (rlen < 0) {
 			usleep(1 * 1000);
-			gRunning = 0;
+			__atomic_store_n(&gRunning, 0, __ATOMIC_RELAXED);
 			/* General Error or end of stream. */
 			continue;
 		}
@@ -419,12 +421,19 @@ static void *thread_packet_rx(void *p)
 			}
 		} else
 		if (ctx->isRTP == 0 && ctx->sm == NULL && ctx->pcrPID && ctx->smoother == NULL) {
-			smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_pcr_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
+			if (smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_pcr_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS) < 0) {
+				fprintf(stderr, "\nUnable to allocate PCR smoother for pid 0x%04x / latency %dms, check -P and -l, aborting.\n\n",
+					ctx->pcrPID, ctx->latencyMS);
+				exit(1);
+			}
 			smoother_pcr_set_verbose(ctx->smoother, 0);
 			smoother_pcr_set_blocking_writes(ctx->smoother, 0);
 		} else
 		if (ctx->isRTP == 1 && ctx->sm == NULL && ctx->smoother == NULL) {
-			smoother_rtp_alloc(&ctx->smoother, ctx, &smoother_rtp_cb, 5000, 12 + (7 * 188), ctx->latencyMS);
+			if (smoother_rtp_alloc(&ctx->smoother, ctx, &smoother_rtp_cb, 5000, 12 + (7 * 188), ctx->latencyMS) < 0) {
+				fprintf(stderr, "\nUnable to allocate RTP smoother for latency %dms, check -l, aborting.\n\n", ctx->latencyMS);
+				exit(1);
+			}
 			smoother_pcr_set_verbose(ctx->smoother, 0);
 			smoother_pcr_set_blocking_writes(ctx->smoother, 0);
 		}
@@ -470,10 +479,12 @@ static void *thread_packet_rx(void *p)
 
 					if (ctx->pcrPID == 0) {
 						printf("\nNo VIDEO/PCR_PID PID detected, terminating\n\n");
-						gRunning = 0; /* Terminate */
+						__atomic_store_n(&gRunning, 0, __ATOMIC_RELAXED); /* Terminate */
 						//ltntstools_pat_dprintf(pat, STDOUT_FILENO);
-					} else {
-						smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_pcr_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS);
+					} else if (smoother_pcr_alloc(&ctx->smoother, ctx, &smoother_pcr_cb, 5000, 1316, ctx->pcrPID, ctx->latencyMS) < 0) {
+						fprintf(stderr, "\nUnable to allocate PCR smoother for auto-detected pid 0x%04x / latency %dms, check -l, aborting.\n\n",
+							ctx->pcrPID, ctx->latencyMS);
+						exit(1);
 					}
 
 					ctx->spts_pmt_sm = ltntstools_pat_clone(pat);
@@ -518,7 +529,7 @@ static void *thread_packet_rx(void *p)
 		}
 
 	}
-	ctx->ffmpeg_threadTerminated = 1;
+	__atomic_store_n(&ctx->ffmpeg_threadTerminated, 1, __ATOMIC_RELAXED);
 	free(buf);
 
 	pthread_exit(0);
@@ -527,7 +538,7 @@ static void *thread_packet_rx(void *p)
 
 static void signal_handler(int signum)
 {
-	gRunning = 0;
+	__atomic_store_n(&gRunning, 0, __ATOMIC_RELAXED);
 }
 
 static void kernel_check_socket_sizes(AVIOContext *i)
@@ -635,9 +646,16 @@ int bitrate_smoother(int argc, char *argv[])
 
 	ctx->latencyMS = DEFAULT_LATENCY;
 	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
+	if (!ctx->reframer) {
+		fprintf(stderr, "Unable to allocate reframer, aborting.\n");
+		return 1;
+	}
 
-	ltntstools_pid_stats_alloc(&ctx->i_stream);
-	ltntstools_pid_stats_alloc(&ctx->o_stream);
+	if (ltntstools_pid_stats_alloc(&ctx->i_stream) < 0 || ltntstools_pid_stats_alloc(&ctx->o_stream) < 0) {
+		fprintf(stderr, "Unable to allocate pid stats, aborting.\n");
+		ltntstools_reframer_free(ctx->reframer);
+		return 1;
+	}
 
 	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:R:v:t:S:XZ:")) != -1) {
 		switch (ch) {
@@ -737,6 +755,9 @@ int bitrate_smoother(int argc, char *argv[])
 	ret = avio_open2(&ctx->i_puc, ctx->iname, AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 	if (ret < 0) {
 		fprintf(stderr, "-i syntax error\n");
+		ltntstools_reframer_free(ctx->reframer);
+		ltntstools_pid_stats_free(ctx->i_stream);
+		ltntstools_pid_stats_free(ctx->o_stream);
 		ret = -1;
 		goto no_output;
 	}
@@ -744,6 +765,10 @@ int bitrate_smoother(int argc, char *argv[])
 	ret = avio_open2(&ctx->o_puc, ctx->oname, AVIO_FLAG_WRITE | AVIO_FLAG_NONBLOCK | AVIO_FLAG_DIRECT, NULL, NULL);
 	if (ret < 0) {
 		fprintf(stderr, "-o syntax error\n");
+		avio_close(ctx->i_puc);
+		ltntstools_reframer_free(ctx->reframer);
+		ltntstools_pid_stats_free(ctx->i_stream);
+		ltntstools_pid_stats_free(ctx->o_stream);
 		ret = -1;
 		goto no_output;
 	}
@@ -768,23 +793,34 @@ int bitrate_smoother(int argc, char *argv[])
 	}
 	/* Preallocate enough throughput measures for approx a 40mbit stream */
 	signal(SIGINT, signal_handler);
-	gRunning = 1;
+	__atomic_store_n(&gRunning, 1, __ATOMIC_RELAXED);
 
-	pthread_create(&ctx->ffmpeg_threadId, 0, thread_packet_rx, ctx);
+	if (pthread_create(&ctx->ffmpeg_threadId, 0, thread_packet_rx, ctx) != 0) {
+		fprintf(stderr, "Unable to create rx thread, aborting.\n");
+		avio_close(ctx->i_puc);
+		avio_close(ctx->o_puc);
+		ltntstools_reframer_free(ctx->reframer);
+		ltntstools_pid_stats_free(ctx->i_stream);
+		ltntstools_pid_stats_free(ctx->o_stream);
+		ret = -1;
+		goto no_output;
+	}
 
 	signal(SIGINT, signal_handler);
-	while (gRunning) {
+	while (__atomic_load_n(&gRunning, __ATOMIC_RELAXED)) {
 		usleep(50 * 1000);
 	}
 
 	/* Shutdown ffmpeg */
-	ctx->ffmpeg_threadTerminate = 1;
-	while (!ctx->ffmpeg_threadTerminated)
+	__atomic_store_n(&ctx->ffmpeg_threadTerminate, 1, __ATOMIC_RELAXED);
+	while (!__atomic_load_n(&ctx->ffmpeg_threadTerminated, __ATOMIC_RELAXED))
 		usleep(50 * 1000);
 
-	avio_close(ctx->i_puc);
-	avio_close(ctx->o_puc);
-
+	/* Stop the smoother's internal pacing thread (and join it, via
+	 * smoother_pcr_free()/smoother_rtp_free()) before closing the avio
+	 * contexts it writes into -- otherwise the smoother thread can still
+	 * be calling avio_write(ctx->o_puc, ...) after avio_close() runs.
+	 */
 	if (ctx->isRTP == 0) {
 		if (ctx->smoother) {
 			smoother_pcr_free(ctx->smoother);
@@ -797,6 +833,9 @@ int bitrate_smoother(int argc, char *argv[])
 		}
 	}
 	ctx->smoother = 0;
+
+	avio_close(ctx->i_puc);
+	avio_close(ctx->o_puc);
 
 	ltntstools_reframer_free(ctx->reframer);
 
