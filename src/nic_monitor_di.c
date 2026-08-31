@@ -394,7 +394,8 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 	pthread_mutex_lock(&ctx->lock);
 
 	/* With the hash, lookup the di objects in the cachelist. */
-	if (hash_index_get_count(ctx->hashIndex, hash) >= 1) {
+	int bucketCount = hash_index_get_count(ctx->hashIndex, hash);
+	if (bucketCount >= 1) {
 		/* One or more items in the cache for the same hash,
 		 * we have to enum and locate our exact item.
 		 * The hash has reasonable selectivity, but overflows can occur.
@@ -402,7 +403,15 @@ struct discovered_item_s *discovered_item_findcreate(struct tool_context_s *ctx,
 		struct discovered_item_s *item = NULL;
 		int enumerator = 0;
 		int ret = 0;
-		while (ret == 0) {
+		/* hash_index_get_enum() is expected to terminate on its own once
+		 * enumerator reaches bucketCount, since ctx->lock (held for the
+		 * duration of this loop) also serializes every hash_index_add()/
+		 * hash_index_remove() call elsewhere. bucketCount is used as a hard
+		 * cap regardless, so this loop can never run more than the number of
+		 * entries that were actually in this bucket, even if that invariant
+		 * is ever broken by a future change.
+		 */
+		for (int i = 0; i < bucketCount && ret == 0; i++) {
 			ret = hash_index_get_enum(ctx->hashIndex, hash, &enumerator, (void **)&item);
 			if (ret == 0 && item && item != (void *)0xdead) {
 				/* Do a 100% perfect match on the ip and udp headers */
