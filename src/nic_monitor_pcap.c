@@ -800,6 +800,12 @@ static void pcap_io_process(struct tool_context_s *ctx, const struct pcap_pkthdr
 			(int)(sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr));
 		if (availPayload < 0)
 			availPayload = 0;
+#ifdef __APPLE__
+		/* Apple streams via loopback don't have an ethernet header, they have a 02 00 00 00 header */
+		if (*(pkt + 0) == 0x02 && *(pkt + 1) == 0x00 && *(pkt + 2) == 0x00 && *(pkt + 3) == 0x00) {
+			availPayload = (int)h->caplen - (int)(4 + sizeof(struct iphdr) + sizeof(struct udphdr));
+		}
+#endif
 
 		if (ctx->verbose) {
 			struct in_addr dstaddr, srcaddr;
@@ -910,6 +916,13 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		 */
 		int availPayload = (int)h->caplen -
 			(int)(sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr));
+#ifdef __APPLE__
+		/* Apple streams via loopback don't have an ethernet header, they have a 02 00 00 00 header */
+		if (*(pkt + 0) == 0x02 && *(pkt + 1) == 0x00 && *(pkt + 2) == 0x00 && *(pkt + 3) == 0x00) {
+			availPayload = (int)h->caplen - (int)(4 + sizeof(struct iphdr) + sizeof(struct udphdr));
+		}
+#endif
+
 		if (availPayload < 0)
 			availPayload = 0;
 
