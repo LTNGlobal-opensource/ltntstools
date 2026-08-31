@@ -762,6 +762,10 @@ PIC TIMING 15:18:52.37 disc:0 ct:0 counting_type:0 nuit:1 full_timestamp:1 cnt_d
 	printf("\n");
 #endif
 
+	if (e->lengthBytes < 5) {
+		return;
+	}
+
 	NALBitReader_init(&ctx->br, &e->ptr[5], (e->lengthBytes - 5) * 8);
 
 	int CpbDpbDelaysPresentFlag = 1; /* When NAL HRD present = 1 */
@@ -1054,7 +1058,7 @@ static void *callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 			for (int i = 0; i < arrayLength; i++) {
 				struct ltn_nal_headers_s *e = array + i;
-				if (e->nalType == 0x6 /* SEI */ && e->ptr[4] == 0x01 /* SEI PAYLOAD_TYPE == PIC_TIMING */) {
+				if (e->lengthBytes >= 5 && e->nalType == 0x6 /* SEI */ && e->ptr[4] == 0x01 /* SEI PAYLOAD_TYPE == PIC_TIMING */) {
 					ltn_nal_h264_strip_emulation_prevention(e);
 					_parse_PIC_TIMING(ctx, e, pes);
 				}
