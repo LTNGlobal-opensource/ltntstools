@@ -197,6 +197,9 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			snprintf(&label[0], sizeof(label), "PTS 0x%04x to Wallclock delta", pid);
 			pthread_mutex_init(&p->trend_pts.trendLock, NULL);
 			p->trend_pts.clkToScrTicksDeltaTrend = kllineartrend_alloc(ctx->trendSize, label);
+			if (!p->trend_pts.clkToScrTicksDeltaTrend) {
+				fprintf(stderr, "Unable to allocate PTS trend for PID 0x%04x, trend reporting disabled for this PID\n", pid);
+			}
 		}
 	}
 	if (p->pes.PTS_DTS_flags == 3) {
@@ -215,6 +218,9 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 			snprintf(&label[0], sizeof(label), "DTS 0x%04x to SCR tick delta", pid);
 			pthread_mutex_init(&p->trend_dts.trendLock, NULL);
 			p->trend_dts.clkToScrTicksDeltaTrend = kllineartrend_alloc(ctx->trendSize, label);
+			if (!p->trend_dts.clkToScrTicksDeltaTrend) {
+				fprintf(stderr, "Unable to allocate DTS trend for PID 0x%04x, trend reporting disabled for this PID\n", pid);
+			}
 		}
 	}
 
@@ -289,7 +295,9 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				p->trend_pts.first_y = y;
 
 			pthread_mutex_lock(&p->trend_pts.trendLock);
-			kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, x - p->trend_pts.first_x, y - p->trend_pts.first_y);
+			if (p->trend_pts.clkToScrTicksDeltaTrend) {
+				kllineartrend_add(p->trend_pts.clkToScrTicksDeltaTrend, x - p->trend_pts.first_x, y - p->trend_pts.first_y);
+			}
 			pthread_mutex_unlock(&p->trend_pts.trendLock);
 #endif
 		}
@@ -411,7 +419,9 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 				p->trend_dts.first_y = y;
 
 			pthread_mutex_lock(&p->trend_dts.trendLock);
-			kllineartrend_add(p->trend_dts.clkToScrTicksDeltaTrend, x - p->trend_dts.first_x, y - p->trend_dts.first_y);
+			if (p->trend_dts.clkToScrTicksDeltaTrend) {
+				kllineartrend_add(p->trend_dts.clkToScrTicksDeltaTrend, x - p->trend_dts.first_x, y - p->trend_dts.first_y);
+			}
 			pthread_mutex_unlock(&p->trend_dts.trendLock);
 #endif
 		}
