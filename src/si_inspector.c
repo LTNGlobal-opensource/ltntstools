@@ -31,7 +31,7 @@ struct ts_stream_s;
 static int g_running = 1;
 static void signal_handler(int signum)
 {
-        g_running = 0;
+    __atomic_store_n(&g_running, 0, __ATOMIC_RELAXED);
 }
 
 enum ts_pid_psiptype_e
@@ -131,8 +131,14 @@ void destroyPID(struct ts_pid_s *pid)
 		dvbpsi_pmt_detach(pid->dvbpsi);
 		break;
 	default:
+		/* Unreachable given only PID_PAT/PID_PMT ever set pid->used, but
+		 * guard against a future caller adding a new psip_type: falling
+		 * through to dvbpsi_delete() below without a matching detach call
+		 * would tear down libdvbpsi's decoder state incorrectly.
+		 */
 		printf("psip_type = %d\n", pid->psip_type);
 		assert(0);
+		return;
 	}
 
 	dvbpsi_delete(pid->dvbpsi);
@@ -178,16 +184,15 @@ static void completionPAT(void *p_zero, dvbpsi_pat_t *p_pat)
 		struct ts_pid_s *pid = findPID(strm, p_program->i_pid);
 
     	if (p_program->i_number != 0) {
-			strm->totalPMTS++;
 			pid->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
 			if (pid->dvbpsi == NULL) {
-				printf("Huh?\n");
-				assert(0);
+				fprintf(stderr, "Unable to allocate PMT dvbpsi context for pid 0x%04x, skipping.\n", p_program->i_pid);
+			} else {
+				strm->totalPMTS++;
+				dvbpsi_pmt_attach(pid->dvbpsi, p_program->i_number, completionPMT, pid);
+				pid->used = 1;
+				pid->psip_type = PID_PMT;
 			}
-
-			dvbpsi_pmt_attach(pid->dvbpsi, p_program->i_number, completionPMT, pid);
-			pid->used = 1;
-			pid->psip_type = PID_PMT;
 		}
 
 		p_program = p_program->p_next;
@@ -200,14 +205,14 @@ static void *_avio_raw_callback(void *userContext, const uint8_t *pkts, int pack
 	struct ts_stream_s *strm = (struct ts_stream_s *)userContext;
 	//printf("%s() strm %p, pkts %p, count %d\n", __func__, strm, pkts, packetCount);
 
-	if (gDumpAll == 0 && g_running == 0) {
+	if (gDumpAll == 0 && __atomic_load_n(&g_running, __ATOMIC_RELAXED) == 0) {
 		return NULL;
 	}
 
 	updateStream(strm, pkts, packetCount);
 
 	if (strm->totalPMTS > 0 && (strm->countPMTS == strm->totalPMTS)) {
-		g_running = 0;
+		__atomic_store_n(&g_running, 0, __ATOMIC_RELAXED);
 	}
 
 	return NULL;
@@ -283,35 +288,44 @@ int si_inspector(int argc, char *argv[])
 
 	void *srcctx = NULL;
 	int ret = ltntstools_source_avio_alloc(&srcctx, strm, &cbs, iname);
-	if (ret < 0) {
+	if (ret != 0) {
 		fprintf(stderr, "-i syntax error\n");
+		freeStream(strm);
 		return 1;
 	}
 
+	/* From this point on the avio background thread is running and calling
+	 * back into strm, so every exit path below must stop it (via the out:
+	 * label) before freeStream() runs, to avoid a use-after-free.
+	 */
 	struct ts_pid_s *pat = findPID(strm, 0);
 	if (gVerbose)
 		pat->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_DEBUG);
 	else
 		pat->dvbpsi = dvbpsi_new(&tstools_message, DVBPSI_MSG_NONE);
-	if (pat->dvbpsi == NULL)
+	if (pat->dvbpsi == NULL) {
+		fprintf(stderr, "Unable to allocate PAT dvbpsi context, aborting.\n");
 		goto out;
+	}
 
-	if (!dvbpsi_pat_attach(pat->dvbpsi, completionPAT, strm))
+	if (!dvbpsi_pat_attach(pat->dvbpsi, completionPAT, strm)) {
+		fprintf(stderr, "Unable to attach PAT decoder, aborting.\n");
+		dvbpsi_delete(pat->dvbpsi);
+		pat->dvbpsi = NULL;
 		goto out;
+	}
 
 	pat->used = 1;
 	pat->psip_type = PID_PAT;
 
 	signal(SIGINT, signal_handler);
 
-	while (g_running) {
+	while (__atomic_load_n(&g_running, __ATOMIC_RELAXED)) {
 		usleep(50 * 1000);
 	}
 
-	ltntstools_source_avio_free(srcctx);
-
 out:
-
+	ltntstools_source_avio_free(srcctx);
 	freeStream(strm);
 
 	return 0;
