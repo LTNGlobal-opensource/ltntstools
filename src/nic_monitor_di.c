@@ -149,21 +149,36 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 			di->srcOriginRemoteHost = 1;
 		}
 
-		/* Each 16000ms histogram is ~ 256KB */
-		ltn_histogram_alloc_video_defaults(&di->packetIntervals, "IAT Intervals");
-
-		/* Sized for 210mbps. Each node (20k) needs 36 bytes, so a 720KB alloc on this */
-		throughput_hires_alloc(&di->packetIntervalAverages, 20000);
-
-		/* Sized for 210mbps. Each node (20k) needs 36 bytes, so a 720KB alloc on this */
-		throughput_hires_alloc(&di->packetPayloadSizeBits, 20000);
-
-		/* Each allocation  is approximately 3MB, plus an additional 2x256KB for each PCR PID.
-		 * So a single SPTS mux needs 3.5MB of RAM.
-		 * We're doing four of those.
-		 * TODO: This is too expensive on MEMORY 
+		/* These four are load-bearing: every packet-processing path dereferences them
+		 * unconditionally, so a failed allocation here must abort discovery of this
+		 * stream rather than leave a NULL that a hot packet-processing path will
+		 * dereference later. Use a minimal, explicit cleanup here rather than
+		 * discovered_item_free() -- several subsystems that function frees
+		 * (doc_stream_log, streamModel, LTNLatencyProbe, etc.) are not yet
+		 * initialized at this point in construction.
 		 */
-		ltntstools_pid_stats_alloc(&di->stats);
+		if (ltn_histogram_alloc_video_defaults(&di->packetIntervals, "IAT Intervals") < 0 ||
+			/* Sized for 210mbps. Each node (20k) needs 36 bytes, so a 720KB alloc on this */
+			throughput_hires_alloc(&di->packetIntervalAverages, 20000) < 0 ||
+			/* Sized for 210mbps. Each node (20k) needs 36 bytes, so a 720KB alloc on this */
+			throughput_hires_alloc(&di->packetPayloadSizeBits, 20000) < 0 ||
+			/* Each allocation is approximately 3MB, plus an additional 2x256KB for each PCR PID.
+			 * So a single SPTS mux needs 3.5MB of RAM. We're doing four of those.
+			 * TODO: This is too expensive on MEMORY
+			 */
+			ltntstools_pid_stats_alloc(&di->stats) < 0)
+		{
+			fprintf(stderr, "\nUnable to allocate core stream tracking structures, aborting stream discovery.\n\n");
+			if (di->packetIntervals) {
+				ltn_histogram_free(di->packetIntervals);
+			}
+			throughput_hires_free(di->packetIntervalAverages);
+			throughput_hires_free(di->packetPayloadSizeBits);
+			ltntstools_pid_stats_free(di->stats);
+			pthread_mutex_destroy(&di->bitrateBucketLock);
+			free(di);
+			return NULL;
+		}
 		ltntstools_pid_stats_alloc(&di->statsToFileSummary);
 
 		/* Stream Model */
@@ -546,14 +561,14 @@ void discovered_item_json_summary(struct tool_context_s *ctx, struct discovered_
 	json_object *services = json_object_new_array();
 
 	struct ltntstools_pat_s *m = NULL;
-	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
+	if (di->streamModel && ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
 		for (unsigned int p = 0; p < m->program_count; p++) {
 			if (m->programs[p].program_number == 0)
 				continue; /* Skip the NIT pid */
 
 			json_object *item = json_object_new_object();
 			json_object *nr = json_object_new_int64(m->programs[p].program_number);
-			
+
 			char pidstr[64];
 			snprintf(pidstr, sizeof(pidstr), "0x%04x", m->programs[p].program_map_PID);
 			json_object *pmtpid = json_object_new_string(pidstr);
@@ -1041,7 +1056,7 @@ void discovered_item_detailed_file_summary(struct tool_context_s *ctx, struct di
 	/* Query the LTN encoder latency, if it exists */
 	struct ltntstools_pat_s *m = NULL;
 	char enclat[32];
-	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
+	if (di->streamModel && ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
 
 		for (unsigned int p = 0; p < m->program_count; p++) {
 
@@ -1164,7 +1179,7 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 	/* Query the LTN encoder latency, if it exists */
 	struct ltntstools_pat_s *m = NULL;
 	char enclat[32];
-	if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
+	if (di->streamModel && ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
 
 		for (unsigned int p = 0; p < m->program_count; p++) {
 
@@ -1783,6 +1798,9 @@ int display_doc_append_with_time(struct display_doc_s *doc, const char *msg, tim
 {
 	int len = strlen(msg) + 32;
 	char *line = malloc(len);
+	if (!line) {
+		return -1;
+	}
 
 	time_t t;
 	if (when == NULL) {

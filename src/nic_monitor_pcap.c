@@ -12,6 +12,12 @@ int pcap_queue_initialize(struct tool_context_s *ctx)
 		if (item) {
 			item->h = malloc(sizeof(struct pcap_pkthdr));
 			item->pkt = malloc(1700);
+			if (!item->h || !item->pkt) {
+				free(item->h);
+				free(item->pkt);
+				free(item);
+				continue;
+			}
 			memset(item->pkt, 0xcd, 1700);
 			xorg_list_append(&item->list, &ctx->listpcapFree);
 			ctx->listpcapFreeDepth++;
@@ -21,6 +27,12 @@ int pcap_queue_initialize(struct tool_context_s *ctx)
 	ctx->hashIndex = hash_index_alloc();
 
 	pthread_mutex_unlock(&ctx->lockpcap);
+
+	if (!ctx->hashIndex) {
+		fprintf(stderr, "Unable to allocate hash index, aborting.\n");
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -90,8 +102,18 @@ int pcap_queue_push(struct tool_context_s *ctx, const struct pcap_pkthdr *h, con
 			xorg_list_del(&item->list);
 			ctx->listpcapFreeDepth--;
 
-			if (item->h->len < h->len)
-				item->pkt = realloc(item->pkt, h->len);
+			if (item->h->len < h->len) {
+				void *newpkt = realloc(item->pkt, h->len);
+				if (!newpkt) {
+					ctx->pcap_malloc_miss++;
+					free(item->pkt);
+					free(item->h);
+					free(item);
+					item = NULL;
+					break;
+				}
+				item->pkt = newpkt;
+			}
 		}
 
 		memcpy(item->h, h, sizeof(*h));
@@ -347,14 +369,14 @@ static void _processPackets_Stats(struct tool_context_s *ctx,
 // SEGFAULT
 		ltntstools_pid_stats_update(di->stats, pkts, pktCount);
 
-		if (di->isLTNEncoder) {
+		if (di->LTNLatencyProbe && di->isLTNEncoder) {
 			/* TODO: This will find the first timestamp in a MPTS and it will be rendered as an identical
 			 * measurement for every service in the mux. This would be factually wrong. The right approach
 			 * is to have a sense of 'which video pid' the latency is associated with, and render that.
 			 */
 			ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
 		} else {
-			if (ctx->measureSEILatencyAlways) {
+			if (di->LTNLatencyProbe && ctx->measureSEILatencyAlways) {
 				ltntstools_probe_ltnencoder_sei_timestamp_query(di->LTNLatencyProbe, pkts, pktCount * 188);
 			}
 		}

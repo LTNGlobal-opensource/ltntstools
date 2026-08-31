@@ -50,6 +50,10 @@ struct json_item_s *json_item_alloc(struct tool_context_s *ctx, int lengthBytesM
 
 	item->lengthBytesMax = lengthBytesMax;
 	item->buf = calloc(1, item->lengthBytesMax);
+	if (!item->buf) {
+		free(item);
+		return NULL;
+	}
 
 	return item;
 }

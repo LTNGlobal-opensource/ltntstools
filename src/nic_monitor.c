@@ -369,20 +369,22 @@ static void *ui_thread_func(void *p)
 					}
 					streamCount++;
 
-					ltn_histogram_interval_print_buf(&s, pid->pcrWallDrift, 0);
-					if (s) {
-						char *buf = s;
+					if (pid->pcrWallDrift) {
+						ltn_histogram_interval_print_buf(&s, pid->pcrWallDrift, 0);
+						if (s) {
+							char *buf = s;
 
-						char *p = strtok(buf, "\n");
-						while (p) {
-							mvprintw(streamCount + 2, 4, "%s", p);
-							p = strtok(NULL, "\n");
-							if (p) {
-								streamCount++;
+							char *p = strtok(buf, "\n");
+							while (p) {
+								mvprintw(streamCount + 2, 4, "%s", p);
+								p = strtok(NULL, "\n");
+								if (p) {
+									streamCount++;
+								}
 							}
+							free(s);
+							streamCount++;
 						}
-						free(s);
-						streamCount++;
 					}
 				}
 			} /* Show clocks */
@@ -544,7 +546,7 @@ static void *ui_thread_func(void *p)
 				streamCount++;
 				mvprintw(streamCount + 2, 0, " -> Socket / Process Report");
 
-				if (ctx->lastSocketReport + 2 < now) {
+				if (ctx->procNetUDPContext && ctx->lastSocketReport + 2 < now) {
 					ctx->lastSocketReport = now;
 
 					if (items) {
@@ -623,7 +625,7 @@ static void *ui_thread_func(void *p)
 				}
 
 				struct ltntstools_pat_s *m = NULL;
-				if (ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
+				if (di->streamModel && ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
 
 					/* Now that we have a working stream model, look PCR for each stream
 					 * and establish a clock analyzer through the stats infrastructure.
@@ -801,8 +803,10 @@ static void *ui_thread_func(void *p)
 							int64_t pcr = ltntstools_pid_stats_pid_get_pcr(di->stats, m->programs[p].pmt.PCR_PID);
 							char *ts = NULL;
 							ltntstools_pcr_to_ascii(&ts, pcr);
-							mvprintw(streamCount + 1, 82, "PCR: %s", ts);
-							free(ts);
+							if (ts) {
+								mvprintw(streamCount + 1, 82, "PCR: %s", ts);
+								free(ts);
+							}
 						}
 
 						if (0) {
@@ -1781,7 +1785,9 @@ int nic_monitor(int argc, char *argv[])
 
 	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
 
-	pcap_queue_initialize(ctx);
+	if (pcap_queue_initialize(ctx) < 0) {
+		exit(1);
+	}
 	ctx->file_write_interval = FILE_WRITE_INTERVAL;
 	ctx->json_write_interval = JSON_WRITE_INTERVAL;
 	ctx->pcap_filter = DEFAULT_PCAP_FILTER;
@@ -1922,7 +1928,9 @@ int nic_monitor(int argc, char *argv[])
 		if (c == 'r') {
 			time(&ctx->lastResetTime);
 			discovered_items_stats_reset(ctx);
-			ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
+			if (ctx->procNetUDPContext) {
+				ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
+			}
 #if MEASURE_PCAP_CALLBACK_PERFORMANCE
 			pcap_cb_intervals_reset = 1;
 #endif
@@ -2055,7 +2063,7 @@ int nic_monitor(int argc, char *argv[])
 
 	struct ltntstools_proc_net_udp_item_s *items;
 	int itemCount;
-	if (ltntstools_proc_net_udp_item_query(ctx->procNetUDPContext, &items, &itemCount) == 0) {
+	if (ctx->procNetUDPContext && ltntstools_proc_net_udp_item_query(ctx->procNetUDPContext, &items, &itemCount) == 0) {
 		printf("System wide UDP socket buffers\n");
 		printf("-------------------------------------------------------------------------------------------->\n");
 		ltntstools_proc_net_udp_item_dprintf(ctx->procNetUDPContext, STDOUT_FILENO, items, itemCount);
@@ -2064,7 +2072,9 @@ int nic_monitor(int argc, char *argv[])
 		ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);
 	}
 
-	ltntstools_proc_net_udp_free(ctx->procNetUDPContext);
+	if (ctx->procNetUDPContext) {
+		ltntstools_proc_net_udp_free(ctx->procNetUDPContext);
+	}
 
 	if (ctx->verbose) {
 		printf("pcap_free_miss %" PRIi64 "\n", ctx->pcap_free_miss);
