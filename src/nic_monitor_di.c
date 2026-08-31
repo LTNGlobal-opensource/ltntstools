@@ -61,13 +61,19 @@ void discovered_item_free(struct discovered_item_s *di)
 	if (di->h264_metadata_parser) {
 		pthread_mutex_lock(&di->h264_metadataLock);
 		h264_slice_counter_free(di->h264_metadata_parser);
-		/* Intensional permanent. */
+		di->h264_metadata_parser = NULL;
+		pthread_mutex_unlock(&di->h264_metadataLock);
 	}
+	pthread_mutex_destroy(&di->h264_metadataLock);
+
 	if (di->h264_slices) {
 		pthread_mutex_lock(&di->h264_sliceLock);
 		h264_slice_counter_free(di->h264_slices);
-		/* Intensional permanent. */
+		di->h264_slices = NULL;
+		pthread_mutex_unlock(&di->h264_sliceLock);
 	}
+	pthread_mutex_destroy(&di->h264_sliceLock);
+
 	if (di->pcapRecorder) {
 		ltntstools_segmentwriter_free(di->pcapRecorder);
 		di->pcapRecorder = NULL;
