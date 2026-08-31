@@ -164,6 +164,8 @@ int clock_inspector(int argc, char *argv[])
 			if (atoi(optarg) == 2) {
 				return validateLinearTrend();
 			}
+			usage(argv[0]);
+			exit(1);
 		case 'Z':
 			ctx->enableNonTimingConformantMessages = 0;
 			break;

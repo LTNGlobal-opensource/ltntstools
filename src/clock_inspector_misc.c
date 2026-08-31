@@ -100,7 +100,8 @@ void kernel_check_socket_sizes(AVIOContext *i)
 	int val;
 	FILE *fh = fopen("/proc/sys/net/core/rmem_default", "r");
 	if (fh) {
-		fread(&line[0], 1, sizeof(line), fh);
+		size_t l = fread(&line[0], 1, sizeof(line) - 1, fh);
+		line[l] = 0;
 		val = atoi(line);
 		printf("/proc/sys/net/core/rmem_default = %d\n", val);
 		fclose(fh);
@@ -108,7 +109,8 @@ void kernel_check_socket_sizes(AVIOContext *i)
 
 	fh = fopen("/proc/sys/net/core/rmem_max", "r");
 	if (fh) {
-		fread(&line[0], 1, sizeof(line), fh);
+		size_t l = fread(&line[0], 1, sizeof(line) - 1, fh);
+		line[l] = 0;
 		val = atoi(line);
 		printf("/proc/sys/net/core/rmem_max = %d\n", val);
 		if (i->buffer_size > val) {
