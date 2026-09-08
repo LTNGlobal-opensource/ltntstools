@@ -878,6 +878,24 @@ static void usage(const char *progname)
 	printf("      -o udp://227.1.20.45:4501?pkt_size=1316 -l 500\n");
 	printf("\n    tstools_bitrate_smoother -i 'rtp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000' \\\n");
 	printf("      -o rtp://227.1.20.45:4501?pkt_size=1328 -l 500\n");
+	printf("\n");
+
+	printf("    Example: Change the audio and video pids, change the program number, add a SDT and a audio descriptor\n");
+	printf("    tstools_bitrate_smoother\n");
+	printf("      -i 'udp://127.0.0.1:4099?buffer_size=250000'\n");
+	printf("      -o 'udp://127.0.0.1:4199?pkt_size=1316'\n");
+	printf("      -X           # disable bitrate smoothing, not necessary for patching.\n");
+	printf("      -Z 1000      # we're patching the PMT on pid 1000\n");
+	printf("      -N 8         # change the program number to 8\n");
+	printf("      -D 2000      # remove any audio language descriptors for the existing audio pid 2000\n");
+	printf("      -A 2000:eng  # add an audio langauge descriptor to audio pid 2000\n");
+	printf("      -M 1110:3571 # change the video pid from pid 1110 to 3571\n");
+	printf("      -M 2000:3572 # change the audio pid from pid 2000 to 3571\n");
+	printf("      -M 1000:3600 # change the PMT from pid 1000 to 3600\n");
+	printf("      --sdt-provider-name 'TheProvider'\n");
+	printf("      --sdt-service-name 'TheService'\n");
+	printf("      --sdt-insert-on-null-after-each-pat\n");
+
 }
 
 int bitrate_smoother(int argc, char *argv[])
