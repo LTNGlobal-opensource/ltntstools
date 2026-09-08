@@ -98,6 +98,12 @@ struct tool_context_s
 	char *sdt_provider_name;
 	char *sdt_service_name;
 	int sdt_insert_on_null_after_pat;      /* Boolean, enables the PAT-triggered null-packet substitution. */
+	unsigned int sdt_service_id;           /* --sdt-service-id [def: 0]. Overridden by the stream's actual/target
+	                                         * program_number once known -- see the model-ready rebuild below. */
+	unsigned int sdt_network_id;           /* --sdt-network-id, becomes original_network_id [def: 0]. */
+	unsigned int sdt_transport_stream_id;  /* --sdt-transport-stream-id. Ignored (in favour of the stream's actual
+	                                         * transport_stream_id) unless sdt_transport_stream_id_set. [def: 0]. */
+	int sdt_transport_stream_id_set;       /* Boolean, true if --sdt-transport-stream-id was explicitly given. */
 	int sdt_armed;                         /* Runtime: a PAT has passed, waiting for the next null packet to replace. */
 	unsigned char sdt_pkt[188];            /* Pre-built SDT packet (built once from provider/service name), CC field is a template only. */
 	uint8_t sdt_cc;                        /* Our own continuity counter for the synthesized pid 0x0011 packets. */
@@ -116,6 +122,28 @@ static inline void ts_pid_rewrite(uint8_t *pkt, uint16_t pid)
 {
 	pkt[1] = (pkt[1] & 0xe0) | ((pid >> 8) & 0x1f);
 	pkt[2] = pid & 0xff;
+}
+
+/* Parse a pid as hex (0x/0X prefix) or plain decimal (never octal, even with a leading zero).
+ * Returns 0 on success, -1 on empty/malformed/trailing-garbage input.
+ */
+static int parse_pid_arg(const char *s, unsigned int *out)
+{
+	if (!s || !*s)
+		return -1;
+
+	char *endptr = NULL;
+	unsigned long v;
+	if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+		v = strtoul(s, &endptr, 16);
+	} else {
+		v = strtoul(s, &endptr, 10);
+	}
+	if (!endptr || *endptr != 0 || endptr == s)
+		return -1;
+
+	*out = (unsigned int)v;
+	return 0;
 }
 
 /* Reframer hands us 7*188 buffers, guaranteed. Send to the UDP. */
@@ -666,6 +694,24 @@ static void *thread_packet_rx(void *p)
 						}
 					}
 
+					if (ctx->sdt_insert_on_null_after_pat && ctx->pcrPID != 0) {
+						/* Rebuild the SDT now that the stream's real values are known:
+						 * service_id always tracks the PAT/PMT program_number (using -N's target
+						 * value if given, since that's what this service will actually be
+						 * numbered as), and transport_stream_id defaults to the stream's actual
+						 * PAT transport_stream_id unless --sdt-transport-stream-id was explicitly
+						 * given. --sdt-network-id is untouched here.
+						 */
+						unsigned int service_id = ctx->new_program_number ? ctx->new_program_number : pmt->program_number;
+						unsigned int transport_stream_id = ctx->sdt_transport_stream_id_set ?
+							ctx->sdt_transport_stream_id : pat->transport_stream_id;
+						if (ltntstools_ts_packetizer_build_sdt(ctx->sdt_provider_name, ctx->sdt_service_name,
+							transport_stream_id, ctx->sdt_network_id, service_id, ctx->sdt_cc, ctx->sdt_pkt, 188) < 0) {
+							fprintf(stderr, "\nUnable to rebuild the custom SDT with program_number %u as service_id.\n\n",
+								service_id);
+						}
+					}
+
 					ltntstools_pat_free(pat);
 				}
 			}
@@ -796,17 +842,28 @@ static void usage(const char *progname)
 	printf("    32 - PMT re-writing and PID removal\n");
 	printf("  -R pid 0xNNNN to be removed [def: none], multiple -R instances supported. [0x2000 all pids]\n");
 	printf("  -S <seconds> Show developer statistics every N seconds. [def: disabled]\n");
-	printf("  -Z pid 0xNNNN Update this PID PMT to reflect any removed ES pids [def: disabled]\n");
+	printf("  -Z <pid> Update this PID's PMT to reflect any removed ES pids [def: disabled]\n");
+	printf("     pid may be hex (0x prefix) or decimal, eg. -Z 0x100 or -Z 256.\n");
 	printf("  -N <program_number> Rewrite the PAT/PMT program_number for the service on -Z's pid [def: disabled]\n");
 	printf("     Requires -Z, and requires auto PCR/PMT detection (don't combine with -P).\n");
-	printf("  -A 0xNNNN:lang[:type] Add/replace an ISO639 audio_language_descriptor on ES pid 0xNNNN\n");
-	printf("     within the PMT on -Z's pid. lang is a 3 letter code eg. eng, type is optional [def: 0].\n");
-	printf("  -D 0xNNNN Remove any ISO639 audio_language_descriptor from ES pid 0xNNNN within the PMT on -Z's pid\n");
-	printf("  -M 0xNNNN:0xMMMM Renumber input pid 0xNNNN to output pid 0xMMMM, multiple -M instances supported.\n");
+	printf("  -A <pid>:lang[:type] Add/replace an ISO639 audio_language_descriptor on ES pid\n");
+	printf("     within the PMT on -Z's pid. pid may be hex (0x prefix) or decimal. lang is a 3 letter\n");
+	printf("     code eg. eng, type is optional [def: 0]. Eg. -A 0x101:eng or -A 257:eng:2.\n");
+	printf("  -D <pid> Remove any ISO639 audio_language_descriptor from ES pid within the PMT on -Z's pid\n");
+	printf("     pid may be hex (0x prefix) or decimal, eg. -D 0x101 or -D 257.\n");
+	printf("  -M <pid>:<pid> Renumber input pid to output pid, multiple -M instances supported.\n");
+	printf("     Each pid may be hex (0x prefix) or decimal, eg. -M 0x100:0x150 or -M 256:336.\n");
 	printf("     Patches the PMT (ES pids, PCR_PID) and, if the PMT's own pid is remapped, the PAT too.\n");
-	printf("     Neither 0xNNNN nor 0xMMMM may be 0x0000 (the PAT is always on pid 0x0000). Requires -Z.\n");
+	printf("     Neither pid may be 0x0000 (the PAT is always on pid 0x0000). Requires -Z.\n");
 	printf("  --sdt-provider-name <name>           Provider name for a synthesized custom SDT [def: disabled]\n");
 	printf("  --sdt-service-name <name>            Service name for a synthesized custom SDT [def: disabled]\n");
+	printf("  --sdt-service-id <id>                service_id for the custom SDT [def: 0]. Overridden by the\n");
+	printf("     stream's actual/target (-N) program_number once auto PCR/PMT detection completes (no -P).\n");
+	printf("  --sdt-network-id <id>                original_network_id for the custom SDT [def: 0]\n");
+	printf("  --sdt-transport-stream-id <id>       transport_stream_id for the custom SDT [def: taken from\n");
+	printf("     the stream's actual PAT once auto PCR/PMT detection completes (no -P); 0 before that].\n");
+	printf("     Passing this explicitly always wins over the stream's PAT value.\n");
+	printf("     Each <id> above may be hex (0x prefix) or decimal, and must fit in 16 bits.\n");
 	printf("  --sdt-insert-on-null-after-each-pat  Arm on each PAT packet seen, replace the next null packet\n");
 	printf("     with the custom SDT. Requires --sdt-provider-name and --sdt-service-name.\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
@@ -854,6 +911,9 @@ int bitrate_smoother(int argc, char *argv[])
 		{ "sdt-provider-name",                 required_argument, 0, 0 }, /* 0 */
 		{ "sdt-service-name",                  required_argument, 0, 0 }, /* 1 */
 		{ "sdt-insert-on-null-after-each-pat", no_argument,       0, 0 }, /* 2 */
+		{ "sdt-service-id",                    required_argument, 0, 0 }, /* 3 */
+		{ "sdt-network-id",                    required_argument, 0, 0 }, /* 4 */
+		{ "sdt-transport-stream-id",           required_argument, 0, 0 }, /* 5 */
 		{ 0, 0, 0, 0 }
 	};
 
@@ -873,6 +933,28 @@ int bitrate_smoother(int argc, char *argv[])
 				break;
 			case 2:
 				ctx->sdt_insert_on_null_after_pat = 1;
+				break;
+			case 3:
+				if (parse_pid_arg(optarg, &ctx->sdt_service_id) != 0 || ctx->sdt_service_id > 0xffff) {
+					usage(argv[0]);
+					fprintf(stderr, "\n--sdt-service-id syntax error, expected a 16-bit value, hex with 0x prefix or decimal\n\n");
+					exit(1);
+				}
+				break;
+			case 4:
+				if (parse_pid_arg(optarg, &ctx->sdt_network_id) != 0 || ctx->sdt_network_id > 0xffff) {
+					usage(argv[0]);
+					fprintf(stderr, "\n--sdt-network-id syntax error, expected a 16-bit value, hex with 0x prefix or decimal\n\n");
+					exit(1);
+				}
+				break;
+			case 5:
+				if (parse_pid_arg(optarg, &ctx->sdt_transport_stream_id) != 0 || ctx->sdt_transport_stream_id > 0xffff) {
+					usage(argv[0]);
+					fprintf(stderr, "\n--sdt-transport-stream-id syntax error, expected a 16-bit value, hex with 0x prefix or decimal\n\n");
+					exit(1);
+				}
+				ctx->sdt_transport_stream_id_set = 1;
 				break;
 			}
 			break;
@@ -901,9 +983,10 @@ int bitrate_smoother(int argc, char *argv[])
 			char *tok_type = strtok(NULL, ":");
 			unsigned int pid = 0;
 			if (!tok_pid || !tok_lang || strlen(tok_lang) != 3 ||
-				(sscanf(tok_pid, "0x%x", &pid) != 1) || pid >= 0x2000) {
+				parse_pid_arg(tok_pid, &pid) != 0 || pid >= 0x2000) {
 				usage(argv[0]);
-				fprintf(stderr, "\n-A syntax error, expected 0xNNNN:lang[:type], eg. 0x101:eng or 0x101:eng:2\n\n");
+				fprintf(stderr, "\n-A syntax error, expected <pid>:lang[:type] (pid hex with 0x prefix, or decimal), "
+					"eg. 0x101:eng or 257:eng:2\n\n");
 				exit(1);
 			}
 			ctx->lang_add_pid = pid;
@@ -915,8 +998,9 @@ int bitrate_smoother(int argc, char *argv[])
 			break;
 		}
 		case 'D':
-			if ((sscanf(optarg, "0x%x", &ctx->lang_del_pid) != 1) || (ctx->lang_del_pid >= 0x2000)) {
+			if (parse_pid_arg(optarg, &ctx->lang_del_pid) != 0 || ctx->lang_del_pid >= 0x2000) {
 				usage(argv[0]);
+				fprintf(stderr, "\n-D syntax error, expected a pid, hex with 0x prefix or decimal, eg. 0x101 or 257\n\n");
 				exit(1);
 			}
 			break;
@@ -924,10 +1008,17 @@ int bitrate_smoother(int argc, char *argv[])
 			ctx->terminateLOSSeconds = atoi(optarg);
 			break;
 		case 'M': {
+			char tmp[64];
+			snprintf(tmp, sizeof(tmp), "%s", optarg);
+			char *tok_in = strtok(tmp, ":");
+			char *tok_out = strtok(NULL, ":");
 			unsigned int inpid = 0, outpid = 0;
-			if ((sscanf(optarg, "0x%x:0x%x", &inpid, &outpid) != 2) || inpid >= 0x2000 || outpid >= 0x2000) {
+			if (!tok_in || !tok_out ||
+				parse_pid_arg(tok_in, &inpid) != 0 || parse_pid_arg(tok_out, &outpid) != 0 ||
+				inpid >= 0x2000 || outpid >= 0x2000) {
 				usage(argv[0]);
-				fprintf(stderr, "\n-M syntax error, expected 0xNNNN:0xMMMM, eg. 0x100:0x150\n\n");
+				fprintf(stderr, "\n-M syntax error, expected <pid>:<pid> (hex with 0x prefix, or decimal), "
+					"eg. 0x100:0x150 or 256:336\n\n");
 				exit(1);
 			}
 			if (inpid == 0x0000 || outpid == 0x0000) {
@@ -978,8 +1069,9 @@ int bitrate_smoother(int argc, char *argv[])
 			ctx->skipSmoother = 1;
 			break;
 		case 'Z':
-			if ((sscanf(optarg, "0x%x", &ctx->spts_pmt_pid) != 1) || (ctx->spts_pmt_pid >= 0x2000)) {
+			if (parse_pid_arg(optarg, &ctx->spts_pmt_pid) != 0 || ctx->spts_pmt_pid >= 0x2000) {
 				usage(argv[0]);
+				fprintf(stderr, "\n-Z syntax error, expected a pid, hex with 0x prefix or decimal, eg. 0x100 or 256\n\n");
 				exit(1);
 			}
 			break;
@@ -1048,11 +1140,13 @@ int bitrate_smoother(int argc, char *argv[])
 	}
 
 	if (ctx->sdt_insert_on_null_after_pat) {
-		/* transport_stream_id, original_network_id and service_id are hardcoded to 1: they
-		 * aren't exposed on the command line, and this feature is independent of any PAT/PMT
-		 * model the tool may or may not have built.
+		/* Built here using --sdt-service-id (default 0) so the SDT is available immediately,
+		 * independent of any PAT/PMT model the tool may or may not build. If auto PCR/PMT
+		 * detection is active (no -P), this gets rebuilt below once the stream's actual/target
+		 * program_number is known, which then takes over as service_id.
 		 */
-		if (ltntstools_ts_packetizer_build_sdt(ctx->sdt_provider_name, ctx->sdt_service_name, 1, 1, 1, 0, ctx->sdt_pkt, 188) < 0) {
+		if (ltntstools_ts_packetizer_build_sdt(ctx->sdt_provider_name, ctx->sdt_service_name,
+			ctx->sdt_transport_stream_id, ctx->sdt_network_id, ctx->sdt_service_id, 0, ctx->sdt_pkt, 188) < 0) {
 			fprintf(stderr, "\nUnable to build a custom SDT from --sdt-provider-name/--sdt-service-name, aborting.\n\n");
 			exit(1);
 		}
