@@ -78,6 +78,9 @@ struct tool_context_s
 	unsigned int spts_pmt_pid;             /* PID where we expect to fine a PMT in the input stream, what we're replacing. */
 	unsigned char spts_pmt_pkt_new[188];   /* New PMT that gets create IF we're dropping pids. TODO: Aaumption PMT is not 2 packets or more */
 	struct ltntstools_pat_s *spts_pmt_sm;  /* deconstructed PMT object. */
+	struct ltntstools_pmt_s *spts_pmt_ptr; /* Cached pointer to the target service's pmt within spts_pmt_sm, resolved
+	                                         * once before any mutation (program_map_PID may get rewritten by -M,
+	                                         * which would make it unfindable by re-searching on the original pid). */
 
 	/* program_number remapping in a SPTS, requires spts_pmt_pid (-Z) to identify the service. */
 	unsigned int new_program_number;       /* Desired new program_number for the service on spts_pmt_pid. 0 = disabled. */
@@ -450,19 +453,20 @@ static void *thread_packet_rx(void *p)
 			} else
 			if (ctx->spts_pmt_pid && ctx->spts_pmt_pid == pidnr) {
 				/* Expensive to do, so we only do this once during startup. */
-				if (ctx->spts_pmt_sm && ctx->spts_pmt_pkt_new[0] != 0x47) {
+				if (ctx->spts_pmt_ptr && ctx->spts_pmt_pkt_new[0] != 0x47) {
 					/* If a stream model has been established then create a new PMT packet,
-					 * strip any ES's pids as needed.
+					 * strip any ES's pids as needed. Reuse the cached pointer resolved at
+					 * model-ready time -- re-searching by ctx->spts_pmt_pid here would fail
+					 * once -M has rewritten program_map_PID to relocate the PMT itself.
 					 */
-					int e = 0;
-					struct ltntstools_pmt_s *pmtptr = NULL;
-					while (ltntstools_pat_enum_services(ctx->spts_pmt_sm, &e, ctx->spts_pmt_pid, &pmtptr) == 0) {
+					struct ltntstools_pmt_s *pmtptr = ctx->spts_pmt_ptr;
+					{
 						/* Patch the PMT */
- 
+
 						/* remove any filtered pids, from the pmt object */
-						for (int i = 0; i < 0x2000; i++) {
-							if (ctx->filter[i] == 0) {
-								ltntstools_pmt_remove_es_for_pid(pmtptr, i);
+						for (int j = 0; j < 0x2000; j++) {
+							if (ctx->filter[j] == 0) {
+								ltntstools_pmt_remove_es_for_pid(pmtptr, j);
 							}
 						}
 
@@ -524,7 +528,6 @@ static void *thread_packet_rx(void *p)
 							printf("Newly created PMT transport packet:\n");
 							ltntstools_hexdump(&ctx->spts_pmt_pkt_new[0], 188, 32);
 						}
-						break;
 					}
 				}
 			}
@@ -620,19 +623,28 @@ static void *thread_packet_rx(void *p)
 
 					ctx->spts_pmt_sm = ltntstools_pat_clone(pat);
 
-					if (ctx->new_program_number && ctx->spts_pmt_pid) {
+					if (ctx->spts_pmt_pid) {
+						/* Resolve the target service's pmt object exactly once, before any
+						 * mutation. The -M block below may rewrite program_map_PID, which
+						 * would make this unfindable by re-searching on the original -Z pid
+						 * later -- so every other pid/pmt-mutating feature (and the per-packet
+						 * PMT rewrite loop) must reuse this cached pointer instead of
+						 * re-resolving it from ctx->spts_pmt_pid.
+						 */
+						int e = 0;
+						if (ltntstools_pat_enum_services(ctx->spts_pmt_sm, &e, ctx->spts_pmt_pid, &ctx->spts_pmt_ptr) != 0) {
+							ctx->spts_pmt_ptr = NULL;
+							fprintf(stderr, "\nNo service found on PMT pid 0x%04x, -N/-A/-D/-M will not be applied.\n\n",
+								ctx->spts_pmt_pid);
+						}
+					}
+
+					if (ctx->new_program_number && ctx->spts_pmt_ptr) {
 						/* Mutate the cloned model's program_number once, up front, so
 						 * whichever pid (PAT or PMT) is next encountered in the stream
 						 * builds its one-time replacement packet with the new value.
 						 */
-						int e = 0;
-						struct ltntstools_pmt_s *pmtptr = NULL;
-						if (ltntstools_pat_enum_services(ctx->spts_pmt_sm, &e, ctx->spts_pmt_pid, &pmtptr) == 0) {
-							pmtptr->program_number = ctx->new_program_number;
-						} else {
-							fprintf(stderr, "\n-N requested but no service found on PMT pid 0x%04x, program_number will not be changed.\n\n",
-								ctx->spts_pmt_pid);
-						}
+						ctx->spts_pmt_ptr->program_number = ctx->new_program_number;
 					}
 
 					if (ctx->pid_remap_active && ctx->pid_remap[ctx->spts_pmt_pid] != ctx->spts_pmt_pid) {
