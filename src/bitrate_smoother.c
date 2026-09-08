@@ -78,6 +78,10 @@ struct tool_context_s
 	unsigned char spts_pmt_pkt_new[188];   /* New PMT that gets create IF we're dropping pids. TODO: Aaumption PMT is not 2 packets or more */
 	struct ltntstools_pat_s *spts_pmt_sm;  /* deconstructed PMT object. */
 
+	/* program_number remapping in a SPTS, requires spts_pmt_pid (-Z) to identify the service. */
+	unsigned int new_program_number;       /* Desired new program_number for the service on spts_pmt_pid. 0 = disabled. */
+	unsigned char spts_pat_pkt_new[188];   /* New PAT that gets created once, reflecting new_program_number. */
+
 };
 
 /* Reframer hands us 7*188 buffers, guaranteed. Send to the UDP. */
@@ -368,6 +372,25 @@ static void *thread_packet_rx(void *p)
 			if (ctx->filter[pidnr] == 0) {
 				ltntstools_generateNullPacket(p);
 			}
+			/* If the PAT needs a remapped program_number, and we've previously constructed it - replace it here */
+			if (ctx->new_program_number && pidnr == 0x0000 && ctx->spts_pat_pkt_new[0] == 0x47) {
+				if (ctx->verbose) {
+					printf("Patching PAT on pid 0x0000\n");
+				}
+				ctx->spts_pat_pkt_new[3] &= 0xf0; /* Strip previous CC field */
+				ctx->spts_pat_pkt_new[3] |= (*(buf + i + 3) & 0x0f); /* Clone the CC field from current. */
+				memcpy(buf + i, &ctx->spts_pat_pkt_new[0], 188);
+			} else
+			if (ctx->new_program_number && pidnr == 0x0000 && ctx->spts_pmt_sm && ctx->spts_pat_pkt_new[0] != 0x47) {
+				/* Expensive to do, so we only do this once during startup. */
+				int cc = ltntstools_continuity_counter(buf + i);
+				ltntstools_pat_create_packet_ts(ctx->spts_pmt_sm, cc, &ctx->spts_pat_pkt_new[0], 188);
+				if (ctx->verbose & 32) {
+					printf("Newly created PAT transport packet:\n");
+					ltntstools_hexdump(&ctx->spts_pat_pkt_new[0], 188, 32);
+				}
+			}
+
 			/* If an SPTS PMT needs to be replaced, and we've previously constructed it - replace it here */
 			if (ctx->spts_pmt_pid && ctx->spts_pmt_pid == pidnr && ctx->spts_pmt_pkt_new[0] == 0x47) {
 				if (ctx->verbose) {
@@ -488,6 +511,21 @@ static void *thread_packet_rx(void *p)
 					}
 
 					ctx->spts_pmt_sm = ltntstools_pat_clone(pat);
+
+					if (ctx->new_program_number && ctx->spts_pmt_pid) {
+						/* Mutate the cloned model's program_number once, up front, so
+						 * whichever pid (PAT or PMT) is next encountered in the stream
+						 * builds its one-time replacement packet with the new value.
+						 */
+						int e = 0;
+						struct ltntstools_pmt_s *pmtptr = NULL;
+						if (ltntstools_pat_enum_services(ctx->spts_pmt_sm, &e, ctx->spts_pmt_pid, &pmtptr) == 0) {
+							pmtptr->program_number = ctx->new_program_number;
+						} else {
+							fprintf(stderr, "\n-N requested but no service found on PMT pid 0x%04x, program_number will not be changed.\n\n",
+								ctx->spts_pmt_pid);
+						}
+					}
 
 					ltntstools_pat_free(pat);
 				}
@@ -620,6 +658,8 @@ static void usage(const char *progname)
 	printf("  -R pid 0xNNNN to be removed [def: none], multiple -R instances supported. [0x2000 all pids]\n");
 	printf("  -S <seconds> Show developer statistics every N seconds. [def: disabled]\n");
 	printf("  -Z pid 0xNNNN Update this PID PMT to reflect any removed ES pids [def: disabled]\n");
+	printf("  -N <program_number> Rewrite the PAT/PMT program_number for the service on -Z's pid [def: disabled]\n");
+	printf("     Requires -Z, and requires auto PCR/PMT detection (don't combine with -P).\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
 #ifdef __linux__
 	printf("  -t <#seconds> Stop after N seconds [def: 0 - unlimited]\n");
@@ -657,7 +697,7 @@ int bitrate_smoother(int argc, char *argv[])
 		return 1;
 	}
 
-	while ((ch = getopt(argc, argv, "?hi:l:o:L:P:R:v:t:S:XZ:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:l:o:L:N:P:R:v:t:S:XZ:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -678,6 +718,13 @@ int bitrate_smoother(int argc, char *argv[])
 			break;
 		case 'L':
 			ctx->terminateLOSSeconds = atoi(optarg);
+			break;
+		case 'N':
+			ctx->new_program_number = atoi(optarg);
+			if (ctx->new_program_number == 0 || ctx->new_program_number > 0xffff) {
+				usage(argv[0]);
+				exit(1);
+			}
 			break;
 		case 'P':
 			if ((sscanf(optarg, "0x%x", &ctx->pcrPID) != 1) || (ctx->pcrPID > 0x1fff)) {
@@ -736,6 +783,18 @@ int bitrate_smoother(int argc, char *argv[])
 
 	if (ctx->terminateLOSSeconds) {
 		printf("\n-L %d, process will self terminate if input LOS exceeds %d seconds.\n\n", ctx->terminateLOSSeconds, ctx->terminateLOSSeconds);
+	}
+
+	if (ctx->new_program_number && ctx->spts_pmt_pid == 0) {
+		usage(argv[0]);
+		fprintf(stderr, "\n-N requires -Z <pmt pid> to identify the service, aborting.\n\n");
+		exit(1);
+	}
+
+	if (ctx->new_program_number && ctx->pcrPID) {
+		usage(argv[0]);
+		fprintf(stderr, "\n-N requires auto PCR/PMT detection, don't combine with -P, aborting.\n\n");
+		exit(1);
 	}
 
 	if (ctx->stopAfterSeconds) {
