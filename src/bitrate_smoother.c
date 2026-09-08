@@ -82,7 +82,37 @@ struct tool_context_s
 	unsigned int new_program_number;       /* Desired new program_number for the service on spts_pmt_pid. 0 = disabled. */
 	unsigned char spts_pat_pkt_new[188];   /* New PAT that gets created once, reflecting new_program_number. */
 
+	/* ISO 639 audio_language_descriptor add/remove on an ES pid within the PMT on spts_pmt_pid (-Z). */
+	unsigned int lang_add_pid;             /* ES pid to add/replace an ISO639 audio language descriptor on. 0 = disabled. */
+	char lang_add_code[4];                 /* 3-char ISO 639-2 language code + NUL. */
+	uint8_t lang_add_type;                 /* audio_type byte. 0 = undefined. */
+	unsigned int lang_del_pid;             /* ES pid to remove any ISO639 audio language descriptor from. 0 = disabled. */
+
 };
+
+/* Find the ES stream entry for a given elementary PID within a PMT object, or NULL if absent. */
+static struct ltntstools_pmt_entry_s *pmt_find_stream(struct ltntstools_pmt_s *pmt, uint16_t pid)
+{
+	for (unsigned int i = 0; i < pmt->stream_count; i++) {
+		if (pmt->streams[i].elementary_PID == pid)
+			return &pmt->streams[i];
+	}
+	return NULL;
+}
+
+/* Remove all descriptors matching tag from a descriptor list, compacting the array in place. */
+static void descriptor_list_remove_tag(struct ltntstools_descriptor_list_s *list, uint8_t tag)
+{
+	uint32_t w = 0;
+	for (uint32_t r = 0; r < list->count; r++) {
+		if (list->array[r].tag == tag)
+			continue;
+		if (w != r)
+			list->array[w] = list->array[r];
+		w++;
+	}
+	list->count = w;
+}
 
 /* Reframer hands us 7*188 buffers, guaranteed. Send to the UDP. */
 static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
@@ -419,6 +449,35 @@ static void *thread_packet_rx(void *p)
 							}
 						}
 
+						/* Remove any requested ISO639 audio_language_descriptor from an ES pid */
+						if (ctx->lang_del_pid) {
+							struct ltntstools_pmt_entry_s *entry = pmt_find_stream(pmtptr, ctx->lang_del_pid);
+							if (entry) {
+								descriptor_list_remove_tag(&entry->descr_list, 0x0a);
+							} else {
+								fprintf(stderr, "\n-D requested but ES pid 0x%04x not found in PMT, ignoring.\n\n",
+									ctx->lang_del_pid);
+							}
+						}
+
+						/* Add/replace a requested ISO639 audio_language_descriptor on an ES pid */
+						if (ctx->lang_add_pid) {
+							struct ltntstools_pmt_entry_s *entry = pmt_find_stream(pmtptr, ctx->lang_add_pid);
+							if (entry) {
+								descriptor_list_remove_tag(&entry->descr_list, 0x0a); /* Replace, don't duplicate. */
+								uint8_t desc[4] = {
+									ctx->lang_add_code[0],
+									ctx->lang_add_code[1],
+									ctx->lang_add_code[2],
+									ctx->lang_add_type
+								};
+								ltntstools_descriptor_list_add(&entry->descr_list, 0x0a, desc, sizeof(desc));
+							} else {
+								fprintf(stderr, "\n-A requested but ES pid 0x%04x not found in PMT, ignoring.\n\n",
+									ctx->lang_add_pid);
+							}
+						}
+
 						if (ctx->verbose & 32) {
 							printf("New patched streammodel, after pids removed:\n");
 							ltntstools_pat_dprintf(ctx->spts_pmt_sm, STDOUT_FILENO);
@@ -660,6 +719,9 @@ static void usage(const char *progname)
 	printf("  -Z pid 0xNNNN Update this PID PMT to reflect any removed ES pids [def: disabled]\n");
 	printf("  -N <program_number> Rewrite the PAT/PMT program_number for the service on -Z's pid [def: disabled]\n");
 	printf("     Requires -Z, and requires auto PCR/PMT detection (don't combine with -P).\n");
+	printf("  -A 0xNNNN:lang[:type] Add/replace an ISO639 audio_language_descriptor on ES pid 0xNNNN\n");
+	printf("     within the PMT on -Z's pid. lang is a 3 letter code eg. eng, type is optional [def: 0].\n");
+	printf("  -D 0xNNNN Remove any ISO639 audio_language_descriptor from ES pid 0xNNNN within the PMT on -Z's pid\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
 #ifdef __linux__
 	printf("  -t <#seconds> Stop after N seconds [def: 0 - unlimited]\n");
@@ -697,7 +759,7 @@ int bitrate_smoother(int argc, char *argv[])
 		return 1;
 	}
 
-	while ((ch = getopt(argc, argv, "?hi:l:o:L:N:P:R:v:t:S:XZ:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hi:l:o:L:A:D:N:P:R:v:t:S:XZ:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -715,6 +777,33 @@ int bitrate_smoother(int argc, char *argv[])
 			break;
 		case 'o':
 			ctx->oname = optarg;
+			break;
+		case 'A': {
+			char tmp[64];
+			snprintf(tmp, sizeof(tmp), "%s", optarg);
+			char *tok_pid = strtok(tmp, ":");
+			char *tok_lang = strtok(NULL, ":");
+			char *tok_type = strtok(NULL, ":");
+			unsigned int pid = 0;
+			if (!tok_pid || !tok_lang || strlen(tok_lang) != 3 ||
+				(sscanf(tok_pid, "0x%x", &pid) != 1) || pid >= 0x2000) {
+				usage(argv[0]);
+				fprintf(stderr, "\n-A syntax error, expected 0xNNNN:lang[:type], eg. 0x101:eng or 0x101:eng:2\n\n");
+				exit(1);
+			}
+			ctx->lang_add_pid = pid;
+			ctx->lang_add_code[0] = tok_lang[0];
+			ctx->lang_add_code[1] = tok_lang[1];
+			ctx->lang_add_code[2] = tok_lang[2];
+			ctx->lang_add_code[3] = 0;
+			ctx->lang_add_type = tok_type ? (uint8_t)strtoul(tok_type, NULL, 0) : 0;
+			break;
+		}
+		case 'D':
+			if ((sscanf(optarg, "0x%x", &ctx->lang_del_pid) != 1) || (ctx->lang_del_pid >= 0x2000)) {
+				usage(argv[0]);
+				exit(1);
+			}
 			break;
 		case 'L':
 			ctx->terminateLOSSeconds = atoi(optarg);
@@ -794,6 +883,18 @@ int bitrate_smoother(int argc, char *argv[])
 	if (ctx->new_program_number && ctx->pcrPID) {
 		usage(argv[0]);
 		fprintf(stderr, "\n-N requires auto PCR/PMT detection, don't combine with -P, aborting.\n\n");
+		exit(1);
+	}
+
+	if ((ctx->lang_add_pid || ctx->lang_del_pid) && ctx->spts_pmt_pid == 0) {
+		usage(argv[0]);
+		fprintf(stderr, "\n-A/-D require -Z <pmt pid> to identify the service, aborting.\n\n");
+		exit(1);
+	}
+
+	if ((ctx->lang_add_pid || ctx->lang_del_pid) && ctx->pcrPID) {
+		usage(argv[0]);
+		fprintf(stderr, "\n-A/-D require auto PCR/PMT detection, don't combine with -P, aborting.\n\n");
 		exit(1);
 	}
 
