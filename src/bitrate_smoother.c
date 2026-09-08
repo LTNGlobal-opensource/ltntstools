@@ -99,7 +99,21 @@ struct tool_context_s
 	unsigned char sdt_pkt[188];            /* Pre-built SDT packet (built once from provider/service name), CC field is a template only. */
 	uint8_t sdt_cc;                        /* Our own continuity counter for the synthesized pid 0x0011 packets. */
 
+	/* PID renumbering, input pid -> output pid, requires spts_pmt_pid (-Z) so the PMT/PAT
+	 * can be patched to reflect the new locations. pid_remap[x] == x for any pid not
+	 * explicitly remapped (identity), so lookups are always safe without an extra branch.
+	 */
+	uint16_t pid_remap[8192];
+	int pid_remap_active;                  /* Boolean, true if any -M mapping was given. */
+
 };
+
+/* Rewrite the pid field of a transport packet in place, preserving TEI/PUSI/priority bits. */
+static inline void ts_pid_rewrite(uint8_t *pkt, uint16_t pid)
+{
+	pkt[1] = (pkt[1] & 0xe0) | ((pid >> 8) & 0x1f);
+	pkt[2] = pid & 0xff;
+}
 
 /* Reframer hands us 7*188 buffers, guaranteed. Send to the UDP. */
 static void *reframer_cb(void *userContext, const uint8_t *buf, int lengthBytes)
@@ -389,8 +403,24 @@ static void *thread_packet_rx(void *p)
 			if (ctx->filter[pidnr] == 0) {
 				ltntstools_generateNullPacket(p);
 			}
-			/* If the PAT needs a remapped program_number, and we've previously constructed it - replace it here */
-			if (ctx->new_program_number && pidnr == 0x0000 && ctx->spts_pat_pkt_new[0] == 0x47) {
+
+			/* Generic pid renumbering: rewrite any ordinary ES pid in place. The PAT (always
+			 * pid 0x0000) and the PMT's own carrier pid are handled separately below, since
+			 * those two are regenerated wholesale rather than rewritten in place.
+			 */
+			if (ctx->pid_remap_active && ctx->filter[pidnr] != 0 && pidnr != 0x0000 && pidnr != ctx->spts_pmt_pid) {
+				uint16_t newpid = ctx->pid_remap[pidnr];
+				if (newpid != pidnr) {
+					ts_pid_rewrite(p, newpid);
+				}
+			}
+
+			/* Regenerate the PAT if the program_number changed (-N) or the PMT itself was relocated (-M). */
+			int pat_needs_regen = ctx->new_program_number ||
+				(ctx->pid_remap_active && ctx->pid_remap[ctx->spts_pmt_pid] != ctx->spts_pmt_pid);
+
+			/* If the PAT needs regenerating, and we've previously constructed it - replace it here */
+			if (pat_needs_regen && pidnr == 0x0000 && ctx->spts_pat_pkt_new[0] == 0x47) {
 				if (ctx->verbose) {
 					printf("Patching PAT on pid 0x0000\n");
 				}
@@ -398,7 +428,7 @@ static void *thread_packet_rx(void *p)
 				ctx->spts_pat_pkt_new[3] |= (*(buf + i + 3) & 0x0f); /* Clone the CC field from current. */
 				memcpy(buf + i, &ctx->spts_pat_pkt_new[0], 188);
 			} else
-			if (ctx->new_program_number && pidnr == 0x0000 && ctx->spts_pmt_sm && ctx->spts_pat_pkt_new[0] != 0x47) {
+			if (pat_needs_regen && pidnr == 0x0000 && ctx->spts_pmt_sm && ctx->spts_pat_pkt_new[0] != 0x47) {
 				/* Expensive to do, so we only do this once during startup. */
 				int cc = ltntstools_continuity_counter(buf + i);
 				ltntstools_pat_create_packet_ts(ctx->spts_pmt_sm, cc, &ctx->spts_pat_pkt_new[0], 188);
@@ -465,6 +495,21 @@ static void *thread_packet_rx(void *p)
 							}
 						}
 
+						/* Renumber any ES pids (and PCR_PID) in the PMT object per the -M pid map */
+						if (ctx->pid_remap_active) {
+							for (unsigned int si = 0; si < pmtptr->stream_count; si++) {
+								uint16_t oldpid = pmtptr->streams[si].elementary_PID;
+								uint16_t newpid = ctx->pid_remap[oldpid];
+								if (newpid != oldpid) {
+									pmtptr->streams[si].elementary_PID = newpid;
+								}
+							}
+							uint16_t newpcrpid = ctx->pid_remap[pmtptr->PCR_PID];
+							if (newpcrpid != pmtptr->PCR_PID) {
+								pmtptr->PCR_PID = newpcrpid;
+							}
+						}
+
 						if (ctx->verbose & 32) {
 							printf("New patched streammodel, after pids removed:\n");
 							ltntstools_pat_dprintf(ctx->spts_pmt_sm, STDOUT_FILENO);
@@ -473,7 +518,8 @@ static void *thread_packet_rx(void *p)
 						/* Convert he PMT object into a fully formed transport packet. A one-time cost. */
 						/* TODO: No support for PMT packets that span two or more transport packets */
 						int cc = ltntstools_continuity_counter(buf + i);
-						ltntstools_pmt_create_packet_ts(pmtptr, ctx->spts_pmt_pid, cc, &ctx->spts_pmt_pkt_new[0], 188);
+						uint16_t pmt_out_pid = ctx->pid_remap_active ? ctx->pid_remap[ctx->spts_pmt_pid] : ctx->spts_pmt_pid;
+						ltntstools_pmt_create_packet_ts(pmtptr, pmt_out_pid, cc, &ctx->spts_pmt_pkt_new[0], 188);
 						if (ctx->verbose & 32) {
 							printf("Newly created PMT transport packet:\n");
 							ltntstools_hexdump(&ctx->spts_pmt_pkt_new[0], 188, 32);
@@ -585,6 +631,25 @@ static void *thread_packet_rx(void *p)
 							pmtptr->program_number = ctx->new_program_number;
 						} else {
 							fprintf(stderr, "\n-N requested but no service found on PMT pid 0x%04x, program_number will not be changed.\n\n",
+								ctx->spts_pmt_pid);
+						}
+					}
+
+					if (ctx->pid_remap_active && ctx->pid_remap[ctx->spts_pmt_pid] != ctx->spts_pmt_pid) {
+						/* The PMT itself is being relocated to a new pid. Update the PAT's
+						 * program_map_PID for this service to point at the new location,
+						 * same one-time-mutation pattern as the program_number change above.
+						 */
+						int found = 0;
+						for (unsigned int pi = 0; pi < ctx->spts_pmt_sm->program_count; pi++) {
+							if (ctx->spts_pmt_sm->programs[pi].program_map_PID == ctx->spts_pmt_pid) {
+								ctx->spts_pmt_sm->programs[pi].program_map_PID = ctx->pid_remap[ctx->spts_pmt_pid];
+								found = 1;
+								break;
+							}
+						}
+						if (!found) {
+							fprintf(stderr, "\n-M requested but no service found on PMT pid 0x%04x, PAT will not be updated.\n\n",
 								ctx->spts_pmt_pid);
 						}
 					}
@@ -725,6 +790,9 @@ static void usage(const char *progname)
 	printf("  -A 0xNNNN:lang[:type] Add/replace an ISO639 audio_language_descriptor on ES pid 0xNNNN\n");
 	printf("     within the PMT on -Z's pid. lang is a 3 letter code eg. eng, type is optional [def: 0].\n");
 	printf("  -D 0xNNNN Remove any ISO639 audio_language_descriptor from ES pid 0xNNNN within the PMT on -Z's pid\n");
+	printf("  -M 0xNNNN:0xMMMM Renumber input pid 0xNNNN to output pid 0xMMMM, multiple -M instances supported.\n");
+	printf("     Patches the PMT (ES pids, PCR_PID) and, if the PMT's own pid is remapped, the PAT too.\n");
+	printf("     Neither 0xNNNN nor 0xMMMM may be 0x0000 (the PAT is always on pid 0x0000). Requires -Z.\n");
 	printf("  --sdt-provider-name <name>           Provider name for a synthesized custom SDT [def: disabled]\n");
 	printf("  --sdt-service-name <name>            Service name for a synthesized custom SDT [def: disabled]\n");
 	printf("  --sdt-insert-on-null-after-each-pat  Arm on each PAT packet seen, replace the next null packet\n");
@@ -752,6 +820,9 @@ int bitrate_smoother(int argc, char *argv[])
 	ctx = &tctx;
 	memset(ctx, 0, sizeof(*ctx));
 	memset(&ctx->filter[0], 1, sizeof(ctx->filter)); /* Pass all pids by default */
+	for (int i = 0; i < 0x2000; i++) {
+		ctx->pid_remap[i] = i; /* Identity mapping by default, until -M overrides specific pids. */
+	}
 
 	ctx->latencyMS = DEFAULT_LATENCY;
 	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
@@ -776,7 +847,7 @@ int bitrate_smoother(int argc, char *argv[])
 
 	while (1) {
 		int option_index = 0;
-		ch = getopt_long(argc, argv, "?hi:l:o:L:A:D:N:P:R:v:t:S:XZ:", long_options, &option_index);
+		ch = getopt_long(argc, argv, "?hi:l:o:L:A:D:M:N:P:R:v:t:S:XZ:", long_options, &option_index);
 		if (ch == -1)
 			break;
 		switch (ch) {
@@ -840,6 +911,22 @@ int bitrate_smoother(int argc, char *argv[])
 		case 'L':
 			ctx->terminateLOSSeconds = atoi(optarg);
 			break;
+		case 'M': {
+			unsigned int inpid = 0, outpid = 0;
+			if ((sscanf(optarg, "0x%x:0x%x", &inpid, &outpid) != 2) || inpid >= 0x2000 || outpid >= 0x2000) {
+				usage(argv[0]);
+				fprintf(stderr, "\n-M syntax error, expected 0xNNNN:0xMMMM, eg. 0x100:0x150\n\n");
+				exit(1);
+			}
+			if (inpid == 0x0000 || outpid == 0x0000) {
+				usage(argv[0]);
+				fprintf(stderr, "\n-M cannot remap pid 0x0000, the PAT is always transmitted on pid 0x0000, aborting.\n\n");
+				exit(1);
+			}
+			ctx->pid_remap[inpid] = outpid;
+			ctx->pid_remap_active = 1;
+			break;
+		}
 		case 'N':
 			ctx->new_program_number = atoi(optarg);
 			if (ctx->new_program_number == 0 || ctx->new_program_number > 0xffff) {
@@ -927,6 +1014,18 @@ int bitrate_smoother(int argc, char *argv[])
 	if ((ctx->lang_add_pid || ctx->lang_del_pid) && ctx->pcrPID) {
 		usage(argv[0]);
 		fprintf(stderr, "\n-A/-D require auto PCR/PMT detection, don't combine with -P, aborting.\n\n");
+		exit(1);
+	}
+
+	if (ctx->pid_remap_active && ctx->spts_pmt_pid == 0) {
+		usage(argv[0]);
+		fprintf(stderr, "\n-M requires -Z <pmt pid> to identify the service, aborting.\n\n");
+		exit(1);
+	}
+
+	if (ctx->pid_remap_active && ctx->pcrPID) {
+		usage(argv[0]);
+		fprintf(stderr, "\n-M requires auto PCR/PMT detection, don't combine with -P, aborting.\n\n");
 		exit(1);
 	}
 
