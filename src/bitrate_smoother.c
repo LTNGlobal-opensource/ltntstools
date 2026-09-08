@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <curses.h>
@@ -88,6 +89,16 @@ struct tool_context_s
 	uint8_t lang_add_type;                 /* audio_type byte. 0 = undefined. */
 	unsigned int lang_del_pid;             /* ES pid to remove any ISO639 audio language descriptor from. 0 = disabled. */
 
+	/* Custom SDT injection. Requires --sdt-provider-name, --sdt-service-name and
+	 * --sdt-insert-on-null-after-each-pat. Independent of spts_pmt_pid/-Z.
+	 */
+	char *sdt_provider_name;
+	char *sdt_service_name;
+	int sdt_insert_on_null_after_pat;      /* Boolean, enables the PAT-triggered null-packet substitution. */
+	int sdt_armed;                         /* Runtime: a PAT has passed, waiting for the next null packet to replace. */
+	unsigned char sdt_pkt[188];            /* Pre-built SDT packet (built once from provider/service name), CC field is a template only. */
+	uint8_t sdt_cc;                        /* Our own continuity counter for the synthesized pid 0x0011 packets. */
+
 };
 
 /* Find the ES stream entry for a given elementary PID within a PMT object, or NULL if absent. */
@@ -112,6 +123,99 @@ static void descriptor_list_remove_tag(struct ltntstools_descriptor_list_s *list
 		w++;
 	}
 	list->count = w;
+}
+
+#define SDT_PID 0x0011
+
+/**
+ * Build a single-service DVB SDT (actual_transport_stream, table_id 0x42) transport
+ * packet, containing exactly one service_descriptor (tag 0x48) built from providerName
+ * and serviceName. Follows the same "one packet only" convention as
+ * ltntstools_pat_create_packet_ts()/ltntstools_pmt_create_packet_ts(): fails if the
+ * section doesn't fit in a single 188 byte packet.
+ *
+ * transport_stream_id, original_network_id and service_id aren't exposed on the
+ * bitrate_smoother command line (only provider/service name are) -- callers needing
+ * different values should hardcode them here.
+ */
+static int build_sdt_packet(const char *providerName, const char *serviceName,
+	uint16_t transport_stream_id, uint16_t original_network_id, uint16_t service_id,
+	uint8_t cc, uint8_t *packet, int packetLength)
+{
+	if (!providerName || !serviceName || !packet || packetLength != 188)
+		return -1;
+
+	size_t providerLen = strlen(providerName);
+	size_t serviceLen = strlen(serviceName);
+	if (providerLen > 255 || serviceLen > 255)
+		return -1;
+
+	int descLen = 3 + (int)providerLen + (int)serviceLen; /* service_type(1) + 2 length bytes + strings */
+	int loopLen = 2 + descLen;                             /* descriptor_tag(1) + descriptor_length(1) + descLen */
+	int sectionLen = 17 + loopLen;                          /* 8 fixed fields + 5 service fields + loopLen + 4 CRC */
+
+	int contentBytes = 8 + sectionLen; /* 5 byte TS header/pointer + table_id(1) + length(2) + sectionLen */
+	if (contentBytes > packetLength) {
+		fprintf(stderr, "%s() provider/service names need %d bytes, which does not fit in a single %d byte packet\n",
+			__func__, contentBytes, packetLength);
+		return -1;
+	}
+
+	uint8_t *p = packet;
+	int i = 0;
+
+	memset(p, 0xFF, packetLength);
+
+	p[i++] = 0x47;
+	p[i++] = 0x40 | ((SDT_PID >> 8) & 0x1f);
+	p[i++] = SDT_PID & 0xff;
+	p[i++] = 0x10 | (cc & 0x0f);
+	p[i++] = 0x00; /* pointer field */
+
+	p[i++] = 0x42; /* table_id: service_description_section, actual_transport_stream */
+	p[i++] = 0xF0 | ((sectionLen >> 8) & 0x0f); /* section_syntax_indicator=1, reserved_future_use=1, reserved=11 */
+	p[i++] = sectionLen & 0xff;
+
+	p[i++] = transport_stream_id >> 8;
+	p[i++] = transport_stream_id & 0xff;
+
+	p[i++] = 0xC1; /* reserved(2)=11, version_number(5)=0, current_next_indicator(1)=1 */
+	p[i++] = 0x00; /* section_number */
+	p[i++] = 0x00; /* last_section_number */
+
+	p[i++] = original_network_id >> 8;
+	p[i++] = original_network_id & 0xff;
+
+	p[i++] = 0xFF; /* reserved_future_use */
+
+	p[i++] = service_id >> 8;
+	p[i++] = service_id & 0xff;
+	p[i++] = 0xFC; /* reserved_future_use(6)=111111, EIT_schedule_flag=0, EIT_present_following_flag=0 */
+
+	uint8_t running_status = 4; /* running */
+	uint8_t free_ca_mode = 0;   /* not scrambled */
+	p[i++] = (running_status << 5) | (free_ca_mode << 4) | ((loopLen >> 8) & 0x0f);
+	p[i++] = loopLen & 0xff;
+
+	p[i++] = 0x48; /* descriptor_tag: service_descriptor */
+	p[i++] = descLen;
+	p[i++] = 0x01; /* service_type: digital television service */
+	p[i++] = (uint8_t)providerLen;
+	memcpy(&p[i], providerName, providerLen);
+	i += providerLen;
+	p[i++] = (uint8_t)serviceLen;
+	memcpy(&p[i], serviceName, serviceLen);
+	i += serviceLen;
+
+	uint32_t crc;
+	ltntstools_getCRC32(&p[5], i - 5, &crc);
+
+	p[i++] = (crc >> 24) & 0xff;
+	p[i++] = (crc >> 16) & 0xff;
+	p[i++] = (crc >> 8) & 0xff;
+	p[i++] = crc & 0xff;
+
+	return 0;
 }
 
 /* Reframer hands us 7*188 buffers, guaranteed. Send to the UDP. */
@@ -495,6 +599,22 @@ static void *thread_packet_rx(void *p)
 					}
 				}
 			}
+
+			/* Custom SDT injection: arm on a PAT, replace the next null packet we see with the SDT. */
+			if (ctx->sdt_insert_on_null_after_pat) {
+				if (pidnr == 0x0000) {
+					ctx->sdt_armed = 1;
+				} else
+				if (ctx->sdt_armed && ltntstools_pid(p) == 0x1fff) {
+					memcpy(p, ctx->sdt_pkt, 188);
+					p[3] = 0x10 | (ctx->sdt_cc & 0x0f);
+					ctx->sdt_cc = (ctx->sdt_cc + 1) & 0x0f;
+					ctx->sdt_armed = 0;
+					if (ctx->verbose) {
+						printf("Inserted custom SDT on a null packet\n");
+					}
+				}
+			}
 		}
 		if (ctx->isRTP == 0 && ctx->sm == NULL && ctx->pcrPID == 0) {
 			if (ltntstools_streammodel_alloc(&ctx->sm, NULL) < 0) {
@@ -722,6 +842,10 @@ static void usage(const char *progname)
 	printf("  -A 0xNNNN:lang[:type] Add/replace an ISO639 audio_language_descriptor on ES pid 0xNNNN\n");
 	printf("     within the PMT on -Z's pid. lang is a 3 letter code eg. eng, type is optional [def: 0].\n");
 	printf("  -D 0xNNNN Remove any ISO639 audio_language_descriptor from ES pid 0xNNNN within the PMT on -Z's pid\n");
+	printf("  --sdt-provider-name <name>           Provider name for a synthesized custom SDT [def: disabled]\n");
+	printf("  --sdt-service-name <name>            Service name for a synthesized custom SDT [def: disabled]\n");
+	printf("  --sdt-insert-on-null-after-each-pat  Arm on each PAT packet seen, replace the next null packet\n");
+	printf("     with the custom SDT. Requires --sdt-provider-name and --sdt-service-name.\n");
 	printf("  -l latency (ms) of protection. [def: %d]\n", DEFAULT_LATENCY);
 #ifdef __linux__
 	printf("  -t <#seconds> Stop after N seconds [def: 0 - unlimited]\n");
@@ -759,8 +883,33 @@ int bitrate_smoother(int argc, char *argv[])
 		return 1;
 	}
 
-	while ((ch = getopt(argc, argv, "?hi:l:o:L:A:D:N:P:R:v:t:S:XZ:")) != -1) {
+	struct option long_options[] =
+	{
+		{ "sdt-provider-name",                 required_argument, 0, 0 }, /* 0 */
+		{ "sdt-service-name",                  required_argument, 0, 0 }, /* 1 */
+		{ "sdt-insert-on-null-after-each-pat", no_argument,       0, 0 }, /* 2 */
+		{ 0, 0, 0, 0 }
+	};
+
+	while (1) {
+		int option_index = 0;
+		ch = getopt_long(argc, argv, "?hi:l:o:L:A:D:N:P:R:v:t:S:XZ:", long_options, &option_index);
+		if (ch == -1)
+			break;
 		switch (ch) {
+		case 0:
+			switch (option_index) {
+			case 0:
+				ctx->sdt_provider_name = optarg;
+				break;
+			case 1:
+				ctx->sdt_service_name = optarg;
+				break;
+			case 2:
+				ctx->sdt_insert_on_null_after_pat = 1;
+				break;
+			}
+			break;
 		case '?':
 		case 'h':
 			usage(argv[0]);
@@ -896,6 +1045,23 @@ int bitrate_smoother(int argc, char *argv[])
 		usage(argv[0]);
 		fprintf(stderr, "\n-A/-D require auto PCR/PMT detection, don't combine with -P, aborting.\n\n");
 		exit(1);
+	}
+
+	if (ctx->sdt_insert_on_null_after_pat && (!ctx->sdt_provider_name || !ctx->sdt_service_name)) {
+		usage(argv[0]);
+		fprintf(stderr, "\n--sdt-insert-on-null-after-each-pat requires --sdt-provider-name and --sdt-service-name, aborting.\n\n");
+		exit(1);
+	}
+
+	if (ctx->sdt_insert_on_null_after_pat) {
+		/* transport_stream_id, original_network_id and service_id are hardcoded to 1: they
+		 * aren't exposed on the command line, and this feature is independent of any PAT/PMT
+		 * model the tool may or may not have built.
+		 */
+		if (build_sdt_packet(ctx->sdt_provider_name, ctx->sdt_service_name, 1, 1, 1, 0, ctx->sdt_pkt, 188) < 0) {
+			fprintf(stderr, "\nUnable to build a custom SDT from --sdt-provider-name/--sdt-service-name, aborting.\n\n");
+			exit(1);
+		}
 	}
 
 	if (ctx->stopAfterSeconds) {
