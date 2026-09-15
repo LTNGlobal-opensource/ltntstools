@@ -39,6 +39,23 @@
         }
       }
     },
+    "/api/reset": {
+      "post": {
+        "summary": "Reset collected statistics",
+        "responses": {
+          "200": {
+            "description": "Statistics reset acknowledgement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/openapi.json": {
       "get": {
         "summary": "OpenAPI schema",
@@ -131,6 +148,14 @@
           "transportPackets": { "type": "integer", "format": "int64" },
           "ccErrors": { "type": "integer", "format": "int64" },
           "teiErrors": { "type": "integer", "format": "int64" }
+        }
+      },
+      "ResetResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["ok"] },
+          "message": { "type": "string" },
+          "resetTimestampUnix": { "type": "integer", "format": "int64" }
         }
       }
     }

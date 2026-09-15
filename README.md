@@ -39,20 +39,23 @@ Available endpoints:
 
     GET /api/transport-streams
     GET /api/transport-pids
+    POST /api/reset
     GET /openapi.json
 
 Sample `curl` commands:
 
     curl -s http://127.0.0.1:9601/api/transport-streams
     curl -s http://127.0.0.1:9601/api/transport-pids
+    curl -s -X POST http://127.0.0.1:9601/api/reset
     curl -s http://127.0.0.1:9601/openapi.json
 
 Pretty-print responses with `jq`:
 
     curl -s http://127.0.0.1:9601/api/transport-streams | jq .
     curl -s http://127.0.0.1:9601/api/transport-pids | jq .
+    curl -s -X POST http://127.0.0.1:9601/api/reset | jq .
 
-`/api/transport-streams` reports each detected stream's protocol type, source and destination addresses, bitrate, transport packet count, CC error count, IAT high water mark, and flags. `/api/transport-pids` reports the per-PID statistics for each stream, matching the PID report exposed by the interactive `P` command.
+`/api/transport-streams` reports each detected stream's protocol type, source and destination addresses, bitrate, transport packet count, CC error count, IAT high water mark, and flags. `/api/transport-pids` reports the per-PID statistics for each stream, matching the PID report exposed by the interactive `P` command. `POST /api/reset` resets the same statistics as the interactive `r` command.
 
 ## Dependencies
 	* libltntstools

@@ -138,6 +138,22 @@ json_object *rest_api_transport_pids_json(struct tool_context_s *ctx)
 	return root;
 }
 
+static json_object *rest_api_reset_json(struct tool_context_s *ctx)
+{
+	time(&ctx->lastResetTime);
+	discovered_items_stats_reset(ctx);
+	if (ctx->procNetUDPContext) {
+		ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
+	}
+	ctx->lastSocketReport = 0;
+
+	json_object *root = json_object_new_object();
+	json_object_object_add(root, "status", json_object_new_string("ok"));
+	json_object_object_add(root, "message", json_object_new_string("statistics reset"));
+	json_object_object_add(root, "resetTimestampUnix", json_object_new_int64(ctx->lastResetTime));
+	return root;
+}
+
 const char *rest_api_openapi_json(void)
 {
 	return
@@ -147,6 +163,7 @@ const char *rest_api_openapi_json(void)
 		"  \"paths\": {\n"
 		"    \"/api/transport-streams\": {\"get\": {\"summary\": \"List detected transport streams\", \"responses\": {\"200\": {\"description\": \"Detected streams and summary statistics\", \"content\": {\"application/json\": {\"schema\": {\"$ref\": \"#/components/schemas/TransportStreamsResponse\"}}}}}}},\n"
 		"    \"/api/transport-pids\": {\"get\": {\"summary\": \"List PID statistics grouped by stream\", \"responses\": {\"200\": {\"description\": \"Per-stream PID statistics\", \"content\": {\"application/json\": {\"schema\": {\"$ref\": \"#/components/schemas/TransportPidsResponse\"}}}}}}},\n"
+		"    \"/api/reset\": {\"post\": {\"summary\": \"Reset collected statistics\", \"responses\": {\"200\": {\"description\": \"Statistics reset acknowledgement\", \"content\": {\"application/json\": {\"schema\": {\"$ref\": \"#/components/schemas/ResetResponse\"}}}}}}},\n"
 		"    \"/openapi.json\": {\"get\": {\"summary\": \"OpenAPI schema\", \"responses\": {\"200\": {\"description\": \"OpenAPI document\"}}}}\n"
 		"  },\n"
 		"  \"components\": {\"schemas\": {\n"
@@ -155,7 +172,8 @@ const char *rest_api_openapi_json(void)
 		"    \"TransportStream\": {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\"}, \"protocolType\": {\"type\": \"string\"}, \"source\": {\"type\": \"string\"}, \"destination\": {\"type\": \"string\"}, \"firstSeenUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"lastUpdatedUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"bitrateMbps\": {\"type\": \"number\", \"format\": \"double\"}, \"bitrateBps\": {\"type\": \"integer\"}, \"transportPackets\": {\"type\": \"integer\", \"format\": \"int64\"}, \"ccErrors\": {\"type\": \"integer\", \"format\": \"int64\"}, \"iatHighWaterMarkMs\": {\"type\": \"integer\"}, \"iatHighWaterMarkUs\": {\"type\": \"integer\"}, \"flags\": {\"type\": \"string\"}, \"selected\": {\"type\": \"boolean\"}, \"recording\": {\"type\": \"boolean\"}, \"forwarding\": {\"type\": \"boolean\"}, \"srtRetransmissions\": {\"type\": \"integer\", \"format\": \"int64\"}}},\n"
 		"    \"TransportStreamPids\": {\"allOf\": [{\"$ref\": \"#/components/schemas/TransportStreamIdentity\"}, {\"type\": \"object\", \"properties\": {\"pids\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/PidStatistics\"}}}}]},\n"
 		"    \"TransportStreamIdentity\": {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\"}, \"protocolType\": {\"type\": \"string\"}, \"source\": {\"type\": \"string\"}, \"destination\": {\"type\": \"string\"}, \"firstSeenUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"lastUpdatedUnix\": {\"type\": \"integer\", \"format\": \"int64\"}}},\n"
-		"    \"PidStatistics\": {\"type\": \"object\", \"properties\": {\"pid\": {\"type\": \"integer\", \"minimum\": 0, \"maximum\": 8191}, \"pidHex\": {\"type\": \"string\"}, \"bitrateMbps\": {\"type\": \"number\", \"format\": \"double\"}, \"transportPackets\": {\"type\": \"integer\", \"format\": \"int64\"}, \"ccErrors\": {\"type\": \"integer\", \"format\": \"int64\"}, \"teiErrors\": {\"type\": \"integer\", \"format\": \"int64\"}}}\n"
+		"    \"PidStatistics\": {\"type\": \"object\", \"properties\": {\"pid\": {\"type\": \"integer\", \"minimum\": 0, \"maximum\": 8191}, \"pidHex\": {\"type\": \"string\"}, \"bitrateMbps\": {\"type\": \"number\", \"format\": \"double\"}, \"transportPackets\": {\"type\": \"integer\", \"format\": \"int64\"}, \"ccErrors\": {\"type\": \"integer\", \"format\": \"int64\"}, \"teiErrors\": {\"type\": \"integer\", \"format\": \"int64\"}}},\n"
+		"    \"ResetResponse\": {\"type\": \"object\", \"properties\": {\"status\": {\"type\": \"string\", \"enum\": [\"ok\"]}, \"message\": {\"type\": \"string\"}, \"resetTimestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}}}\n"
 		"  }}\n"
 		"}\n";
 }
@@ -194,24 +212,39 @@ static void service_client(struct tool_context_s *ctx, int fd)
 		http_reply(fd, 400, "Bad Request", "application/json", "{\"error\":\"bad request\"}\n");
 		return;
 	}
-	if (strcmp(method, "GET") != 0) {
-		http_reply(fd, 405, "Method Not Allowed", "application/json", "{\"error\":\"method not allowed\"}\n");
-		return;
-	}
-
 	char *query = strchr(path, '?');
 	if (query)
 		*query = 0;
 
 	if (strcmp(path, "/api/transport-streams") == 0) {
+		if (strcmp(method, "GET") != 0) {
+			http_reply(fd, 405, "Method Not Allowed", "application/json", "{\"error\":\"method not allowed\"}\n");
+			return;
+		}
 		json_object *obj = rest_api_transport_streams_json(ctx);
 		http_json_reply(fd, obj);
 		json_object_put(obj);
 	} else if (strcmp(path, "/api/transport-pids") == 0) {
+		if (strcmp(method, "GET") != 0) {
+			http_reply(fd, 405, "Method Not Allowed", "application/json", "{\"error\":\"method not allowed\"}\n");
+			return;
+		}
 		json_object *obj = rest_api_transport_pids_json(ctx);
 		http_json_reply(fd, obj);
 		json_object_put(obj);
+	} else if (strcmp(path, "/api/reset") == 0) {
+		if (strcmp(method, "POST") != 0) {
+			http_reply(fd, 405, "Method Not Allowed", "application/json", "{\"error\":\"method not allowed\"}\n");
+			return;
+		}
+		json_object *obj = rest_api_reset_json(ctx);
+		http_json_reply(fd, obj);
+		json_object_put(obj);
 	} else if (strcmp(path, "/openapi.json") == 0) {
+		if (strcmp(method, "GET") != 0) {
+			http_reply(fd, 405, "Method Not Allowed", "application/json", "{\"error\":\"method not allowed\"}\n");
+			return;
+		}
 		http_reply(fd, 200, "OK", "application/json", rest_api_openapi_json());
 	} else {
 		http_reply(fd, 404, "Not Found", "application/json", "{\"error\":\"not found\"}\n");
