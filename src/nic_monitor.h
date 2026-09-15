@@ -33,6 +33,7 @@
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+#include <sys/socket.h>
 
 #define MEDIA_MONITOR 0
 #if MEDIA_MONITOR
@@ -116,6 +117,11 @@ struct tool_context_s
 	struct xorg_list listJSONPost;
 	int jsonSocket;
 	struct sockaddr_in jsonSin;
+
+	int rest_api_port;
+	int rest_api_socket;
+	pthread_t rest_api_threadId;
+	int rest_api_threadTerminate, rest_api_threadRunning, rest_api_threadTerminated;
 
 #if KAFKA_REPORTER
 	pthread_t kafka_threadId;
@@ -216,6 +222,13 @@ void json_item_free(struct tool_context_s *ctx, struct json_item_s *item);
 int json_queue_push(struct tool_context_s *ctx, struct json_item_s *item);
 struct json_item_s *json_queue_pop(struct tool_context_s *ctx);
 struct json_item_s *json_queue_peek(struct tool_context_s *ctx);
+
+int  rest_api_initialize(struct tool_context_s *ctx);
+void rest_api_free(struct tool_context_s *ctx);
+void *rest_api_thread_func(void *p);
+json_object *rest_api_transport_streams_json(struct tool_context_s *ctx);
+json_object *rest_api_transport_pids_json(struct tool_context_s *ctx);
+const char *rest_api_openapi_json(void);
 
 #if KAFKA_REPORTER
 struct kafka_item_s

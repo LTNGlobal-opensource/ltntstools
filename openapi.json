@@ -1,0 +1,138 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "tstools_nic_monitor REST API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/transport-streams": {
+      "get": {
+        "summary": "List detected transport streams",
+        "responses": {
+          "200": {
+            "description": "Detected streams and summary statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransportStreamsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/transport-pids": {
+      "get": {
+        "summary": "List PID statistics grouped by stream",
+        "responses": {
+          "200": {
+            "description": "Per-stream PID statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransportPidsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "summary": "OpenAPI schema",
+        "responses": {
+          "200": {
+            "description": "OpenAPI document"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TransportStreamsResponse": {
+        "type": "object",
+        "required": ["timestampUnix", "interface", "streams"],
+        "properties": {
+          "timestampUnix": { "type": "integer", "format": "int64" },
+          "interface": { "type": "string" },
+          "streams": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TransportStream" }
+          }
+        }
+      },
+      "TransportPidsResponse": {
+        "type": "object",
+        "required": ["timestampUnix", "interface", "streams"],
+        "properties": {
+          "timestampUnix": { "type": "integer", "format": "int64" },
+          "interface": { "type": "string" },
+          "streams": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TransportStreamPids" }
+          }
+        }
+      },
+      "TransportStreamIdentity": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "protocolType": { "type": "string" },
+          "source": { "type": "string" },
+          "destination": { "type": "string" },
+          "firstSeenUnix": { "type": "integer", "format": "int64" },
+          "lastUpdatedUnix": { "type": "integer", "format": "int64" }
+        }
+      },
+      "TransportStream": {
+        "allOf": [
+          { "$ref": "#/components/schemas/TransportStreamIdentity" },
+          {
+            "type": "object",
+            "properties": {
+              "bitrateMbps": { "type": "number", "format": "double" },
+              "bitrateBps": { "type": "integer" },
+              "transportPackets": { "type": "integer", "format": "int64" },
+              "ccErrors": { "type": "integer", "format": "int64" },
+              "iatHighWaterMarkMs": { "type": "integer" },
+              "iatHighWaterMarkUs": { "type": "integer" },
+              "flags": { "type": "string" },
+              "selected": { "type": "boolean" },
+              "recording": { "type": "boolean" },
+              "forwarding": { "type": "boolean" },
+              "srtRetransmissions": { "type": "integer", "format": "int64" }
+            }
+          }
+        ]
+      },
+      "TransportStreamPids": {
+        "allOf": [
+          { "$ref": "#/components/schemas/TransportStreamIdentity" },
+          {
+            "type": "object",
+            "properties": {
+              "pids": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/PidStatistics" }
+              }
+            }
+          }
+        ]
+      },
+      "PidStatistics": {
+        "type": "object",
+        "properties": {
+          "pid": { "type": "integer", "minimum": 0, "maximum": 8191 },
+          "pidHex": { "type": "string" },
+          "bitrateMbps": { "type": "number", "format": "double" },
+          "transportPackets": { "type": "integer", "format": "int64" },
+          "ccErrors": { "type": "integer", "format": "int64" },
+          "teiErrors": { "type": "integer", "format": "int64" }
+        }
+      }
+    }
+  }
+}

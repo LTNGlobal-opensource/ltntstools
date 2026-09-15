@@ -27,8 +27,34 @@
     ./configure --enable-shared=no
     make
 
+## tstools_nic_monitor REST API
+
+The REST API is disabled by default. Enable it with `--rest-api-port <port>` when starting `tstools_nic_monitor`.
+
+Example startup:
+
+    tstools_nic_monitor -i eth0 -M --rest-api-port 9601
+
+Available endpoints:
+
+    GET /api/transport-streams
+    GET /api/transport-pids
+    GET /openapi.json
+
+Sample `curl` commands:
+
+    curl -s http://127.0.0.1:9601/api/transport-streams
+    curl -s http://127.0.0.1:9601/api/transport-pids
+    curl -s http://127.0.0.1:9601/openapi.json
+
+Pretty-print responses with `jq`:
+
+    curl -s http://127.0.0.1:9601/api/transport-streams | jq .
+    curl -s http://127.0.0.1:9601/api/transport-pids | jq .
+
+`/api/transport-streams` reports each detected stream's protocol type, source and destination addresses, bitrate, transport packet count, CC error count, IAT high water mark, and flags. `/api/transport-pids` reports the per-PID statistics for each stream, matching the PID report exposed by the interactive `P` command.
+
 ## Dependencies
 	* libltntstools
 	* ncurses
 	* libdvbpsi
-

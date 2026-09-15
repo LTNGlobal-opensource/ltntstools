@@ -1493,6 +1493,7 @@ static void usage(const char *progname)
 	printf("  --report-rtp-headers                 For RTP UDP/TS streams, dump each RTP header to console.\n");
 	printf("  --http-json-reporting http://url     Send 1sec json stats reports for all discovered streams [def: disabled] (Experimental).\n");
 	printf("    Eg. http://127.0.0.1:13400/whatever_resource_name_you_want\n");
+	printf("  --rest-api-port <port>               Serve REST API stats on this TCP port [def: disabled].\n");
 	printf("  --report-memory-usage                Report memory usage and growth every 5 seconds.\n");
 	printf("  --measure-scheduling-stalls          Test the scheduling system for 1000us sleeps that lasted more than 3000us.\n");
 	printf("  --measure-microbursts                In the IAT report, show 10ms and 100ms microburst measurements.\n");
@@ -1543,6 +1544,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		{ "report-memory-usage", 		no_argument,		0, 0 },
 		{ "measure-scheduling-stalls", 		no_argument,		0, 0 },
 		{ "measure-microbursts", 		no_argument,		0, 0 },
+		{ "rest-api-port",				required_argument,	0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1760,6 +1762,13 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			case 28: /* measure-microbursts */
 				ctx->reportMicrobursts = 1;
 				break;
+			case 29: /* rest-api-port */
+				ctx->rest_api_port = atoi(optarg);
+				if (ctx->rest_api_port < 1 || ctx->rest_api_port > 65535) {
+					fprintf(stderr, "\n--rest-api-port syntax error, expected a TCP port 1-65535\n\n");
+					exit(1);
+				}
+				break;
 			default:
 				usage(argv[0]);
 				exit(1);
@@ -1795,6 +1804,7 @@ int nic_monitor(int argc, char *argv[])
 	pthread_mutex_init(&ctx->lockJSONPost, NULL);
 	xorg_list_init(&ctx->listJSONPost);
 	ctx->jsonSocket = -1;
+	ctx->rest_api_socket = -1;
 
 	ctx->reframer = ltntstools_reframer_alloc(ctx, 7 * 188, (ltntstools_reframer_callback)reframer_cb);
 
@@ -1862,12 +1872,23 @@ int nic_monitor(int argc, char *argv[])
 		printf("json write interval: %d\n", JSON_WRITE_INTERVAL);
 	}
 
+	if (rest_api_initialize(ctx) < 0) {
+		fprintf(stderr, "Unable to start REST API on port %d\n", ctx->rest_api_port);
+		exit(1);
+	}
+
 	gRunning = 1;
 	pthread_create(&ctx->stats_threadId, 0, stats_thread_func, ctx);
 	if (ctx->iftype == IF_TYPE_PCAP || ctx->iftype == IF_TYPE_MPEGTS_FILE || ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
 		pthread_create(&ctx->pcap_threadId, 0, pcap_thread_func, ctx);
 	}
 	pthread_create(&ctx->json_threadId, 0, json_thread_func, ctx);
+	if (ctx->rest_api_port > 0) {
+		pthread_create(&ctx->rest_api_threadId, 0, rest_api_thread_func, ctx);
+		if (ctx->verbose) {
+			printf("REST API listening on port %d\n", ctx->rest_api_port);
+		}
+	}
 #if KAFKA_REPORTER
 	pthread_create(&ctx->kafka_threadId, 0, kafka_thread_func, ctx);
 #endif
@@ -2053,11 +2074,15 @@ int nic_monitor(int argc, char *argv[])
 	ctx->pcap_threadTerminate = 1;
 	ctx->stats_threadTerminate = 1;
 	ctx->json_threadTerminate = 1;
+	ctx->rest_api_threadTerminate = 1;
+	rest_api_free(ctx);
 	while (!ctx->pcap_threadTerminated)
 		usleep(50 * 1000);
 	while (!ctx->stats_threadTerminated)
 		usleep(50 * 1000);
 	while (!ctx->json_threadTerminated)
+		usleep(50 * 1000);
+	while (ctx->rest_api_port > 0 && !ctx->rest_api_threadTerminated)
 		usleep(50 * 1000);
 
 	/* Shutdown ui */

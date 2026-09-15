@@ -82,6 +82,7 @@ SRC += nic_monitor.c
 SRC += nic_monitor_di.c
 SRC += nic_monitor_pcap.c
 SRC += nic_monitor_json.c
+SRC += nic_monitor_rest.c
 SRC += nic_monitor_tr101290.c
 SRC += nic_monitor_kafka.c
 SRC += parsers.c
