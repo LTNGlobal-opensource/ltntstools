@@ -15,6 +15,7 @@
 #include <inttypes.h>
 #include <pthread.h>
 #include <string.h>
+#include <strings.h>
 #include <libltntstools/ltntstools.h>
 #include "ffmpeg-includes.h"
 #include "kbhit.h"
@@ -37,6 +38,7 @@ struct tool_context_s
 	char *iname, *oname;
 	int verbose;
 	int skipSmoother;
+	int inputIsFile;
 	int stopAfterSeconds;
 	int terminateLOSSeconds;
 	int showDeveloperStatisticsSeconds;
@@ -116,6 +118,57 @@ struct tool_context_s
 	int pid_remap_active;                  /* Boolean, true if any -M mapping was given. */
 
 };
+
+static int input_url_is_file_like(const char *url)
+{
+	if (!url) {
+		return 0;
+	}
+
+	if (strncasecmp(url, "file:", 5) == 0) {
+		return 1;
+	}
+
+	return strstr(url, "://") == NULL;
+}
+
+static int64_t smoother_get_size(struct tool_context_s *ctx)
+{
+	if (!ctx->smoother) {
+		return 0;
+	}
+
+	if (ctx->isRTP) {
+		return smoother_rtp_get_size(ctx->smoother);
+	}
+
+	return smoother_pcr_get_size(ctx->smoother);
+}
+
+static void smoother_drain(struct tool_context_s *ctx)
+{
+	int64_t lastSize = -1;
+	time_t lastPrint = 0;
+
+	while (ctx->smoother) {
+		int64_t size = smoother_get_size(ctx);
+		if (size <= 0) {
+			break;
+		}
+
+		time_t now = time(0);
+		if (size != lastSize && now != lastPrint) {
+			char ts[256];
+			snprintf(ts, sizeof(ts), "%s", ctime(&now));
+			ts[strlen(ts) - 1] = 0;
+			printf("%s: Draining smoother, %" PRIi64 " bytes queued\n", ts, size);
+			lastSize = size;
+			lastPrint = now;
+		}
+
+		usleep(20 * 1000);
+	}
+}
 
 /* Rewrite the pid field of a transport packet in place, preserving TEI/PUSI/priority bits. */
 static inline void ts_pid_rewrite(uint8_t *pkt, uint16_t pid)
@@ -411,14 +464,22 @@ static void *thread_packet_rx(void *p)
 			usleep(1 * 1000);
 			continue;
 		} else
+		if (rlen == AVERROR_EOF) {
+			__atomic_store_n(&gRunning, 0, __ATOMIC_RELAXED);
+			break;
+		} else
 		if (rlen < 0) {
 			usleep(1 * 1000);
 			__atomic_store_n(&gRunning, 0, __ATOMIC_RELAXED);
 			/* General Error or end of stream. */
-			continue;
+			break;
 		}
 
 		if (rlen < 1) {
+			if (ctx->inputIsFile) {
+				__atomic_store_n(&gRunning, 0, __ATOMIC_RELAXED);
+				break;
+			}
 			usleep(1 * 1000);
 			continue;
 		}
@@ -589,7 +650,7 @@ static void *thread_packet_rx(void *p)
 				exit(1);
 			}
 			smoother_pcr_set_verbose(ctx->smoother, 0);
-			smoother_pcr_set_blocking_writes(ctx->smoother, 0);
+			smoother_pcr_set_blocking_writes(ctx->smoother, ctx->inputIsFile);
 		} else
 		if (ctx->isRTP == 1 && ctx->sm == NULL && ctx->smoother == NULL) {
 			if (smoother_rtp_alloc(&ctx->smoother, ctx, &smoother_rtp_cb, 5000, 12 + (7 * 188), ctx->latencyMS) < 0) {
@@ -648,6 +709,8 @@ static void *thread_packet_rx(void *p)
 							ctx->pcrPID, ctx->latencyMS);
 						exit(1);
 					}
+					smoother_pcr_set_verbose(ctx->smoother, 0);
+					smoother_pcr_set_blocking_writes(ctx->smoother, ctx->inputIsFile);
 
 					ctx->spts_pmt_sm = ltntstools_pat_clone(pat);
 
@@ -1181,6 +1244,7 @@ int bitrate_smoother(int argc, char *argv[])
 		rtp_analyzer_init(&ctx->rtp_stream_in);
 		rtp_analyzer_init(&ctx->rtp_stream_out);
 	}
+	ctx->inputIsFile = input_url_is_file_like(ctx->iname);
 
 	avformat_network_init();
 	
@@ -1247,6 +1311,8 @@ int bitrate_smoother(int argc, char *argv[])
 	__atomic_store_n(&ctx->ffmpeg_threadTerminate, 1, __ATOMIC_RELAXED);
 	while (!__atomic_load_n(&ctx->ffmpeg_threadTerminated, __ATOMIC_RELAXED))
 		usleep(50 * 1000);
+
+	smoother_drain(ctx);
 
 	/* Stop the smoother's internal pacing thread (and join it, via
 	 * smoother_pcr_free()/smoother_rtp_free()) before closing the avio
