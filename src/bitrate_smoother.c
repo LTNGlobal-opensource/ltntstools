@@ -942,6 +942,9 @@ static void usage(const char *progname)
 	printf("\n    tstools_bitrate_smoother -i 'rtp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=250000' \\\n");
 	printf("      -o rtp://227.1.20.45:4501?pkt_size=1328 -l 500\n");
 	printf("\n");
+	printf("    tstools_bitrate_smoother -i input.ts \\\n");
+	printf("      -o output.ts -l 500\n");
+	printf("\n");
 
 	printf("    Example: Change the audio and video pids, change the program number, add a SDT and a audio descriptor\n");
 	printf("    tstools_bitrate_smoother\n");
