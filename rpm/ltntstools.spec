@@ -68,6 +68,49 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 #/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
+* Fri Sep 18 2026 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.50.1
+  tstools_bitrate_smoother: Add support for file input/output rate-controlled playout.
+  tstools_bitrate_smoother: Drain the smoother before shutdown for file input.
+  tstools_bitrate_smoother: Add -M PID remapping with PAT/PMT updates, including PMT carrier PID relocation.
+  tstools_bitrate_smoother: Add -N program_number remapping in PAT/PMT.
+  tstools_bitrate_smoother: Add -A/-D support for adding, replacing, or removing ISO639 audio language descriptors.
+  tstools_bitrate_smoother: Add custom SDT synthesis and insertion on null packets after PAT packets.
+  tstools_bitrate_smoother: Accept decimal PIDs for PMT/PID manipulation options.
+  tstools_bitrate_smoother: Harden smoother allocation, thread startup, shutdown, and error handling.
+  tstools_nic_monitor: Add optional REST API with JSON transport stream and PID statistics.
+  tstools_nic_monitor: Add REST reset endpoint matching the interactive statistics reset.
+  tstools_nic_monitor: Add OpenAPI schema and README documentation for REST endpoints.
+  tstools_nic_monitor: Fix help option parsing, MacOS loopback stream detection, and in-flight stream shutdown grace handling.
+  tstools_nic_monitor: Fix null-pointer, memory-safety, mutex, and data-race issues.
+  tstools_pes_inspector: Fix memory leaks, short NAL/PIC_TIMING parsing, AC3 header bounds checks, VBV setup failure handling, and ES/PES save error handling.
+  tstools_clock_inspector: Fix -X switch fallthrough, uninitialized buffer reads, allocation failure handling, stale-data bugs, leaks, and thread races.
+  tstools_si_inspector: Fix memory-safety and correctness issues.
+  tstools_scte35_inspector: Fix memory-safety and correctness issues and MacOS loopback operation.
+  tstools_stream_verifier: Fix null-pointer, leak, undefined behavior, and stale-buffer issues.
+  tstools_srt_transmit: Enable build on MacOS.
+  parsers: Fix overflow risks in IP/PID parsing.
+  timecode: Fix crash, logic, and race bugs.
+  h265: Fix off-by-one access for NAL type 63.
+  libltntstools: Remove PCAP capture code from the library; tools now carry local PCAP handling.
+  libltntstools: Add PUSI/adaptation-field validity tracking and expose helper counters.
+  libltntstools: Add custom SDT packet builder, PMT stream lookup helpers, and descriptor removal helpers.
+  libltntstools: Add descriptor name lookup, AV1 descriptor detection, and VVC/AV1 video payload classification helpers.
+  libltntstools: Add H.264 PIC_TIMING parsing helper and additional NAL bitreader/H.264/H.265 helpers.
+  libltntstools: Add PES duplication, PES save, PTS/DTS presence, and improved PES-to-TS packing helpers.
+  libltntstools: Improve PES extractor ordering, wrap handling, flush behavior, return codes, and memory safety.
+  libltntstools: Overhaul stats storage, add fast discovered-PID enumeration, historical CC metrics, stream packet count, and TEI getters.
+  libltntstools: Add clock wrap/reset/jump accounting, monotonic clock helpers, clock comparisons, and delta helpers.
+  libltntstools: Add history-metric support and periodic IAT high-water-mark callbacks.
+  libltntstools: Improve VBV clock wrap/loop handling, fullness reporting, stop-drain behavior, and thread shutdown.
+  libltntstools: Fix TR101290 PMT false alerts, add UDP-drop alerting, and correct boolean return behavior.
+  libltntstools: Fix TS packetizer stuffing, PCR/adaptation packetization, batched CRC validity, SCR/queryPCR error handling, and section parsing bounds.
+  libltntstools: Improve thread initialization and shutdown safety in smoothers, probes, segmentwriter, and UDP receiver.
+  libltntstools: Harden klringbuffer, klbitstream_readwriter, PAT/PMT, PES, TS, histogram, throughput, proc-net-udp, and xorg-list APIs.
+  libltntstools: Add broad unit test coverage for AC3, clocks, demux, descriptors, history metrics, NALs, PAT/PMT, PES, stats, TR101290, TS packetizer, VBV, and utility modules.
+  all: Replace unsafe sprintf/strcpy usage with bounded snprintf patterns across tools.
+  all: Fix compiler warnings for printf formats, unused variables, and incorrect abs() usage.
+
 * Tue Aug 18 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.39.15
   tstools_nic_monitor: Much smaller memory usages
