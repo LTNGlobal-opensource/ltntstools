@@ -68,6 +68,10 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 #/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog
+* Tue Sep 29 2026 Steven Toth <steven.toth@ltnglobal.com> 
+- v1.51.0 -dev
+  tstools_clock_inspector: Added a web UI for easier / faster visualization
+
 * Fri Sep 18 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.50.1
   tstools_bitrate_smoother: Add support for file input/output rate-controlled playout.
