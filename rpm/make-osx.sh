@@ -18,7 +18,7 @@ pushd tmp/bin
 popd
 
 cd tmp
-zip ../$APP-osx-$GIT_VERSION.zip --symlinks -r .
+zip ../$APP-macos-$GIT_VERSION.zip --symlinks -r .
 cd ..
 rm -rf tmp
 
