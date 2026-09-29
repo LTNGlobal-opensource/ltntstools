@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>clock_inspector - clock drift from walltime</title>
+<style>
+	:root {
+		color-scheme: dark;
+		--bg: #14161a;
+		--panel: #1d2026;
+		--border: #2c3038;
+		--text: #d8dce2;
+		--muted: #8991a0;
+		--ok: #3fbf6f;
+		--warn: #e0a13c;
+		--bad: #e0523c;
+	}
+	* { box-sizing: border-box; }
+	body {
+		margin: 0;
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+		background: var(--bg);
+		color: var(--text);
+	}
+	header {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 16px;
+		border-bottom: 1px solid var(--border);
+		background: var(--panel);
+	}
+	header h1 {
+		font-size: 15px;
+		font-weight: 600;
+		margin: 0;
+	}
+	#scrPid { font-size: 12px; color: var(--muted); }
+	#version { font-size: 11px; font-weight: 400; color: var(--muted); }
+	header .spacer { flex: 1; }
+	#status {
+		font-size: 12px;
+		padding: 3px 10px;
+		border-radius: 12px;
+		border: 1px solid var(--border);
+	}
+	#status.connecting { color: var(--warn); }
+	#status.connected { color: var(--ok); }
+	#status.disconnected { color: var(--bad); }
+	label.windowSel { font-size: 12px; color: var(--muted); }
+	select, button {
+		background: var(--panel);
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		padding: 4px 8px;
+		font-size: 12px;
+	}
+	button { cursor: pointer; }
+	button:hover { border-color: var(--muted); }
+	main {
+		height: calc(100vh - 49px);
+	}
+	.chartPanel {
+		display: flex;
+		height: 100%;
+	}
+	.chartPanel.hidden {
+		display: none;
+	}
+	.sidebar {
+		width: 260px;
+		min-width: 260px;
+		overflow-y: auto;
+		border-right: 1px solid var(--border);
+		background: var(--panel);
+		padding: 10px;
+	}
+	.sidebar .actions {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
+		margin-bottom: 10px;
+	}
+	.pidTable {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 12px;
+	}
+	.pidTable th, .pidTable td {
+		padding: 4px 6px;
+		text-align: center;
+		border-bottom: 1px solid var(--border);
+	}
+	.pidTable th:first-child, .pidTable td:first-child {
+		text-align: left;
+	}
+	.chartWrap {
+		flex: 1;
+		position: relative;
+		padding: 12px;
+	}
+	canvas { width: 100%; height: 100%; display: block; }
+	.empty {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		color: var(--muted);
+		font-size: 13px;
+		text-align: center;
+	}
+</style>
+</head>
+<body>
+<header>
+	<h1>clock_inspector</h1>
+	<label class="windowSel">Chart
+		<select id="chartKindSel">
+			<option value="driftFromWalltime">Drift from Walltime</option>
+			<option value="tickIntervals">Tick Intervals</option>
+			<option value="driftFromScr">Drift from SCR</option>
+		</select>
+	</label>
+	<span id="scrPid"></span>
+	<span id="version"></span>
+	<span class="spacer"></span>
+	<label class="windowSel">Window
+		<select id="windowSel">
+			<option value="10">10s</option>
+			<option value="30" selected>30s</option>
+			<option value="60">60s</option>
+			<option value="300">5m</option>
+		</select>
+	</label>
+	<span id="status" class="connecting">connecting&hellip;</span>
+</header>
+<main>
+	<!-- One <div class="chartPanel"> per entry in the "Chart" selector above; the
+	     selector just shows/hides panels by id (see selectChartKind()). Adding a
+	     new chart kind later means adding a panel here plus an <option> above. -->
+	<div id="panel-driftFromWalltime" class="chartPanel">
+		<div class="sidebar">
+			<div class="actions">
+				<button id="btnAllPcr">All PCR</button>
+				<button id="btnAllPts">All PTS</button>
+				<button id="btnAllDts">All DTS</button>
+				<button id="btnNone">None</button>
+			</div>
+			<table class="pidTable">
+				<thead>
+					<tr><th>PID</th><th>PCR</th><th>PTS</th><th>DTS</th></tr>
+				</thead>
+				<tbody id="pidTableBody"></tbody>
+			</table>
+		</div>
+		<div class="chartWrap">
+			<canvas id="chart"></canvas>
+			<div id="empty" class="empty">Waiting for data&hellip;<br>select a PID/clock on the left once available.</div>
+		</div>
+	</div>
+	<div id="panel-tickIntervals" class="chartPanel hidden">
+		<div class="sidebar">
+			<div class="actions">
+				<button id="btnAllPcr2">All PCR</button>
+				<button id="btnAllPts2">All PTS</button>
+				<button id="btnAllDts2">All DTS</button>
+				<button id="btnNone2">None</button>
+			</div>
+			<table class="pidTable">
+				<thead>
+					<tr><th>PID</th><th>PCR</th><th>PTS</th><th>DTS</th></tr>
+				</thead>
+				<tbody id="pidTableBody2"></tbody>
+			</table>
+		</div>
+		<div class="chartWrap">
+			<canvas id="histChart"></canvas>
+			<div id="histEmpty" class="empty">Waiting for data&hellip;<br>select a PID/clock on the left once available.</div>
+		</div>
+	</div>
+	<div id="panel-driftFromScr" class="chartPanel hidden">
+		<div class="sidebar">
+			<label class="windowSel" style="display: block; margin-bottom: 12px;">Pid
+				<select id="scrDriftPidSel">
+					<option value="">Select a pid&hellip;</option>
+				</select>
+			</label>
+			<div id="scrDriftLegend" style="font-size: 12px; color: var(--muted); line-height: 1.8;"></div>
+		</div>
+		<div class="chartWrap">
+			<canvas id="scrDriftChart"></canvas>
+			<div id="scrDriftEmpty" class="empty">Select a PID with PTS or DTS on the left.</div>
+		</div>
+	</div>
+</main>
+<script>
+(function () {
+	'use strict';
+
+	var CLOCK_TYPES = ['pcr', 'pts', 'dts'];
+	var PALETTE = ['#4fa3ff', '#ff6b6b', '#ffd166', '#06d6a0', '#c77dff',
+		'#f4978e', '#83c5be', '#e0aaff', '#a0c4ff', '#ffadad'];
+
+	/* Chart-kind selector: shows the <div class="chartPanel"> whose id is
+	 * "panel-" + the selected <option> value, hides the rest. Adding another
+	 * kind is a new <option>/<div class="chartPanel"> pair in the HTML plus
+	 * that panel's own handlers below.
+	 */
+	var chartKindSel = document.getElementById('chartKindSel');
+	function selectChartKind() {
+		var chosen = chartKindSel.value;
+		document.querySelectorAll('.chartPanel').forEach(function (panel) {
+			panel.classList.toggle('hidden', panel.id !== 'panel-' + chosen);
+		});
+		resizeCanvas();
+	}
+	chartKindSel.addEventListener('change', selectChartKind);
+
+	var statusEl = document.getElementById('status');
+	var scrPidEl = document.getElementById('scrPid');
+	var versionEl = document.getElementById('version');
+	var pidTableBody = document.getElementById('pidTableBody');
+	var pidTableBody2 = document.getElementById('pidTableBody2');
+	var windowSel = document.getElementById('windowSel');
+	var canvas = document.getElementById('chart');
+	var ctx2d = canvas.getContext('2d');
+	var emptyEl = document.getElementById('empty');
+	var histCanvas = document.getElementById('histChart');
+	var histCtx = histCanvas.getContext('2d');
+	var histEmptyEl = document.getElementById('histEmpty');
+	var scrDriftPidSel = document.getElementById('scrDriftPidSel');
+	var scrDriftLegend = document.getElementById('scrDriftLegend');
+	var scrDriftCanvas = document.getElementById('scrDriftChart');
+	var scrDriftCtx = scrDriftCanvas.getContext('2d');
+	var scrDriftEmptyEl = document.getElementById('scrDriftEmpty');
+	var SCR_DRIFT_COLORS = { pts: '#4fa3ff', dts: '#ff6b6b' };
+
+	/* pid -> { hex, hasPcr, hasPts, hasDts } */
+	var pidsInfo = {};
+	/* "pid:type" -> { color, enabled, points: [{t, v}] }. Every series here is the
+	 * same kind of quantity -- drift from walltime in ms -- for a different clock
+	 * on a different pid, so they're all directly comparable on one y-axis.
+	 * Backs the "Drift from Walltime" chart. */
+	var series = {};
+	/* Same key shape as `series`, but points are tick-to-tick interval samples in
+	 * ms (from msg.intervalMs) rather than drift, and each series' color is
+	 * shared with `series` for the same pid/type so the two charts stay visually
+	 * consistent. Backs the "Tick Intervals" histogram chart. */
+	var intervalSeries = {};
+	/* "pid:type" -> { points: [{t, v}] }, pts/dts only, points are msg.scrDriftMs
+	 * (that clock minus the current SCR/PCR, in ms). Backs the "Drift from SCR"
+	 * chart, which only ever shows the single pid picked in scrDriftPidSel. */
+	var scrDriftSeries = {};
+	var windowSec = parseInt(windowSel.value, 10);
+	var colorIdx = 0;
+	var ws = null;
+	var reconnectDelayMs = 500;
+	var lastMsgT = null;
+
+	function seriesKey(pid, type) { return pid + ':' + type; }
+
+	function formatWalltime(ms) {
+		var d = new Date(ms);
+		function pad(n) { return (n < 10 ? '0' : '') + n; }
+		return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+	}
+
+	function nextColor() {
+		var c = PALETTE[colorIdx % PALETTE.length];
+		colorIdx++;
+		return c;
+	}
+
+	function ensureSeries(pid, type) {
+		var key = seriesKey(pid, type);
+		if (!series[key]) {
+			series[key] = { color: nextColor(), enabled: false, points: [] };
+		}
+		return series[key];
+	}
+
+	function ensureIntervalSeries(pid, type) {
+		var key = seriesKey(pid, type);
+		if (!intervalSeries[key]) {
+			intervalSeries[key] = { color: ensureSeries(pid, type).color, enabled: false, points: [] };
+		}
+		return intervalSeries[key];
+	}
+
+	function ensureScrDriftSeries(pid, type) {
+		var key = seriesKey(pid, type);
+		if (!scrDriftSeries[key]) {
+			scrDriftSeries[key] = { points: [] };
+		}
+		return scrDriftSeries[key];
+	}
+
+	function updateScrDriftLegend() {
+		var pid = scrDriftPidSel.value;
+		var info = pidsInfo[pid];
+		if (!pid || !info) {
+			scrDriftLegend.innerHTML = '';
+			return;
+		}
+		var html = '';
+		['pts', 'dts'].forEach(function (type) {
+			if (!info[hasField(type)]) return;
+			html += '<div><span style="display:inline-block;width:10px;height:10px;background:' +
+				SCR_DRIFT_COLORS[type] + ';margin-right:6px;vertical-align:middle;"></span>' +
+				type.toUpperCase() + '</div>';
+		});
+		scrDriftLegend.innerHTML = html;
+	}
+
+	function rebuildScrDriftPidSel() {
+		var prev = scrDriftPidSel.value;
+		var pids = Object.keys(pidsInfo).map(Number).filter(function (pid) {
+			return pidsInfo[pid].hasPts || pidsInfo[pid].hasDts;
+		}).sort(function (a, b) { return a - b; });
+
+		scrDriftPidSel.innerHTML = '<option value="">Select a pid&hellip;</option>';
+		pids.forEach(function (pid) {
+			var opt = document.createElement('option');
+			opt.value = pid;
+			opt.textContent = pidsInfo[pid].hex;
+			scrDriftPidSel.appendChild(opt);
+		});
+		if (pids.indexOf(Number(prev)) !== -1) {
+			scrDriftPidSel.value = prev;
+		}
+		updateScrDriftLegend();
+	}
+
+	scrDriftPidSel.addEventListener('change', updateScrDriftLegend);
+
+	function setStatus(cls, text) {
+		statusEl.className = cls;
+		statusEl.textContent = text;
+	}
+
+	function hasField(type) { return 'has' + type[0].toUpperCase() + type.slice(1); }
+
+	function buildPidTable(tbody, ensureFn) {
+		var pids = Object.keys(pidsInfo).map(Number).sort(function (a, b) { return a - b; });
+		tbody.innerHTML = '';
+		pids.forEach(function (pid) {
+			var info = pidsInfo[pid];
+			var tr = document.createElement('tr');
+
+			var tdPid = document.createElement('td');
+			tdPid.textContent = info.hex;
+			tr.appendChild(tdPid);
+
+			CLOCK_TYPES.forEach(function (type) {
+				var td = document.createElement('td');
+				if (info[hasField(type)]) {
+					var s = ensureFn(pid, type);
+					var cb = document.createElement('input');
+					cb.type = 'checkbox';
+					cb.checked = s.enabled;
+					cb.addEventListener('change', function () {
+						s.enabled = cb.checked;
+					});
+					td.appendChild(cb);
+				} else {
+					td.textContent = '–';
+					td.style.color = 'var(--muted)';
+				}
+				tr.appendChild(td);
+			});
+
+			tbody.appendChild(tr);
+		});
+	}
+
+	function rebuildPidTables() {
+		buildPidTable(pidTableBody, ensureSeries);
+		buildPidTable(pidTableBody2, ensureIntervalSeries);
+		rebuildScrDriftPidSel();
+	}
+
+	function setAll(ensureFn, type, value) {
+		Object.keys(pidsInfo).forEach(function (pidStr) {
+			var pid = Number(pidStr);
+			if (!pidsInfo[pid][hasField(type)]) return;
+			ensureFn(pid, type).enabled = value;
+		});
+		rebuildPidTables();
+	}
+
+	document.getElementById('btnAllPcr').addEventListener('click', function () { setAll(ensureSeries, 'pcr', true); });
+	document.getElementById('btnAllPts').addEventListener('click', function () { setAll(ensureSeries, 'pts', true); });
+	document.getElementById('btnAllDts').addEventListener('click', function () { setAll(ensureSeries, 'dts', true); });
+	document.getElementById('btnNone').addEventListener('click', function () {
+		Object.keys(series).forEach(function (k) { series[k].enabled = false; });
+		rebuildPidTables();
+	});
+
+	document.getElementById('btnAllPcr2').addEventListener('click', function () { setAll(ensureIntervalSeries, 'pcr', true); });
+	document.getElementById('btnAllPts2').addEventListener('click', function () { setAll(ensureIntervalSeries, 'pts', true); });
+	document.getElementById('btnAllDts2').addEventListener('click', function () { setAll(ensureIntervalSeries, 'dts', true); });
+	document.getElementById('btnNone2').addEventListener('click', function () {
+		Object.keys(intervalSeries).forEach(function (k) { intervalSeries[k].enabled = false; });
+		rebuildPidTables();
+	});
+
+	windowSel.addEventListener('change', function () {
+		windowSec = parseInt(windowSel.value, 10);
+	});
+
+	function notePid(pid, hex, type) {
+		if (!pidsInfo[pid]) {
+			pidsInfo[pid] = { hex: hex, hasPcr: false, hasPts: false, hasDts: false };
+		}
+		pidsInfo[pid][hasField(type)] = true;
+	}
+
+	function handleHello(msg) {
+		if (msg.version) versionEl.textContent = msg.version;
+		if (msg.scrPidHex) scrPidEl.textContent = 'PCR pid ' + msg.scrPidHex;
+
+		(msg.pids || []).forEach(function (p) {
+			pidsInfo[p.pid] = {
+				hex: p.pidHex,
+				hasPcr: !!p.hasPcr,
+				hasPts: !!p.hasPts,
+				hasDts: !!p.hasDts
+			};
+		});
+		rebuildPidTables();
+	}
+
+	function handlePidSeen(msg) {
+		notePid(msg.pid, msg.pidHex, msg.clock);
+		rebuildPidTables();
+	}
+
+	function trimOld(points, cutoffT) {
+		var i = 0;
+		while (i < points.length && points[i].t < cutoffT) i++;
+		if (i > 0) points.splice(0, i);
+	}
+
+	function handleClockSample(type, msg) {
+		lastMsgT = msg.tsUnixMs;
+		/* Trim anything older than the largest selectable window, regardless of the
+		 * currently selected window, so switching to a larger window doesn't show a gap. */
+		var cutoff = lastMsgT - 300 * 1000;
+
+		var s = ensureSeries(msg.pid, type);
+		s.points.push({ t: msg.tsUnixMs, v: msg.driftMs });
+		trimOld(s.points, cutoff);
+
+		if (msg.intervalMs !== null && msg.intervalMs !== undefined) {
+			var is = ensureIntervalSeries(msg.pid, type);
+			is.points.push({ t: msg.tsUnixMs, v: msg.intervalMs });
+			trimOld(is.points, cutoff);
+		}
+
+		if ((type === 'pts' || type === 'dts') && msg.scrDriftMs !== null && msg.scrDriftMs !== undefined) {
+			var sd = ensureScrDriftSeries(msg.pid, type);
+			sd.points.push({ t: msg.tsUnixMs, v: msg.scrDriftMs });
+			trimOld(sd.points, cutoff);
+		}
+	}
+
+	function connect() {
+		setStatus('connecting', 'connecting…');
+		var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+		ws = new WebSocket(proto + '//' + location.host + '/ws', 'clock-inspector');
+
+		ws.onopen = function () {
+			setStatus('connected', 'connected');
+			reconnectDelayMs = 500;
+		};
+		ws.onclose = function () {
+			setStatus('disconnected', 'disconnected – retrying…');
+			setTimeout(connect, reconnectDelayMs);
+			reconnectDelayMs = Math.min(reconnectDelayMs * 2, 5000);
+		};
+		ws.onerror = function () {
+			ws.close();
+		};
+		ws.onmessage = function (ev) {
+			var msg;
+			try {
+				msg = JSON.parse(ev.data);
+			} catch (e) {
+				return;
+			}
+			switch (msg.type) {
+			case 'hello': handleHello(msg); break;
+			case 'pid_seen': handlePidSeen(msg); break;
+			case 'pcr': case 'pts': case 'dts': handleClockSample(msg.type, msg); break;
+			}
+		};
+	}
+
+	function resizeCanvas() {
+		[canvas, histCanvas, scrDriftCanvas].forEach(function (cv) {
+			var wrap = cv.parentElement;
+			var dpr = window.devicePixelRatio || 1;
+			cv.width = wrap.clientWidth * dpr;
+			cv.height = wrap.clientHeight * dpr;
+			cv.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+		});
+	}
+	window.addEventListener('resize', resizeCanvas);
+
+	function drawChart() {
+		var w = canvas.clientWidth;
+		var h = canvas.clientHeight;
+		ctx2d.clearRect(0, 0, w, h);
+
+		var enabledKeys = Object.keys(series).filter(function (k) { return series[k].enabled; });
+		emptyEl.style.display = enabledKeys.length === 0 ? 'block' : 'none';
+		if (enabledKeys.length === 0 || lastMsgT === null) {
+			return requestAnimationFrame(drawChart);
+		}
+
+		var now = lastMsgT;
+		var from = now - windowSec * 1000;
+
+		var minV = Infinity, maxV = -Infinity;
+		var visible = {};
+		enabledKeys.forEach(function (k) {
+			var pts = series[k].points.filter(function (p) { return p.t >= from; });
+			visible[k] = pts;
+			pts.forEach(function (p) {
+				if (p.v < minV) minV = p.v;
+				if (p.v > maxV) maxV = p.v;
+			});
+		});
+		if (!isFinite(minV) || !isFinite(maxV)) {
+			return requestAnimationFrame(drawChart);
+		}
+
+		/* Keep the y-axis span at least MIN_SPAN_MS wide (so a very stable, near-flat
+		 * series doesn't get auto-scaled into looking noisy), but let it grow beyond
+		 * that freely when the data actually spans more than that. */
+		var MIN_SPAN_MS = 30;
+		var mid = (minV + maxV) / 2;
+		if (maxV - minV < MIN_SPAN_MS) {
+			minV = mid - MIN_SPAN_MS / 2;
+			maxV = mid + MIN_SPAN_MS / 2;
+		}
+		var margin = (maxV - minV) * 0.1;
+		minV -= margin;
+		maxV += margin;
+
+		var padLeft = 55, padRight = 10, padTop = 10, padBottom = 24;
+		var plotW = w - padLeft - padRight;
+		var plotH = h - padTop - padBottom;
+
+		function x(t) { return padLeft + ((t - from) / (now - from)) * plotW; }
+		function y(v) { return padTop + (1 - (v - minV) / (maxV - minV)) * plotH; }
+
+		/* Axes / gridlines */
+		ctx2d.strokeStyle = '#2c3038';
+		ctx2d.fillStyle = '#8991a0';
+		ctx2d.font = '11px sans-serif';
+		ctx2d.lineWidth = 1;
+		var gridLines = 4;
+		for (var i = 0; i <= gridLines; i++) {
+			var v = minV + (maxV - minV) * (i / gridLines);
+			var yy = y(v);
+			ctx2d.beginPath();
+			ctx2d.moveTo(padLeft, yy);
+			ctx2d.lineTo(w - padRight, yy);
+			ctx2d.stroke();
+			ctx2d.fillText(v.toFixed(1) + 'ms', 2, yy + 3);
+		}
+
+		/* Walltime x-axis ticks, so drift can be correlated against real time-of-day. */
+		var timeTicks = Math.max(2, Math.min(6, Math.floor(plotW / 90)));
+		ctx2d.textAlign = 'center';
+		for (var tIdx = 0; tIdx <= timeTicks; tIdx++) {
+			var t = from + (now - from) * (tIdx / timeTicks);
+			var xx = x(t);
+			ctx2d.strokeStyle = '#22252b';
+			ctx2d.beginPath();
+			ctx2d.moveTo(xx, padTop);
+			ctx2d.lineTo(xx, h - padBottom);
+			ctx2d.stroke();
+			ctx2d.fillStyle = '#8991a0';
+			ctx2d.fillText(formatWalltime(t), xx, h - 6);
+		}
+		ctx2d.textAlign = 'left';
+
+		/* Walltime reference line: dashed, at driftMs == 0. A perfectly conformant
+		 * clock should sit right on this line. */
+		if (minV < 0 && maxV > 0) {
+			ctx2d.strokeStyle = '#4a4f59';
+			ctx2d.setLineDash([4, 3]);
+			ctx2d.beginPath();
+			ctx2d.moveTo(padLeft, y(0));
+			ctx2d.lineTo(w - padRight, y(0));
+			ctx2d.stroke();
+			ctx2d.setLineDash([]);
+		}
+
+		/* Series */
+		enabledKeys.forEach(function (k) {
+			var pts = visible[k];
+			if (pts.length === 0) return;
+			ctx2d.strokeStyle = series[k].color;
+			ctx2d.lineWidth = 1.5;
+			ctx2d.beginPath();
+			pts.forEach(function (p, idx) {
+				var px = x(p.t), py = y(p.v);
+				if (idx === 0) ctx2d.moveTo(px, py); else ctx2d.lineTo(px, py);
+			});
+			ctx2d.stroke();
+		});
+
+		/* Legend */
+		var lx = padLeft, ly = padTop + 4;
+		enabledKeys.forEach(function (k) {
+			var parts = k.split(':');
+			var label = 'PID ' + pidsInfo[parts[0]].hex + ' ' + parts[1].toUpperCase();
+			ctx2d.fillStyle = series[k].color;
+			ctx2d.fillRect(lx, ly - 8, 8, 8);
+			ctx2d.fillStyle = '#d8dce2';
+			ctx2d.fillText(label, lx + 12, ly);
+			lx += 14 + ctx2d.measureText(label).width + 14;
+			if (lx > w - padRight - 100) { lx = padLeft; ly += 14; }
+		});
+
+		requestAnimationFrame(drawChart);
+	}
+
+	/* "Tick Intervals" chart: one small histogram per enabled (pid, clock) series,
+	 * stacked vertically. Each series gets its own x-axis range (auto-scaled to
+	 * its own min/max interval), since e.g. a ~40ms PCR interval and a ~16ms PTS
+	 * interval aren't meaningfully comparable on one shared axis the way the
+	 * drift-from-walltime values are.
+	 */
+	function drawHistogramChart() {
+		var panel = document.getElementById('panel-tickIntervals');
+		if (panel.classList.contains('hidden')) {
+			return requestAnimationFrame(drawHistogramChart);
+		}
+
+		var w = histCanvas.clientWidth;
+		var h = histCanvas.clientHeight;
+		histCtx.clearRect(0, 0, w, h);
+
+		var enabledKeys = Object.keys(intervalSeries).filter(function (k) { return intervalSeries[k].enabled; });
+		histEmptyEl.style.display = enabledKeys.length === 0 ? 'block' : 'none';
+		if (enabledKeys.length === 0) {
+			return requestAnimationFrame(drawHistogramChart);
+		}
+
+		var from = lastMsgT === null ? -Infinity : lastMsgT - windowSec * 1000;
+
+		/* Fixed, shared axis across every row -- deliberately NOT auto-scaled to
+		 * each series' own min/max. A real difference of, say, 0.01ms (one 90kHz
+		 * tick) should look tiny, not get stretched to fill the whole row; only
+		 * genuinely large interval swings (stalls, discontinuities, out-of-order
+		 * B-frame PTS jumps) should show up away from center. */
+		var AXIS_MIN = -100, AXIS_MAX = 100;
+		var TICK_STEP = 20;
+		var BIN_COUNT = (AXIS_MAX - AXIS_MIN) / TICK_STEP * 4; // 4 bins per labeled tick
+		var binWidth = (AXIS_MAX - AXIS_MIN) / BIN_COUNT;
+
+		var rowH = h / enabledKeys.length;
+
+		enabledKeys.forEach(function (k, rowIdx) {
+			var parts = k.split(':');
+			var label = 'PID ' + pidsInfo[parts[0]].hex + ' ' + parts[1].toUpperCase();
+			var top = rowIdx * rowH;
+
+			histCtx.fillStyle = '#8991a0';
+			histCtx.font = '11px sans-serif';
+			histCtx.textAlign = 'left';
+
+			var pts = intervalSeries[k].points.filter(function (p) { return p.t >= from; });
+			if (pts.length < 2) {
+				histCtx.fillText(label + ' — waiting for samples…', 4, top + 12);
+				return;
+			}
+
+			var padLeft = 34, padRight = 10, padTop = top + 18, padBottom = top + rowH - 16;
+			var plotW = w - padLeft - padRight;
+			var plotH = Math.max(1, padBottom - padTop);
+
+			var values = pts.map(function (p) { return p.v; });
+			var min = Math.min.apply(null, values);
+			var max = Math.max.apply(null, values);
+			var mean = values.reduce(function (a, b) { return a + b; }, 0) / values.length;
+
+			/* Values outside [AXIS_MIN, AXIS_MAX] are clamped into the edge bins
+			 * rather than dropped, so an outlier still shows up at the axis limit. */
+			var bins = new Array(BIN_COUNT).fill(0);
+			values.forEach(function (v) {
+				var idx = Math.floor((v - AXIS_MIN) / binWidth);
+				idx = Math.max(0, Math.min(BIN_COUNT - 1, idx));
+				bins[idx]++;
+			});
+			var maxCount = Math.max.apply(null, bins);
+
+			histCtx.fillStyle = '#8991a0';
+			histCtx.fillText(label + ' — n=' + values.length + ', mean ' + mean.toFixed(3) +
+				'ms, range ' + min.toFixed(3) + '–' + max.toFixed(3) + 'ms', padLeft, top + 12);
+
+			function x(v) { return padLeft + ((v - AXIS_MIN) / (AXIS_MAX - AXIS_MIN)) * plotW; }
+
+			/* Baseline */
+			histCtx.strokeStyle = '#2c3038';
+			histCtx.lineWidth = 1;
+			histCtx.beginPath();
+			histCtx.moveTo(padLeft, padBottom + 0.5);
+			histCtx.lineTo(w - padRight, padBottom + 0.5);
+			histCtx.stroke();
+
+			/* Zero-interval reference line, dashed like the walltime line on the
+			 * drift chart -- separates "arrived later than the previous tick"
+			 * (positive) from "arrived earlier" (negative, eg reordered B-frame PTS). */
+			histCtx.strokeStyle = '#4a4f59';
+			histCtx.setLineDash([4, 3]);
+			histCtx.beginPath();
+			histCtx.moveTo(x(0), padTop);
+			histCtx.lineTo(x(0), padBottom);
+			histCtx.stroke();
+			histCtx.setLineDash([]);
+
+			/* Bars */
+			histCtx.fillStyle = intervalSeries[k].color;
+			var barW = plotW / BIN_COUNT;
+			bins.forEach(function (count, i) {
+				if (count === 0) return;
+				var barH = (count / maxCount) * plotH;
+				histCtx.fillRect(padLeft + i * barW + 1, padBottom - barH, Math.max(1, barW - 2), barH);
+			});
+
+			/* Tick marks + a value label under every tick, not just the two ends. */
+			histCtx.strokeStyle = '#2c3038';
+			histCtx.fillStyle = '#8991a0';
+			histCtx.textAlign = 'center';
+			for (var v = AXIS_MIN; v <= AXIS_MAX; v += TICK_STEP) {
+				var xx = x(v);
+				histCtx.beginPath();
+				histCtx.moveTo(xx, padBottom);
+				histCtx.lineTo(xx, padBottom + 4);
+				histCtx.stroke();
+				histCtx.fillText(v + 'ms', xx, padBottom + 14);
+			}
+			histCtx.textAlign = 'left';
+		});
+
+		requestAnimationFrame(drawHistogramChart);
+	}
+
+	/* "Drift from SCR" chart: a single scrolling time-series chart, like Drift
+	 * from Walltime, but for exactly one pid at a time (chosen in scrDriftPidSel)
+	 * and plotting msg.scrDriftMs (that pid's PTS/DTS minus the current SCR)
+	 * instead of drift from walltime. Zero here is the actual conformance
+	 * threshold: at or below zero means the PCR has already reached this
+	 * timestamp before it arrived (see clock_inspector_pes.c's "arriving BEHIND
+	 * the PCR" check) -- not just a mathematical curiosity like in the tick
+	 * interval chart.
+	 */
+	function drawScrDriftChart() {
+		var panel = document.getElementById('panel-driftFromScr');
+		if (panel.classList.contains('hidden')) {
+			return requestAnimationFrame(drawScrDriftChart);
+		}
+
+		var w = scrDriftCanvas.clientWidth;
+		var h = scrDriftCanvas.clientHeight;
+		scrDriftCtx.clearRect(0, 0, w, h);
+
+		var pid = scrDriftPidSel.value;
+		var activeTypes = ['pts', 'dts'].filter(function (type) {
+			return pid && pidsInfo[pid] && pidsInfo[pid][hasField(type)];
+		});
+
+		scrDriftEmptyEl.style.display = activeTypes.length === 0 ? 'block' : 'none';
+		if (activeTypes.length === 0 || lastMsgT === null) {
+			return requestAnimationFrame(drawScrDriftChart);
+		}
+
+		var now = lastMsgT;
+		var from = now - windowSec * 1000;
+
+		var minV = Infinity, maxV = -Infinity;
+		var visible = {};
+		activeTypes.forEach(function (type) {
+			var pts = ensureScrDriftSeries(pid, type).points.filter(function (p) { return p.t >= from; });
+			visible[type] = pts;
+			pts.forEach(function (p) {
+				if (p.v < minV) minV = p.v;
+				if (p.v > maxV) maxV = p.v;
+			});
+		});
+		if (!isFinite(minV) || !isFinite(maxV)) {
+			return requestAnimationFrame(drawScrDriftChart);
+		}
+
+		var MIN_SPAN_MS = 30;
+		var mid = (minV + maxV) / 2;
+		if (maxV - minV < MIN_SPAN_MS) {
+			minV = mid - MIN_SPAN_MS / 2;
+			maxV = mid + MIN_SPAN_MS / 2;
+		}
+		var margin = (maxV - minV) * 0.1;
+		minV -= margin;
+		maxV += margin;
+
+		var padLeft = 55, padRight = 10, padTop = 10, padBottom = 24;
+		var plotW = w - padLeft - padRight;
+		var plotH = h - padTop - padBottom;
+
+		function x(t) { return padLeft + ((t - from) / (now - from)) * plotW; }
+		function y(v) { return padTop + (1 - (v - minV) / (maxV - minV)) * plotH; }
+
+		scrDriftCtx.strokeStyle = '#2c3038';
+		scrDriftCtx.fillStyle = '#8991a0';
+		scrDriftCtx.font = '11px sans-serif';
+		scrDriftCtx.lineWidth = 1;
+		var gridLines = 4;
+		for (var i = 0; i <= gridLines; i++) {
+			var v = minV + (maxV - minV) * (i / gridLines);
+			var yy = y(v);
+			scrDriftCtx.beginPath();
+			scrDriftCtx.moveTo(padLeft, yy);
+			scrDriftCtx.lineTo(w - padRight, yy);
+			scrDriftCtx.stroke();
+			scrDriftCtx.fillText(v.toFixed(1) + 'ms', 2, yy + 3);
+		}
+
+		var timeTicks = Math.max(2, Math.min(6, Math.floor(plotW / 90)));
+		scrDriftCtx.textAlign = 'center';
+		for (var tIdx = 0; tIdx <= timeTicks; tIdx++) {
+			var t = from + (now - from) * (tIdx / timeTicks);
+			var xx = x(t);
+			scrDriftCtx.strokeStyle = '#22252b';
+			scrDriftCtx.beginPath();
+			scrDriftCtx.moveTo(xx, padTop);
+			scrDriftCtx.lineTo(xx, h - padBottom);
+			scrDriftCtx.stroke();
+			scrDriftCtx.fillStyle = '#8991a0';
+			scrDriftCtx.fillText(formatWalltime(t), xx, h - 6);
+		}
+		scrDriftCtx.textAlign = 'left';
+
+		if (minV < 0 && maxV > 0) {
+			scrDriftCtx.strokeStyle = '#4a4f59';
+			scrDriftCtx.setLineDash([4, 3]);
+			scrDriftCtx.beginPath();
+			scrDriftCtx.moveTo(padLeft, y(0));
+			scrDriftCtx.lineTo(w - padRight, y(0));
+			scrDriftCtx.stroke();
+			scrDriftCtx.setLineDash([]);
+		}
+
+		activeTypes.forEach(function (type) {
+			var pts = visible[type];
+			if (pts.length === 0) return;
+			scrDriftCtx.strokeStyle = SCR_DRIFT_COLORS[type];
+			scrDriftCtx.lineWidth = 1.5;
+			scrDriftCtx.beginPath();
+			pts.forEach(function (p, idx) {
+				var px = x(p.t), py = y(p.v);
+				if (idx === 0) scrDriftCtx.moveTo(px, py); else scrDriftCtx.lineTo(px, py);
+			});
+			scrDriftCtx.stroke();
+		});
+
+		requestAnimationFrame(drawScrDriftChart);
+	}
+
+	selectChartKind();
+	connect();
+	requestAnimationFrame(drawChart);
+	requestAnimationFrame(drawHistogramChart);
+	requestAnimationFrame(drawScrDriftChart);
+})();
+</script>
+</body>
+</html>

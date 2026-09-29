@@ -54,6 +54,9 @@ static void usage(const char *progname)
 	printf("  -A <number> default trend size [def: %d]\n", DEFAULT_TREND_SIZE);
 	printf("      108000 is 1hr of 30fps, 216000 is 1hr of 60fps, 5184000 is 24hrs of 60fps\n");
 	printf("  -B <seconds> trend report output period [def: %d]\n", DEFAULT_TREND_REPORT_PERIOD);
+	printf("  -W <port> Start a websocket (ws://) + HTML dashboard server on this TCP port,\n");
+	printf("            streaming per-PID PCR/PTS/DTS walltime-drift in real time [def: disabled]\n");
+	printf("            Browse to http://<host>:<port>/ once running.\n");
 
 	printf("\n  Example UDP or RTP:\n");
 	printf("    tstools_clock_inspector -i 'udp://227.1.20.80:4002?localaddr=192.168.20.45&buffer_size=2500000&overrun_nonfatal=1&fifo_size=50000000' -S 0x31 -p\n");
@@ -67,6 +70,7 @@ int clock_inspector(int argc, char *argv[])
 	for (int i = 0; i < MAX_PIDS; i++) {
 		pthread_mutex_init(&ctx->pids[i].trend_pts.trendLock, NULL);
 		pthread_mutex_init(&ctx->pids[i].trend_dts.trendLock, NULL);
+		pthread_mutex_init(&ctx->pids[i].clockLock, NULL);
 	}
 	ctx->doPacketStatistics = 1;
 	ctx->doSCRStatistics = 0;
@@ -83,7 +87,7 @@ int clock_inspector(int argc, char *argv[])
 	/* We use this specifically for tracking PCR walltime drift */
 	ltntstools_pid_stats_alloc(&ctx->libstats);
 
-    while ((ch = getopt(argc, argv, "?dhi:spt:vA:B:T:D:LPRS:X:YZ")) != -1) {
+    while ((ch = getopt(argc, argv, "?dhi:spt:vA:B:T:D:LPRS:X:YZW:")) != -1) {
 		switch (ch) {
 		case 'A':
 			ctx->trendSize = atoi(optarg);
@@ -167,11 +171,22 @@ int clock_inspector(int argc, char *argv[])
 			} else
 			if (atoi(optarg) == 2) {
 				return validateLinearTrend();
+			} else
+			if (atoi(optarg) == 3) {
+				return validateClockLocking();
 			}
 			usage(argv[0]);
 			exit(1);
 		case 'Z':
 			ctx->enableNonTimingConformantMessages = 0;
+			break;
+		case 'W':
+			ctx->ws_port = atoi(optarg);
+			if (ctx->ws_port <= 0 || ctx->ws_port > 65535) {
+				usage(argv[0]);
+				fprintf(stderr, "-W invalid port\n");
+				exit(1);
+			}
 			break;
 		default:
 			usage(argv[0]);
@@ -207,6 +222,16 @@ int clock_inspector(int argc, char *argv[])
 	}
 
 	pthread_create(&ctx->trendThreadId, NULL, trend_report_thread, ctx);
+
+	if (ctx->ws_port > 0) {
+		if (ws_initialize(ctx) == 0) {
+			pthread_create(&ctx->ws_threadId, NULL, ws_thread_func, ctx);
+			printf("Websocket PCR feed + dashboard listening on http://localhost:%d/\n", ctx->ws_port);
+		} else {
+			fprintf(stderr, "-W: unable to start websocket server on port %d\n", ctx->ws_port);
+			ctx->ws_port = 0;
+		}
+	}
 
 	/* TODO: Replace this with avio so we can support streams. */
 	avformat_network_init();
@@ -301,6 +326,13 @@ int clock_inspector(int argc, char *argv[])
 				(double)(((double)filepos / (double)fileLengthBytes) * 100.0));
 		}
 	}
+	if (ctx->ws_port > 0) {
+		__atomic_store_n(&ctx->ws_threadTerminate, 1, __ATOMIC_RELAXED);
+		ws_interrupt(ctx); /* Unblocks the running lws_service() call from this thread. */
+		pthread_join(ctx->ws_threadId, NULL);
+		ws_free(ctx); /* Safe: the service thread has fully exited, no lws_service() call is in flight. */
+	}
+
 	avio_close(puc);
 	while (ctx->trendThreadComplete != 1) {
 		usleep(50 * 1000);

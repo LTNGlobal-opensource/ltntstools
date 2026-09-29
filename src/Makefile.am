@@ -5,7 +5,7 @@ GIT_VERSION := $(shell git describe --abbrev=8 --dirty --always --tags)
 if LINUX
 if BUILD_SHARED
 AM_LDFLAGS  = -Wl,-rpath='$$ORIGIN/../lib-ltntstools' -Wl,-z,origin
-AM_LDFLAGS += $(shell pkg-config --libs srt libltntstools json-c libklscte35 zvbi-0.2 libklvanc)
+AM_LDFLAGS += $(shell pkg-config --libs srt libltntstools json-c libklscte35 zvbi-0.2 libklvanc libwebsockets)
 AM_LDFLAGS += $(shell pkg-config --libs libavformat libavutil libavcodec libswresample libswscale)
 AM_LDFLAGS += $(shell pkg-config --libs libcurl)
 endif
@@ -39,6 +39,7 @@ LDADD += -lklscte35 -ldl
 LDADD += -lsrt -lcrypto
 if APPLE
 LDADD += -ljson-c -lcurl
+LDADD += -lwebsockets
 endif
 if LINUX
 if DTAPI
@@ -48,6 +49,7 @@ endif
 #LDADD += -lcurl
 if BUILD_STATIC
 LDADD += ../../target-root/usr/lib/libjson-c.a
+LDADD += ../../target-root/usr/lib/libwebsockets.a
 endif
 #LDADD += -lrdkafka
 endif
@@ -77,6 +79,7 @@ SRC += clock_inspector_ts.c
 SRC += clock_inspector_misc.c
 SRC += clock_inspector_pcr.c
 SRC += clock_inspector_pes.c
+SRC += clock_inspector_ws.c
 SRC += pid_drop.c
 SRC += nic_monitor.c
 SRC += nic_monitor_di.c
@@ -194,6 +197,13 @@ noinst_HEADERS += nielsen-bindings.h
 noinst_HEADERS += source-rcts.h
 noinst_HEADERS += timecode.h
 noinst_HEADERS += source-pcap.h
+
+BUILT_SOURCES = clock_inspector_ws_html.h
+CLEANFILES = clock_inspector_ws_html.h
+EXTRA_DIST = clock_inspector_ws_html/index.html
+
+clock_inspector_ws_html.h: clock_inspector_ws_html/index.html
+	xxd -i clock_inspector_ws_html/index.html > clock_inspector_ws_html.h
 
 install-exec-hook:
 	$(foreach var,$(LINKBINS),cd $(DESTDIR)$(bindir) && ln -sf tstools_util $(var);)

@@ -19,7 +19,9 @@ void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos,
 	}
 
 	uint64_t scr_diff = 0;
-	if (ctx->pids[pid].scr_updateCount > 0) {
+	pthread_mutex_lock(&ctx->pids[pid].clockLock);
+	int scrFirstUpdate = (ctx->pids[pid].scr_updateCount == 0);
+	if (!scrFirstUpdate) {
 		scr_diff = ltntstools_scr_diff(ctx->pids[pid].scr, scr);
 	} else {
 		ctx->pids[pid].scr_first = scr;
@@ -27,6 +29,12 @@ void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos,
 	}
 
 	ctx->pids[pid].scr = scr;
+	ctx->pids[pid].scr_updateCount++;
+	pthread_mutex_unlock(&ctx->pids[pid].clockLock);
+
+	if (ctx->ws_port > 0 && pid == ctx->scr_pid && scrFirstUpdate) {
+		ws_notify_pid_seen(ctx, pid, "pcr");
+	}
 
 	if (ctx->scr_linenr++ == 0) {
 		printf("+SCR Timing           filepos ------------>                   SCR  <--- SCR-DIFF ------>  SCR             Walltime ----------------------------->  Drift\n");
@@ -48,14 +56,20 @@ void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos,
 	char *scr_ascii = NULL;
 	ltntstools_pcr_to_ascii(&scr_ascii, scr);
 
-	ctx->pids[pid].scr_updateCount++;
-
 	char walltimePCRReport[32] = { 0 };
 	int64_t PCRWalltimeDriftMs = 0;
-	if (ltntstools_pid_stats_pid_get_pcr_walltime_driftms(ctx->libstats, pid, &PCRWalltimeDriftMs) == 0) {
+	int havePCRWalltimeDrift = ltntstools_pid_stats_pid_get_pcr_walltime_driftms(ctx->libstats, pid, &PCRWalltimeDriftMs) == 0;
+	if (havePCRWalltimeDrift) {
 		snprintf(walltimePCRReport, sizeof(walltimePCRReport), "%5" PRIi64, PCRWalltimeDriftMs);
 	} else {
 		snprintf(walltimePCRReport, sizeof(walltimePCRReport), "    NA");
+	}
+
+	/* One websocket message per real SCR tick observed on the designated PCR pid --
+	 * no polling, no sampling, no aliasing. */
+	if (ctx->ws_port > 0 && pid == ctx->scr_pid && havePCRWalltimeDrift) {
+		double intervalMs = scrFirstUpdate ? -1.0 : (double)scr_diff / 27000.0;
+		ws_notify_pcr(ctx, pid, scr, PCRWalltimeDriftMs, intervalMs, ts);
 	}
 
 	time_t now = time(NULL);

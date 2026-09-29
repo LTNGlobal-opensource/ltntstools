@@ -189,13 +189,20 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	if ((p->pes.PTS_DTS_flags == 2) || (p->pes.PTS_DTS_flags == 3)) {
 		ltn_pes_packet_copy(&p->pts_last, &p->pes);
 
-		if (p->clk_pts_initialized == 0) {
+		pthread_mutex_lock(&p->clockLock);
+		int ptsFirstInit = (p->clk_pts_initialized == 0);
+		if (ptsFirstInit) {
 			p->clk_pts_initialized = 1;
 			ltntstools_clock_initialize(&p->clk_pts);
 			ltntstools_clock_establish_timebase(&p->clk_pts, 90000);
 			ltntstools_clock_establish_wallclock(&p->clk_pts, p->pes.PTS);
 		}
 		ltntstools_clock_set_ticks(&p->clk_pts, p->pes.PTS);
+		pthread_mutex_unlock(&p->clockLock);
+
+		if (ctx->ws_port > 0 && ptsFirstInit) {
+			ws_notify_pid_seen(ctx, pid, "pts");
+		}
 
 		/* Initialize the trend if needed. trendLock is pre-initialized for every PID
 		 * at startup, so it's always safe to lock here, even against a concurrent
@@ -215,13 +222,20 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 	if (p->pes.PTS_DTS_flags == 3) {
 		ltn_pes_packet_copy(&p->dts_last, &p->pes);
 
-		if (p->clk_dts_initialized == 0) {
+		pthread_mutex_lock(&p->clockLock);
+		int dtsFirstInit = (p->clk_dts_initialized == 0);
+		if (dtsFirstInit) {
 			p->clk_dts_initialized = 1;
 			ltntstools_clock_initialize(&p->clk_dts);
 			ltntstools_clock_establish_timebase(&p->clk_dts, 90000);
 			ltntstools_clock_establish_wallclock(&p->clk_dts, p->pes.DTS);
 		}
 		ltntstools_clock_set_ticks(&p->clk_dts, p->pes.DTS);
+		pthread_mutex_unlock(&p->clockLock);
+
+		if (ctx->ws_port > 0 && dtsFirstInit) {
+			ws_notify_pid_seen(ctx, pid, "dts");
+		}
 
 		pthread_mutex_lock(&p->trend_dts.trendLock);
 		if (p->trend_dts.clkToScrTicksDeltaTrend == NULL) {
@@ -281,9 +295,20 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		}
 
 		/* Calculate the offset between the PTS and the last good SCR, assumed to be on pid DEFAULR_SCR_PID. */
-		int64_t pts_minus_scr_ticks = (p->pes.PTS * 300) - ctx->pids[ctx->scr_pid].scr;
+		pthread_mutex_lock(&ctx->pids[ctx->scr_pid].clockLock);
+		uint64_t scrSnapshot = ctx->pids[ctx->scr_pid].scr;
+		int haveScrDriftMs = ctx->pids[ctx->scr_pid].scr_updateCount > 0;
+		pthread_mutex_unlock(&ctx->pids[ctx->scr_pid].clockLock);
+
+		int64_t pts_minus_scr_ticks = (p->pes.PTS * 300) - scrSnapshot;
 		double d_pts_minus_scr_ticks = pts_minus_scr_ticks;
 		d_pts_minus_scr_ticks /= 27000.0;
+
+		if (ctx->ws_port > 0 && p->clk_pts_initialized) {
+			double ptsIntervalMs = (p->pts_count > 1) ? (double)p->pts_diff_ticks / 90.0 : -1.0;
+			ws_notify_pts(ctx, pid, p->pes.PTS, ptsWalltimeDriftMs, ptsIntervalMs,
+				haveScrDriftMs, d_pts_minus_scr_ticks, ts);
+		}
 
 		/* Update the PTS/SCR linear trends. */
 		p->trend_pts.last_clkToScrTicksDeltaTrend = now;
@@ -406,9 +431,20 @@ static ssize_t processPESHeader(uint8_t *buf, uint32_t lengthBytes, uint32_t pid
 		}
 
 		/* Calculate the offset between the DTS and the last good SCR, assumed to be on pid DEFAULT_SCR_PID. */
-		int64_t dts_minus_scr_ticks = (p->pes.DTS * 300) - ctx->pids[ctx->scr_pid].scr;
+		pthread_mutex_lock(&ctx->pids[ctx->scr_pid].clockLock);
+		uint64_t scrSnapshot = ctx->pids[ctx->scr_pid].scr;
+		int haveScrDriftMs = ctx->pids[ctx->scr_pid].scr_updateCount > 0;
+		pthread_mutex_unlock(&ctx->pids[ctx->scr_pid].clockLock);
+
+		int64_t dts_minus_scr_ticks = (p->pes.DTS * 300) - scrSnapshot;
 		double d_dts_minus_scr_ticks = dts_minus_scr_ticks;
 		d_dts_minus_scr_ticks /= 27000.0;
+
+		if (ctx->ws_port > 0 && p->clk_dts_initialized) {
+			double dtsIntervalMs = (p->dts_count > 1) ? (double)p->dts_diff_ticks / 90.0 : -1.0;
+			ws_notify_dts(ctx, pid, p->pes.DTS, dtsWalltimeDriftMs, dtsIntervalMs,
+				haveScrDriftMs, d_dts_minus_scr_ticks, ts);
+		}
 
 		/* Update the DTS/SCR linear trends. */
 		p->trend_dts.last_clkToScrTicksDeltaTrend = now;

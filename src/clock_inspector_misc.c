@@ -92,6 +92,90 @@ int validateClockMath()
 	return 0;
 }
 
+/* Regression test for pid_s.clockLock (see clock_inspector_public.h / clock_inspector_ws.c).
+ * One thread hammers the lock the way processSCRStats()/processPESHeader() do (mutate scr
+ * and clk_pts under the lock, monotonically increasing); a second thread hammers it the way
+ * the websocket snapshot thread does (copy the same fields out under the lock). If the lock
+ * were missing or incorrect, the reader could observe a torn or momentarily-regressed value
+ * (e.g. scr going backwards) despite the writer only ever incrementing it. Run via -X 3.
+ */
+struct ci_clocklock_test_ctx {
+	struct pid_s pid;
+	int iterations;
+	int failed;
+};
+
+static void *ci_clocklock_test_writer(void *arg)
+{
+	struct ci_clocklock_test_ctx *t = arg;
+	for (int i = 1; i <= t->iterations; i++) {
+		pthread_mutex_lock(&t->pid.clockLock);
+		t->pid.scr = (uint64_t)i * 300;
+		t->pid.scr_updateCount++;
+		ltntstools_clock_set_ticks(&t->pid.clk_pts, (int64_t)i * 90);
+		pthread_mutex_unlock(&t->pid.clockLock);
+	}
+	return NULL;
+}
+
+static void *ci_clocklock_test_reader(void *arg)
+{
+	struct ci_clocklock_test_ctx *t = arg;
+	uint64_t lastScr = 0;
+	int64_t lastPtsTicks = -1;
+
+	while (1) {
+		pthread_mutex_lock(&t->pid.clockLock);
+		uint64_t scr = t->pid.scr;
+		uint64_t count = t->pid.scr_updateCount;
+		int64_t ptsTicks = ltntstools_clock_get_ticks(&t->pid.clk_pts);
+		pthread_mutex_unlock(&t->pid.clockLock);
+
+		if (scr < lastScr || ptsTicks < lastPtsTicks) {
+			t->failed = 1;
+			fprintf(stderr, "validateClockLocking: FAIL - observed a torn/regressed read "
+				"(scr %" PRIu64 " < last %" PRIu64 ", pts %" PRIi64 " < last %" PRIi64 ")\n",
+				scr, lastScr, ptsTicks, lastPtsTicks);
+		}
+		lastScr = scr;
+		lastPtsTicks = ptsTicks;
+
+		if (count >= (uint64_t)t->iterations)
+			break;
+	}
+	return NULL;
+}
+
+int validateClockLocking()
+{
+	struct ci_clocklock_test_ctx t;
+	memset(&t, 0, sizeof(t));
+	t.iterations = 200000;
+
+	pthread_mutex_init(&t.pid.clockLock, NULL);
+	ltntstools_clock_initialize(&t.pid.clk_pts);
+	ltntstools_clock_establish_timebase(&t.pid.clk_pts, 90000);
+	ltntstools_clock_establish_wallclock(&t.pid.clk_pts, 0);
+
+	pthread_t writer, reader;
+	pthread_create(&writer, NULL, ci_clocklock_test_writer, &t);
+	pthread_create(&reader, NULL, ci_clocklock_test_reader, &t);
+
+	pthread_join(writer, NULL);
+	pthread_join(reader, NULL);
+
+	pthread_mutex_destroy(&t.pid.clockLock);
+
+	if (t.failed) {
+		printf("validateClockLocking: FAILED\n");
+		return 1;
+	}
+
+	printf("validateClockLocking: PASSED (%d iterations, no torn/regressed reads observed under contention)\n",
+		t.iterations);
+	return 0;
+}
+
 void kernel_check_socket_sizes(AVIOContext *i)
 {
 	printf("Kernel configured default/max socket buffer sizes:\n");

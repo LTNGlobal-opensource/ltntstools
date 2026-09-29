@@ -75,6 +75,13 @@ struct pid_s
 	struct timeval scr_at_pes_unit_header_ts;
 	struct timeval scr_last_seen_ts;
 
+	/* Guards: scr, scr_updateCount, clk_pts, clk_dts, clk_pts_initialized, clk_dts_initialized.
+	 * Held briefly by the packet-processing thread at each write site. Deliberately
+	 * separate from trend_pts/trend_dts.trendLock below, which guards unrelated,
+	 * much-less-frequently-touched linear-trend state.
+	 */
+	pthread_mutex_t clockLock;
+
 	/* PTS */
 	uint64_t pts_count;
 	struct ltn_pes_packet_s pts_last;
@@ -141,6 +148,21 @@ struct tool_context_s
 	int scr_pid;
 
 	struct ltntstools_stream_statistics_s *libstats;
+
+	/* Realtime websocket PCR feed + reference web UI (clock_inspector_ws.c).
+	 * ws_port == 0 (the default, from the calloc'd ctx) disables the feature entirely,
+	 * set via -W <port>. ws_priv is an opaque pointer to the libwebsockets-specific
+	 * state (context, ring buffer, etc.) so no other clock_inspector_*.c translation
+	 * unit needs to include <libwebsockets.h>. There is no separate broadcast
+	 * thread: processSCRStats() calls ws_notify_pcr() directly, once per SCR tick
+	 * observed on the designated PCR pid (ctx->scr_pid), so each websocket message
+	 * corresponds exactly to one real PCR sample -- no polling, no aliasing.
+	 */
+	int ws_port;
+	void *ws_priv;
+	pthread_t ws_threadId;
+	int ws_threadTerminate;
+	int ws_threadTerminated;
 };
 
 extern int gRunning;
@@ -151,6 +173,7 @@ void pidReport(struct tool_context_s *ctx);
 void kernel_check_socket_sizes(AVIOContext *i);
 int validateClockMath();
 int validateLinearTrend();
+int validateClockLocking();
 void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
 
 void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
@@ -159,5 +182,45 @@ void *trend_report_thread(void *tool_context);
 void trendReport(struct tool_context_s *ctx);
 void trendReportFree(struct tool_context_s *ctx);
 void ordered_clock_dump(struct xorg_list *list, unsigned short pid);
+
+/* Realtime websocket PCR feed, see clock_inspector_ws.c. All are no-ops (or return
+ * an error) if ctx->ws_port <= 0.
+ */
+int   ws_initialize(struct tool_context_s *ctx);
+void  ws_interrupt(struct tool_context_s *ctx);
+void  ws_free(struct tool_context_s *ctx);
+void *ws_thread_func(void *tool_context);
+
+/* Called directly from processSCRStats()/processPESHeader() for each real PCR/
+ * PTS/DTS tick observed -- one call in, at most one websocket message out.
+ * driftMs is the same kind of quantity for all three (drift from walltime in
+ * ms), computed exactly the same way as, and reusing the same values as, the
+ * console reports (walltimePCRReport / ptsWalltimeDriftMs / dtsWalltimeDriftMs).
+ * intervalMs is the time since this same pid's previous tick of this same
+ * clock, in ms -- reusing scr_diff / pts_diff_ticks / dts_diff_ticks, already
+ * computed for the console's "TICKS"/"DIFF" columns. Pass a negative value
+ * (eg -1) when no prior tick exists yet (first sample for this pid/clock);
+ * it's sent as JSON null rather than a bogus interval.
+ *
+ * ws_notify_pts()/ws_notify_dts() additionally take scrDriftMs: this PTS/DTS
+ * minus the current SCR on ctx->scr_pid, in ms -- reusing the exact
+ * d_pts_minus_scr_ticks/d_dts_minus_scr_ticks already computed for the
+ * console's "PTS*300 minus SCR" column (and the "arriving BEHIND the PCR"
+ * conformance check). Positive means the timestamp is still ahead of the PCR
+ * (normal decode-buffer margin); zero or negative means the PCR has already
+ * reached or passed it. Only meaningful once ctx->scr_pid has a valid SCR, so
+ * haveScrDriftMs is 0 (and scrDriftMs is sent as JSON null) until then.
+ */
+void  ws_notify_pcr(struct tool_context_s *ctx, uint16_t pid, uint64_t ticks27MHz,
+	int64_t driftMs, double intervalMs, struct timeval ts);
+void  ws_notify_pts(struct tool_context_s *ctx, uint16_t pid, int64_t ticks90k,
+	int64_t driftMs, double intervalMs, int haveScrDriftMs, double scrDriftMs, struct timeval ts);
+void  ws_notify_dts(struct tool_context_s *ctx, uint16_t pid, int64_t ticks90k,
+	int64_t driftMs, double intervalMs, int haveScrDriftMs, double scrDriftMs, struct timeval ts);
+
+/* Broadcast once, the first time a given (pid, clockType) combination is
+ * observed ("pcr"/"pts"/"dts"), so already-connected dashboards can add it to
+ * their pid/clock picker live without polling. */
+void  ws_notify_pid_seen(struct tool_context_s *ctx, uint16_t pid, const char *clockType);
 
 #endif /* CLOCK_INSPECTOR_PUBLIC_H */
