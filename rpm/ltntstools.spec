@@ -69,7 +69,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 
 %changelog
 * Tue Sep 29 2026 Steven Toth <steven.toth@ltnglobal.com> 
-- v1.51.0 -dev
+- v1.51.0
   tstools_clock_inspector: Added a web UI for easier / faster visualization
 
 * Fri Sep 18 2026 Steven Toth <steven.toth@ltnglobal.com> 
