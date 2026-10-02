@@ -38,7 +38,7 @@ test and fuzzing submodules (over 1GB), which the build does not use.
 ### 2. Build the dependencies (CMake)
 
     cmake -S deps -B build-deps
-    cmake --build build-deps
+    cmake --build build-deps --parallel
 
 This builds, in order: libdvbpsi, libltntstools, librdkafka, OpenSSL, json-c,
 libzvbi, libwebsockets (static), FFmpeg, libklvanc, libklscte35 and srt, all
@@ -64,6 +64,8 @@ directory) so the new sources are copied in.
 
     cmake -S . -B build
     cmake --build build
+    cd rpm
+    ./make-rpm.sh
 
 This links `tstools_util` against the shared libraries from step 2 and creates
 the `tstools_*` symlinks next to it in `build/src/`. Configuration fails if any
