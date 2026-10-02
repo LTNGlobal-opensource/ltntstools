@@ -1,0 +1,26 @@
+diff --git a/arraylist.c b/arraylist.c
+index 8a88ed1..3441ce1 100644
+--- a/arraylist.c
++++ b/arraylist.c
+@@ -46,7 +46,7 @@ array_list_new(array_list_free_fn *free_fn)
+   arr->size = ARRAY_LIST_DEFAULT_SIZE;
+   arr->length = 0;
+   arr->free_fn = free_fn;
+-  if(!(arr->array = (void**)calloc(sizeof(void*), arr->size))) {
++  if(!(arr->array = (void**)calloc(arr->size, sizeof(void*)))) {
+     free(arr);
+     return NULL;
+   }
+diff --git a/json_object.c b/json_object.c
+index 74d5266..8abfbf8 100644
+--- a/json_object.c
++++ b/json_object.c
+@@ -227,7 +227,7 @@ static struct json_object* json_object_new(enum json_type o_type)
+ {
+ 	struct json_object *jso;
+ 
+-	jso = (struct json_object*)calloc(sizeof(struct json_object), 1);
++	jso = (struct json_object*)calloc(1, sizeof(struct json_object));
+ 	if (!jso)
+ 		return NULL;
+ 	jso->o_type = o_type;

@@ -1,0 +1,44 @@
+diff --git a/libavcodec/golomb.h b/libavcodec/golomb.h
+index 9489ce6fb9..62198d4c82 100644
+--- a/libavcodec/golomb.h
++++ b/libavcodec/golomb.h
+@@ -484,7 +484,7 @@ static inline int get_ur_golomb_jpegls(GetBitContext *gb, int k, int limit,
+     } else {
+         int i;
+         for (i = 0; i + MIN_CACHE_BITS <= limit && SHOW_UBITS(re, gb, MIN_CACHE_BITS) == 0; i += MIN_CACHE_BITS) {
+-            if (gb->size_in_bits <= re_index) {
++            if (gb->size_in_bits <= (int)re_index) {
+                 CLOSE_READER(re, gb);
+                 return -1;
+             }
+diff --git a/libavcodec/put_bits.h b/libavcodec/put_bits.h
+index f07944a8fb..90ac21fc99 100644
+--- a/libavcodec/put_bits.h
++++ b/libavcodec/put_bits.h
+@@ -196,7 +196,7 @@ static inline void put_bits_no_assert(PutBitContext *s, int n, BitBuf value)
+     } else {
+         bit_buf   <<= bit_left;
+         bit_buf    |= value >> (n - bit_left);
+-        if (s->buf_end - s->buf_ptr >= sizeof(BitBuf)) {
++        if (s->buf_end - s->buf_ptr >= (int64_t)sizeof(BitBuf)) {
+             AV_WBBUF(s->buf_ptr, bit_buf);
+             s->buf_ptr += sizeof(BitBuf);
+         } else {
+@@ -234,7 +234,7 @@ static inline void put_bits_le(PutBitContext *s, int n, BitBuf value)
+ 
+     bit_buf |= value << (BUF_BITS - bit_left);
+     if (n >= bit_left) {
+-        if (s->buf_end - s->buf_ptr >= sizeof(BitBuf)) {
++        if (s->buf_end - s->buf_ptr >= (int64_t)sizeof(BitBuf)) {
+             AV_WLBUF(s->buf_ptr, bit_buf);
+             s->buf_ptr += sizeof(BitBuf);
+         } else {
+@@ -286,7 +286,7 @@ static void av_unused put_bits32(PutBitContext *s, uint32_t value)
+ #else
+     bit_buf     = (uint64_t)bit_buf << bit_left;
+     bit_buf    |= (BitBuf)value >> (BUF_BITS - bit_left);
+-    if (s->buf_end - s->buf_ptr >= sizeof(BitBuf)) {
++    if (s->buf_end - s->buf_ptr >= (int64_t)sizeof(BitBuf)) {
+         AV_WBBUF(s->buf_ptr, bit_buf);
+         s->buf_ptr += sizeof(BitBuf);
+     } else {

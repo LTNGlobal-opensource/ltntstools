@@ -1,0 +1,38 @@
+diff --git a/src/descriptors/dr_7c.c b/src/descriptors/dr_7c.c
+index 68b0a19..47a9b4f 100644
+--- a/src/descriptors/dr_7c.c
++++ b/src/descriptors/dr_7c.c
+@@ -259,6 +259,7 @@ dvbpsi_aac_dr_t *dvbpsi_DecodeAACDr(dvbpsi_descriptor_t *p_descriptor)
+             free(p_decoded);
+             return NULL;
+         }
++	p_decoded = p_tmp;
+         p_decoded->p_additional_info = ((uint8_t*)p_tmp + sizeof(dvbpsi_aac_dr_t));
+         p_decoded->i_additional_info_length = i_info_length;
+ 
+diff --git a/src/dvbpsi.c b/src/dvbpsi.c
+index b8f5489..a806b13 100644
+--- a/src/dvbpsi.c
++++ b/src/dvbpsi.c
+@@ -515,7 +515,7 @@ bool dvbpsi_packet_push(dvbpsi_t *p_dvbpsi, uint8_t* p_data)
+ #define DVBPSI_MSG_FORMAT "libdvbpsi (%s): "
+ 
+ #ifdef HAVE_VARIADIC_MACROS
+-void dvbpsi_message(dvbpsi_t *dvbpsi, const dvbpsi_msg_level_t level, const char *fmt, ...)
++void dvbpsi_message(dvbpsi_t *dvbpsi, const int level, const char *fmt, ...)
+ {
+     if ((dvbpsi->i_msg_level > DVBPSI_MSG_NONE) &&
+         (level <= dvbpsi->i_msg_level))
+diff --git a/src/tables/tot.c b/src/tables/tot.c
+index 18b2ba7..c1871cc 100644
+--- a/src/tables/tot.c
++++ b/src/tables/tot.c
+@@ -526,7 +526,7 @@ dvbpsi_psi_section_t* dvbpsi_tot_sections_generate(dvbpsi_t *p_dvbpsi, dvbpsi_to
+         }
+ 
+         /* descriptors_loop_length */
+-        p_result->p_payload_start[5] = ((p_result->i_length - 7) << 8) | 0xf0;
++        p_result->p_payload_start[5] = (char)((p_result->i_length - 7) << 8) | 0xf0;
+         p_result->p_payload_start[6] =  (p_result->i_length - 7)       & 0xff;
+     }
+ 

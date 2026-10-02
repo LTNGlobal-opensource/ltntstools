@@ -11,7 +11,6 @@
 #include <getopt.h>
 #include <signal.h>
 #include <fcntl.h>
-#include <curses.h>
 #include <inttypes.h>
 #include <pthread.h>
 #include <string.h>

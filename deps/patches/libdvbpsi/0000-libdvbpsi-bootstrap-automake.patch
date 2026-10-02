@@ -1,0 +1,11 @@
+--- a/bootstrap	2026-10-02 09:49:33
++++ b/bootstrap	2026-10-02 09:49:33
+@@ -36,7 +36,7 @@
+ 
+ # Check for automake
+ amvers="no"
+-for v in 16 15 14 13 12 11 10 9 8 7 6 5; do
++for v in 19 18 17 16 15 14 13 12 11 10 9 8 7 6 5; do
+   if automake-1.${v} --version >/dev/null 2>&1; then
+     amvers="-1.${v}"
+     break

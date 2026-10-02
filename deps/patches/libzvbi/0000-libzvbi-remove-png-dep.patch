@@ -1,0 +1,30 @@
+diff --git a/configure b/configure
+index 83e0875..edc7ec7 100755
+--- a/configure
++++ b/configure
+@@ -16477,14 +16477,14 @@ if test "x$am_cv_func_iconv" != xyes; then
+ fi
+ LIBS="$LIBS $LIBICONV"
+ 
+-HAVE_PNG="yes"
++HAVE_PNG="no"
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for png_destroy_write_struct in -lpng" >&5
+ $as_echo_n "checking for png_destroy_write_struct in -lpng... " >&6; }
+ if test "${ac_cv_lib_png_png_destroy_write_struct+set}" = set; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+-LIBS="-lpng -lz -lm $LIBS"
++LIBS=" -lz -lm $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -16515,7 +16515,7 @@ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_png_png_destroy_write_struct" >&5
+ $as_echo "$ac_cv_lib_png_png_destroy_write_struct" >&6; }
+ if test "x$ac_cv_lib_png_png_destroy_write_struct" = x""yes; then :
+-  LIBS="$LIBS -lpng -lz"
++  LIBS="$LIBS -lz"
+ else
+   HAVE_PNG="no"
+ fi

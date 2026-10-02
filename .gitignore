@@ -18,3 +18,7 @@ ltmain.sh
 m4/
 missing
 src/clock_inspector_ws_html.h
+
+# CMake build directories
+/build/
+/build-deps/
