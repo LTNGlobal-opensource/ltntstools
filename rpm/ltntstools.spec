@@ -7,7 +7,7 @@ License:	GPLv2+
 URL:		www.ltnglobal.com
 
 %global __provides_exclude_from ^/usr/local/lib-ltntstools/.*$
-%global __requires_exclude ^(libavcodec\.so\.58|libavformat\.so\.58|libavutil\.so\.56|libdvbpsi\.so\.10|libklscte35\.so\.0|libklvanc\.so\.0|libltntstools\.so\.0|libjson-c\.so\.4|libzvbi\.so\.0|libsrt\.so\.1\.4|libswresample\.so\.3|libswscale\.so\.5).*
+%global __requires_exclude ^(libavcodec\.so\.58|libavformat\.so\.58|libavutil\.so\.56|libdvbpsi\.so\.10|libklscte35\.so\.0|libklvanc\.so\.0|libltntstools\.so\.0|libjson-c\.so\.4|libzvbi\.so\.0|libsrt\.so\.1\.4|libswresample\.so\.3|libswscale\.so\.5|libssl\.so\.3|libcrypto\.so\.3).*
 
 #BuildRequires:	
 BuildRequires:	zlib-devel
@@ -65,6 +65,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/lib-ltntstools/libavcodec.so.58
 /usr/local/lib-ltntstools/libswresample.so.3
 /usr/local/lib-ltntstools/libswscale.so.5
+/usr/local/lib-ltntstools/libssl.so.3
+/usr/local/lib-ltntstools/libcrypto.so.3
 #/usr/local/lib-ltntstools/libntt.so.0
 
 %changelog

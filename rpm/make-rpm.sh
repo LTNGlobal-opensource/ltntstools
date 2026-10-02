@@ -19,36 +19,40 @@ cat $SPECFILE  | sed "s/^Version.*$/Version:\t${GIT_VERSION}/g" > ~/rpmbuild/SPE
 
 TARGET_DIR=~/rpmbuild/BUILDROOT/$APP-$GIT_VERSION-1.x86_64
 
-mkdir -p $TARGET_DIR/usr/local/bin
-cp ../src/tstools_util $TARGET_DIR/usr/local/bin
+# CMake build directories (see README.md). Override if yours differ.
+BUILD_DIR=${BUILD_DIR:-../build}
+DEPS_DIR=`cd ${DEPS_DIR:-../build-deps} && pwd` || exit 1
+DEPS_LIB=$DEPS_DIR/target-root/usr/lib
+
+# The packaged binary must find its bundled libraries in
+# /usr/local/lib-ltntstools, not in the build machine's deps directory.
+# CMake applies this RPATH at install time.
+cmake -S .. -B $BUILD_DIR -DLTNTSTOOLS_DEPS_DIR=$DEPS_DIR \
+	-DLTNTSTOOLS_INSTALL_RPATH='$ORIGIN/../lib-ltntstools' || exit 1
+cmake --build $BUILD_DIR || exit 1
+
+# Installs tstools_util and all of its tstools_* symlinks.
+cmake --install $BUILD_DIR --prefix $TARGET_DIR/usr/local || exit 1
 strip $TARGET_DIR/usr/local/bin/tstools_util
 
 mkdir -p $TARGET_DIR/usr/local/share/man/man8
 cp ../man/*.8 $TARGET_DIR/usr/local/share/man/man8
 
-mkdir -p $TARGET_DIR/usr/local/lib-ltntstools
-cp ../../target-root/usr/lib/libdvbpsi.so.10    $TARGET_DIR/usr/local/lib-ltntstools/libdvbpsi.so.10
-cp ../../target-root/usr/lib/libklscte35.so.0   $TARGET_DIR/usr/local/lib-ltntstools/libklscte35.so.0
-cp ../../target-root/usr/lib/libltntstools.so.0 $TARGET_DIR/usr/local/lib-ltntstools/libltntstools.so.0
-cp ../../target-root/usr/lib64/libsrt.so.1.4    $TARGET_DIR/usr/local/lib-ltntstools/libsrt.so.1.4
-cp ../../target-root/usr/lib/libjson-c.so.4     $TARGET_DIR/usr/local/lib-ltntstools/libjson-c.so.4
-cp ../../target-root/usr/lib/libzvbi.so.0       $TARGET_DIR/usr/local/lib-ltntstools/libzvbi.so.0
-cp ../../target-root/usr/lib/libklvanc.so.0     $TARGET_DIR/usr/local/lib-ltntstools/libklvanc.so.0
-cp ../../target-root/usr/lib/libavformat.so.58  $TARGET_DIR/usr/local/lib-ltntstools/libavformat.so.58
-cp ../../target-root/usr/lib/libavutil.so.56    $TARGET_DIR/usr/local/lib-ltntstools/libavutil.so.56
-cp ../../target-root/usr/lib/libavcodec.so.58   $TARGET_DIR/usr/local/lib-ltntstools/libavcodec.so.58
-cp ../../target-root/usr/lib/libswresample.so.3 $TARGET_DIR/usr/local/lib-ltntstools/libswresample.so.3
-cp ../../target-root/usr/lib/libswscale.so.5    $TARGET_DIR/usr/local/lib-ltntstools/libswscale.so.5
-if [ -f ../../target-root/usr/lib/libntt.so.0 ]; then
-cp ../../target-root/usr/lib/libntt.so.0        $TARGET_DIR/usr/local/lib-ltntstools/libntt.so.0
-fi
+# Keep in sync with %files and __requires_exclude in the spec file.
+LIBS="libdvbpsi.so.10 libklscte35.so.0 libltntstools.so.0 libsrt.so.1.4
+      libjson-c.so.4 libzvbi.so.0 libklvanc.so.0
+      libavformat.so.58 libavutil.so.56 libavcodec.so.58
+      libswresample.so.3 libswscale.so.5
+      libssl.so.3 libcrypto.so.3"
 
-pushd $TARGET_DIR/usr/local/bin
-	for BIN in `./tstools_util | grep ^tstools`
-	do
-		ln -sf tstools_util $BIN
-	done
-popd
+mkdir -p $TARGET_DIR/usr/local/lib-ltntstools
+for LIB in $LIBS
+do
+	cp $DEPS_LIB/$LIB $TARGET_DIR/usr/local/lib-ltntstools/$LIB || exit 1
+done
+if [ -f $DEPS_LIB/libntt.so.0 ]; then
+	cp $DEPS_LIB/libntt.so.0 $TARGET_DIR/usr/local/lib-ltntstools/libntt.so.0
+fi
 
 rpmbuild -bb ~/rpmbuild/SPECS/$SPECFILE
 
