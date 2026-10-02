@@ -16,3 +16,6 @@
 [submodule "deps/libwebsockets"]
 	path = deps/libwebsockets
 	url = https://github.com/warmcat/libwebsockets.git
+[submodule "deps/srt"]
+	path = deps/srt
+	url = https://github.com/Haivision/srt.git
