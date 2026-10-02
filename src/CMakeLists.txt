@@ -226,6 +226,15 @@ if(NOT CMAKE_BUILD_TYPE)
   target_compile_options(tstools_util PRIVATE -O3 -g)
 endif()
 
+# Like AC_PROG_CC_C99: request gnu99 only from compilers that default to C90
+# (e.g. GCC 4.8 on CentOS 7); newer defaults are kept. The values are
+# two-digit years (90, 99, 11, 17, 23), so compare for 90, not numerically.
+if(CMAKE_C_STANDARD_DEFAULT STREQUAL "90")
+  set_target_properties(tstools_util PROPERTIES
+    C_STANDARD 99
+    C_EXTENSIONS ON)
+endif()
+
 set_target_properties(tstools_util PROPERTIES
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED ON
