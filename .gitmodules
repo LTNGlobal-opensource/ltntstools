@@ -4,3 +4,6 @@
 [submodule "deps/librdkafka"]
 	path = deps/librdkafka
 	url = https://github.com/confluentinc/librdkafka.git
+[submodule "deps/openssl"]
+	path = deps/openssl
+	url = https://github.com/openssl/openssl.git
