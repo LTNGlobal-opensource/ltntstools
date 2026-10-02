@@ -1,3 +1,6 @@
 [submodule "deps/libltntstools"]
 	path = deps/libltntstools
 	url = https://github.com/LTNGlobal-opensource/libltntstools.git
+[submodule "deps/librdkafka"]
+	path = deps/librdkafka
+	url = https://github.com/confluentinc/librdkafka.git
