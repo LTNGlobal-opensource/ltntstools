@@ -13,3 +13,6 @@
 [submodule "deps/libzvbi"]
 	path = deps/libzvbi
 	url = https://github.com/LTNGlobal-opensource/libzvbi.git
+[submodule "deps/libwebsockets"]
+	path = deps/libwebsockets
+	url = https://github.com/warmcat/libwebsockets.git
