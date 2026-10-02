@@ -54,7 +54,15 @@ if [ -f $DEPS_LIB/libntt.so.0 ]; then
 	cp $DEPS_LIB/libntt.so.0 $TARGET_DIR/usr/local/lib-ltntstools/libntt.so.0
 fi
 
-rpmbuild -bb ~/rpmbuild/SPECS/$SPECFILE
+# Optional tools are packaged only if this build produced them
+# (ENABLE_DTAPI / ENABLE_NTT); see the matching %if blocks in the spec file.
+WITH_DTAPI=0
+WITH_NTT=0
+[ -L $TARGET_DIR/usr/local/bin/tstools_asi2ip ] && WITH_DTAPI=1
+[ -L $TARGET_DIR/usr/local/bin/tstools_ntt_inspector ] && WITH_NTT=1
+
+rpmbuild -bb --define "with_dtapi $WITH_DTAPI" --define "with_ntt $WITH_NTT" \
+	~/rpmbuild/SPECS/$SPECFILE || exit 1
 
 mv ~/rpmbuild/RPMS/x86_64/$APP-$GIT_VERSION-1.x86_64.rpm .
 
