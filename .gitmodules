@@ -25,3 +25,6 @@
 [submodule "deps/ffmpeg"]
 	path = deps/ffmpeg
 	url = https://git.ffmpeg.org/ffmpeg.git
+[submodule "deps/libklvanc"]
+	path = deps/libklvanc
+	url = https://github.com/LTNGlobal-opensource/libklvanc.git
