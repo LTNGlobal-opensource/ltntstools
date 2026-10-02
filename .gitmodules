@@ -1,0 +1,3 @@
+[submodule "deps/libltntstools"]
+	path = deps/libltntstools
+	url = https://github.com/LTNGlobal-opensource/libltntstools.git
