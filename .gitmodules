@@ -19,3 +19,6 @@
 [submodule "deps/srt"]
 	path = deps/srt
 	url = https://github.com/Haivision/srt.git
+[submodule "deps/MediaInfoLib"]
+	path = deps/MediaInfoLib
+	url = https://github.com/MediaArea/MediaInfoLib.git
