@@ -7,3 +7,6 @@
 [submodule "deps/openssl"]
 	path = deps/openssl
 	url = https://github.com/openssl/openssl.git
+[submodule "deps/json-c"]
+	path = deps/json-c
+	url = https://github.com/json-c/json-c.git
