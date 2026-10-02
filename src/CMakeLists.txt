@@ -25,6 +25,9 @@ pkg_check_modules(LTN_DEPS REQUIRED IMPORTED_TARGET ${_dep_modules})
 get_filename_component(_deps_libdir "${LTNTSTOOLS_DEPS_PREFIX}/lib" REALPATH)
 foreach(_m IN LISTS _dep_modules)
   pkg_get_variable(_libdir ${_m} libdir)
+  # libwebsockets.pc quotes its prefix; older pkg-config (0.27, CentOS 7)
+  # returns those quotes as part of the value.
+  string(REPLACE "\"" "" _libdir "${_libdir}")
   get_filename_component(_libdir "${_libdir}" REALPATH)
   if(NOT _libdir STREQUAL _deps_libdir)
     message(FATAL_ERROR "pkg-config module ${_m} resolved to ${_libdir}, "
