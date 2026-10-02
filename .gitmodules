@@ -22,3 +22,6 @@
 [submodule "deps/MediaInfoLib"]
 	path = deps/MediaInfoLib
 	url = https://github.com/MediaArea/MediaInfoLib.git
+[submodule "deps/ffmpeg"]
+	path = deps/ffmpeg
+	url = https://git.ffmpeg.org/ffmpeg.git
