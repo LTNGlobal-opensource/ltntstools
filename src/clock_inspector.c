@@ -177,6 +177,9 @@ int clock_inspector(int argc, char *argv[])
 			} else
 			if (atoi(optarg) == 4) {
 				return validateLinearTrendDataset();
+			} else
+			if (atoi(optarg) == 5) {
+				return validateLinearTrendSafety();
 			}
 			usage(argv[0]);
 			exit(1);

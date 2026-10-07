@@ -103,6 +103,118 @@ int validateLinearTrendDataset()
 	return 0;
 }
 
+/* Safety tests for kllineartrend alloc/free/clone argument handling, ring indexing
+ * and save_csv. Allocation failure paths can't be forced here, run under a malloc
+ * fault injector for those. Run via -X 5.
+ */
+#define CI_TREND_EXPECT(cond, msg) \
+	do { \
+		if (cond) { \
+			printf("validateLinearTrendSafety: %-50s ok\n", msg); \
+		} else { \
+			printf("validateLinearTrendSafety: %-50s FAIL\n", msg); \
+			failed++; \
+		} \
+	} while (0)
+
+int validateLinearTrendSafety()
+{
+	int failed = 0;
+
+	/* maxItems of zero would cause a modulo by zero in _add(). */
+	struct kllineartrend_context_s *tc = kllineartrend_alloc(0, "zero");
+	CI_TREND_EXPECT(tc == NULL, "alloc(0) returns NULL");
+	kllineartrend_free(tc);
+
+	/* NULL name is treated as an empty string. */
+	tc = kllineartrend_alloc(8, NULL);
+	CI_TREND_EXPECT(tc != NULL && tc->name[0] == 0, "alloc(8, NULL) succeeds with empty name");
+	kllineartrend_free(tc);
+
+	kllineartrend_free(NULL);
+	CI_TREND_EXPECT(1, "free(NULL) is a no-op");
+
+	CI_TREND_EXPECT(kllineartrend_clone(NULL) == NULL, "clone(NULL) returns NULL");
+
+	struct kllineartrend_context_s nolist;
+	memset(&nolist, 0, sizeof(nolist));
+	nolist.maxCount = 8;
+	CI_TREND_EXPECT(kllineartrend_clone(&nolist) == NULL, "clone(ctx without list) returns NULL");
+
+	/* Wrap an 8 entry ring with 13 samples of y = 2x + 1, x = 1..13.
+	 * Expect the ring to hold x = 6..13, oldest at slot 5.
+	 */
+	tc = kllineartrend_alloc(8, "wrap");
+	if (!tc) {
+		printf("validateLinearTrendSafety: alloc failed\n");
+		return 1;
+	}
+	for (int i = 1; i <= 13; i++) {
+		kllineartrend_add(tc, i, (2.0 * i) + 1.0);
+	}
+	CI_TREND_EXPECT(tc->count == 8 && tc->idx == 5, "13 adds into 8 entries: count 8, idx 5");
+	CI_TREND_EXPECT(tc->list[5].x == 6.0 && tc->list[4].x == 13.0, "oldest x 6 at slot 5, newest x 13 at slot 4");
+
+	double slope, intercept, deviation, r2;
+	kllineartrend_calculate(tc, &slope, &intercept, &deviation);
+	kllineartrend_calculate_r_squared(tc, slope, intercept, &r2);
+	CI_TREND_EXPECT(fabs(slope - 2.0) < 1e-9 && fabs(intercept - 1.0) < 1e-9, "wrapped fit slope 2, intercept 1");
+	CI_TREND_EXPECT(fabs(deviation - 14.0) < 1e-9, "wrapped deviation 14 (slope * (8 - 1))");
+	CI_TREND_EXPECT(fabs(r2 - 1.0) < 1e-9, "wrapped rsquared 1");
+
+	/* Clone is a deep, identical copy. */
+	struct kllineartrend_context_s *dup = kllineartrend_clone(tc);
+	CI_TREND_EXPECT(dup != NULL && dup->list != tc->list &&
+		dup->count == tc->count && dup->idx == tc->idx && dup->maxCount == tc->maxCount &&
+		strcmp(dup->name, tc->name) == 0 &&
+		memcmp(dup->list, tc->list, tc->maxCount * sizeof(struct kllineartrend_item_s)) == 0,
+		"clone is a deep identical copy");
+	kllineartrend_free(dup);
+
+	/* save_csv: timestamp line is populated, unsigned count, rows oldest first. */
+	char fn[] = "/tmp/kllineartrend-test-XXXXXX";
+	int fd = mkstemp(fn);
+	if (fd < 0) {
+		printf("validateLinearTrendSafety: mkstemp failed, skipping save_csv checks\n");
+		failed++;
+	} else {
+		close(fd);
+		CI_TREND_EXPECT(kllineartrend_save_csv(tc, fn) == 0, "save_csv returns 0");
+
+		FILE *fh = fopen(fn, "r");
+		char line[256];
+		int lines = 0, rows = 0, createdOk = 0, entriesOk = 0, firstPtr = -1;
+		while (fh && fgets(line, sizeof(line), fh)) {
+			lines++;
+			if (lines == 1) {
+				createdOk = strncmp(line, "# Created ", 10) == 0 && strlen(line) > 11;
+			} else if (lines == 2) {
+				entriesOk = strstr(line, "       8 entries") != NULL;
+			} else {
+				if (rows++ == 0)
+					firstPtr = atoi(line);
+			}
+		}
+		if (fh)
+			fclose(fh);
+		unlink(fn);
+
+		CI_TREND_EXPECT(createdOk, "save_csv '# Created <timestamp>' line");
+		CI_TREND_EXPECT(entriesOk, "save_csv reports 8 entries");
+		CI_TREND_EXPECT(rows == 8 && firstPtr == 5, "save_csv writes 8 rows, oldest (slot 5) first");
+	}
+
+	kllineartrend_free(tc);
+
+	if (failed) {
+		printf("validateLinearTrendSafety: FAILED (%d checks)\n", failed);
+		return 1;
+	}
+
+	printf("validateLinearTrendSafety: PASSED\n");
+	return 0;
+}
+
 int validateClockMath()
 {
 	/* Setup a PCR measurement unit as a 27MHz clock.

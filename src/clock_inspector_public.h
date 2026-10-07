@@ -175,6 +175,7 @@ int validateClockMath();
 int validateLinearTrend();
 int validateClockLocking();
 int validateLinearTrendDataset();
+int validateLinearTrendSafety();
 void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
 
 void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
