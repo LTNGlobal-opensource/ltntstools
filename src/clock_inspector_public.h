@@ -174,6 +174,7 @@ void kernel_check_socket_sizes(AVIOContext *i);
 int validateClockMath();
 int validateLinearTrend();
 int validateClockLocking();
+int validateLinearTrendDataset();
 void processSCRStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);
 
 void processPESStats(struct tool_context_s *ctx, uint8_t *pkt, uint64_t filepos, struct timeval ts);

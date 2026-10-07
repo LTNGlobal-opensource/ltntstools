@@ -1,4 +1,5 @@
 #include "clock_inspector_public.h"
+#include <math.h>
 
 int validateLinearTrend()
 {
@@ -31,6 +32,75 @@ int validateLinearTrend()
 	kllineartrend_free(tc);
 
 	return -1;
+}
+
+/* Unit test for kllineartrend against a real 271 sample drifting dataset.
+ * Expected values were computed independently (ordinary least squares, x = 1..N).
+ * Case 1: buffer larger than the dataset (no ring wrap).
+ * Case 2: 128 entry buffer, so the ring wraps and only the last 128 samples are fitted.
+ * Deviation is expected to be the fitted change across the window, slope * (count - 1).
+ * Run via -X 4.
+ */
+#include "testcase-lineartrend-drift.h"
+
+static int ci_lineartrend_check(const char *label, const char *field, double got, double expected, double tolerance)
+{
+	int ok = fabs(got - expected) <= tolerance;
+	printf("validateLinearTrendDataset: %-8s %-9s got %18.10f expected %18.10f %s\n",
+		label, field, got, expected, ok ? "ok" : "FAIL");
+	return ok ? 0 : 1;
+}
+
+static int ci_lineartrend_run(const char *label, uint32_t maxItems,
+	double expSlope, double expIntercept, double expR2, double expDeviation)
+{
+	int count = sizeof(testcase_lineartrend_drift) / sizeof(testcase_lineartrend_drift[0]);
+	int failed = 0;
+
+	struct kllineartrend_context_s *tc = kllineartrend_alloc(maxItems, label);
+	if (!tc || !tc->list) {
+		printf("validateLinearTrendDataset: %s alloc failed\n", label);
+		return 1;
+	}
+
+	for (int i = 0; i < count; i++) {
+		kllineartrend_add(tc, (double)(i + 1), testcase_lineartrend_drift[i]);
+	}
+
+	uint32_t expCount = (uint32_t)count < maxItems ? (uint32_t)count : maxItems;
+	if (tc->count != expCount) {
+		printf("validateLinearTrendDataset: %-8s count     got %u expected %u FAIL\n", label, tc->count, expCount);
+		failed++;
+	}
+
+	double slope, intercept, deviation, r2;
+	kllineartrend_calculate(tc, &slope, &intercept, &deviation);
+	kllineartrend_calculate_r_squared(tc, slope, intercept, &r2);
+
+	failed += ci_lineartrend_check(label, "slope", slope, expSlope, 1e-6);
+	failed += ci_lineartrend_check(label, "intercept", intercept, expIntercept, 1e-4);
+	failed += ci_lineartrend_check(label, "rsquared", r2, expR2, 1e-6);
+	failed += ci_lineartrend_check(label, "deviation", deviation, expDeviation, 1e-4);
+
+	kllineartrend_free(tc);
+
+	return failed;
+}
+
+int validateLinearTrendDataset()
+{
+	int failed = 0;
+
+	failed += ci_lineartrend_run("full", 512, -0.0663302227, 439.6466962690, 0.9326983158, -17.9091601290);
+	failed += ci_lineartrend_run("last128", 128, -0.0665751551, 439.6776962410, 0.7301938700, -8.4550446977);
+
+	if (failed) {
+		printf("validateLinearTrendDataset: FAILED (%d checks)\n", failed);
+		return 1;
+	}
+
+	printf("validateLinearTrendDataset: PASSED\n");
+	return 0;
 }
 
 int validateClockMath()
