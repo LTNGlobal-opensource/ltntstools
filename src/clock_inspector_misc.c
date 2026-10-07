@@ -48,15 +48,26 @@ int validateLinearTrend()
 static int ci_lineartrend_check(const char *label, const char *field, double got, double expected, double tolerance)
 {
 	int ok = fabs(got - expected) <= tolerance;
-	printf("validateLinearTrendDataset: %-13s %-9s got %18.10f expected %18.10f %s\n",
+	printf("validateLinearTrendDataset: %-14s %-9s got %18.10f expected %18.10f %s\n",
 		label, field, got, expected, ok ? "ok" : "FAIL");
 	return ok ? 0 : 1;
 }
 
-static int ci_lineartrend_run(const char *label, const double *data, int count, uint32_t maxItems,
+/* Computed values from one dataset/window run, for the summary printed after all checks. */
+struct ci_lineartrend_result {
+	const char *label;
+	double slope;
+	double r2;
+	double deviation;
+};
+
+static int ci_lineartrend_run(struct ci_lineartrend_result *res, const char *label, const double *data, int count, uint32_t maxItems,
 	double expSlope, double expIntercept, double expR2, double expDeviation)
 {
 	int failed = 0;
+
+	res->label = label;
+	res->slope = res->r2 = res->deviation = NAN;
 
 	struct kllineartrend_context_s *tc = kllineartrend_alloc(maxItems, label);
 	if (!tc || !tc->list) {
@@ -70,13 +81,17 @@ static int ci_lineartrend_run(const char *label, const double *data, int count, 
 
 	uint32_t expCount = (uint32_t)count < maxItems ? (uint32_t)count : maxItems;
 	if (tc->count != expCount) {
-		printf("validateLinearTrendDataset: %-13s count     got %u expected %u FAIL\n", label, tc->count, expCount);
+		printf("validateLinearTrendDataset: %-14s count     got %u expected %u FAIL\n", label, tc->count, expCount);
 		failed++;
 	}
 
 	double slope, intercept, deviation, r2;
 	kllineartrend_calculate(tc, &slope, &intercept, &deviation);
 	kllineartrend_calculate_r_squared(tc, slope, intercept, &r2);
+
+	res->slope = slope;
+	res->r2 = r2;
+	res->deviation = deviation;
 
 	failed += ci_lineartrend_check(label, "slope", slope, expSlope, 1e-6);
 	failed += ci_lineartrend_check(label, "intercept", intercept, expIntercept, 1e-4);
@@ -97,18 +112,43 @@ int validateLinearTrendDataset()
 	const double *flat = testcase_lineartrend_flat;
 	int flatCount = sizeof(testcase_lineartrend_flat) / sizeof(testcase_lineartrend_flat[0]);
 
-	failed += ci_lineartrend_run("drift/full", drift, driftCount, 512, -0.0663302227, 439.6466962690, 0.9326983158, -17.9091601290);
-	failed += ci_lineartrend_run("drift/last128", drift, driftCount, 128, -0.0665751551, 439.6776962410, 0.7301938700, -8.4550446977);
-	failed += ci_lineartrend_run("flat/full", flat, flatCount, 512, -0.0070302300, 494.4171186552, 0.1295757639, -1.8981620903);
-	failed += ci_lineartrend_run("flat/last128", flat, flatCount, 128, -0.0079211540, 494.5516160130, 0.0377117658, -1.0059865552);
+	struct ci_lineartrend_result results[4];
+	int n = 0;
+
+	failed += ci_lineartrend_run(&results[n++], "Before/full", drift, driftCount, 512, -0.0663302227, 439.6466962690, 0.9326983158, -17.9091601290);
+	failed += ci_lineartrend_run(&results[n++], "Before/last128", drift, driftCount, 128, -0.0665751551, 439.6776962410, 0.7301938700, -8.4550446977);
+	failed += ci_lineartrend_run(&results[n++], "After/full", flat, flatCount, 512, -0.0070302300, 494.4171186552, 0.1295757639, -1.8981620903);
+	failed += ci_lineartrend_run(&results[n++], "After/last128", flat, flatCount, 128, -0.0079211540, 494.5516160130, 0.0377117658, -1.0059865552);
+
+	printf("\n");
+	for (int i = 0; i < n; i++) {
+		printf("%-14s R² %10.8f  slope %11.8f  deviation %8.3f\n",
+			results[i].label, results[i].r2, results[i].slope, results[i].deviation);
+	}
+	printf("\n");
 
 	if (failed) {
 		printf("validateLinearTrendDataset: FAILED (%d checks)\n", failed);
-		return 1;
+	} else {
+		printf("validateLinearTrendDataset: PASSED\n");
 	}
 
-	printf("validateLinearTrendDataset: PASSED\n");
-	return 0;
+	printf("\n"
+		"Rough guide (rules of thumb, not a standard)\n"
+		"\n"
+		"┌───────────┬──────────────────────────────────────────────────┐\n"
+		"│    R²     │                     Meaning                      │\n"
+		"├───────────┼──────────────────────────────────────────────────┤\n"
+		"│ > 0.9     │ Strong, consistent straight-line trend           │\n"
+		"├───────────┼──────────────────────────────────────────────────┤\n"
+		"│ 0.7 – 0.9 │ Clear trend, with noticeable noise               │\n"
+		"├───────────┼──────────────────────────────────────────────────┤\n"
+		"│ 0.3 – 0.7 │ Weak trend; treat the slope with caution         │\n"
+		"├───────────┼──────────────────────────────────────────────────┤\n"
+		"│ < 0.3     │ Mostly noise; essentially no straight-line trend │\n"
+		"└───────────┴──────────────────────────────────────────────────┘\n");
+
+	return failed ? 1 : 0;
 }
 
 /* Safety tests for kllineartrend alloc/free/clone argument handling, ring indexing
