@@ -42,20 +42,22 @@ struct kllineartrend_context_s
 
 /**
  * @brief	Allocate a context.
- * @return   	Pointer on success, else NULL.
+ * @param[in]	uint32_t maxItems - Ring buffer size, must be non-zero.
+ * @param[in]	const char *name - Label, NULL is treated as an empty string.
+ * @return   	Pointer on success, else NULL (maxItems == 0 or out of memory).
  */
 struct kllineartrend_context_s *kllineartrend_alloc(uint32_t maxItems, const char *name);
 
 /**
  * @brief	Release and de-allocate any memory resources associated with object.
- * @param[in]	struct kllineartrend_context_s *ctx - Object.
+ * @param[in]	struct kllineartrend_context_s *ctx - Object. NULL is a no-op.
  */
 void kllineartrend_free(struct kllineartrend_context_s *ctx);
 
 /**
  * @brief	Duplicate an existing context, entirely.
  * @param[in]	struct kllineartrend_context_s *ctx - Object.
- * @return   	Pointer on success, else NULL.
+ * @return   	Pointer on success, else NULL (NULL/invalid ctx or out of memory).
  */
 struct kllineartrend_context_s *kllineartrend_clone(struct kllineartrend_context_s *ctx);
 

@@ -14,93 +14,103 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <math.h>
+#include <time.h>
 
-#define SANITIZE(ctx, val) ((val) % ctx->maxCount)
+/* val is widened to 64 bits so (start + i) can never wrap for any uint32_t maxCount. */
+#define SANITIZE(ctx, val) ((uint32_t)((uint64_t)(val) % (ctx)->maxCount))
+
+/* Return the ring position of the oldest entry and the number of valid entries. */
+static void kllineartrend_range(struct kllineartrend_context_s *ctx, uint32_t *start, uint32_t *n)
+{
+	if (ctx->count < ctx->maxCount) {
+		*start = 0;
+		*n = ctx->count;
+	} else {
+		*start = ctx->idx;
+		*n = ctx->maxCount;
+	}
+}
 
 struct kllineartrend_context_s *kllineartrend_alloc(uint32_t maxItems, const char *name)
 {
+	if (maxItems == 0)
+		return NULL;
+
 	struct kllineartrend_context_s *ctx = (struct kllineartrend_context_s *)calloc(1, sizeof(*ctx));
+	if (!ctx)
+		return NULL;
 
 	ctx->maxCount = maxItems;
 	ctx->list = (struct kllineartrend_item_s *)calloc(maxItems, sizeof(struct kllineartrend_item_s));
-	snprintf(&ctx->name[0], sizeof(ctx->name), "%s", name);
+	if (!ctx->list) {
+		free(ctx);
+		return NULL;
+	}
+	snprintf(&ctx->name[0], sizeof(ctx->name), "%s", name ? name : "");
 
 	return ctx;
 }
 
 void kllineartrend_free(struct kllineartrend_context_s *ctx)
 {
+	if (!ctx)
+		return;
+
 	free(ctx->list);
 	free(ctx);
 }
 
 struct kllineartrend_context_s *kllineartrend_clone(struct kllineartrend_context_s *ctx)
 {
+	if (!ctx || !ctx->list || ctx->maxCount == 0)
+		return NULL;
+
 	struct kllineartrend_context_s *p = malloc(sizeof(*ctx));
 	if (!p)
 		return NULL;
 
 	memcpy(p, ctx, sizeof(*ctx));
-	p->list = malloc(ctx->maxCount * sizeof(struct kllineartrend_item_s));
-	if (!ctx->list) {
+	/* calloc checks maxCount * sizeof() for overflow, a bare malloc multiply doesn't. */
+	p->list = calloc(ctx->maxCount, sizeof(struct kllineartrend_item_s));
+	if (!p->list) {
 		free(p);
 		return NULL;
 	}
-	memcpy(p->list, ctx->list, ctx->maxCount * sizeof(struct kllineartrend_item_s));
+	memcpy(p->list, ctx->list, (size_t)ctx->maxCount * sizeof(struct kllineartrend_item_s));
 
 	return p;
 }
 
 void kllineartrend_add(struct kllineartrend_context_s *ctx, double x, double y)
 {
-//printf("idx %d maxCount %d count %d\n", ctx->idx, ctx->maxCount, ctx->count);
-	int ptr = SANITIZE(ctx, ctx->idx);
-	struct kllineartrend_item_s *e = &ctx->list[ ptr ];
-	
+	struct kllineartrend_item_s *e = &ctx->list[ SANITIZE(ctx, ctx->idx) ];
+
 	e->x = x;
 	e->y = y;
 
 	if (ctx->count < ctx->maxCount)
 		ctx->count++;
-	
-	ctx->idx = SANITIZE(ctx, ctx->idx + 1);
+
+	ctx->idx = SANITIZE(ctx, (uint64_t)ctx->idx + 1);
 }
 
 void kllineartrend_printf(struct kllineartrend_context_s *ctx)
 {
-	int a = ctx->idx;
-	int b = 0;
-
-	if (ctx->count < ctx->maxCount) {
-		a = 0;
-		b = ctx->count;
-	} else
-	if (ctx->count == ctx->maxCount) {
-		a = ctx->idx;
-		b = a + ctx->maxCount;
-	}
+	uint32_t start, n;
+	kllineartrend_range(ctx, &start, &n);
 
 	printf("linear trend: %s\n", ctx->name);
-	for (int i = a; i < b; i++) {
-		int ptr = SANITIZE(ctx, i);
+	for (uint32_t i = 0; i < n; i++) {
+		uint32_t ptr = SANITIZE(ctx, (uint64_t)start + i);
 		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
-		printf("%6d: %12.8f %12.8f\n", ptr, e->x, e->y);
+		printf("%6" PRIu32 ": %12.8f %12.8f\n", ptr, e->x, e->y);
 	}
 }
 
 int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn)
 {
-	int a = ctx->idx;
-	int b = 0;
-
-	if (ctx->count < ctx->maxCount) {
-		a = 0;
-		b = ctx->count;
-	} else
-	if (ctx->count == ctx->maxCount) {
-		a = ctx->idx;
-		b = a + ctx->maxCount;
-	}
+	uint32_t start, n;
+	kllineartrend_range(ctx, &start, &n);
 
 	int fd = open(fn, O_CREAT | O_RDWR | O_TRUNC, 0644);
 	if (fd < 0) {
@@ -111,21 +121,25 @@ int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn)
 	kllineartrend_calculate(ctx, &slope, &intersect, &deviation);
 	kllineartrend_calculate_r_squared(ctx, slope, intersect, &r2);
 
-	char t[64];
+	/* ctime_r: ctime() returns a shared static buffer and isn't thread safe. */
+	char t[64] = { 0 };
 	time_t now = time(NULL);
-	snprintf(t, sizeof(t), "%s", ctime(&now));
-	t[ strlen(t) - 1] = 0;
+	if (ctime_r(&now, t) == NULL)
+		t[0] = 0;
+	size_t tlen = strlen(t);
+	if (tlen > 0 && t[tlen - 1] == '\n')
+		t[tlen - 1] = 0;
 
 	dprintf(fd, "# Created %s\n", t);
-	dprintf(fd, "# Trend '%s', %8d entries, Slope %18.8f, Deviation is %12.2f, RSquared %18.8f\n",
+	dprintf(fd, "# Trend '%s', %8" PRIu32 " entries, Slope %18.8f, Deviation is %12.2f, RSquared %18.8f\n",
 		ctx->name,
 		ctx->count,
 		slope, deviation, r2);
 
-	for (int i = a; i < b; i++) {
-		int ptr = SANITIZE(ctx, i);
+	for (uint32_t i = 0; i < n; i++) {
+		uint32_t ptr = SANITIZE(ctx, (uint64_t)start + i);
 		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
-		dprintf(fd, "%8d,%18.8f,%12.2f,\n", ptr, e->x, e->y);
+		dprintf(fd, "%8" PRIu32 ",%18.8f,%12.2f,\n", ptr, e->x, e->y);
 	}
 
 	close(fd);
@@ -136,64 +150,43 @@ int kllineartrend_save_csv(struct kllineartrend_context_s *ctx, const char *fn)
 void kllineartrend_calculate_r_squared(struct kllineartrend_context_s *ctx, double slope, double intercept, double *r)
 {
 	double ss_total = 0, ss_residual = 0;
-    double y_mean = 0, ret;
+	double y_mean = 0, ret;
 
-	int a = ctx->idx;
-	int b = 0;
-
-	if (ctx->count < ctx->maxCount) {
-		a = 0;
-		b = ctx->count;
-	} else
-	if (ctx->count == ctx->maxCount) {
-		a = ctx->idx;
-		b = a + ctx->maxCount;
-	}
+	uint32_t start, n;
+	kllineartrend_range(ctx, &start, &n);
 
 	// Calculate the mean of y
-    for (int i = a; i < b; i++) {
-		int ptr = SANITIZE(ctx, i);
-		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
+	for (uint32_t i = 0; i < n; i++) {
+		struct kllineartrend_item_s *e = &ctx->list[ SANITIZE(ctx, (uint64_t)start + i) ];
 
-        y_mean += e->y;
-    }
-    y_mean /= ctx->count;
+		y_mean += e->y;
+	}
+	y_mean /= ctx->count;
 
 	// Calculate SS_total and SS_residual
-    for (int i = a; i < b; i++) {
-		int ptr = SANITIZE(ctx, i);
-		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
+	for (uint32_t i = 0; i < n; i++) {
+		struct kllineartrend_item_s *e = &ctx->list[ SANITIZE(ctx, (uint64_t)start + i) ];
 
-        double y_pred = slope * e->x + intercept;
-        ss_total += pow(e->y - y_mean, 2);
-        ss_residual += pow(e->y - y_pred, 2);
-    }
+		double y_pred = slope * e->x + intercept;
+		ss_total += pow(e->y - y_mean, 2);
+		ss_residual += pow(e->y - y_pred, 2);
+	}
 
-    ret = 1 - (ss_residual / ss_total);
+	ret = 1 - (ss_residual / ss_total);
 
 	*r = ret;
 }
 
 void kllineartrend_calculate(struct kllineartrend_context_s *ctx, double *slope, double *intercept, double *deviation)
 {
-	int a = ctx->idx;
-	int b = 0;
-
-	if (ctx->count < ctx->maxCount) {
-		a = 0;
-		b = ctx->count;
-	} else
-	if (ctx->count == ctx->maxCount) {
-		a = ctx->idx;
-		b = a + ctx->maxCount;
-	}
+	uint32_t start, n;
+	kllineartrend_range(ctx, &start, &n);
 
 	double count = 0;
 	double sumX = 0, sumX2 = 0, sumY = 0, sumXY = 0;
 
-	for (int i = a; i < b; i++) {
-		int ptr = SANITIZE(ctx, i);
-		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
+	for (uint32_t i = 0; i < n; i++) {
+		struct kllineartrend_item_s *e = &ctx->list[ SANITIZE(ctx, (uint64_t)start + i) ];
 
 		count++;
 
@@ -208,4 +201,3 @@ void kllineartrend_calculate(struct kllineartrend_context_s *ctx, double *slope,
 	/* Fitted change across the window. Don't use b, it's a ring index bound, not a sample count. */
 	*deviation = *slope * (count - 1);
 }
-
