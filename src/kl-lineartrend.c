@@ -155,7 +155,7 @@ void kllineartrend_calculate_r_squared(struct kllineartrend_context_s *ctx, doub
 		int ptr = SANITIZE(ctx, i);
 		struct kllineartrend_item_s *e = &ctx->list[ ptr ];
 
-        y_mean += e->x;
+        y_mean += e->y;
     }
     y_mean /= ctx->count;
 
