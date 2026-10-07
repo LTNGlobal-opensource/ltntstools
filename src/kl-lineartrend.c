@@ -205,6 +205,7 @@ void kllineartrend_calculate(struct kllineartrend_context_s *ctx, double *slope,
 
 	*slope = (sumXY - ((sumX * sumY) / count)) / (sumX2 - ((sumX * sumX) / count));
 	*intercept = (sumY / count) - (*slope * (sumX / count));
-	*deviation = *slope * b;
+	/* Fitted change across the window. Don't use b, it's a ring index bound, not a sample count. */
+	*deviation = *slope * (count - 1);
 }
 
