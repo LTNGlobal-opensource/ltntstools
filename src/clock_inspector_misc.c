@@ -34,7 +34,8 @@ int validateLinearTrend()
 	return -1;
 }
 
-/* Unit test for kllineartrend against a real 271 sample drifting dataset.
+/* Unit test for kllineartrend against real 271 sample datasets: one with a steady
+ * downward drift (strong fit), one noisy and close to flat (weak fit).
  * Expected values were computed independently (ordinary least squares, x = 1..N).
  * Case 1: buffer larger than the dataset (no ring wrap).
  * Case 2: 128 entry buffer, so the ring wraps and only the last 128 samples are fitted.
@@ -42,19 +43,19 @@ int validateLinearTrend()
  * Run via -X 4.
  */
 #include "testcase-lineartrend-drift.h"
+#include "testcase-lineartrend-flat.h"
 
 static int ci_lineartrend_check(const char *label, const char *field, double got, double expected, double tolerance)
 {
 	int ok = fabs(got - expected) <= tolerance;
-	printf("validateLinearTrendDataset: %-8s %-9s got %18.10f expected %18.10f %s\n",
+	printf("validateLinearTrendDataset: %-13s %-9s got %18.10f expected %18.10f %s\n",
 		label, field, got, expected, ok ? "ok" : "FAIL");
 	return ok ? 0 : 1;
 }
 
-static int ci_lineartrend_run(const char *label, uint32_t maxItems,
+static int ci_lineartrend_run(const char *label, const double *data, int count, uint32_t maxItems,
 	double expSlope, double expIntercept, double expR2, double expDeviation)
 {
-	int count = sizeof(testcase_lineartrend_drift) / sizeof(testcase_lineartrend_drift[0]);
 	int failed = 0;
 
 	struct kllineartrend_context_s *tc = kllineartrend_alloc(maxItems, label);
@@ -64,12 +65,12 @@ static int ci_lineartrend_run(const char *label, uint32_t maxItems,
 	}
 
 	for (int i = 0; i < count; i++) {
-		kllineartrend_add(tc, (double)(i + 1), testcase_lineartrend_drift[i]);
+		kllineartrend_add(tc, (double)(i + 1), data[i]);
 	}
 
 	uint32_t expCount = (uint32_t)count < maxItems ? (uint32_t)count : maxItems;
 	if (tc->count != expCount) {
-		printf("validateLinearTrendDataset: %-8s count     got %u expected %u FAIL\n", label, tc->count, expCount);
+		printf("validateLinearTrendDataset: %-13s count     got %u expected %u FAIL\n", label, tc->count, expCount);
 		failed++;
 	}
 
@@ -91,8 +92,15 @@ int validateLinearTrendDataset()
 {
 	int failed = 0;
 
-	failed += ci_lineartrend_run("full", 512, -0.0663302227, 439.6466962690, 0.9326983158, -17.9091601290);
-	failed += ci_lineartrend_run("last128", 128, -0.0665751551, 439.6776962410, 0.7301938700, -8.4550446977);
+	const double *drift = testcase_lineartrend_drift;
+	int driftCount = sizeof(testcase_lineartrend_drift) / sizeof(testcase_lineartrend_drift[0]);
+	const double *flat = testcase_lineartrend_flat;
+	int flatCount = sizeof(testcase_lineartrend_flat) / sizeof(testcase_lineartrend_flat[0]);
+
+	failed += ci_lineartrend_run("drift/full", drift, driftCount, 512, -0.0663302227, 439.6466962690, 0.9326983158, -17.9091601290);
+	failed += ci_lineartrend_run("drift/last128", drift, driftCount, 128, -0.0665751551, 439.6776962410, 0.7301938700, -8.4550446977);
+	failed += ci_lineartrend_run("flat/full", flat, flatCount, 512, -0.0070302300, 494.4171186552, 0.1295757639, -1.8981620903);
+	failed += ci_lineartrend_run("flat/last128", flat, flatCount, 128, -0.0079211540, 494.5516160130, 0.0377117658, -1.0059865552);
 
 	if (failed) {
 		printf("validateLinearTrendDataset: FAILED (%d checks)\n", failed);
