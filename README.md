@@ -114,6 +114,11 @@ Available endpoints:
 
     GET /api/transport-streams
     GET /api/transport-pids
+    GET /api/stream-models
+    GET /api/stream-logs
+    GET /api/iat-histograms
+    GET /api/clock-reports
+    GET /api/scte35
     POST /api/reset
     GET /openapi.json
 
@@ -121,6 +126,11 @@ Sample `curl` commands:
 
     curl -s http://127.0.0.1:9601/api/transport-streams
     curl -s http://127.0.0.1:9601/api/transport-pids
+    curl -s http://127.0.0.1:9601/api/stream-models
+    curl -s http://127.0.0.1:9601/api/stream-logs
+    curl -s http://127.0.0.1:9601/api/iat-histograms
+    curl -s http://127.0.0.1:9601/api/clock-reports
+    curl -s http://127.0.0.1:9601/api/scte35
     curl -s -X POST http://127.0.0.1:9601/api/reset
     curl -s http://127.0.0.1:9601/openapi.json
 
@@ -128,9 +138,14 @@ Pretty-print responses with `jq`:
 
     curl -s http://127.0.0.1:9601/api/transport-streams | jq .
     curl -s http://127.0.0.1:9601/api/transport-pids | jq .
+    curl -s http://127.0.0.1:9601/api/stream-models | jq .
+    curl -s http://127.0.0.1:9601/api/stream-logs | jq .
+    curl -s http://127.0.0.1:9601/api/iat-histograms | jq .
+    curl -s http://127.0.0.1:9601/api/clock-reports | jq .
+    curl -s http://127.0.0.1:9601/api/scte35 | jq .
     curl -s -X POST http://127.0.0.1:9601/api/reset | jq .
 
-`/api/transport-streams` reports each detected stream's protocol type, source and destination addresses, bitrate, transport packet count, CC error count, IAT high water mark, and flags. `/api/transport-pids` reports the per-PID statistics for each stream, matching the PID report exposed by the interactive `P` command. `POST /api/reset` resets the same statistics as the interactive `r` command.
+`/api/transport-streams` reports each detected stream's protocol type, source and destination addresses, bitrate, transport packet count, CC error count, IAT high water mark, and flags. `/api/transport-pids` reports the per-PID statistics for each stream, matching the PID report exposed by the interactive `P` command. `/api/stream-models`, `/api/stream-logs`, `/api/iat-histograms`, and `/api/clock-reports` expose the same data families as the interactive `M`, `L`, `I`, and `C` reports. `/api/scte35` exposes SCTE-35 PIDs and decoded SCTE-35 sections retained during the last three hours. `POST /api/reset` resets the same statistics as the interactive `r` command.
 
 ## Dependencies
 	Built from deps/ (see Compilation):

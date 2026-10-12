@@ -1,0 +1,17 @@
+{
+  "name": "ltntstools-nic-monitor-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for tstools_nic_monitor REST API",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "nic-monitor-mcp": "./bin/nic-monitor-mcp.js"
+  },
+  "scripts": {
+    "start": "node ./bin/nic-monitor-mcp.js",
+    "smoke": "node ./bin/nic-monitor-mcp.js --smoke-test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

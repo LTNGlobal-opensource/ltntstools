@@ -20,6 +20,7 @@
 #include <libltntstools/ltntstools.h>
 #include <libltntstools/histogram.h>
 #include <libltntstools/probes.h>
+#include <libklscte35/scte35.h>
 #include "source-rcts.h"
 #include "xorg-list.h"
 #include "parsers.h"
@@ -50,6 +51,7 @@
 #define FILE_WRITE_INTERVAL 5
 #define JSON_WRITE_INTERVAL 1
 #define DEFAULT_PCAP_FILTER "udp dst portrange 4000-4999"
+#define SCTE35_HISTORY_SECONDS (3 * 60 * 60)
 
 #define DEFAULT_STORAGE_LOCATION "/storage/packet_captures"
 
@@ -70,6 +72,8 @@ enum payload_type_e {
 	PAYLOAD_MOO_COWS,
 	PAYLOAD_MAX,
 };
+
+struct discovered_item_s;
 
 struct tool_context_s
 {
@@ -228,6 +232,11 @@ void rest_api_free(struct tool_context_s *ctx);
 void *rest_api_thread_func(void *p);
 json_object *rest_api_transport_streams_json(struct tool_context_s *ctx);
 json_object *rest_api_transport_pids_json(struct tool_context_s *ctx);
+json_object *rest_api_stream_models_json(struct tool_context_s *ctx);
+json_object *rest_api_stream_logs_json(struct tool_context_s *ctx);
+json_object *rest_api_iat_histograms_json(struct tool_context_s *ctx);
+json_object *rest_api_clock_reports_json(struct tool_context_s *ctx);
+json_object *rest_api_scte35_json(struct tool_context_s *ctx);
 const char *rest_api_openapi_json(void);
 
 #if KAFKA_REPORTER
@@ -274,6 +283,36 @@ int  display_doc_append_with_time(struct display_doc_s *doc, const char *msg, ti
 void display_doc_render(struct display_doc_s *doc, int row, int col);
 void display_doc_page_up(struct display_doc_s *doc);
 void display_doc_page_down(struct display_doc_s *doc);
+
+struct scte35_pid_item_s
+{
+	struct xorg_list list;
+	uint16_t pid;
+	uint16_t videoPid;
+	void *sectionExtractor;
+	void *pesExtractor;
+	int64_t lastVideoPTS;
+	uint64_t messageCount;
+};
+
+struct scte35_message_item_s
+{
+	struct xorg_list list;
+	time_t receivedAt;
+	uint16_t pid;
+	uint16_t videoPid;
+	int64_t videoPTS;
+	int crcValid;
+	int parseOk;
+	uint64_t sequenceNumber;
+	size_t sectionLengthBytes;
+	uint8_t *section;
+	char *json;
+};
+
+void scte35_monitor_free(struct discovered_item_s *di);
+void scte35_monitor_write(struct discovered_item_s *di, const uint8_t *pkts, uint32_t pktCount);
+void scte35_monitor_prune(struct discovered_item_s *di, time_t now);
 
 struct srt_control_pkt_hdr_s
 {
@@ -427,6 +466,13 @@ struct discovered_item_s
 	pthread_mutex_t trLock;
 	int trCount;
 	struct ltntstools_tr101290_alarm_s *trArray;
+
+	/* SCTE-35 */
+	pthread_mutex_t scte35Lock;
+	struct xorg_list listSCTE35Pids;
+	struct xorg_list listSCTE35Messages;
+	uint64_t scte35MessageCount;
+	time_t lastSCTE35Discover;
 
 	/* RTP Analaysis - Only used when payloadType == PAYLOAD_RTP_TS. */
 	struct rtp_hdr_analyzer_s rtpAnalyzerCtx;

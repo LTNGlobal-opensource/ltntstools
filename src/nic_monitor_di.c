@@ -52,6 +52,8 @@ void discovered_item_free(struct discovered_item_s *di)
 {
 	hash_index_remove(di->ctx->hashIndex, di->cacheHashKey, di);
 
+	scte35_monitor_free(di);
+
 	nic_monitor_tr101290_free(di);
 
 	rtp_analyzer_free(&di->rtpAnalyzerCtx);
@@ -215,6 +217,10 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		}
 
 		pthread_mutex_init(&di->h265_metadataLock, NULL);
+
+		pthread_mutex_init(&di->scte35Lock, NULL);
+		xorg_list_init(&di->listSCTE35Pids);
+		xorg_list_init(&di->listSCTE35Messages);
 
 		display_doc_initialize(&di->doc_stream_log);
 		display_doc_append_with_time(&di->doc_stream_log, "Logging begins", NULL);

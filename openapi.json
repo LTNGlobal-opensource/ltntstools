@@ -39,6 +39,91 @@
         }
       }
     },
+    "/api/stream-models": {
+      "get": {
+        "summary": "List stream service models",
+        "responses": {
+          "200": {
+            "description": "PAT/PMT service information grouped by stream",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamModelsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stream-logs": {
+      "get": {
+        "summary": "List stream logs",
+        "responses": {
+          "200": {
+            "description": "Per-stream log lines",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamLogsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/iat-histograms": {
+      "get": {
+        "summary": "List IAT histogram reports",
+        "responses": {
+          "200": {
+            "description": "Per-stream IAT histogram reports",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IatHistogramsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clock-reports": {
+      "get": {
+        "summary": "List PCR clock reports",
+        "responses": {
+          "200": {
+            "description": "Per-stream PCR clock histograms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClockReportsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scte35": {
+      "get": {
+        "summary": "List SCTE-35 messages retained in the last three hours",
+        "responses": {
+          "200": {
+            "description": "Per-stream SCTE-35 history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scte35Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reset": {
       "post": {
         "summary": "Reset collected statistics",
@@ -93,6 +178,67 @@
           }
         }
       },
+      "StreamModelsResponse": {
+        "type": "object",
+        "required": ["timestampUnix", "interface", "streams"],
+        "properties": {
+          "timestampUnix": { "type": "integer", "format": "int64" },
+          "interface": { "type": "string" },
+          "streams": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/StreamModel" }
+          }
+        }
+      },
+      "StreamLogsResponse": {
+        "type": "object",
+        "required": ["timestampUnix", "interface", "streams"],
+        "properties": {
+          "timestampUnix": { "type": "integer", "format": "int64" },
+          "interface": { "type": "string" },
+          "streams": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/StreamLog" }
+          }
+        }
+      },
+      "IatHistogramsResponse": {
+        "type": "object",
+        "required": ["timestampUnix", "interface", "streams"],
+        "properties": {
+          "timestampUnix": { "type": "integer", "format": "int64" },
+          "interface": { "type": "string" },
+          "streams": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/IatHistogram" }
+          }
+        }
+      },
+      "ClockReportsResponse": {
+        "type": "object",
+        "required": ["timestampUnix", "interface", "streams"],
+        "properties": {
+          "timestampUnix": { "type": "integer", "format": "int64" },
+          "interface": { "type": "string" },
+          "streams": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ClockReport" }
+          }
+        }
+      },
+      "Scte35Response": {
+        "type": "object",
+        "required": ["timestampUnix", "interface", "historySeconds", "streams"],
+        "properties": {
+          "timestampUnix": { "type": "integer", "format": "int64" },
+          "interface": { "type": "string" },
+          "historySeconds": { "type": "integer" },
+          "streams": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Scte35Stream" }
+          }
+        }
+      },
       "TransportStreamIdentity": {
         "type": "object",
         "properties": {
@@ -138,6 +284,190 @@
             }
           }
         ]
+      },
+      "StreamModel": {
+        "allOf": [
+          { "$ref": "#/components/schemas/TransportStreamIdentity" },
+          {
+            "type": "object",
+            "properties": {
+              "available": { "type": "boolean" },
+              "reason": { "type": "string" },
+              "multiplexType": { "type": "string" },
+              "transportStreamId": { "type": "integer" },
+              "version": { "type": "integer" },
+              "currentNextIndicator": { "type": "integer" },
+              "programCount": { "type": "integer" },
+              "programs": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/ProgramModel" }
+              }
+            }
+          }
+        ]
+      },
+      "ProgramModel": {
+        "type": "object",
+        "properties": {
+          "programNumber": { "type": "integer" },
+          "isNetworkInformationTable": { "type": "boolean" },
+          "pmtPid": { "type": "integer" },
+          "pmtPidHex": { "type": "string" },
+          "pmtVersion": { "type": "integer" },
+          "pmtCurrentNextIndicator": { "type": "integer" },
+          "pcrPid": { "type": "integer" },
+          "pcrPidHex": { "type": "string" },
+          "streamCount": { "type": "integer" },
+          "serviceName": { "type": "string" },
+          "serviceProvider": { "type": "string" },
+          "serviceId": { "type": "integer" },
+          "serviceType": { "type": "integer" },
+          "hasScte35Registration": { "type": "boolean" },
+          "hasSmpte2038Registration": { "type": "boolean" },
+          "pcr": { "type": "integer", "format": "int64" },
+          "pcrAscii": { "type": "string" },
+          "streams": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ElementaryStreamModel" }
+          }
+        }
+      },
+      "ElementaryStreamModel": {
+        "type": "object",
+        "properties": {
+          "pid": { "type": "integer" },
+          "pidHex": { "type": "string" },
+          "streamType": { "type": "integer" },
+          "streamTypeHex": { "type": "string" },
+          "description": { "type": "string" },
+          "hasSmpte2038Registration": { "type": "boolean" },
+          "audio": {
+            "type": "object",
+            "properties": {
+              "language": { "type": "string" },
+              "type": { "type": "integer" },
+              "typeDescription": { "type": "string" }
+            }
+          }
+        }
+      },
+      "StreamLog": {
+        "allOf": [
+          { "$ref": "#/components/schemas/TransportStreamIdentity" },
+          {
+            "type": "object",
+            "properties": {
+              "lineCount": { "type": "integer" },
+              "displayLineFrom": { "type": "integer" },
+              "pageSize": { "type": "integer" },
+              "maxPageSize": { "type": "integer" },
+              "lines": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        ]
+      },
+      "IatHistogram": {
+        "allOf": [
+          { "$ref": "#/components/schemas/TransportStreamIdentity" },
+          {
+            "type": "object",
+            "properties": {
+              "histogramText": { "type": "string" },
+              "iatLowWaterMarkUs": { "type": "integer" },
+              "iatCurrentUs": { "type": "integer" },
+              "iatHighWaterMarkUs": { "type": "integer" },
+              "iatHighWaterMarkMs": { "type": "integer" },
+              "iatHighWaterMarkLastWindowUs": { "type": "integer" },
+              "iatHighWaterMarkLastWindowMs": { "type": "integer" },
+              "bitrateHighWaterMark10msBps": { "type": "integer" },
+              "bitrateHighWaterMark100msBps": { "type": "integer" },
+              "bitrateHighWaterMark10msMbps": { "type": "number" },
+              "bitrateHighWaterMark100msMbps": { "type": "number" },
+              "microburstMeasurementEnabled": { "type": "boolean" }
+            }
+          }
+        ]
+      },
+      "ClockReport": {
+        "allOf": [
+          { "$ref": "#/components/schemas/TransportStreamIdentity" },
+          {
+            "type": "object",
+            "properties": {
+              "available": { "type": "boolean" },
+              "reason": { "type": "string" },
+              "pcrPids": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/PcrClockPid" }
+              }
+            }
+          }
+        ]
+      },
+      "PcrClockPid": {
+        "type": "object",
+        "properties": {
+          "pid": { "type": "integer" },
+          "pidHex": { "type": "string" },
+          "pcr": { "type": "integer", "format": "int64" },
+          "pcrAscii": { "type": "string" },
+          "pcrTickIntervalsText": { "type": "string" },
+          "pcrWallDriftText": { "type": "string" }
+        }
+      },
+      "Scte35Stream": {
+        "allOf": [
+          { "$ref": "#/components/schemas/TransportStreamIdentity" },
+          {
+            "type": "object",
+            "properties": {
+              "historySeconds": { "type": "integer" },
+              "pidCount": { "type": "integer" },
+              "messageCount": { "type": "integer" },
+              "pids": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Scte35Pid" }
+              },
+              "messages": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Scte35Message" }
+              }
+            }
+          }
+        ]
+      },
+      "Scte35Pid": {
+        "type": "object",
+        "properties": {
+          "pid": { "type": "integer" },
+          "pidHex": { "type": "string" },
+          "videoPid": { "type": "integer" },
+          "videoPidHex": { "type": "string" },
+          "messageCount": { "type": "integer", "format": "int64" },
+          "lastVideoPTS": { "type": "integer", "format": "int64" }
+        }
+      },
+      "Scte35Message": {
+        "type": "object",
+        "properties": {
+          "sequenceNumber": { "type": "integer", "format": "int64" },
+          "receivedAtUnix": { "type": "integer", "format": "int64" },
+          "ageSeconds": { "type": "integer" },
+          "pid": { "type": "integer" },
+          "pidHex": { "type": "string" },
+          "videoPid": { "type": "integer" },
+          "videoPidHex": { "type": "string" },
+          "videoPTS": { "type": "integer", "format": "int64" },
+          "crcValid": { "type": "boolean" },
+          "parseOk": { "type": "boolean" },
+          "sectionLengthBytes": { "type": "integer" },
+          "rawSectionHex": { "type": "string" },
+          "decoded": { "type": "object" },
+          "decodedText": { "type": "string" }
+        }
       },
       "PidStatistics": {
         "type": "object",

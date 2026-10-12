@@ -712,6 +712,7 @@ static void _processPackets_IO(struct tool_context_s *ctx,
 #endif
 
 	nic_monitor_tr101290_write(di, pkts, pktCount);
+	scte35_monitor_write(di, pkts, pktCount);
 
 	pthread_mutex_lock(&di->h264_sliceLock);
 	if (di->h264_slices) {

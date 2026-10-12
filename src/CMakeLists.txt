@@ -63,6 +63,7 @@ set(SRC
     nic_monitor_json.c
     nic_monitor_rest.c
     nic_monitor_tr101290.c
+    nic_monitor_scte35.c
     nic_monitor_kafka.c
     parsers.c
     kbhit.c
