@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <sys/resource.h>
 
 #include "nic_monitor.h"
@@ -39,6 +40,253 @@ static char ui_syncronized_getch(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->ui_threadLock);
 
 	return c;
+}
+
+static const char *scte35_command_name(int64_t commandType)
+{
+	switch (commandType) {
+	case SCTE35_COMMAND_TYPE__SPLICE_NULL:
+		return "splice_null";
+	case SCTE35_COMMAND_TYPE__SPLICE_SCHEDULE:
+		return "splice_schedule";
+	case SCTE35_COMMAND_TYPE__SPLICE_INSERT:
+		return "splice_insert";
+	case SCTE35_COMMAND_TYPE__TIME_SIGNAL:
+		return "time_signal";
+	case SCTE35_COMMAND_TYPE__BW_RESERVATION:
+		return "bandwidth_reservation";
+	case SCTE35_COMMAND_TYPE__PRIVATE:
+		return "private_command";
+	default:
+		return "unknown";
+	}
+}
+
+static void scte35_format_age(char *dst, size_t dstSize, time_t age)
+{
+	if (age < 0)
+		age = 0;
+
+	snprintf(dst, dstSize, "%02ld:%02ld:%02ld",
+		(long)(age / 3600),
+		(long)((age / 60) % 60),
+		(long)(age % 60));
+}
+
+static int scte35_json_int64(json_object *obj, const char *name, int64_t *value)
+{
+	json_object *child = NULL;
+	if (!obj || !json_object_object_get_ex(obj, name, &child))
+		return -1;
+
+	*value = json_object_get_int64(child);
+	return 0;
+}
+
+static int scte35_json_bool(json_object *obj, const char *name, int *value)
+{
+	json_object *child = NULL;
+	if (!obj || !json_object_object_get_ex(obj, name, &child))
+		return -1;
+
+	*value = json_object_get_boolean(child);
+	return 0;
+}
+
+static json_object *scte35_json_object(json_object *obj, const char *name)
+{
+	json_object *child = NULL;
+	if (!obj || !json_object_object_get_ex(obj, name, &child))
+		return NULL;
+	if (!json_object_is_type(child, json_type_object))
+		return NULL;
+
+	return child;
+}
+
+static json_object *scte35_first_segmentation_descriptor(json_object *obj)
+{
+	json_object *descriptors = NULL;
+	if (!obj || !json_object_object_get_ex(obj, "descriptors", &descriptors))
+		return NULL;
+	if (!json_object_is_type(descriptors, json_type_array))
+		return NULL;
+
+	int count = json_object_array_length(descriptors);
+	for (int i = 0; i < count; i++) {
+		json_object *desc = json_object_array_get_idx(descriptors, i);
+		json_object *type = NULL;
+		if (!desc || !json_object_object_get_ex(desc, "descriptor_type", &type))
+			continue;
+		if (strcmp(json_object_get_string(type), "segmentation_descriptor") == 0)
+			return desc;
+	}
+
+	return NULL;
+}
+
+static void scte35_summary_append(char *dst, size_t dstSize, size_t *off, const char *fmt, ...)
+{
+	if (*off >= dstSize)
+		return;
+
+	va_list ap;
+	va_start(ap, fmt);
+	int ret = vsnprintf(dst + *off, dstSize - *off, fmt, ap);
+	va_end(ap);
+
+	if (ret < 0)
+		return;
+	if ((size_t)ret >= dstSize - *off) {
+		*off = dstSize - 1;
+	} else {
+		*off += ret;
+	}
+}
+
+static void scte35_message_summary(struct scte35_message_item_s *msg, char *dst, size_t dstSize)
+{
+	if (!msg->crcValid) {
+		snprintf(dst, dstSize, "CRC INVALID section_len=%zu", msg->sectionLengthBytes);
+		return;
+	}
+	if (!msg->parseOk || !msg->json) {
+		snprintf(dst, dstSize, "parse failed section_len=%zu", msg->sectionLengthBytes);
+		return;
+	}
+
+	json_object *root = json_tokener_parse(msg->json);
+	if (!root) {
+		snprintf(dst, dstSize, "decoded JSON unavailable section_len=%zu", msg->sectionLengthBytes);
+		return;
+	}
+
+	size_t off = 0;
+	int64_t commandType = -1;
+	if (scte35_json_int64(root, "splice_command_type", &commandType) == 0) {
+		scte35_summary_append(dst, dstSize, &off, "%s", scte35_command_name(commandType));
+	} else {
+		scte35_summary_append(dst, dstSize, &off, "unknown");
+	}
+
+	json_object *cmd = NULL;
+	if (commandType == SCTE35_COMMAND_TYPE__SPLICE_INSERT) {
+		cmd = scte35_json_object(root, "splice_insert");
+		int64_t eventId = 0;
+		int outOfNetwork = 0;
+		if (scte35_json_int64(cmd, "splice_event_id", &eventId) == 0)
+			scte35_summary_append(dst, dstSize, &off, " event=%" PRIi64, eventId);
+		if (scte35_json_bool(cmd, "out_of_network_indicator", &outOfNetwork) == 0)
+			scte35_summary_append(dst, dstSize, &off, " %s", outOfNetwork ? "OUT" : "IN");
+
+		json_object *spliceTime = scte35_json_object(cmd, "splice_time");
+		int64_t pts = 0;
+		if (scte35_json_int64(spliceTime, "pts_time", &pts) == 0)
+			scte35_summary_append(dst, dstSize, &off, " pts=%" PRIi64, pts);
+
+		json_object *duration = scte35_json_object(cmd, "break_duration");
+		int64_t dur = 0;
+		if (scte35_json_int64(duration, "duration", &dur) == 0)
+			scte35_summary_append(dst, dstSize, &off, " dur=%.3fs", (double)dur / 90000.0);
+	} else if (commandType == SCTE35_COMMAND_TYPE__TIME_SIGNAL) {
+		cmd = scte35_json_object(root, "time_signal");
+		json_object *spliceTime = scte35_json_object(cmd, "splice_time");
+		int64_t pts = 0;
+		if (scte35_json_int64(spliceTime, "pts_time", &pts) == 0)
+			scte35_summary_append(dst, dstSize, &off, " pts=%" PRIi64, pts);
+	}
+
+	json_object *seg = scte35_first_segmentation_descriptor(root);
+	if (seg) {
+		int64_t eventId = 0;
+		int64_t typeId = 0;
+		int64_t duration = 0;
+		if (scte35_json_int64(seg, "segmentation_event_id", &eventId) == 0)
+			scte35_summary_append(dst, dstSize, &off, " seg_event=%" PRIi64, eventId);
+		if (scte35_json_int64(seg, "segmentation_type_id", &typeId) == 0)
+			scte35_summary_append(dst, dstSize, &off, " seg_type=0x%02" PRIx64, typeId);
+		if (scte35_json_int64(seg, "segmentation_duration", &duration) == 0)
+			scte35_summary_append(dst, dstSize, &off, " seg_dur=%.3fs", (double)duration / 90000.0);
+	}
+
+	if (msg->videoPTS)
+		scte35_summary_append(dst, dstSize, &off, " video_pts=%" PRIi64, msg->videoPTS);
+
+	json_object_put(root);
+}
+
+static int scte35_report_render(struct discovered_item_s *di, int row, int col, time_t now)
+{
+	int lines = 0;
+	int pidCount = 0;
+	int messageCount = 0;
+	int pageSize = di->doc_scte35.maxPageSize;
+	int offset = di->doc_scte35.displayLineFrom;
+
+	pthread_mutex_lock(&di->scte35Lock);
+	scte35_monitor_prune(di, now);
+
+	struct scte35_pid_item_s *pidItem = NULL;
+	xorg_list_for_each_entry(pidItem, &di->listSCTE35Pids, list)
+		pidCount++;
+
+	struct scte35_message_item_s *msg = NULL;
+	xorg_list_for_each_entry(msg, &di->listSCTE35Messages, list)
+		messageCount++;
+
+	di->doc_scte35.lineCount = messageCount;
+	di->doc_scte35.pageSize = messageCount < pageSize ? messageCount : pageSize;
+	if (offset + pageSize > messageCount)
+		offset = messageCount - pageSize;
+	if (offset < 0)
+		offset = 0;
+	di->doc_scte35.displayLineFrom = offset;
+
+	mvprintw(row + lines++, col, " -> SCTE-35 Report, last %dh: %d message%s, %d PID%s [%d of %d]",
+		SCTE35_HISTORY_SECONDS / 3600,
+		messageCount, messageCount == 1 ? "" : "s",
+		pidCount, pidCount == 1 ? "" : "s",
+		offset, messageCount);
+
+	xorg_list_for_each_entry(pidItem, &di->listSCTE35Pids, list) {
+		mvprintw(row + lines++, col + 4,
+			"PID 0x%04x (%d), video 0x%04x (%d), messages %" PRIu64 ", last video PTS %" PRIi64,
+			pidItem->pid, pidItem->pid,
+			pidItem->videoPid, pidItem->videoPid,
+			pidItem->messageCount,
+			pidItem->lastVideoPTS);
+	}
+
+	if (messageCount == 0) {
+		mvprintw(row + lines++, col + 4, "No SCTE-35 messages decoded yet");
+		pthread_mutex_unlock(&di->scte35Lock);
+		return lines;
+	}
+
+	int idx = 0;
+	int shown = 0;
+	xorg_list_for_each_entry_reverse(msg, &di->listSCTE35Messages, list) {
+		if (idx++ < offset)
+			continue;
+		if (shown++ >= pageSize)
+			break;
+
+		char age[16];
+		char summary[256];
+		scte35_format_age(age, sizeof(age), now - msg->receivedAt);
+		scte35_message_summary(msg, summary, sizeof(summary));
+
+		mvprintw(row + lines++, col + 4,
+			"#%" PRIu64 " age %s pid 0x%04x %s",
+			msg->sequenceNumber,
+			age,
+			msg->pid,
+			summary);
+	}
+
+	pthread_mutex_unlock(&di->scte35Lock);
+
+	return lines;
 }
 
 static void *ui_thread_func(void *p)
@@ -860,6 +1108,12 @@ static void *ui_thread_func(void *p)
 				streamCount += di->doc_stream_log.pageSize;
 			}
 
+			if (discovered_item_state_get(di, DI_STATE_SHOW_SCTE35)) {
+				streamCount++;
+				int lines = scte35_report_render(di, streamCount + 2, 0, now);
+				streamCount += lines;
+			}
+
 			streamCount++;
 		} /* For each DI */
 
@@ -900,9 +1154,7 @@ static void *ui_thread_func(void *p)
 			mvprintw(streamCount + 2 - 2, 53, "R) Start/Stop stream recording");
 			mvprintw(streamCount + 2 - 1, 53, "s) Toggle process/socket report");
 			mvprintw(streamCount + 2 - 0, 53, "T) Start/Stop TR101290 analysis (NOT YET SUPPORTED)");
-#if 0
-			mvprintw(streamCount + 2 - 0, 53, "3) Toggle SCTE35 report");
-#endif
+			mvprintw(streamCount + 2 + 1, 53, "3) Toggle SCTE35 report");
 			streamCount++;
 		}
 
@@ -2018,11 +2270,9 @@ int nic_monitor(int argc, char *argv[])
 		if (c == 'h') {
 			__atomic_store_n(&ctx->showUIOptions, ~ctx->showUIOptions, __ATOMIC_RELAXED);
 		}
-#if 0
 		if (c == '3') {
 			discovered_items_select_scte35_toggle(ctx);
 		}
-#endif
 		/* Cursor key support */
 		if (c == 0x1b) {
 			c = ui_syncronized_getch(ctx);
@@ -2044,10 +2294,12 @@ int nic_monitor(int argc, char *argv[])
 				if (c == 0x35) { /* Page Up */
 					//printf("0x%02x up\n", c);
 					discovered_items_select_show_stream_log_pageup(ctx);
+					discovered_items_select_scte35_pageup(ctx);
 				} else
 				if (c == 0x36) { /* Page Down */
 					//printf("0x%02x dn\n", c);
 					discovered_items_select_show_stream_log_pagedown(ctx);
+					discovered_items_select_scte35_pagedown(ctx);
 				}
 			}
 		}

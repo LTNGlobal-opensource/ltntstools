@@ -17,10 +17,16 @@ If you are running from the local build tree, the binary may be under
 
 ## Launch The MCP Server
 
+From the repository root:
+
+```sh
+NIC_MONITOR_REST_URL=http://127.0.0.1:9601 node ./mcp/nic-monitor/bin/nic-monitor-mcp.js
+```
+
 From this directory:
 
 ```sh
-node ./bin/nic-monitor-mcp.js
+NIC_MONITOR_REST_URL=http://127.0.0.1:9601 node ./bin/nic-monitor-mcp.js
 ```
 
 By default it calls:
@@ -40,6 +46,23 @@ You can smoke-test the REST connection without starting an MCP client:
 ```sh
 NIC_MONITOR_REST_URL=http://127.0.0.1:9601 npm run smoke
 ```
+
+## Add To Codex
+
+Add the MCP server definition to Codex:
+
+```sh
+codex mcp add nic-monitor --env NIC_MONITOR_REST_URL=http://127.0.0.1:9601 -- node /Users/stoth/GIT/ltntstools/mcp/nic-monitor/bin/nic-monitor-mcp.js
+```
+
+Confirm the definition:
+
+```sh
+codex mcp list
+codex mcp get nic-monitor
+```
+
+Restart any already-running Codex session after adding the MCP definition.
 
 ## MCP Client Config Example
 

@@ -147,6 +147,29 @@ Pretty-print responses with `jq`:
 
 `/api/transport-streams` reports each detected stream's protocol type, source and destination addresses, bitrate, transport packet count, CC error count, IAT high water mark, and flags. `/api/transport-pids` reports the per-PID statistics for each stream, matching the PID report exposed by the interactive `P` command. `/api/stream-models`, `/api/stream-logs`, `/api/iat-histograms`, and `/api/clock-reports` expose the same data families as the interactive `M`, `L`, `I`, and `C` reports. `/api/scte35` exposes SCTE-35 PIDs and decoded SCTE-35 sections retained during the last three hours. `POST /api/reset` resets the same statistics as the interactive `r` command.
 
+## tstools_nic_monitor MCP Server
+
+The MCP server lives in `mcp/nic-monitor/` and forwards MCP tool calls to a running `tstools_nic_monitor` REST API.
+
+Start the monitor with REST enabled:
+
+    ./build/src/tstools_nic_monitor -i eth0 -M --rest-api-port 9601
+
+Run the MCP server directly:
+
+    NIC_MONITOR_REST_URL=http://127.0.0.1:9601 node ./mcp/nic-monitor/bin/nic-monitor-mcp.js
+
+Add the MCP server to Codex:
+
+    codex mcp add nic-monitor --env NIC_MONITOR_REST_URL=http://127.0.0.1:9601 -- node /Users/stoth/GIT/ltntstools/mcp/nic-monitor/bin/nic-monitor-mcp.js
+
+Confirm Codex knows about it:
+
+    codex mcp list
+    codex mcp get nic-monitor
+
+Restart any already-running Codex session after adding the MCP definition. New Codex sessions will then expose the `nic-monitor` tools, including `get_transport_streams`, `get_stream_models`, `get_stream_logs`, `get_iat_histograms`, `get_clock_reports`, and `get_scte35_messages`.
+
 ## Dependencies
 	Built from deps/ (see Compilation):
 	* libltntstools

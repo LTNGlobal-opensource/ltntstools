@@ -59,6 +59,7 @@ void discovered_item_free(struct discovered_item_s *di)
 	rtp_analyzer_free(&di->rtpAnalyzerCtx);
 
 	display_doc_free(&di->doc_stream_log);
+	display_doc_free(&di->doc_scte35);
 	
 	if (di->h264_metadata_parser) {
 		pthread_mutex_lock(&di->h264_metadataLock);
@@ -224,6 +225,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 
 		display_doc_initialize(&di->doc_stream_log);
 		display_doc_append_with_time(&di->doc_stream_log, "Logging begins", NULL);
+		display_doc_initialize(&di->doc_scte35);
 
 #if 0
 		if (ltntstools_h265_codec_metadata_alloc(&di->h265_metadata_parser, 0x31, 0xe0) < 0) {
