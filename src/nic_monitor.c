@@ -249,12 +249,20 @@ static int scte35_report_render(struct discovered_item_s *di, int row, int col, 
 		offset, messageCount);
 
 	xorg_list_for_each_entry(pidItem, &di->listSCTE35Pids, list) {
-		mvprintw(row + lines++, col + 4,
-			"PID 0x%04x (%d), video 0x%04x (%d), messages %" PRIu64 ", last video PTS %" PRIi64,
-			pidItem->pid, pidItem->pid,
-			pidItem->videoPid, pidItem->videoPid,
-			pidItem->messageCount,
-			pidItem->lastVideoPTS);
+		if (pidItem->lastVideoPTS) {
+			mvprintw(row + lines++, col + 4,
+				"PID 0x%04x (%d), video 0x%04x (%d), messages %" PRIu64 ", last video PTS %" PRIi64,
+				pidItem->pid, pidItem->pid,
+				pidItem->videoPid, pidItem->videoPid,
+				pidItem->messageCount,
+				pidItem->lastVideoPTS);
+		} else {
+			mvprintw(row + lines++, col + 4,
+				"PID 0x%04x (%d), video 0x%04x (%d), messages %" PRIu64,
+				pidItem->pid, pidItem->pid,
+				pidItem->videoPid, pidItem->videoPid,
+				pidItem->messageCount);
+		}
 	}
 
 	if (messageCount == 0) {

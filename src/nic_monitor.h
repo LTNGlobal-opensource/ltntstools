@@ -290,7 +290,6 @@ struct scte35_pid_item_s
 	uint16_t pid;
 	uint16_t videoPid;
 	void *sectionExtractor;
-	void *pesExtractor;
 	int64_t lastVideoPTS;
 	uint64_t messageCount;
 };

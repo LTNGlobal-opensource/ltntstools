@@ -1753,10 +1753,14 @@ void display_doc_initialize(struct display_doc_s *doc)
 void display_doc_free(struct display_doc_s *doc)
 {
 	pthread_mutex_lock(&doc->lock);
-	for (int i = 0; i < doc->lineCount; i++) {
-		free(doc->lines[i]);
+	if (doc->lines) {
+		for (int i = 0; i < doc->lineCount; i++) {
+			free(doc->lines[i]);
+		}
 	}
 	free(doc->lines);
+	doc->lines = NULL;
+	doc->lineCount = 0;
 	pthread_mutex_unlock(&doc->lock);
 	doc->displayLineFrom = 0;
 	doc->pageSize = 0;

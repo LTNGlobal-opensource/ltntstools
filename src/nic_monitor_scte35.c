@@ -16,8 +16,6 @@ static void scte35_pid_free(struct scte35_pid_item_s *item)
 {
 	if (item->sectionExtractor)
 		ltntstools_sectionextractor_free(item->sectionExtractor);
-	if (item->pesExtractor)
-		ltntstools_pes_extractor_free(item->pesExtractor);
 	free(item);
 }
 
@@ -26,16 +24,6 @@ static void scte35_message_free(struct scte35_message_item_s *item)
 	free(item->section);
 	free(item->json);
 	free(item);
-}
-
-static void *scte35_video_pes_cb(void *userContext, struct ltn_pes_packet_s *pes)
-{
-	struct scte35_pid_item_s *item = userContext;
-
-	item->lastVideoPTS = pes->PTS;
-	ltn_pes_packet_free(pes);
-
-	return NULL;
 }
 
 void scte35_monitor_prune(struct discovered_item_s *di, time_t now)
@@ -93,17 +81,6 @@ static struct scte35_pid_item_s *scte35_pid_add(struct discovered_item_s *di, ui
 	return item;
 }
 
-static void scte35_ensure_video_pes_extractor(struct scte35_pid_item_s *item)
-{
-	if (item->pesExtractor || item->videoPid == 0)
-		return;
-
-	if (ltntstools_pes_extractor_alloc(&item->pesExtractor, item->videoPid, 0xe0,
-		(pes_extractor_callback)scte35_video_pes_cb, item, (1024 * 1024), (1024 * 1024)) == 0) {
-		ltntstools_pes_extractor_set_skip_data(item->pesExtractor, 1);
-	}
-}
-
 static void scte35_discover_pids(struct discovered_item_s *di, time_t now)
 {
 	struct ltntstools_pat_s *pat = NULL;
@@ -128,10 +105,8 @@ static void scte35_discover_pids(struct discovered_item_s *di, time_t now)
 
 		for (int i = 0; i < scte35pid_count; i++) {
 			struct scte35_pid_item_s *item = scte35_pid_add(di, scte35pids[i]);
-			if (item) {
+			if (item)
 				item->videoPid = videopid;
-				scte35_ensure_video_pes_extractor(item);
-			}
 		}
 
 		free(scte35pids);
@@ -202,8 +177,6 @@ void scte35_monitor_write(struct discovered_item_s *di, const uint8_t *pkts, uin
 		int secomplete = 0;
 		int crcValid = 0;
 
-		if (pidItem->pesExtractor)
-			ltntstools_pes_extractor_write(pidItem->pesExtractor, pkts, pktCount);
 		if (!pidItem->sectionExtractor)
 			continue;
 
