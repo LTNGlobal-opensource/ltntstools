@@ -81,6 +81,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Added REST and MCP access to SCTE-35 messages decoded with libklscte35 and retained for the last three hours.
   tstools_nic_monitor: Added a curses SCTE-35 report on selected streams, toggled with the 3 key.
   tstools_nic_monitor: Expanded OpenAPI and README documentation for REST, MCP setup, and Codex MCP registration.
+  all: migrated away from autotools and converted entire repo to cmake and git submodules
 
 * Tue Sep 29 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.51.0
