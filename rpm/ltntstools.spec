@@ -74,6 +74,14 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
 /usr/local/lib-ltntstools/libcrypto.so.3
 
 %changelog
+* Tue Sep 29 2026 Steven Toth <steven.toth@ltnglobal.com>
+- v1.52.0 - DEVELOPMENT
+  tstools_nic_monitor: Added a Node MCP server for Codex/agent access to live monitor data through the REST API.
+  tstools_nic_monitor: Added REST endpoints for the interactive M stream model, L stream log, I IAT histogram, and C clock reports.
+  tstools_nic_monitor: Added REST and MCP access to SCTE-35 messages decoded with libklscte35 and retained for the last three hours.
+  tstools_nic_monitor: Added a curses SCTE-35 report on selected streams, toggled with the 3 key.
+  tstools_nic_monitor: Expanded OpenAPI and README documentation for REST, MCP setup, and Codex MCP registration.
+
 * Tue Sep 29 2026 Steven Toth <steven.toth@ltnglobal.com> 
 - v1.51.0
   tstools_clock_inspector: Added a web UI for easier / faster visualization
