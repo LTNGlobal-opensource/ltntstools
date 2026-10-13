@@ -150,7 +150,7 @@ Pretty-print responses with `jq`:
     curl -s http://127.0.0.1:9601/api/scte35 | jq .
     curl -s -X POST http://127.0.0.1:9601/api/reset | jq .
 
-`/api/transport-streams` reports each detected stream's protocol type, source and destination addresses, bitrate, transport packet count, CC error count, IAT high water mark, and flags. `/api/transport-pids` reports the per-PID statistics for each stream, matching the PID report exposed by the interactive `P` command. `/api/stream-models`, `/api/stream-logs`, `/api/iat-histograms`, and `/api/clock-reports` expose the same data families as the interactive `M`, `L`, `I`, and `C` reports. `/api/scte35` exposes SCTE-35 PIDs and decoded SCTE-35 sections retained during the last three hours. `POST /api/reset` resets the same statistics as the interactive `r` command.
+`/api/transport-streams` reports each detected stream's protocol type, source and destination addresses, bitrate, transport packet count, CC error count, IAT high water mark, and flags. Its top-level `flagDefinitions` object describes the per-stream `flags` string so applications can interpret the same warning indicators shown in the curses UI. `/api/transport-pids` reports the per-PID statistics for each stream, matching the PID report exposed by the interactive `P` command. `/api/stream-models`, `/api/stream-logs`, `/api/iat-histograms`, and `/api/clock-reports` expose the same data families as the interactive `M`, `L`, `I`, and `C` reports. `/api/scte35` exposes SCTE-35 PIDs and decoded SCTE-35 sections retained during the last three hours. `POST /api/reset` resets the same statistics as the interactive `r` command.
 
 ## tstools_nic_monitor MCP Server
 

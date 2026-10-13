@@ -89,6 +89,38 @@ static json_object *stream_identity_json(struct discovered_item_s *di)
 	return obj;
 }
 
+static void add_flag_definition(json_object *defs, int position, const char *symbol, const char *name, const char *description)
+{
+	json_object *def = json_object_new_object();
+	add_json_int64(def, "position", position);
+	json_object_object_add(def, "symbol", json_object_new_string(symbol));
+	json_object_object_add(def, "name", json_object_new_string(name));
+	json_object_object_add(def, "description", json_object_new_string(description));
+	json_object_object_add(defs, symbol, def);
+}
+
+static json_object *warning_flag_definitions_json(void)
+{
+	json_object *defs = json_object_new_object();
+
+	add_flag_definition(defs, 0, "I", "iatHighWaterMarkExceeded",
+		"IAT high-water mark exceeded the configured threshold.");
+	add_flag_definition(defs, 1, "D", "hiddenDuplicateDestination",
+		"One or more duplicate streams share this destination and are hidden.");
+	add_flag_definition(defs, 2, "P", "packetSizeAnomaly",
+		"UDP payload size was not a multiple of 7 * 188 byte transport packets.");
+	add_flag_definition(defs, 3, "T", "transportStreamPayload",
+		"Payload is detected as MPEG transport stream.");
+	add_flag_definition(defs, 2, "E", "encryptedSrt",
+		"Payload is encrypted SRT data.");
+	add_flag_definition(defs, -1, "?", "unknownPayload",
+		"Payload type is unknown or does not have a defined flag layout.");
+	add_flag_definition(defs, -1, "-", "notSet",
+		"No warning or state is set for this position.");
+
+	return defs;
+}
+
 static const char *audio_type_description(unsigned int audio_type)
 {
 	switch (audio_type) {
@@ -462,6 +494,7 @@ json_object *rest_api_transport_streams_json(struct tool_context_s *ctx)
 
 	json_object_object_add(root, "timestampUnix", json_object_new_int64(now));
 	json_object_object_add(root, "interface", json_object_new_string(ctx->ifname ? ctx->ifname : ""));
+	json_object_object_add(root, "flagDefinitions", warning_flag_definitions_json());
 	json_object_object_add(root, "streams", streams);
 
 	pthread_mutex_lock(&ctx->lock);
@@ -688,7 +721,7 @@ const char *rest_api_openapi_json(void)
 		"    \"/openapi.json\": {\"get\": {\"summary\": \"OpenAPI schema\", \"responses\": {\"200\": {\"description\": \"OpenAPI document\"}}}}\n"
 		"  },\n"
 		"  \"components\": {\"schemas\": {\n"
-		"    \"TransportStreamsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/TransportStream\"}}}},\n"
+		"    \"TransportStreamsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"flagDefinitions\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"flagDefinitions\": {\"type\": \"object\", \"additionalProperties\": {\"$ref\": \"#/components/schemas/FlagDefinition\"}}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/TransportStream\"}}}},\n"
 		"    \"TransportPidsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/TransportStreamPids\"}}}},\n"
 		"    \"StreamModelsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/StreamModel\"}}}},\n"
 		"    \"StreamLogsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/StreamLog\"}}}},\n"
@@ -696,6 +729,7 @@ const char *rest_api_openapi_json(void)
 		"    \"ClockReportsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/ClockReport\"}}}},\n"
 		"    \"Scte35Response\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"historySeconds\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"historySeconds\": {\"type\": \"integer\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/Scte35Stream\"}}}},\n"
 		"    \"TransportStream\": {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\"}, \"protocolType\": {\"type\": \"string\"}, \"source\": {\"type\": \"string\"}, \"destination\": {\"type\": \"string\"}, \"firstSeenUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"lastUpdatedUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"bitrateMbps\": {\"type\": \"number\", \"format\": \"double\"}, \"bitrateBps\": {\"type\": \"integer\"}, \"transportPackets\": {\"type\": \"integer\", \"format\": \"int64\"}, \"ccErrors\": {\"type\": \"integer\", \"format\": \"int64\"}, \"iatHighWaterMarkMs\": {\"type\": \"integer\"}, \"iatHighWaterMarkUs\": {\"type\": \"integer\"}, \"flags\": {\"type\": \"string\"}, \"selected\": {\"type\": \"boolean\"}, \"recording\": {\"type\": \"boolean\"}, \"forwarding\": {\"type\": \"boolean\"}, \"srtRetransmissions\": {\"type\": \"integer\", \"format\": \"int64\"}}},\n"
+		"    \"FlagDefinition\": {\"type\": \"object\", \"properties\": {\"position\": {\"type\": \"integer\"}, \"symbol\": {\"type\": \"string\"}, \"name\": {\"type\": \"string\"}, \"description\": {\"type\": \"string\"}}},\n"
 		"    \"TransportStreamPids\": {\"allOf\": [{\"$ref\": \"#/components/schemas/TransportStreamIdentity\"}, {\"type\": \"object\", \"properties\": {\"pids\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/PidStatistics\"}}}}]},\n"
 		"    \"StreamModel\": {\"allOf\": [{\"$ref\": \"#/components/schemas/TransportStreamIdentity\"}, {\"type\": \"object\", \"properties\": {\"available\": {\"type\": \"boolean\"}, \"reason\": {\"type\": \"string\"}, \"multiplexType\": {\"type\": \"string\"}, \"transportStreamId\": {\"type\": \"integer\"}, \"version\": {\"type\": \"integer\"}, \"currentNextIndicator\": {\"type\": \"integer\"}, \"programCount\": {\"type\": \"integer\"}, \"programs\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/ProgramModel\"}}}}]},\n"
 		"    \"StreamLog\": {\"allOf\": [{\"$ref\": \"#/components/schemas/TransportStreamIdentity\"}, {\"type\": \"object\", \"properties\": {\"lineCount\": {\"type\": \"integer\"}, \"displayLineFrom\": {\"type\": \"integer\"}, \"pageSize\": {\"type\": \"integer\"}, \"maxPageSize\": {\"type\": \"integer\"}, \"lines\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}}}]},\n"

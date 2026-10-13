@@ -9,7 +9,7 @@ const baseUrl = normalizeBaseUrl(process.env.NIC_MONITOR_REST_URL || DEFAULT_BAS
 const tools = [
   {
     name: "get_transport_streams",
-    description: "Return the current stream summary from tstools_nic_monitor.",
+    description: "Return the current stream summary from tstools_nic_monitor, including warning flag definitions and interpreted warningFlags per stream.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -147,7 +147,7 @@ const tools = [
   },
   {
     name: "get_stream_summary",
-    description: "Return one stream by id, source, or destination. Optionally include per-PID and UI report data.",
+    description: "Return one stream by id, source, or destination, including warning flag definitions and interpreted warningFlags. Optionally include per-PID and UI report data.",
     inputSchema: {
       type: "object",
       properties: {
@@ -186,7 +186,7 @@ const tools = [
   },
   {
     name: "find_streams_with_errors",
-    description: "Find streams with CC errors, high IAT, warning flags, or SRT retransmissions.",
+    description: "Find streams with CC errors, high IAT, warning flags, or SRT retransmissions. Results include warning flag definitions and interpreted warningFlags per stream.",
     inputSchema: {
       type: "object",
       properties: {
@@ -227,7 +227,7 @@ const resources = [
   {
     uri: "nic-monitor://transport-streams",
     name: "Transport streams",
-    description: "Current stream summary from tstools_nic_monitor.",
+    description: "Current stream summary from tstools_nic_monitor, including warning flag definitions.",
     mimeType: "application/json"
   },
   {
@@ -460,7 +460,7 @@ async function callTool(params) {
   let data;
   switch (name) {
     case "get_transport_streams":
-      data = await getJson("/api/transport-streams");
+      data = enrichTransportStreams(await getJson("/api/transport-streams"));
       break;
     case "get_transport_pids":
       data = await getJson("/api/transport-pids");
@@ -517,7 +517,7 @@ async function readResource(params) {
 
   switch (uri) {
     case "nic-monitor://transport-streams":
-      data = await getJson("/api/transport-streams");
+      data = enrichTransportStreams(await getJson("/api/transport-streams"));
       break;
     case "nic-monitor://transport-pids":
       data = await getJson("/api/transport-pids");
@@ -561,7 +561,7 @@ async function getStreamSummary(args) {
     throw new Error("stream is required");
   }
 
-  const streamsDoc = await getJson("/api/transport-streams");
+  const streamsDoc = enrichTransportStreams(await getJson("/api/transport-streams"));
   const stream = (streamsDoc.streams || []).find(item =>
     item.id === needle || item.source === needle || item.destination === needle
   );
@@ -571,7 +571,8 @@ async function getStreamSummary(args) {
       found: false,
       query: needle,
       timestampUnix: streamsDoc.timestampUnix,
-      interface: streamsDoc.interface
+      interface: streamsDoc.interface,
+      flagDefinitions: streamsDoc.flagDefinitions || {}
     };
   }
 
@@ -579,6 +580,7 @@ async function getStreamSummary(args) {
     found: true,
     timestampUnix: streamsDoc.timestampUnix,
     interface: streamsDoc.interface,
+    flagDefinitions: streamsDoc.flagDefinitions || {},
     stream
   };
 
@@ -633,7 +635,7 @@ async function findStreamsWithErrors(args) {
   const includeSrtRetransmissions = args.includeSrtRetransmissions ?? true;
   const hasIatThreshold = Number.isInteger(args.iatThresholdMs);
 
-  const doc = await getJson("/api/transport-streams");
+  const doc = enrichTransportStreams(await getJson("/api/transport-streams"));
   const streams = (doc.streams || []).filter(stream => {
     if ((stream.ccErrors || 0) >= minCcErrors) {
       return true;
@@ -653,9 +655,50 @@ async function findStreamsWithErrors(args) {
   return {
     timestampUnix: doc.timestampUnix,
     interface: doc.interface,
+    flagDefinitions: doc.flagDefinitions || {},
     count: streams.length,
     streams
   };
+}
+
+function enrichTransportStreams(doc) {
+  const flagDefinitions = doc.flagDefinitions || {};
+  return {
+    ...doc,
+    flagDefinitions,
+    streams: (doc.streams || []).map(stream => ({
+      ...stream,
+      warningFlags: interpretWarningFlags(stream.flags, flagDefinitions)
+    }))
+  };
+}
+
+function interpretWarningFlags(flags, flagDefinitions) {
+  const result = [];
+  const text = String(flags || "");
+
+  for (let position = 0; position < text.length; position++) {
+    const symbol = text[position];
+    if (!symbol || symbol === "-") {
+      continue;
+    }
+
+    const definition = flagDefinitions[symbol] || {
+      position,
+      symbol,
+      name: "unknownFlag",
+      description: "No definition was provided for this warning flag."
+    };
+
+    result.push({
+      position,
+      symbol,
+      name: definition.name,
+      description: definition.description
+    });
+  }
+
+  return result;
 }
 
 async function getJson(path) {
