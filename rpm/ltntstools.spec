@@ -80,6 +80,7 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Added REST endpoints for the interactive M stream model, L stream log, I IAT histogram, and C clock reports.
   tstools_nic_monitor: Added REST and MCP access to SCTE-35 messages decoded with libklscte35 and retained for the last three hours.
   tstools_nic_monitor: Added a curses SCTE-35 report on selected streams, toggled with the 3 key.
+  tstools_nic_monitor: Added repeatable -a/--join IGMP joins so multicast groups can be requested directly by the monitor.
   tstools_nic_monitor: Expanded OpenAPI and README documentation for REST, MCP setup, and Codex MCP registration.
   all: migrated away from autotools and converted entire repo to cmake and git submodules
 
