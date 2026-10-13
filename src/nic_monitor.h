@@ -19,6 +19,7 @@
 #include <getopt.h>
 #include <libltntstools/ltntstools.h>
 #include <libltntstools/histogram.h>
+#include <libltntstools/igmp.h>
 #include <libltntstools/probes.h>
 #include <libklscte35/scte35.h>
 #include "source-rcts.h"
@@ -198,6 +199,12 @@ struct tool_context_s
 		int port;
 		char uilabel[80];
 	} url_forwards[MAX_URL_FORWARDERS];
+
+	/* IGMP joins held open while monitoring a pcap interface. */
+#define MAX_IGMP_JOIN_ADDRESSES 64
+	int igmpJoinCount;
+	struct parser_ippid_s igmpJoinAddress[MAX_IGMP_JOIN_ADDRESSES];
+	void *igmpJoinHandle[MAX_IGMP_JOIN_ADDRESSES];
 
 	/* SRT Ingest, and packet reframing */
 	struct ltntstools_reframer_ctx_s *reframer;

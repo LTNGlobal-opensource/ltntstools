@@ -29,6 +29,35 @@ extern int pthread_setname_np(pthread_t thread, const char *name);
 
 extern int ltnpthread_setname_np(pthread_t thread, const char *name);
 
+static int igmp_joins_start(struct tool_context_s *ctx)
+{
+	for (int i = 0; i < ctx->igmpJoinCount; i++) {
+		int ret = ltntstools_igmp_join(&ctx->igmpJoinHandle[i],
+			ctx->igmpJoinAddress[i].address,
+			ctx->igmpJoinAddress[i].port,
+			ctx->ifname);
+		if (ret < 0) {
+			fprintf(stderr, "Unable to join address %s:%u on %s, aborting\n",
+				ctx->igmpJoinAddress[i].address,
+				ctx->igmpJoinAddress[i].port,
+				ctx->ifname);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static void igmp_joins_stop(struct tool_context_s *ctx)
+{
+	for (int i = 0; i < ctx->igmpJoinCount; i++) {
+		if (ctx->igmpJoinHandle[i]) {
+			ltntstools_igmp_drop(ctx->igmpJoinHandle[i]);
+			ctx->igmpJoinHandle[i] = NULL;
+		}
+	}
+}
+
 /* Seeing some crashes inside getch, five leves deep related to dorefresh
  * in ncurses. Make sure we don't call getch without ensuring
  * the ui thread isn't refreshing the display.
@@ -1733,6 +1762,7 @@ static void usage(const char *progname)
 	printf("  -h Display command line help.\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
 	printf("  -M Display an interactive console with stats.\n");
+	printf("  -a <url> Issue an IGMP join for this multicast UDP URL. May be repeated. Eg: udp://234.1.1.1:4160\n");
 	printf("  -D <dir> Write any PCAP recordings in this target directory prefix. [def: %s else /tmp]\n", DEFAULT_STORAGE_LOCATION);
 	printf("  -d <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
 	printf("  -w <dir> Write detailed per pid stats per stream in this target directory prefix, every -n seconds.\n");
@@ -1805,6 +1835,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		{ "measure-scheduling-stalls", 		no_argument,		0, 0 },
 		{ "measure-microbursts", 		no_argument,		0, 0 },
 		{ "rest-api-port",				required_argument,	0, 0 },
+		{ "join",						required_argument,	0, 'a' },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -1812,7 +1843,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 	int ch;
 	while (1) {
 		int option_index = 0;
-		char *opts = "?hd:B:D:EF:i:I:t:vMn:w:RS:T@";
+		char *opts = "?ha:d:B:D:EF:i:I:t:vMn:w:RS:T@";
 		ch = getopt_long(argc, argv, opts, long_options, &option_index);
 		if (ch == -1)
 			break;
@@ -1833,6 +1864,17 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			ctx->bufferSize = atoi(optarg);
 			if (ctx->bufferSize < (2 * 1048576))
 				ctx->bufferSize = 2 * 1048576;
+			break;
+		case 'a':
+			if (ctx->igmpJoinCount == MAX_IGMP_JOIN_ADDRESSES) {
+				fprintf(stderr, "\nError, too many IGMP joins defined, max is %d\n", MAX_IGMP_JOIN_ADDRESSES);
+				exit(1);
+			}
+			if (parsers_ippid_parse(optarg, &ctx->igmpJoinAddress[ctx->igmpJoinCount]) < 0) {
+				fprintf(stderr, "\n-a/--join syntax error, expected udp://a.b.c.d:port\n\n");
+				exit(1);
+			}
+			ctx->igmpJoinCount++;
 			break;
 		case 'd':
 			free(ctx->file_prefix);
@@ -2041,6 +2083,11 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		fprintf(stderr, "\nError, -i is mandatory.\n\n");
 		exit(1);
 	}
+	if (ctx->igmpJoinCount && ctx->iftype != IF_TYPE_PCAP) {
+		usage(argv[0]);
+		fprintf(stderr, "\nError, -a/--join requires -i to name a pcap network interface.\n\n");
+		exit(1);
+	}
 
 	return 0;
 }
@@ -2132,8 +2179,14 @@ int nic_monitor(int argc, char *argv[])
 		printf("json write interval: %d\n", JSON_WRITE_INTERVAL);
 	}
 
+	if (igmp_joins_start(ctx) < 0) {
+		igmp_joins_stop(ctx);
+		exit(1);
+	}
+
 	if (rest_api_initialize(ctx) < 0) {
 		fprintf(stderr, "Unable to start REST API on port %d\n", ctx->rest_api_port);
+		igmp_joins_stop(ctx);
 		exit(1);
 	}
 
@@ -2402,6 +2455,7 @@ int nic_monitor(int argc, char *argv[])
 
 	printf("Flushing the streams and recorders...\n");
 	discovered_items_free(ctx);
+	igmp_joins_stop(ctx);
 
 	pcap_queue_free(ctx);
 

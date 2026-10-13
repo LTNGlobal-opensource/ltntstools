@@ -12,6 +12,13 @@ Enable the REST API when launching the monitor:
 tstools_nic_monitor -i eth0 -M --rest-api-port 9601
 ```
 
+For multicast streams where the host must issue an IGMP join, add one or more
+`-a` options:
+
+```sh
+tstools_nic_monitor -i eth0 -a udp://239.1.1.1:4099 -M --rest-api-port 9601
+```
+
 If you are running from the local build tree, the binary may be under
 `build/src/`.
 

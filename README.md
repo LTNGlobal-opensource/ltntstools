@@ -110,6 +110,11 @@ Example startup:
 
     tstools_nic_monitor -i eth0 -M --rest-api-port 9601
 
+To request delivery of one or more multicast groups while monitoring, add repeatable `-a` IGMP joins:
+
+    tstools_nic_monitor -i eth0 -a udp://239.1.1.1:4099 -M --rest-api-port 9601
+    tstools_nic_monitor -i eth0 -a udp://239.1.1.1:4099 -a udp://239.1.1.2:4099 -M --rest-api-port 9601
+
 Available endpoints:
 
     GET /api/transport-streams
@@ -154,6 +159,10 @@ The MCP server lives in `mcp/nic-monitor/` and forwards MCP tool calls to a runn
 Start the monitor with REST enabled:
 
     ./build/src/tstools_nic_monitor -i eth0 -M --rest-api-port 9601
+
+If the stream is multicast and the host needs to issue an IGMP join, include one or more `-a` options:
+
+    ./build/src/tstools_nic_monitor -i eth0 -a udp://239.1.1.1:4099 -M --rest-api-port 9601
 
 Run the MCP server directly:
 
