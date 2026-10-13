@@ -9,7 +9,7 @@ const baseUrl = normalizeBaseUrl(process.env.NIC_MONITOR_REST_URL || DEFAULT_BAS
 const tools = [
   {
     name: "get_transport_streams",
-    description: "Return the current stream summary from tstools_nic_monitor, including warning flag definitions and interpreted warningFlags per stream.",
+    description: "Return the current stream summary from tstools_nic_monitor, including iatThresholdMs, warning flag definitions, and interpreted warningFlags per stream.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -147,7 +147,7 @@ const tools = [
   },
   {
     name: "get_stream_summary",
-    description: "Return one stream by id, source, or destination, including warning flag definitions and interpreted warningFlags. Optionally include per-PID and UI report data.",
+    description: "Return one stream by id, source, or destination, including iatThresholdMs, warning flag definitions, and interpreted warningFlags. Optionally include per-PID and UI report data.",
     inputSchema: {
       type: "object",
       properties: {
@@ -186,7 +186,7 @@ const tools = [
   },
   {
     name: "find_streams_with_errors",
-    description: "Find streams with CC errors, high IAT, warning flags, or SRT retransmissions. Results include warning flag definitions and interpreted warningFlags per stream.",
+    description: "Find streams with CC errors, high IAT, warning flags, or SRT retransmissions. Results include iatThresholdMs, warning flag definitions, and interpreted warningFlags per stream.",
     inputSchema: {
       type: "object",
       properties: {
@@ -227,7 +227,7 @@ const resources = [
   {
     uri: "nic-monitor://transport-streams",
     name: "Transport streams",
-    description: "Current stream summary from tstools_nic_monitor, including warning flag definitions.",
+    description: "Current stream summary from tstools_nic_monitor, including iatThresholdMs and warning flag definitions.",
     mimeType: "application/json"
   },
   {
@@ -572,6 +572,7 @@ async function getStreamSummary(args) {
       query: needle,
       timestampUnix: streamsDoc.timestampUnix,
       interface: streamsDoc.interface,
+      iatThresholdMs: streamsDoc.iatThresholdMs,
       flagDefinitions: streamsDoc.flagDefinitions || {}
     };
   }
@@ -580,6 +581,7 @@ async function getStreamSummary(args) {
     found: true,
     timestampUnix: streamsDoc.timestampUnix,
     interface: streamsDoc.interface,
+    iatThresholdMs: streamsDoc.iatThresholdMs,
     flagDefinitions: streamsDoc.flagDefinitions || {},
     stream
   };
@@ -655,6 +657,7 @@ async function findStreamsWithErrors(args) {
   return {
     timestampUnix: doc.timestampUnix,
     interface: doc.interface,
+    iatThresholdMs: doc.iatThresholdMs,
     flagDefinitions: doc.flagDefinitions || {},
     count: streams.length,
     streams

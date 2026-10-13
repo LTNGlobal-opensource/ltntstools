@@ -94,7 +94,8 @@ Use an absolute path in your MCP client config:
 ## Tools
 
 - `get_transport_streams`: returns `/api/transport-streams`, including
-  `flagDefinitions` and interpreted `warningFlags` for each stream.
+  `iatThresholdMs`, `flagDefinitions`, and interpreted `warningFlags` for each
+  stream.
 - `get_transport_pids`: returns `/api/transport-pids`.
 - `get_stream_models`: returns `/api/stream-models`, matching the interactive
   `M` report.
@@ -113,16 +114,17 @@ Use an absolute path in your MCP client config:
 - `get_scte35_messages_for_stream`: returns SCTE-35 history for one stream by
   id, source, or destination.
 - `get_stream_summary`: finds one stream by id, source, or destination,
-  including `flagDefinitions` and interpreted `warningFlags`.
+  including `iatThresholdMs`, `flagDefinitions`, and interpreted
+  `warningFlags`.
 - `find_streams_with_errors`: filters streams with CC errors, IAT threshold
-  hits, warning flags, or SRT retransmissions, and includes the warning flag
-  definitions in the result.
+  hits, warning flags, or SRT retransmissions, and includes `iatThresholdMs`
+  and the warning flag definitions in the result.
 - `reset_statistics`: calls `POST /api/reset`.
 
 ## Resources
 
 - `nic-monitor://transport-streams` includes `flagDefinitions` and interpreted
-  `warningFlags` for each stream.
+  `warningFlags` for each stream, plus `iatThresholdMs`.
 - `nic-monitor://transport-pids`
 - `nic-monitor://stream-models`
 - `nic-monitor://stream-logs`

@@ -104,7 +104,7 @@ static json_object *warning_flag_definitions_json(void)
 	json_object *defs = json_object_new_object();
 
 	add_flag_definition(defs, 0, "I", "iatHighWaterMarkExceeded",
-		"IAT high-water mark exceeded the configured threshold.");
+		"IAT high-water mark exceeded the configured -I threshold.");
 	add_flag_definition(defs, 1, "D", "hiddenDuplicateDestination",
 		"One or more duplicate streams share this destination and are hidden.");
 	add_flag_definition(defs, 2, "P", "packetSizeAnomaly",
@@ -494,6 +494,7 @@ json_object *rest_api_transport_streams_json(struct tool_context_s *ctx)
 
 	json_object_object_add(root, "timestampUnix", json_object_new_int64(now));
 	json_object_object_add(root, "interface", json_object_new_string(ctx->ifname ? ctx->ifname : ""));
+	add_json_int64(root, "iatThresholdMs", ctx->iatMax);
 	json_object_object_add(root, "flagDefinitions", warning_flag_definitions_json());
 	json_object_object_add(root, "streams", streams);
 
@@ -721,7 +722,7 @@ const char *rest_api_openapi_json(void)
 		"    \"/openapi.json\": {\"get\": {\"summary\": \"OpenAPI schema\", \"responses\": {\"200\": {\"description\": \"OpenAPI document\"}}}}\n"
 		"  },\n"
 		"  \"components\": {\"schemas\": {\n"
-		"    \"TransportStreamsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"flagDefinitions\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"flagDefinitions\": {\"type\": \"object\", \"additionalProperties\": {\"$ref\": \"#/components/schemas/FlagDefinition\"}}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/TransportStream\"}}}},\n"
+		"    \"TransportStreamsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"iatThresholdMs\", \"flagDefinitions\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"iatThresholdMs\": {\"type\": \"integer\"}, \"flagDefinitions\": {\"type\": \"object\", \"additionalProperties\": {\"$ref\": \"#/components/schemas/FlagDefinition\"}}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/TransportStream\"}}}},\n"
 		"    \"TransportPidsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/TransportStreamPids\"}}}},\n"
 		"    \"StreamModelsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/StreamModel\"}}}},\n"
 		"    \"StreamLogsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/StreamLog\"}}}},\n"
