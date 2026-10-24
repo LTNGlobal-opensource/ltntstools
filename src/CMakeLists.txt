@@ -65,6 +65,11 @@ set(SRC
     nic_monitor_tr101290.c
     nic_monitor_scte35.c
     nic_monitor_kafka.c
+    nic_monitor_ui.c
+    nic_monitor_ui_buf.c
+    nic_monitor_ui_input.c
+    nic_monitor_ui_layout.c
+    nic_monitor_ui_screen.c
     parsers.c
     kbhit.c
     rtmp_analyzer.c

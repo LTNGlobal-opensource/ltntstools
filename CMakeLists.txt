@@ -47,4 +47,28 @@ endif()
 set(LTNTSTOOLS_INSTALL_RPATH "${_default_rpath}" CACHE STRING
     "RPATH of the installed tstools_util")
 
+# Sanitizer builds, applied to every target. Use a separate build directory:
+#   cmake -S . -B build-asan -DLTNTSTOOLS_SANITIZE=address
+#   cmake -S . -B build-tsan -DLTNTSTOOLS_SANITIZE=thread
+# The deps/ libraries are not instrumented, so TSan can miss races inside
+# them, or report false positives through callbacks they make.
+set(LTNTSTOOLS_SANITIZE "" CACHE STRING "Sanitizer build: empty, address or thread")
+set_property(CACHE LTNTSTOOLS_SANITIZE PROPERTY STRINGS "" address thread)
+if(LTNTSTOOLS_SANITIZE STREQUAL "address")
+  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address,undefined)
+elseif(LTNTSTOOLS_SANITIZE STREQUAL "thread")
+  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=thread)
+elseif(NOT LTNTSTOOLS_SANITIZE STREQUAL "")
+  message(FATAL_ERROR "LTNTSTOOLS_SANITIZE must be empty, address or thread")
+endif()
+
+option(LTNTSTOOLS_BUILD_TESTS "Build the unit tests (run with ctest)" ON)
+
 add_subdirectory(src)
+
+if(LTNTSTOOLS_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()

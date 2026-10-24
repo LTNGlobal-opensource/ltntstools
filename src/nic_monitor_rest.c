@@ -499,6 +499,8 @@ json_object *rest_api_transport_streams_json(struct tool_context_s *ctx)
 	json_object_object_add(root, "streams", streams);
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
+	uint32_t cursorId = __atomic_load_n(&ctx->uiCursorId, __ATOMIC_ACQUIRE);
 	struct discovered_item_s *di = NULL;
 	xorg_list_for_each_entry(di, &ctx->list, list) {
 		if (discovered_item_state_get(di, DI_STATE_HIDDEN))
@@ -516,7 +518,10 @@ json_object *rest_api_transport_streams_json(struct tool_context_s *ctx)
 		add_json_int64(item, "iatHighWaterMarkMs", di->iat_hwm_us / 1000);
 		add_json_int64(item, "iatHighWaterMarkUs", di->iat_hwm_us);
 		json_object_object_add(item, "flags", json_object_new_string(di->warningIndicatorLabel));
-		json_object_object_add(item, "selected", json_object_new_boolean(discovered_item_state_get(di, DI_STATE_SELECTED) != 0));
+		/* selected: the next UI command acts on this stream (tagged, or the cursor when nothing is tagged). */
+		json_object_object_add(item, "selected", json_object_new_boolean(discovered_item_is_target_locked(ctx, di, anyTagged)));
+		json_object_object_add(item, "tagged", json_object_new_boolean(discovered_item_state_get(di, DI_STATE_TAGGED) != 0));
+		json_object_object_add(item, "cursor", json_object_new_boolean(cursorId != 0 && di->id == cursorId));
 		json_object_object_add(item, "recording", json_object_new_boolean(discovered_item_state_get(di, DI_STATE_PCAP_RECORDING) != 0));
 		json_object_object_add(item, "forwarding", json_object_new_boolean(discovered_item_state_get(di, DI_STATE_STREAM_FORWARDING) != 0));
 		add_json_uint64(item, "srtRetransmissions", di->srt_retransmittion_count);
@@ -729,7 +734,7 @@ const char *rest_api_openapi_json(void)
 		"    \"IatHistogramsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/IatHistogram\"}}}},\n"
 		"    \"ClockReportsResponse\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/ClockReport\"}}}},\n"
 		"    \"Scte35Response\": {\"type\": \"object\", \"required\": [\"timestampUnix\", \"interface\", \"historySeconds\", \"streams\"], \"properties\": {\"timestampUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"interface\": {\"type\": \"string\"}, \"historySeconds\": {\"type\": \"integer\"}, \"streams\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/Scte35Stream\"}}}},\n"
-		"    \"TransportStream\": {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\"}, \"protocolType\": {\"type\": \"string\"}, \"source\": {\"type\": \"string\"}, \"destination\": {\"type\": \"string\"}, \"firstSeenUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"lastUpdatedUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"bitrateMbps\": {\"type\": \"number\", \"format\": \"double\"}, \"bitrateBps\": {\"type\": \"integer\"}, \"transportPackets\": {\"type\": \"integer\", \"format\": \"int64\"}, \"ccErrors\": {\"type\": \"integer\", \"format\": \"int64\"}, \"iatHighWaterMarkMs\": {\"type\": \"integer\"}, \"iatHighWaterMarkUs\": {\"type\": \"integer\"}, \"flags\": {\"type\": \"string\"}, \"selected\": {\"type\": \"boolean\"}, \"recording\": {\"type\": \"boolean\"}, \"forwarding\": {\"type\": \"boolean\"}, \"srtRetransmissions\": {\"type\": \"integer\", \"format\": \"int64\"}}},\n"
+		"    \"TransportStream\": {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\"}, \"protocolType\": {\"type\": \"string\"}, \"source\": {\"type\": \"string\"}, \"destination\": {\"type\": \"string\"}, \"firstSeenUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"lastUpdatedUnix\": {\"type\": \"integer\", \"format\": \"int64\"}, \"bitrateMbps\": {\"type\": \"number\", \"format\": \"double\"}, \"bitrateBps\": {\"type\": \"integer\"}, \"transportPackets\": {\"type\": \"integer\", \"format\": \"int64\"}, \"ccErrors\": {\"type\": \"integer\", \"format\": \"int64\"}, \"iatHighWaterMarkMs\": {\"type\": \"integer\"}, \"iatHighWaterMarkUs\": {\"type\": \"integer\"}, \"flags\": {\"type\": \"string\"}, \"selected\": {\"type\": \"boolean\"}, \"tagged\": {\"type\": \"boolean\"}, \"cursor\": {\"type\": \"boolean\"}, \"recording\": {\"type\": \"boolean\"}, \"forwarding\": {\"type\": \"boolean\"}, \"srtRetransmissions\": {\"type\": \"integer\", \"format\": \"int64\"}}},\n"
 		"    \"FlagDefinition\": {\"type\": \"object\", \"properties\": {\"position\": {\"type\": \"integer\"}, \"symbol\": {\"type\": \"string\"}, \"name\": {\"type\": \"string\"}, \"description\": {\"type\": \"string\"}}},\n"
 		"    \"TransportStreamPids\": {\"allOf\": [{\"$ref\": \"#/components/schemas/TransportStreamIdentity\"}, {\"type\": \"object\", \"properties\": {\"pids\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/PidStatistics\"}}}}]},\n"
 		"    \"StreamModel\": {\"allOf\": [{\"$ref\": \"#/components/schemas/TransportStreamIdentity\"}, {\"type\": \"object\", \"properties\": {\"available\": {\"type\": \"boolean\"}, \"reason\": {\"type\": \"string\"}, \"multiplexType\": {\"type\": \"string\"}, \"transportStreamId\": {\"type\": \"integer\"}, \"version\": {\"type\": \"integer\"}, \"currentNextIndicator\": {\"type\": \"integer\"}, \"programCount\": {\"type\": \"integer\"}, \"programs\": {\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/ProgramModel\"}}}}]},\n"

@@ -99,7 +99,7 @@ ssize_t nic_monitor_tr101290_write(struct discovered_item_s *di, const uint8_t *
 	return ltntstools_tr101290_write(di->trHandle, pkts, packetCount, &nowtv);
 }
 
-void nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *sc, int p1col, int p2col)
+void nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, struct ui_buf_s *buf, int *sc, int p1col, int p2col)
 {
 	if (!di->trHandle)
 		return;
@@ -129,7 +129,7 @@ void nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *sc, int p1c
 
 		if (item->raised) {
 			sl = stateDesc[1];
-			attron(COLOR_PAIR(3));
+			ui_buf_set_pair(buf, 3);
 		}
 
 		int cols[] = { 0, p1col, p2col, p2col };
@@ -137,57 +137,57 @@ void nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *sc, int p1c
 
 		switch (item->id) {
 		case E101290_P1_1__TS_SYNC_LOSS:
-			mvprintw(streamCount + 2, col, "P1.1  %s [SYNC LOSS]", sl);
+			ui_buf_printf(buf, streamCount, col, "P1.1  %s [SYNC LOSS]", sl);
 			break;
 		case E101290_P1_2__SYNC_BYTE_ERROR:
-			mvprintw(streamCount + 3, col, "P1.2  %s [SYNC BYTE]", sl);
+			ui_buf_printf(buf, streamCount + 1, col, "P1.2  %s [SYNC BYTE]", sl);
 			break;
 		case E101290_P1_3__PAT_ERROR:
-			mvprintw(streamCount + 4, col, "P1.3  %s [PAT      ]", sl);
+			ui_buf_printf(buf, streamCount + 2, col, "P1.3  %s [PAT      ]", sl);
 			break;
 		case E101290_P1_3a__PAT_ERROR_2:
-			mvprintw(streamCount + 5, col, "P1.3a %s [PAT 2    ]", sl);
+			ui_buf_printf(buf, streamCount + 3, col, "P1.3a %s [PAT 2    ]", sl);
 			break;
 		case E101290_P1_4__CONTINUITY_COUNTER_ERROR:
-			mvprintw(streamCount + 6, col, "P1.4  %s [CC       ]", sl);
+			ui_buf_printf(buf, streamCount + 4, col, "P1.4  %s [CC       ]", sl);
 			break;
 		case E101290_P1_5__PMT_ERROR:
-			mvprintw(streamCount + 7, col, "P1.5  %s [PMT      ]", sl);
+			ui_buf_printf(buf, streamCount + 5, col, "P1.5  %s [PMT      ]", sl);
 			break;
 		case E101290_P1_5a__PMT_ERROR_2:
-			mvprintw(streamCount + 8, col, "P1.5a %s [PMT 2    ]", sl);
+			ui_buf_printf(buf, streamCount + 6, col, "P1.5a %s [PMT 2    ]", sl);
 			break;
 		case E101290_P1_6__PID_ERROR:
-			mvprintw(streamCount + 9, col, "P1.6  %s [PID      ] %s", sl, item->arg);
+			ui_buf_printf(buf, streamCount + 7, col, "P1.6  %s [PID      ] %s", sl, item->arg);
 			break;
 		case E101290_P2_1__TRANSPORT_ERROR:
-			mvprintw(streamCount + 2, col, "P2.1  %s [TRANSPORT TEI ]", sl);
+			ui_buf_printf(buf, streamCount, col, "P2.1  %s [TRANSPORT TEI ]", sl);
 			break;
 		case E101290_P2_2__CRC_ERROR:
-			mvprintw(streamCount + 3, col, "P2.2  %s [CRC           ] %s", sl, item->arg);
+			ui_buf_printf(buf, streamCount + 1, col, "P2.2  %s [CRC           ] %s", sl, item->arg);
 			break;
 		case E101290_P2_3__PCR_ERROR:
-			mvprintw(streamCount + 4, col, "P2.3  %s [PCR           ] %s", sl, item->arg);
+			ui_buf_printf(buf, streamCount + 2, col, "P2.3  %s [PCR           ] %s", sl, item->arg);
 			break;
 		case E101290_P2_3a__PCR_REPETITION_ERROR:
-			mvprintw(streamCount + 5, col, "P2.3a %s [PCR REPETITION] %s", sl, item->arg);
+			ui_buf_printf(buf, streamCount + 3, col, "P2.3a %s [PCR REPETITION] %s", sl, item->arg);
 			break;
 		case E101290_P2_4__PCR_ACCURACY_ERROR:
-			mvprintw(streamCount + 6, col, "P2.4  %s [PCR ACCURACY  ]", sl);
+			ui_buf_printf(buf, streamCount + 4, col, "P2.4  %s [PCR ACCURACY  ]", sl);
 			break;
 		case E101290_P2_5__PTS_ERROR:
-			mvprintw(streamCount + 7, col, "P2.5  %s [PTS           ]", sl);
+			ui_buf_printf(buf, streamCount + 5, col, "P2.5  %s [PTS           ]", sl);
 			break;
 		case E101290_P2_6__CAT_ERROR:
-			mvprintw(streamCount + 8, col, "P2.6  %s [CAT           ]", sl);
+			ui_buf_printf(buf, streamCount + 6, col, "P2.6  %s [CAT           ]", sl);
 			break;
 		default:
-			//mvprintw(streamCount + 2, col, "%s %s", ltntstools_tr101290_event_name_ascii(ae->id), ae->description);
+			//ui_buf_printf(buf, streamCount, col, "%s %s", ltntstools_tr101290_event_name_ascii(ae->id), ae->description);
 			break;
 		}
 
 		if (item->raised) {
-			attroff(COLOR_PAIR(3));
+			ui_buf_set_pair(buf, 0);
 		}
 	}
 	if (items) {

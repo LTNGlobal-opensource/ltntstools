@@ -992,7 +992,19 @@ void pcap_update_statistics(struct tool_context_s *ctx, const struct pcap_pkthdr
 		/* TODO: Handle RTP with FEC correctly. */
 		if (di->payloadType == PAYLOAD_UNDEFINED) {
 			di->payloadType = determinePayloadType(di, ptr, lengthPayloadBytes);
+
+			/* Streams with too little traffic to classify are treated as byte
+			 * streams after two seconds. This thread is the only writer of
+			 * payloadType. (Previously done by the UI while drawing, so only
+			 * with -M.)
+			 */
+			if (di->payloadType == PAYLOAD_UNDEFINED && di->firstSeen + 2 <= di->lastUpdated) {
+				di->payloadType = PAYLOAD_BYTE_STREAM;
+			}
 		}
+
+		/* PCR pids discovered by the stats thread; this thread owns di->stats. */
+		discovered_item_apply_pending_pcr(di);
 
 		if (di->payloadType == PAYLOAD_RTP_TS) {
 			lengthPayloadBytes -= 12;

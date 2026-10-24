@@ -263,7 +263,9 @@
               "iatHighWaterMarkMs": { "type": "integer" },
               "iatHighWaterMarkUs": { "type": "integer" },
               "flags": { "type": "string" },
-              "selected": { "type": "boolean" },
+              "selected": { "type": "boolean", "description": "The next interactive UI command acts on this stream: it is tagged, or it is under the cursor and no stream is tagged." },
+              "tagged": { "type": "boolean", "description": "Tagged by the operator in the interactive UI (Space / S)." },
+              "cursor": { "type": "boolean", "description": "Under the interactive UI cursor. Always false without -M." },
               "recording": { "type": "boolean" },
               "forwarding": { "type": "boolean" },
               "srtRetransmissions": { "type": "integer", "format": "int64" }

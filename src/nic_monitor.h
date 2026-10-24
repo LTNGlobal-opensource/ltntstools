@@ -29,6 +29,8 @@
 #include "utils.h"
 #include "hash_index.h"
 #include "codecs.h"
+#include "nic_monitor_ui_buf.h"
+#include "nic_monitor_ui_input.h"
 
 #include <pcap.h>
 #include <arpa/inet.h>
@@ -48,7 +50,6 @@
 #include <librdkafka/rdkafka.h>
 #endif
 
-#define DEFAULT_TRAILERROW 18
 #define FILE_WRITE_INTERVAL 5
 #define JSON_WRITE_INTERVAL 1
 #define DEFAULT_PCAP_FILTER "udp dst portrange 4000-4999"
@@ -112,8 +113,18 @@ struct tool_context_s
 
 	pthread_t ui_threadId;
 	int ui_threadTerminate, ui_threadRunning, ui_threadTerminated;
-	int trailerRow;
+	/* Every ncurses call is made with this lock held (ncurses is not thread safe). */
 	pthread_mutex_t ui_threadLock;
+
+	/* UI state shared with other threads. Everything else the UI uses is
+	 * owned by the UI thread (nic_monitor_ui.c).
+	 */
+	uint32_t uiCursorId;          /* Stream id under the cursor, 0 = none. Written by the UI
+	                               * thread only; read with __atomic_load_n. */
+	int uiMouseEnabled;           /* Atomic. Written by the main thread. */
+	int uiDisableMouse;           /* --no-mouse */
+	struct ui_event_queue_s uiEvents;   /* Main thread -> UI thread: navigation keys, mouse */
+	struct ui_message_s uiMessage;      /* Any thread -> MESSAGE line */
 
 	char json_http_url[256];
 	pthread_t json_threadId;
@@ -189,7 +200,7 @@ struct tool_context_s
 
 	/* UDP Socket stats */
 	void *procNetUDPContext;
-	int showForwardOptions;
+	int showForwardOptions;       /* Atomic. 'F' pressed, waiting for 7/8/9 or q. */
 	time_t lastSocketReport;
 
 	/* URL Forwarding options */
@@ -287,9 +298,6 @@ void display_doc_free(struct display_doc_s *doc);
 int  display_doc_append(struct display_doc_s *doc, const char *line);
 int  display_doc_append_cc_error(struct display_doc_s *doc, uint16_t pid, time_t *when);
 int  display_doc_append_with_time(struct display_doc_s *doc, const char *msg, time_t *when);
-void display_doc_render(struct display_doc_s *doc, int row, int col);
-void display_doc_page_up(struct display_doc_s *doc);
-void display_doc_page_down(struct display_doc_s *doc);
 
 struct scte35_pid_item_s
 {
@@ -337,10 +345,16 @@ struct discovered_item_s
 
 	struct tool_context_s *ctx;
 
+	/* Unique for the life of the process, never reused. 0 is never a valid id. */
+	uint32_t id;
+
 	enum payload_type_e payloadType;
 	int recordAsTS;
 
-#define DI_STATE_SELECTED				(1 << 0)
+/* Tagged by the operator for a batch command (Space / S). Commands act on the
+ * tagged streams, or on the cursor stream when nothing is tagged.
+ */
+#define DI_STATE_TAGGED					(1 << 0)
 #define DI_STATE_CC_ERROR				(1 << 1)
 #define DI_STATE_PCAP_RECORD_START		(1 << 2)
 #define DI_STATE_PCAP_RECORDING			(1 << 3)
@@ -506,6 +520,16 @@ struct discovered_item_s
 	/* SRT Protocol */
 	struct srt_control_pkt_hdr_s srt_header_last;
 	uint64_t srt_retransmittion_count;
+
+	/* PCR pids found in the stream model by the stats thread
+	 * (discovered_items_periodic), applied to di->stats by the pcap thread,
+	 * which owns di->stats (discovered_item_apply_pending_pcr).
+	 */
+#define DI_PCR_PIDS_MAX 16
+	pthread_mutex_t pcrPidLock;
+	uint16_t pcrPidPending[DI_PCR_PIDS_MAX];
+	int pcrPidPendingCount;
+	int pcrPidPendingReady;   /* Atomic */
 };
 
 const char *payloadTypeDesc(enum payload_type_e pt);
@@ -531,7 +555,7 @@ void discovered_item_file_summary(struct tool_context_s *ctx, struct discovered_
 
 void discovered_item_warningindicators_update(struct tool_context_s *ctx, struct discovered_item_s *di);
 
-/* Set or clear the state field bitmask */
+/* Set or clear the state field bitmask. Atomic: safe from any thread. */
 void discovered_item_state_set(struct discovered_item_s *di, unsigned int state);
 void discovered_item_state_clr(struct discovered_item_s *di, unsigned int state);
 unsigned int discovered_item_state_get(struct discovered_item_s *di, unsigned int state);
@@ -546,12 +570,32 @@ void discovered_items_stats_reset(struct tool_context_s *ctx);
 
 void discovered_items_abort(struct tool_context_s *ctx);
 
-/* Cursor selection */
-void discovered_items_select_first(struct tool_context_s *ctx);
-void discovered_items_select_next(struct tool_context_s *ctx);
-void discovered_items_select_prev(struct tool_context_s *ctx);
-void discovered_items_select_all(struct tool_context_s *ctx);
-void discovered_items_select_none(struct tool_context_s *ctx);
+/* Tags, and the command target: the tagged streams, or the cursor stream
+ * (ctx->uiCursorId) when nothing is tagged. All take ctx->lock.
+ */
+void discovered_items_tag_all(struct tool_context_s *ctx);
+void discovered_items_tag_none(struct tool_context_s *ctx);
+int  discovered_items_tag_toggle_id(struct tool_context_s *ctx, uint32_t id);
+/* Switch the PSIP model report on for one stream (double-click). Returns 1
+ * if it was switched on, 0 if it was already on, -1 if there is no such stream.
+ */
+int  discovered_items_show_streammodel_id(struct tool_context_s *ctx, uint32_t id);
+/* Caller holds ctx->lock. */
+int  discovered_items_any_tagged_locked(struct tool_context_s *ctx);
+int  discovered_item_is_target_locked(struct tool_context_s *ctx, struct discovered_item_s *di, int anyTagged);
+/* Number of streams the next command would act on. */
+int  discovered_items_target_count(struct tool_context_s *ctx);
+
+/* Periodic stream maintenance that used to happen as a side effect of
+ * drawing the UI (payload type fallback, PCR pid registration, H.264 slice
+ * pid, SCTE-35 history pruning). Called from the stats thread, with or
+ * without -M. Takes ctx->lock.
+ */
+void discovered_items_periodic(struct tool_context_s *ctx, time_t now);
+
+/* Called by the pcap thread for each packet; cheap unless PCR pids are pending. */
+void discovered_item_apply_pending_pcr(struct discovered_item_s *di);
+
 void discovered_items_select_record_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_pids_toggle(struct tool_context_s *ctx);
 void discovered_items_select_show_tr101290_toggle(struct tool_context_s *ctx);
@@ -564,11 +608,7 @@ void discovered_items_select_show_streammodel_toggle(struct tool_context_s *ctx)
 void discovered_items_select_forward_toggle(struct tool_context_s *ctx, int slotNr);
 void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx);
 void discovered_items_select_scte35_toggle(struct tool_context_s *ctx);
-void discovered_items_select_scte35_pageup(struct tool_context_s *ctx);
-void discovered_items_select_scte35_pagedown(struct tool_context_s *ctx);
 void discovered_items_select_show_stream_log_toggle(struct tool_context_s *ctx);
-void discovered_items_select_show_stream_log_pageup(struct tool_context_s *ctx);
-void discovered_items_select_show_stream_log_pagedown(struct tool_context_s *ctx);
 
 
 /* TR101290 */
@@ -577,8 +617,18 @@ ssize_t nic_monitor_tr101290_write(struct discovered_item_s *di, const uint8_t *
 void    nic_monitor_tr101290_free(struct discovered_item_s *di);
 void    nic_monitor_tr101290_reset(struct discovered_item_s *di);
 
-/* Exclusively called from the ncurses domain */
-void    nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, int *streamCount, int p1col, int p2col);
+/* Called from the UI thread while building a frame; writes into buf. */
+void    nic_monitor_tr101290_draw_ui(struct discovered_item_s *di, struct ui_buf_s *buf, int *row, int p1col, int p2col);
+
+/* UI (nic_monitor_ui.c) */
+void   *nic_monitor_ui_thread_func(void *p);
+/* 1 for keys the UI thread handles itself (navigation, focus, help). */
+int     nic_monitor_ui_is_ui_key(int key);
+/* Execute an operator command key (P, C, R, F, q, ...). Safe from the main
+ * thread and the UI thread (mouse clicks on HINTS). Returns 1 if the key was
+ * a command, else 0. Implemented in nic_monitor.c.
+ */
+int     nic_monitor_ui_command(struct tool_context_s *ctx, int key);
 
 #if KAFKA_REPORTER
 /* Kafka */

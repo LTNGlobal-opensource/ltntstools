@@ -4,6 +4,7 @@
 #include <sys/resource.h>
 
 #include "nic_monitor.h"
+#include "nic_monitor_ui_screen.h"
 
 /* Reduce this to 4 * 32768 to simulate loss on a NIC with 600Mbps */
 /* Tuned to 64MB to support 2Gb/ps */
@@ -18,6 +19,7 @@ static int g_snaplen_default =
 ;
 
 static int gRunning = 0;
+static int gQuitRequested = 0; /* Atomic. 'q' from the main or UI thread; ends the main loop. */
 
 static struct tool_context_s g_ctx = { 0 };
 static struct tool_context_s *ctx = &g_ctx;
@@ -60,1204 +62,272 @@ static void igmp_joins_stop(struct tool_context_s *ctx)
 
 /* Seeing some crashes inside getch, five leves deep related to dorefresh
  * in ncurses. Make sure we don't call getch without ensuring
- * the ui thread isn't refreshing the display.
+ * the ui thread isn't refreshing the display. The lock is held only for
+ * the call itself; getch() is non-blocking (nodelay), so the UI thread is
+ * never kept waiting for a key.
  */
-static char ui_syncronized_getch(struct tool_context_s *ctx)
+static int ui_syncronized_getch(struct tool_context_s *ctx)
 {
 	pthread_mutex_lock(&ctx->ui_threadLock);
-	char c = getch();
+	int c = getch();
 	pthread_mutex_unlock(&ctx->ui_threadLock);
 
 	return c;
 }
 
-static const char *scte35_command_name(int64_t commandType)
+#if MEASURE_PCAP_CALLBACK_PERFORMANCE
+extern int pcap_cb_intervals_reset;
+#endif
+
+static void stats_reset(struct tool_context_s *ctx)
 {
-	switch (commandType) {
-	case SCTE35_COMMAND_TYPE__SPLICE_NULL:
-		return "splice_null";
-	case SCTE35_COMMAND_TYPE__SPLICE_SCHEDULE:
-		return "splice_schedule";
-	case SCTE35_COMMAND_TYPE__SPLICE_INSERT:
-		return "splice_insert";
-	case SCTE35_COMMAND_TYPE__TIME_SIGNAL:
-		return "time_signal";
-	case SCTE35_COMMAND_TYPE__BW_RESERVATION:
-		return "bandwidth_reservation";
-	case SCTE35_COMMAND_TYPE__PRIVATE:
-		return "private_command";
-	default:
-		return "unknown";
+	time(&ctx->lastResetTime);
+	discovered_items_stats_reset(ctx);
+	if (ctx->procNetUDPContext) {
+		ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
 	}
+#if MEASURE_PCAP_CALLBACK_PERFORMANCE
+	pcap_cb_intervals_reset = 1;
+#endif
 }
 
-static void scte35_format_age(char *dst, size_t dstSize, time_t age)
+static void ui_mouse_set(struct tool_context_s *ctx, int enable)
 {
-	if (age < 0)
-		age = 0;
-
-	snprintf(dst, dstSize, "%02ld:%02ld:%02ld",
-		(long)(age / 3600),
-		(long)((age / 60) % 60),
-		(long)(age % 60));
-}
-
-static int scte35_json_int64(json_object *obj, const char *name, int64_t *value)
-{
-	json_object *child = NULL;
-	if (!obj || !json_object_object_get_ex(obj, name, &child))
-		return -1;
-
-	*value = json_object_get_int64(child);
-	return 0;
-}
-
-static int scte35_json_bool(json_object *obj, const char *name, int *value)
-{
-	json_object *child = NULL;
-	if (!obj || !json_object_object_get_ex(obj, name, &child))
-		return -1;
-
-	*value = json_object_get_boolean(child);
-	return 0;
-}
-
-static json_object *scte35_json_object(json_object *obj, const char *name)
-{
-	json_object *child = NULL;
-	if (!obj || !json_object_object_get_ex(obj, name, &child))
-		return NULL;
-	if (!json_object_is_type(child, json_type_object))
-		return NULL;
-
-	return child;
-}
-
-static json_object *scte35_first_segmentation_descriptor(json_object *obj)
-{
-	json_object *descriptors = NULL;
-	if (!obj || !json_object_object_get_ex(obj, "descriptors", &descriptors))
-		return NULL;
-	if (!json_object_is_type(descriptors, json_type_array))
-		return NULL;
-
-	int count = json_object_array_length(descriptors);
-	for (int i = 0; i < count; i++) {
-		json_object *desc = json_object_array_get_idx(descriptors, i);
-		json_object *type = NULL;
-		if (!desc || !json_object_object_get_ex(desc, "descriptor_type", &type))
-			continue;
-		if (strcmp(json_object_get_string(type), "segmentation_descriptor") == 0)
-			return desc;
+	pthread_mutex_lock(&ctx->ui_threadLock);
+	if (enable) {
+#if NCURSES_MOUSE_VERSION > 1
+		mousemask(ALL_MOUSE_EVENTS, NULL);
+#else
+		/* Mouse ABI 1 (e.g. the macOS SDK ncurses) has no button 5: it
+		 * reports wheel-down as REPORT_MOUSE_POSITION, and drops it unless
+		 * that bit is in the mask.
+		 */
+		mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
+#endif
+		mouseinterval(0); /* Report presses immediately, no click detection delay. */
+	} else {
+		mousemask(0, NULL);
 	}
+	pthread_mutex_unlock(&ctx->ui_threadLock);
 
-	return NULL;
+	__atomic_store_n(&ctx->uiMouseEnabled, enable, __ATOMIC_RELEASE);
 }
 
-static void scte35_summary_append(char *dst, size_t dstSize, size_t *off, const char *fmt, ...)
-{
-	if (*off >= dstSize)
-		return;
+static void ui_post(struct tool_context_s *ctx, int seconds, const char *fmt, ...)
+	__attribute__((format(printf, 3, 4)));
 
+static void ui_post(struct tool_context_s *ctx, int seconds, const char *fmt, ...)
+{
+	char msg[UI_MESSAGE_LEN];
 	va_list ap;
 	va_start(ap, fmt);
-	int ret = vsnprintf(dst + *off, dstSize - *off, fmt, ap);
+	vsnprintf(msg, sizeof(msg), fmt, ap);
 	va_end(ap);
 
-	if (ret < 0)
-		return;
-	if ((size_t)ret >= dstSize - *off) {
-		*off = dstSize - 1;
-	} else {
-		*off += ret;
-	}
+	ui_message_post(&ctx->uiMessage, time(NULL), seconds, "%s", msg);
 }
 
-static void scte35_message_summary(struct scte35_message_item_s *msg, char *dst, size_t dstSize)
+/* Runs a per-stream command against the tagged streams, or the cursor stream. */
+static void ui_stream_command(struct tool_context_s *ctx, void (*fn)(struct tool_context_s *), const char *what)
 {
-	if (!msg->crcValid) {
-		snprintf(dst, dstSize, "CRC INVALID section_len=%zu", msg->sectionLengthBytes);
+	int n = discovered_items_target_count(ctx);
+	if (n == 0) {
+		ui_post(ctx, 4, "No stream under the cursor: use Up/Down to choose one");
 		return;
 	}
-	if (!msg->parseOk || !msg->json) {
-		snprintf(dst, dstSize, "parse failed section_len=%zu", msg->sectionLengthBytes);
-		return;
-	}
-
-	json_object *root = json_tokener_parse(msg->json);
-	if (!root) {
-		snprintf(dst, dstSize, "decoded JSON unavailable section_len=%zu", msg->sectionLengthBytes);
-		return;
-	}
-
-	size_t off = 0;
-	int64_t commandType = -1;
-	if (scte35_json_int64(root, "splice_command_type", &commandType) == 0) {
-		scte35_summary_append(dst, dstSize, &off, "%s", scte35_command_name(commandType));
-	} else {
-		scte35_summary_append(dst, dstSize, &off, "unknown");
-	}
-
-	json_object *cmd = NULL;
-	if (commandType == SCTE35_COMMAND_TYPE__SPLICE_INSERT) {
-		cmd = scte35_json_object(root, "splice_insert");
-		int64_t eventId = 0;
-		int outOfNetwork = 0;
-		if (scte35_json_int64(cmd, "splice_event_id", &eventId) == 0)
-			scte35_summary_append(dst, dstSize, &off, " event=%" PRIi64, eventId);
-		if (scte35_json_bool(cmd, "out_of_network_indicator", &outOfNetwork) == 0)
-			scte35_summary_append(dst, dstSize, &off, " %s", outOfNetwork ? "OUT" : "IN");
-
-		json_object *spliceTime = scte35_json_object(cmd, "splice_time");
-		int64_t pts = 0;
-		if (scte35_json_int64(spliceTime, "pts_time", &pts) == 0)
-			scte35_summary_append(dst, dstSize, &off, " pts=%" PRIi64, pts);
-
-		json_object *duration = scte35_json_object(cmd, "break_duration");
-		int64_t dur = 0;
-		if (scte35_json_int64(duration, "duration", &dur) == 0)
-			scte35_summary_append(dst, dstSize, &off, " dur=%.3fs", (double)dur / 90000.0);
-	} else if (commandType == SCTE35_COMMAND_TYPE__TIME_SIGNAL) {
-		cmd = scte35_json_object(root, "time_signal");
-		json_object *spliceTime = scte35_json_object(cmd, "splice_time");
-		int64_t pts = 0;
-		if (scte35_json_int64(spliceTime, "pts_time", &pts) == 0)
-			scte35_summary_append(dst, dstSize, &off, " pts=%" PRIi64, pts);
-	}
-
-	json_object *seg = scte35_first_segmentation_descriptor(root);
-	if (seg) {
-		int64_t eventId = 0;
-		int64_t typeId = 0;
-		int64_t duration = 0;
-		if (scte35_json_int64(seg, "segmentation_event_id", &eventId) == 0)
-			scte35_summary_append(dst, dstSize, &off, " seg_event=%" PRIi64, eventId);
-		if (scte35_json_int64(seg, "segmentation_type_id", &typeId) == 0)
-			scte35_summary_append(dst, dstSize, &off, " seg_type=0x%02" PRIx64, typeId);
-		if (scte35_json_int64(seg, "segmentation_duration", &duration) == 0)
-			scte35_summary_append(dst, dstSize, &off, " seg_dur=%.3fs", (double)duration / 90000.0);
-	}
-
-	if (msg->videoPTS)
-		scte35_summary_append(dst, dstSize, &off, " video_pts=%" PRIi64, msg->videoPTS);
-
-	json_object_put(root);
+	fn(ctx);
+	ui_post(ctx, 3, "%s: %d stream%s", what, n, n == 1 ? "" : "s");
 }
 
-static int scte35_report_render(struct discovered_item_s *di, int row, int col, time_t now)
+int nic_monitor_ui_command(struct tool_context_s *ctx, int key)
 {
-	int lines = 0;
-	int pidCount = 0;
-	int messageCount = 0;
-	int pageSize = di->doc_scte35.maxPageSize;
-	int offset = di->doc_scte35.displayLineFrom;
+	/* 'F' was pressed: the next key picks a destination or cancels. */
+	if (__atomic_load_n(&ctx->showForwardOptions, __ATOMIC_ACQUIRE)) {
+		if (key == '7' || key == '8' || key == '9') {
+			int n = discovered_items_target_count(ctx);
+			discovered_items_select_forward_toggle(ctx, key - '0');
+			__atomic_store_n(&ctx->showForwardOptions, 0, __ATOMIC_RELEASE);
+			ui_post(ctx, 3, "Forwarding toggled to %s: %d stream%s",
+				ctx->url_forwards[key - '7'].uilabel, n, n == 1 ? "" : "s");
+			return 1;
+		}
+		if (key == 'q' || key == 27) {
+			__atomic_store_n(&ctx->showForwardOptions, 0, __ATOMIC_RELEASE);
+			ui_post(ctx, 2, "Forwarding cancelled");
+			return 1;
+		}
+		return 1; /* Swallow other keys while the prompt is up. */
+	}
 
-	pthread_mutex_lock(&di->scte35Lock);
-	scte35_monitor_prune(di, now);
-
-	struct scte35_pid_item_s *pidItem = NULL;
-	xorg_list_for_each_entry(pidItem, &di->listSCTE35Pids, list)
-		pidCount++;
-
-	struct scte35_message_item_s *msg = NULL;
-	xorg_list_for_each_entry(msg, &di->listSCTE35Messages, list)
-		messageCount++;
-
-	di->doc_scte35.lineCount = messageCount;
-	di->doc_scte35.pageSize = messageCount < pageSize ? messageCount : pageSize;
-	if (offset + pageSize > messageCount)
-		offset = messageCount - pageSize;
-	if (offset < 0)
-		offset = 0;
-	di->doc_scte35.displayLineFrom = offset;
-
-	mvprintw(row + lines++, col, " -> SCTE-35 Report, last %dh: %d message%s, %d PID%s [%d of %d]",
-		SCTE35_HISTORY_SECONDS / 3600,
-		messageCount, messageCount == 1 ? "" : "s",
-		pidCount, pidCount == 1 ? "" : "s",
-		offset, messageCount);
-
-	xorg_list_for_each_entry(pidItem, &di->listSCTE35Pids, list) {
-		if (pidItem->lastVideoPTS) {
-			mvprintw(row + lines++, col + 4,
-				"PID 0x%04x (%d), video 0x%04x (%d), messages %" PRIu64 ", last video PTS %" PRIi64,
-				pidItem->pid, pidItem->pid,
-				pidItem->videoPid, pidItem->videoPid,
-				pidItem->messageCount,
-				pidItem->lastVideoPTS);
+	switch (key) {
+	case 'q':
+	case KEY_F(10):
+		__atomic_store_n(&gQuitRequested, 1, __ATOMIC_RELEASE);
+		return 1;
+	case 'f': {
+		int v = __atomic_add_fetch(&ctx->freezeDisplay, 1, __ATOMIC_RELAXED);
+		if ((v & 1) == 0)
+			ui_post(ctx, 2, "Display resumed");
+		return 1;
+	}
+	case 'r':
+		stats_reset(ctx);
+		ui_post(ctx, 3, "Statistics reset");
+		return 1;
+	case 'C': ui_stream_command(ctx, discovered_items_select_show_clocks_toggle, "Clock report toggled"); return 1;
+	case 'T': ui_stream_command(ctx, discovered_items_select_show_tr101290_toggle, "TR101290 report toggled"); return 1;
+	case 'R': ui_stream_command(ctx, discovered_items_select_record_toggle, "Recording toggled"); return 1;
+	case 's': ui_stream_command(ctx, discovered_items_select_show_processes_toggle, "Socket/process report toggled"); return 1;
+	case 'P': ui_stream_command(ctx, discovered_items_select_show_pids_toggle, "PID report toggled"); return 1;
+	case 'I': ui_stream_command(ctx, discovered_items_select_show_iats_toggle, "IAT histogram toggled"); return 1;
+	case 'J': ui_stream_command(ctx, discovered_items_select_json_probe_toggle, "JSON probe toggled"); return 1;
+	case 'L': ui_stream_command(ctx, discovered_items_select_show_stream_log_toggle, "Stream log toggled"); return 1;
+	case 'H': ui_stream_command(ctx, discovered_items_select_hide, "Hidden (recording streams stay visible)"); return 1;
+	case 'M': ui_stream_command(ctx, discovered_items_select_show_streammodel_toggle, "PSIP model report toggled"); return 1;
+	case '3': ui_stream_command(ctx, discovered_items_select_scte35_toggle, "SCTE-35 report toggled"); return 1;
+	case 'U':
+		discovered_items_unhide_all(ctx);
+		ui_post(ctx, 3, "All streams unhidden");
+		return 1;
+	case 'S':
+		discovered_items_tag_all(ctx);
+		ui_post(ctx, 3, "All streams tagged: commands now act on every stream (D or Esc clears)");
+		return 1;
+	case 'D':
+		discovered_items_tag_none(ctx);
+		ui_post(ctx, 3, "Tags cleared");
+		return 1;
+	case ' ': {
+		int r = discovered_items_tag_toggle_id(ctx, __atomic_load_n(&ctx->uiCursorId, __ATOMIC_ACQUIRE));
+		if (r >= 0)
+			ui_post(ctx, 2, "Stream %s", r ? "tagged" : "untagged");
+		return 1;
+	}
+	case 'F':
+		if (discovered_items_target_count(ctx) == 0) {
+			ui_post(ctx, 4, "No stream under the cursor: use Up/Down to choose one");
 		} else {
-			mvprintw(row + lines++, col + 4,
-				"PID 0x%04x (%d), video 0x%04x (%d), messages %" PRIu64,
-				pidItem->pid, pidItem->pid,
-				pidItem->videoPid, pidItem->videoPid,
-				pidItem->messageCount);
+			__atomic_store_n(&ctx->showForwardOptions, 1, __ATOMIC_RELEASE);
 		}
+		return 1;
+	case '$':
+		ctx->recordAsTS = (ctx->recordAsTS + 1) & 0x1;
+		ui_post(ctx, 3, "Record format: %s", ctx->recordAsTS ? "MPEG-TS" : "PCAP");
+		return 1;
+	case '@':
+		ctx->recordWithSegments = (ctx->recordWithSegments + 1) & 0x1;
+		ui_post(ctx, 3, "Record mode: %s", ctx->recordWithSegments ? "Segments" : "Single File");
+		return 1;
+	case 'm': {
+		int on = !__atomic_load_n(&ctx->uiMouseEnabled, __ATOMIC_ACQUIRE);
+		ui_mouse_set(ctx, on);
+		ui_post(ctx, 4, on ? "Mouse on: hold Shift (Option in some macOS terminals) to select text, m to turn off"
+			: "Mouse off: drag selects text, m to turn on");
+		return 1;
 	}
-
-	if (messageCount == 0) {
-		mvprintw(row + lines++, col + 4, "No SCTE-35 messages decoded yet");
-		pthread_mutex_unlock(&di->scte35Lock);
-		return lines;
+	default:
+		return 0;
 	}
-
-	int idx = 0;
-	int shown = 0;
-	xorg_list_for_each_entry_reverse(msg, &di->listSCTE35Messages, list) {
-		if (idx++ < offset)
-			continue;
-		if (shown++ >= pageSize)
-			break;
-
-		char age[16];
-		char summary[256];
-		scte35_format_age(age, sizeof(age), now - msg->receivedAt);
-		scte35_message_summary(msg, summary, sizeof(summary));
-
-		mvprintw(row + lines++, col + 4,
-			"#%" PRIu64 " age %s pid 0x%04x %s",
-			msg->sequenceNumber,
-			age,
-			msg->pid,
-			summary);
-	}
-
-	pthread_mutex_unlock(&di->scte35Lock);
-
-	return lines;
 }
 
-static void *ui_thread_func(void *p)
+/* Reads every pending key (main thread). Navigation goes to the UI thread,
+ * commands run here.
+ */
+/* Wake the UI thread to redraw now, after a command or a resize. */
+static void ui_post_redraw(struct tool_context_s *ctx)
 {
-	struct tool_context_s *ctx = p;
-	ctx->ui_threadRunning = 1;
-	ctx->ui_threadTerminate = 0;
-	ctx->ui_threadTerminated = 0;
-	ctx->trailerRow = DEFAULT_TRAILERROW;
-	double totalMbps = 0, totalRxMbps = 0, totalTxMbps = 0;
-	int totalStreams = 0;
-	struct ltntstools_proc_net_udp_item_s *items = NULL;
-	int itemCount = 0;
+	struct ui_event_s ev = { .type = UI_EVENT_REDRAW };
+	ui_event_queue_post(&ctx->uiEvents, &ev);
+}
 
-	ltnpthread_setname_np(ctx->ui_threadId, "tstools-ui");
-	pthread_detach(pthread_self());
-	setlocale(LC_NUMERIC, "");
+static void ui_process_input(struct tool_context_s *ctx)
+{
+	/* NIC_MONITOR_INPUT_LOG=/path: log every key code and mouse event, to
+	 * diagnose what a terminal actually sends.
+	 */
+	static FILE *inputLog = NULL;
+	static int inputLogChecked = 0;
+	if (!inputLogChecked) {
+		inputLogChecked = 1;
+		const char *path = getenv("NIC_MONITOR_INPUT_LOG");
+		if (path)
+			inputLog = fopen(path, "a");
+	}
 
-	noecho();
-	curs_set(0);
-	start_color();
-	init_pair(1, COLOR_WHITE, COLOR_BLUE);
-	init_pair(2, COLOR_CYAN, COLOR_BLACK);
-	init_pair(3, COLOR_RED, COLOR_BLACK);
-	init_pair(4, COLOR_WHITE, COLOR_RED);
-	init_pair(5, COLOR_WHITE, COLOR_GREEN);
-	init_pair(7, COLOR_YELLOW, COLOR_BLACK);
-
-	while (!ctx->ui_threadTerminate) {
-		totalRxMbps = 0;
-		totalTxMbps = 0;
-		totalStreams = 0;
-		time_t now;
-		time(&now);
-
-		if (__atomic_load_n(&ctx->freezeDisplay, __ATOMIC_RELAXED) & 1) {
-			usleep(50 * 1000);
+	int c;
+	while ((c = ui_syncronized_getch(ctx)) != ERR) {
+		if (inputLog) {
+			fprintf(inputLog, "%ld key %d (0x%x)%s%s\n", (long)time(NULL), c, c,
+				c == KEY_MOUSE ? " KEY_MOUSE" : "", c == KEY_RESIZE ? " KEY_RESIZE" : "");
+			fflush(inputLog);
+		}
+		if (c == KEY_RESIZE) {
+			/* resizeterm() already ran inside getch(); wake the UI
+			 * thread to lay out and draw at the new size.
+			 */
+			ui_post_redraw(ctx);
 			continue;
 		}
-
-		pthread_mutex_lock(&ctx->ui_threadLock);
-
-		clear();
-
-		struct in_addr ip_net, ip_mask;
-		ip_net.s_addr = ctx->netp;
-		ip_mask.s_addr = ctx->maskp;
-		//printf("network: %s\n", inet_ntoa(ip_net));
-		//printf("   mask: %s\n", inet_ntoa(ip_mask));
-
-		char title_a[160], title_b[160], title_c[160];
-		snprintf(title_a, sizeof(title_a), "%s", ctx->pcap_filter);
-		char mask[64];
-		snprintf(mask, sizeof(mask), "%s", inet_ntoa(ip_mask));
-		if (ctx->iftype == IF_TYPE_PCAP) {
-			snprintf(title_c, sizeof(title_c), "NIC: %s (%s/%s) Dropped: %d/%d", ctx->ifname, inet_ntoa(ip_net), mask,
-				ctx->pcap_stats.ps_drop,
-				ctx->pcap_stats.ps_ifdrop);
-		} else
-		if (ctx->iftype == IF_TYPE_MPEGTS_FILE) {
-			if (ctx->fileLoops) {
-				snprintf(title_c, sizeof(title_c), "LOOP: %s @ %6.2f%%", ctx->ifname, ctx->fileLoopPct);
-			} else {
-				snprintf(title_c, sizeof(title_c), "FILE: %s @ %6.2f%%", ctx->ifname, ctx->fileLoopPct);
+		if (c == KEY_MOUSE) {
+			MEVENT me;
+			pthread_mutex_lock(&ctx->ui_threadLock);
+			int ret = getmouse(&me);
+			pthread_mutex_unlock(&ctx->ui_threadLock);
+			if (inputLog) {
+				fprintf(inputLog, "%ld   getmouse %s y %d x %d bstate 0x%lx\n", (long)time(NULL),
+					ret == OK ? "OK" : "ERR", me.y, me.x, (unsigned long)me.bstate);
+				fflush(inputLog);
 			}
-		} else
-		if (ctx->iftype == IF_TYPE_MPEGTS_AVDEVICE) {
-			snprintf(title_a, sizeof(title_a), "NIC Monitor");
-			snprintf(title_c, sizeof(title_c), "URL: %s", ctx->ifname);
-		}
-
-		int blen = 111 - (strlen(title_a) + strlen(title_c));
-		if (blen < 0) {
-			blen = 0;
-		} else if (blen > (int)sizeof(title_b) - 1) {
-			blen = sizeof(title_b) - 1;
-		}
-		memset(title_b, 0x20, sizeof(title_b));
-		title_b[blen] = 0;
-
-		if (ctx->pcap_stats.ps_drop || ctx->pcap_stats.ps_ifdrop) {
-			attron(COLOR_PAIR(4));
-		} else {
-			attron(COLOR_PAIR(1));
-		}
-		mvprintw( 0, 0, "%s%s%s", title_a, title_b, title_c);
-
-		if (ctx->pcap_stats.ps_drop || ctx->pcap_stats.ps_ifdrop) {
-			attroff(COLOR_PAIR(4));
-		} else {
-			attroff(COLOR_PAIR(1));
-		}
-
-		attron(COLOR_PAIR(1));
-		mvprintw( 1, 0, "<--------------------------------------------------- M/BIT <---------PACKETS <------CCErr <--IAT--Flags--------");
-		attroff(COLOR_PAIR(1));
-
-		int streamCount = 1;
-		struct discovered_item_s *di = NULL;
-		pthread_mutex_lock(&ctx->lock);
-		xorg_list_for_each_entry(di, &ctx->list, list) {
-
-			if (discovered_item_state_get(di, DI_STATE_HIDDEN))
+			if (ret != OK)
 				continue;
 
-			time_t now;
-			time(&now);
-
-			/* Deal with cases were output bitrate on a udp stream is low low, that we're unable to
-			 * detect its stream type.
+			struct timespec ts;
+			clock_gettime(CLOCK_MONOTONIC, &ts);
+			struct ui_event_s ev = { .type = UI_EVENT_MOUSE, .y = me.y, .x = me.x,
+				.timeMs = (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000 };
+			if (me.bstate & (BUTTON1_PRESSED | BUTTON1_CLICKED))
+				ev.buttons |= UI_MOUSE_CLICK;
+			if (me.bstate & BUTTON4_PRESSED)
+				ev.buttons |= UI_MOUSE_WHEEL_UP;
+#if NCURSES_MOUSE_VERSION > 1
+			if (me.bstate & BUTTON5_PRESSED)
+				ev.buttons |= UI_MOUSE_WHEEL_DOWN;
+#else
+			/* Mode 1000 reports no motion, so with ABI 1 this is wheel-down. */
+			if (me.bstate == REPORT_MOUSE_POSITION)
+				ev.buttons |= UI_MOUSE_WHEEL_DOWN;
+#endif
+			if (ev.buttons)
+				ui_event_queue_post(&ctx->uiEvents, &ev);
+			continue;
+		}
+		if (c == 27) {
+			/* A lone Esc arrives by itself. Esc followed immediately by more
+			 * bytes is an escape sequence ncurses didn't recognise (wrong
+			 * TERM, unusual terminal): discard it rather than run its
+			 * trailing letters as commands, e.g. "ESC [ H" would hide streams.
 			 */
-			if (di->firstSeen + 2 <= now && di->payloadType == PAYLOAD_UNDEFINED) {
-				di->payloadType = PAYLOAD_BYTE_STREAM;
-			}
-
-			if (ltntstools_pid_stats_stream_get_cc_errors(di->stats))
-				discovered_item_state_set(di, DI_STATE_CC_ERROR);
-			else
-				discovered_item_state_clr(di, DI_STATE_CC_ERROR);
-
-			if (discovered_item_state_get(di, DI_STATE_CC_ERROR) || di->iat_hwm_us / 1000 > ctx->iatMax)			
-				attron(COLOR_PAIR(3));
-
-			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
-				attron(COLOR_PAIR(4));
-
-			if (discovered_item_state_get(di, DI_STATE_SELECTED))
-				attron(COLOR_PAIR(5));
-
-			if (di->srcOriginRemoteHost) {
-				totalRxMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
-			} else {
-				totalTxMbps += ltntstools_pid_stats_stream_get_mbps(di->stats);
-			}
-			totalMbps = totalRxMbps + totalTxMbps;
-
-			totalStreams++;
-			if ((di->payloadType == PAYLOAD_RTP_TS) || (di->payloadType == PAYLOAD_UDP_TS) || (di->payloadType == PAYLOAD_SRT_TS)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
-					payloadTypeDesc(di->payloadType),
-					di->srcaddr,
-					di->dstaddr,
-					ltntstools_pid_stats_stream_get_mbps(di->stats),
-					ltntstools_pid_stats_stream_get_packet_count(di->stats),
-					ltntstools_pid_stats_stream_get_cc_errors(di->stats),
-					di->iat_hwm_us / 1000,
-					di->warningIndicatorLabel);
-			} else
-			if (di->payloadType == PAYLOAD_A324_CTP) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
-					payloadTypeDesc(di->payloadType),
-					di->srcaddr,
-					di->dstaddr,
-					ltntstools_ctp_stats_stream_get_mbps(di->stats),
-					ltntstools_pid_stats_stream_get_packet_count(di->stats),
-					ltntstools_pid_stats_stream_get_cc_errors(di->stats),
-					di->iat_hwm_us / 1000,
-					di->warningIndicatorLabel);
-				totalMbps += ltntstools_ctp_stats_stream_get_mbps(di->stats);
-			} else
-			if ((di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) ||
-				(di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) ||
-				(di->payloadType == PAYLOAD_SMPTE2110_40_ANC)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12" PRIu64 "   %4d  %s",
-					payloadTypeDesc(di->payloadType),
-					di->srcaddr,
-					di->dstaddr,
-					ltntstools_ctp_stats_stream_get_mbps(di->stats),
-					ltntstools_pid_stats_stream_get_packet_count(di->stats),
-					ltntstools_pid_stats_stream_get_cc_errors(di->stats),
-					di->iat_hwm_us / 1000,
-					di->warningIndicatorLabel);
-				totalMbps += ltntstools_ctp_stats_stream_get_mbps(di->stats);
-			} else
-			if ((di->payloadType == PAYLOAD_BYTE_STREAM) || (di->payloadType == PAYLOAD_SRT_CTRL) || (di->payloadType == PAYLOAD_SRT_ENCRYPTED)) {
-				mvprintw(streamCount + 2, 0, "%s %21s -> %21s %7.2f  %'16" PRIu64 " %12s   %4d  %s",
-					payloadTypeDesc(di->payloadType),
-					di->srcaddr,
-					di->dstaddr,
-					ltntstools_bytestream_stats_stream_get_mbps(di->stats),
-					ltntstools_pid_stats_stream_get_packet_count(di->stats),
-					"-",
-					di->iat_hwm_us / 1000,
-					di->warningIndicatorLabel);
-				totalMbps += ltntstools_bytestream_stats_stream_get_mbps(di->stats);
-			}
-
-			if (discovered_item_state_get(di, DI_STATE_SELECTED))
-				attroff(COLOR_PAIR(5));
-
-			if (discovered_item_state_get(di, DI_STATE_DST_DUPLICATE))
-				attroff(COLOR_PAIR(4));
-
-			if (discovered_item_state_get(di, DI_STATE_CC_ERROR) || di->iat_hwm_us / 1000 > ctx->iatMax)
-				attroff(COLOR_PAIR(3));
-
-			if (discovered_item_state_get(di, DI_STATE_STREAM_FORWARDING)) {
-				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> Forwarding stream to %s", di->forwardURL);
-				streamCount++;
-			}
-
-			if (discovered_item_state_get(di, DI_STATE_PCAP_RECORDING)) {
-
-				char fn[512] = { 0 };
-				int ret = ltntstools_segmentwriter_get_current_filename(di->pcapRecorder, &fn[0], sizeof(fn));
-				if (ret < 0)
-					snprintf(fn, sizeof(fn), "pending open file");
-
-				double fsusedpct = 100.0 - ltntstools_segmentwriter_get_freespace_pct(di->pcapRecorder);
-				int segcount = ltntstools_segmentwriter_get_segment_count(di->pcapRecorder);
-				double totalsize = ltntstools_segmentwriter_get_recording_size(di->pcapRecorder);
-				totalsize /= 1048576; /* MB */
-				int mb = 1;
-				if (totalsize > 4000) {
-					totalsize /= 1024; /* Convert to GB */
-					mb = 0;
-				}
-
-				time_t startTime = ltntstools_segmentwriter_get_recording_start_time(di->pcapRecorder);
-				char st[64];
-				snprintf(st, sizeof(st), "%s", ctime(&startTime));
-				st[ strlen(st) - 1] = 0;
-
-				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> %s to ... %s",
-					ctx->recordWithSegments ? "Segmented recording" : "Recording",
-					fn);
-
-				double fs_full_warning_level = 80.0;
-				if (fsusedpct > fs_full_warning_level)
-					attron(COLOR_PAIR(3));
-
-				streamCount++;
-				if (ctx->recordWithSegments) {
-					mvprintw(streamCount + 2, 0, "    %d segment%s @ %'.02f%s, %s fs %5.02f%% full, since %s",
-						segcount,
-						segcount == 1 ? "" : "(s)",
-						totalsize,
-						mb == 1 ? "MB" : "GB",
-						dirname(&fn[0]),
-						fsusedpct,
-						st);
-				} else {
-					mvprintw(streamCount + 2, 0, "    One file @ %'.02f%s, %s fs %5.02f%% full, since %s",
-						totalsize,
-						mb == 1 ? "MB" : "GB",
-						dirname(&fn[0]),
-						fsusedpct,
-						st);
-				}
-
-				if (fsusedpct > fs_full_warning_level)
-					attroff(COLOR_PAIR(3));
-
-				int qdepth = ltntstools_segmentwriter_get_queue_depth(di->pcapRecorder);
-				if (qdepth > 300 * 1000) {
-					attron(COLOR_PAIR(7));
-					streamCount++;
-					mvprintw(streamCount + 2, 0, "    Recorder I/O is falling behind realtime, %d items waiting", qdepth);
-					attroff(COLOR_PAIR(7));
-				}
-			}
-			if (discovered_item_state_get(di, DI_STATE_JSON_PROBE_ACTIVE)) {
-				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> JSON Probe Active");
-			}
-
-			if (discovered_item_state_get(di, DI_STATE_SHOW_CLOCKS)) {
-				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> Clock Report not available for SMPTE2110-20 Video streams");
-				}
-				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> Clock Report not available for SMPTE2110-30 Audio streams");
-				}
-				if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> Clock Report not available for SMPTE2110-40 Ancillary Data streams");
-				}
-				if (di->payloadType == PAYLOAD_A324_CTP) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> Clock Report not available for A/324 Studio Transmitter Link CTP streams");
-				}
-				if (di->payloadType == PAYLOAD_BYTE_STREAM) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> Clock Report not available for unidentified byte streams");
-				}
-				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> Clock Report (working)");
-				int j = 0;
-
-				struct ltntstools_pid_statistics_s *pid;
-				ltntstools_stats_for_each_pid(di->stats, i, pid) {
-					if (!pid->enabled)
-						continue;
-
-					if (!pid->enabled)
-						continue;
-					if (!pid->hasPCR)
-						continue;
-					if (!pid->pcrTickIntervals)
-						continue;
-
-					if (j++ == 0) {
-						/* Replace the provisional '(working)' line above... */
-						mvprintw(streamCount + 2, 0, " -> Clock Report for PID %04x", i);
-						streamCount++;
-					}
-					
-
-					/* The Model report starts the stream model analyzer, where the PCR pids are discovered.
-					 * This only works if the stream model view is also enabled, else no PCR pids are found.
-					 */
-
-					char *s;
-					ltn_histogram_interval_print_buf(&s, pid->pcrTickIntervals, 0);
-					if (s) {
-						char *buf = s;
-
-						char *p = strtok(buf, "\n");
-						while (p) {
-							mvprintw(streamCount + 2, 4, "%s", p);
-							p = strtok(NULL, "\n");
-							if (p) {
-								streamCount++;
-							}
-						}
-						free(s);
-						s = NULL;
-						streamCount++;
-					}
-					streamCount++;
-
-					if (pid->pcrWallDrift) {
-						ltn_histogram_interval_print_buf(&s, pid->pcrWallDrift, 0);
-						if (s) {
-							char *buf = s;
-
-							char *p = strtok(buf, "\n");
-							while (p) {
-								mvprintw(streamCount + 2, 4, "%s", p);
-								p = strtok(NULL, "\n");
-								if (p) {
-									streamCount++;
-								}
-							}
-							free(s);
-							streamCount++;
-						}
-					}
-				}
-			} /* Show clocks */
-
-			if (discovered_item_state_get(di, DI_STATE_SHOW_PIDS)) {
-				if (di->payloadType == PAYLOAD_SRT_CTRL) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> PID Report not available for SRT flow control channels");
-				}
-				if (di->payloadType == PAYLOAD_SRT_ENCRYPTED) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> PID Report not available for SRT encrypted channels");
-					mvprintw(streamCount + 3, 0, "    Pkt ReTransmits %" PRIu64, di->srt_retransmittion_count);
-				}
-				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> PID Report not available for SMPTE2110-20 Video streams");
-				}
-				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> PID Report not available for SMPTE2110-30 Audio streams");
-				}
-				if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> PID Report not available for SMPTE2110-40 Ancillary Data streams");
-				}
-				if (di->payloadType == PAYLOAD_A324_CTP) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> PID Report not available for A/324 Studio Transmitter Link CTP streams");
-				}
-				if (di->payloadType == PAYLOAD_BYTE_STREAM) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> PID Report not available for unidentified byte streams");
-				}
-
-				struct ltntstools_pid_statistics_s *pid;
-				ltntstools_stats_for_each_pid(di->stats, i, pid) {
-					if (!pid->enabled)
-						continue;
-
-					if (pid->enabled) {
-						streamCount++;
-#if 0
-						uint64_t oof_count = ltntstools_pid_stats_stream_get_reorder_errors(di->stats);
-#endif
-						if (i == 0) {
-							mvprintw(streamCount + 2, 0, " -> PID Report");
-							if ((di->payloadType == PAYLOAD_SRT_ENCRYPTED) || (di->payloadType == PAYLOAD_SRT_TS)) {
-								mvprintw(streamCount + 3, 0, "    Pkt ReTransmits %" PRIu64, di->srt_retransmittion_count);
-							}
-#if 0
-							mvprintw(streamCount + 3, 0, "    Pkt Order Errors (POE) %" PRIu64, oof_count);
-#endif
-						}
-
-						mvprintw(streamCount + 2, 37, "0x%04x (%4d) %7.2f %'17" PRIu64 " %12" PRIu64 "\n",
-							i,
-							i,
-							ltntstools_pid_stats_pid_get_mbps(di->stats, i),
-							ltntstools_pid_stats_pid_get_packet_count(di->stats, i),
-							ltntstools_pid_stats_pid_get_cc_errors(di->stats, i));
-					}
-				}
-
-				streamCount++;
-
-
-				if (ltntstools_pid_stats_stream_get_notmultipleofseven_errors(di->stats) &&
-					(di->payloadType != PAYLOAD_A324_CTP) &&
-					(di->payloadType != PAYLOAD_SMPTE2110_20_VIDEO) &&
-					(di->payloadType != PAYLOAD_SMPTE2110_30_AUDIO) &&
-					(di->payloadType != PAYLOAD_SRT_CTRL) &&
-					(di->payloadType != PAYLOAD_SRT_ENCRYPTED) &&
-					(di->payloadType != PAYLOAD_SMPTE2110_40_ANC)) {
-					attron(COLOR_PAIR(4));
-					mvprintw(streamCount + 2, 37, "Warning: %" PRIi64 " UDP packets that are less then 1316 bytes long",
-						ltntstools_pid_stats_stream_get_notmultipleofseven_errors(di->stats));
-					attroff(COLOR_PAIR(4));
-					streamCount++;
-				}
-			}
-
-			if (discovered_item_state_get(di, DI_STATE_SHOW_TR101290)) {
-				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SMPTE2110-20 Video streams");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_SRT_CTRL) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SRT flow control channels");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SMPTE2110-30 Audio streams");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for SMPTE2110-40 Ancillary Data streams");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_A324_CTP) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for A/324 Studio Transmitter Link CTP streams");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_BYTE_STREAM) {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> TR101290 Status not available for unidentified byte streams");
-					streamCount++;
-				} else {
-					streamCount++;
-					mvprintw(streamCount + 2, 0, " -> TR101290 Status (Coming Soon.... Drum roll or sad trombone?)");
-					streamCount++;
-					int p1col = 10;
-					int p2col = 45;
-					//int p3col = 75;
-
-					nic_monitor_tr101290_draw_ui(di, &streamCount, p1col, p2col);
-
-				}
-			}
-
-			if (discovered_item_state_get(di, DI_STATE_SHOW_IAT_HISTOGRAM)) {
-				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> ");
-
-				char *s;
-				ltn_histogram_interval_print_buf(&s, di->packetIntervals, 0);
-				if (s) {
-					char *buf = s;
-
-					char *p = strtok(buf, "\n");
-					while (p) {
-						mvprintw(streamCount + 2, 4, "%s", p);
-						p = strtok(NULL, "\n");
-						if (p) {
-							streamCount++;
-						}
-					}
-					free(s);
-					s = NULL;
-					streamCount++;
-				}
-
-				if (ctx->reportMicrobursts) {
-					double a = ((double)di->bitrate_hwm_us_10ms_last_nsecond * 100.0) / 1000000.0;
-					double b = ((double)di->bitrate_hwm_us_100ms_last_nsecond * 10.0) / 1000000.0;
-					mvprintw(streamCount + 2, 52, "%6.02f @ 10ms\n", a);
-					streamCount++;
-					mvprintw(streamCount + 2, 52, "%6.02f @ 100ms\n", b);
-					streamCount++;
-				}
-			}
-
-			if (discovered_item_state_get(di, DI_STATE_SHOW_PROCESSES)) {
-				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> Socket / Process Report");
-
-				if (ctx->procNetUDPContext && ctx->lastSocketReport + 2 < now) {
-					ctx->lastSocketReport = now;
-
-					if (items) {
-						ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);
-						items = NULL;
-					}
-					ltntstools_proc_net_udp_item_query(ctx->procNetUDPContext, &items, &itemCount);
-				}
-
-				if (itemCount) {
-					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS    TOTAL");
-					streamCount++;
-				} else {
-					mvprintw(streamCount + 2, 55, "PID           COMMAND        DROPS   (discovery mode)");
-					streamCount++;
-				}
-
-				if (items && itemCount) {
-					for (int i = 0; i < itemCount; i++) {
-						struct ltntstools_proc_net_udp_item_s *e = &items[i];
-
-						// TODO: String compare is slow. Convert to uint32_t for a fast match.
-						if (((e->local_addr.sin_addr.s_addr == INADDR_ANY) && (e->local_addr.sin_port == di->dstport)) ||
-							(strcmp(e->locaddr, di->dstaddr) == 0))
-						{
-							if (e->drops_delta)
-								attron(COLOR_PAIR(4));
-
-							mvprintw(streamCount + 2, 50, "%8" PRIu64 "  %16s    %9" PRIu64 "%9" PRIu64,
-								e->pidList[0].pid,
-								e->pidList[0].comm,
-								e->drops_delta,
-								e->drops);
-
-							if (e->drops_delta)
-								attroff(COLOR_PAIR(4));
-							streamCount++;
-						}
-					}
-					
-					//ltntstools_proc_net_udp_item_dprintf(ctx->procNetUDPContext, STDOUT_FILENO, items, itemCount);
-				}
-			}
-
-			if (discovered_item_state_get(di, DI_STATE_SHOW_STREAMMODEL)) {
-				streamCount++;
-				if (di->payloadType == PAYLOAD_SMPTE2110_20_VIDEO) {
-					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SMPTE2110-20 Video streams");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_SRT_CTRL) {
-					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SRT flow control channels");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_SRT_ENCRYPTED) {
-					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SRT encrypted channels");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_SMPTE2110_30_AUDIO) {
-					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SMPTE2110-30 Audio streams");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_SMPTE2110_40_ANC) {
-					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for SMPTE2110-40 Ancillary Data streams");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_A324_CTP) {
-					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for A/324 Studio Transmitter Link CTP streams");
-					streamCount++;
-				} else
-				if (di->payloadType == PAYLOAD_BYTE_STREAM) {
-					mvprintw(streamCount + 2, 0, " -> Service Information Report not available for unidentified byte streams");
-					streamCount++;
-				} else {
-					mvprintw(streamCount + 2, 0, " -> Service Information Report");
-				}
-
-				struct ltntstools_pat_s *m = NULL;
-				if (di->streamModel && ltntstools_streammodel_query_model(di->streamModel, &m) == 0) {
-
-					/* Now that we have a working stream model, look PCR for each stream
-					 * and establish a clock analyzer through the stats infrastructure.
-					 * We'll do this during the program pid enumeration below.
-					 */
-
-					int mpts = ltntstools_streammodel_is_model_mpts(di->streamModel, m);
-
-					mvprintw(streamCount + 2, 31, "%s", mpts ? "MPTS" : "SPTS");
-
-					streamCount++;
-					mvprintw(streamCount + 2, 4, "programs: %d  pat-tsid: 0x%04x  version: %d  CNI: %d",
-						m->program_count,
-						m->transport_stream_id,
-						m->version_number,
-						m->current_next_indicator);
-
-					streamCount++;
-					mvprintw(streamCount + 2, 4, "prog#  PMT_PID ----->  PCR_PID ----->  Streams  ES_PID ----->  TYPE  Description");
-
-					for (unsigned int p = 0; p < m->program_count; p++) {
-
-						int has_scte35 = ltntstools_descriptor_list_contains_scte35_cue_registration(&m->programs[p].pmt.descr_list);
-						int has_smpte2038 = 0;
-
-						streamCount++;
-						if (m->programs[p].program_number == 0) {
-							mvprintw(streamCount + 2, 1, "   %5d        -        -        -       -     -  Network Information Table",
-								m->programs[p].program_number);
-						} else {
-							mvprintw(streamCount + 2, 1, "   %5d   0x%04x (%4d)   0x%04x (%4d)      %3d",
-								m->programs[p].program_number,
-								m->programs[p].program_map_PID,
-								m->programs[p].program_map_PID,
-								m->programs[p].pmt.PCR_PID,
-								m->programs[p].pmt.PCR_PID,
-								m->programs[p].pmt.stream_count);
-
-							/* Poke the stats model and let it know we should be receiving PCRs on this pid. */
-							ltntstools_pid_stats_pid_set_contains_pcr(di->stats, m->programs[p].pmt.PCR_PID);
-						}
-						for (unsigned int s = 0; s < m->programs[p].pmt.stream_count; s++) {
-							if (s > 0)
-								streamCount++;
-
-							char iso639_lang[64] = { 0 };
-							unsigned int audio_type = 0;
-							unsigned char lbl[16] = { 0 };
-							int x = ltntstools_descriptor_list_contains_iso639_audio_descriptor(&m->programs[p].pmt.streams[s].descr_list, &lbl[0], &audio_type);
-							if (x) {
-								snprintf(&iso639_lang[0], sizeof(iso639_lang), "'%s' Type: %s",
-									lbl,
-									audio_type == 0 ? "None" :
-									audio_type == 1 ? "Clean effects" :
-									audio_type == 2 ? "Hearing impaired" :
-									audio_type == 3 ? "Visual impaired commentary" : "Reserved");
-							}
-
-							const char *d = ltntstools_GetESPayloadTypeDescription(m->programs[p].pmt.streams[s].stream_type);
-							if (m->programs[p].pmt.streams[s].elementary_PID < 0x10) {
-								attron(COLOR_PAIR(4));
-							}
-							mvprintw(streamCount + 2, 52, "0x%04x (%4d)  0x%02x  %.*s%s",
-								m->programs[p].pmt.streams[s].elementary_PID,
-								m->programs[p].pmt.streams[s].elementary_PID,
-								m->programs[p].pmt.streams[s].stream_type,
-								52,
-								d,
-								strlen(d) >= 52 ? "..." : "");
-							if (m->programs[p].pmt.streams[s].elementary_PID < 0x10) {
-								attroff(COLOR_PAIR(4));
-							}
-
-							if (x) {
-								streamCount++;
-								mvprintw(streamCount + 2, 54, "lang: %s", iso639_lang);
-							}
-
-							if (m->programs[p].pmt.streams[s].stream_type  == 0x06 /* Private PES */) {
-								has_smpte2038 = ltntstools_descriptor_list_contains_smpte2038_registration(&m->programs[p].pmt.streams[s].descr_list);
-							}
-
-							if (m->programs[p].pmt.streams[s].stream_type  == 0x1b /* H.264 */) {
-
-								int slicesEnabled = 0;
-								struct h264_slice_counter_results_s slices;
-
-								pthread_mutex_lock(&di->h264_sliceLock);
-								if (di->h264_slices) {
-									if (h264_slice_counter_get_pid(di->h264_slices) == m->programs[p].pmt.streams[s].elementary_PID) {
-										slicesEnabled = 1;
-										h264_slice_counter_query(di->h264_slices, &slices);
-									} else {
-										/* Set the pid to match this stream and we'll catch the stats the next time around. */
-										h264_slice_counter_reset_pid(di->h264_slices, m->programs[p].pmt.streams[s].elementary_PID);
-									}
-								}
-								pthread_mutex_unlock(&di->h264_sliceLock);
-
-								pthread_mutex_lock(&di->h264_metadataLock);
-								if (di->h264_metadata_parser) {
-									pthread_mutex_unlock(&di->h264_metadataLock);
-									streamCount++;
-									mvprintw(streamCount + 2, 54, "%s", di->h264_video_colorspace);
-									streamCount++;
-									mvprintw(streamCount + 2, 54, "%s", di->h264_video_format);
-								} else {
-									pthread_mutex_unlock(&di->h264_metadataLock);
-								}
-
-								if (slicesEnabled) {
-									streamCount++;
-									mvprintw(streamCount + 2, 54, "I: %'" PRIu64 " B: %'" PRIu64 " P: %'" PRIu64 " : %s...",
-										slices.i, slices.b, slices.p,
-										slices.sliceHistory);
-								}
-
-							} /* If H264 */
-
-							if (m->programs[p].pmt.streams[s].stream_type  == 0x24 /* H.265 */) {
-
-								pthread_mutex_lock(&di->h265_metadataLock);
-								if (di->h265_metadata_parser) {
-									pthread_mutex_unlock(&di->h265_metadataLock);
-									streamCount++;
-									mvprintw(streamCount + 2, 54, "%s", di->h265_video_colorspace);
-									streamCount++;
-									mvprintw(streamCount + 2, 54, "%s", di->h265_video_format);
-								} else {
-									pthread_mutex_unlock(&di->h265_metadataLock);
-								}
-
-							} /* If H.265 / HEVC */
-
-						}
-
-						if (m->programs[p].pmt.stream_count > 0) {
-							streamCount++;
-							mvprintw(streamCount + 2, 54, "SCTE35 Registration: %s", has_scte35 ? "Yes" : "No");
-							streamCount++;
-							mvprintw(streamCount + 2, 54, "SMPTE2038 Registration: %s", has_smpte2038 ? "Yes" : "No");
-						}
-
-						unsigned int major, minor, patch;
-						int ret = ltntstools_descriptor_list_contains_ltn_encoder_sw_version(&m->programs[p].pmt.descr_list,
-							&major, &minor, &patch);
-						if (ret == 1) {
-							di->isLTNEncoder = 1;
-
-							streamCount++;
-							mvprintw(streamCount + 2, 54, "LTN Encoder S/W: %d.%d.%d / Latency: ",
-								major, minor, patch);
-
-							int64_t ms = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
-							if (ms >= 0) {
-								mvprintw(streamCount + 2, 89, "%" PRIi64 "ms", ms);
-							} else {
-								mvprintw(streamCount + 2, 89, "n/a");
-							}
-						} else {
-							if (ctx->measureSEILatencyAlways) {
-								/* Measure latency thorugh video transformers that strip the PMT ES encoder descriptor. */
-								streamCount++;
-
-								int64_t ms = ltntstools_probe_ltnencoder_get_total_latency(di->LTNLatencyProbe);
-								if (ms >= 0) {
-									mvprintw(streamCount + 2, 54, "Latency: %" PRIi64 "ms", ms);
-								} else {
-									mvprintw(streamCount + 2, 54, "Latency n/a");
-								}
-							}
-						}
-
-						if (m->programs[p].program_number > 0 && m->programs[p].pmt.PCR_PID) {
-							int64_t pcr = ltntstools_pid_stats_pid_get_pcr(di->stats, m->programs[p].pmt.PCR_PID);
-							char *ts = NULL;
-							ltntstools_pcr_to_ascii(&ts, pcr);
-							if (ts) {
-								mvprintw(streamCount + 1, 82, "PCR: %s", ts);
-								free(ts);
-							}
-						}
-
-						if (0) {
-							streamCount++;
-							struct ltntstools_pid_statistics_s *pid = ltntstools_pid_stats_get(di->stats, m->programs[p].pmt.PCR_PID);
-							if (pid) {
-								mvprintw(streamCount + 2, 52, "PCR Drift (us): %7" PRIi64 ", %" PRIi64 " %" PRIi64 " %" PRIi64,
-									pid->clocks[ltntstools_CLOCK_PCR].drift_us,
-									pid->clocks[ltntstools_CLOCK_PCR].drift_us_lwm,
-									pid->clocks[ltntstools_CLOCK_PCR].drift_us_hwm,
-									pid->clocks[ltntstools_CLOCK_PCR].drift_us_max
-									);
-							}
-						}
-
-						if (m->programs[p].service_name[0] && m->programs[p].service_provider[0]) {
-							streamCount++;
-							mvprintw(streamCount + 2, 52, "Service/Provider: '%s' / '%s'",
-								m->programs[p].service_name,
-								m->programs[p].service_provider);
-						} else {
-							if (m->programs[p].service_name[0]) {
-								streamCount++;
-								mvprintw(streamCount + 2, 52, "Service: '%s'",
-									m->programs[p].service_name);
-							}
-							if (m->programs[p].service_name[0]) {
-								streamCount++;
-								mvprintw(streamCount + 2, 52, "Provider: '%s'",
-									m->programs[p].service_provider);
-							}
-						}
-
-					} /* For each program */
-
-					ltntstools_pat_free(m);
-					streamCount++;
-				}
-			}
-
-			if (discovered_item_state_get(di, DI_STATE_SHOW_STREAM_LOG)) {
-				streamCount++;
-				mvprintw(streamCount + 2, 0, " -> Stream Log / Report");
-				streamCount++;
-				display_doc_render(&di->doc_stream_log, streamCount + 2, 8);
-				streamCount += di->doc_stream_log.pageSize;
-			}
-
-			if (discovered_item_state_get(di, DI_STATE_SHOW_SCTE35)) {
-				streamCount++;
-				int lines = scte35_report_render(di, streamCount + 2, 0, now);
-				streamCount += lines;
-			}
-
-			streamCount++;
-		} /* For each DI */
-
-		pthread_mutex_unlock(&ctx->lock);
-
-		if (__atomic_load_n(&ctx->showUIOptions, __ATOMIC_RELAXED)) {
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "Stream Selection - Press right arrow key, then use up/down arrow to select individual stream");
-
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "@) Record Mode: %s",
-				ctx->recordWithSegments ? "Segments" : "Single File");
-
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "$) Record Format: %s",
-				ctx->recordAsTS ? "MPEG-TS" : "PCAP");
-
-			streamCount++;
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "f) Freeze UI display (analysis continues)");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "h) Toggle help menu");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "D) Deselect the current stream");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "F) Forward stream to a new multicast endpoint");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "S) Select all streams for a batch operation");
-			streamCount++;
-			mvprintw(streamCount + 2, 0, "H) Hide the selected stream (analysis continues)");
-			mvprintw(streamCount + 2, 0, "U) Unhide all hidden streams");
-			mvprintw(streamCount + 2 - 8, 53, "I) Toggle stream IAT histogram report");
-			mvprintw(streamCount + 2 - 7, 53, "L) Toggle stream log report");
-			mvprintw(streamCount + 2 - 6, 53, "M) Toggle stream PSIP model report");
-			mvprintw(streamCount + 2 - 5, 53, "P) Toggle stream PID traffic report");
-			mvprintw(streamCount + 2 - 4, 53, "C) Toggle stream Clock report");
-			mvprintw(streamCount + 2 - 3, 53, "r) Reset stats counters and begin new measurement period");
-			mvprintw(streamCount + 2 - 2, 53, "R) Start/Stop stream recording");
-			mvprintw(streamCount + 2 - 1, 53, "s) Toggle process/socket report");
-			mvprintw(streamCount + 2 - 0, 53, "T) Start/Stop TR101290 analysis (NOT YET SUPPORTED)");
-			mvprintw(streamCount + 2 + 1, 53, "3) Toggle SCTE35 report");
-			streamCount++;
-		}
-
-
-		if (ctx->reportProcessMemoryUsage) {
-			if (process_memory_snprintf(&ctx->memUsageStatus[0], sizeof(ctx->memUsageStatus), &ctx->memUsage, 5, FALSE) == 0) {
-				streamCount++;
-				mvprintw(streamCount + 2, 0, "Memory: %s", ctx->memUsageStatus);
-				streamCount++;
+			int next = ui_syncronized_getch(ctx);
+			if (next != ERR) {
+				int n = 0;
+				while (next != ERR && n++ < 16)
+					next = ui_syncronized_getch(ctx);
+				continue;
 			}
 		}
-
-		attron(COLOR_PAIR(2));
-		ctx->trailerRow = streamCount + 3;
-		if (ctx->showForwardOptions) {
-			mvprintw(ctx->trailerRow, 12, "-- 7) %s 8) %s 9) %s",
-				ctx->url_forwards[0].uilabel,
-				ctx->url_forwards[1].uilabel,
-				ctx->url_forwards[2].uilabel);
+		if (__atomic_load_n(&ctx->showForwardOptions, __ATOMIC_ACQUIRE)) {
+			nic_monitor_ui_command(ctx, c);
+			ui_post_redraw(ctx);
+			continue;
 		}
-		mvprintw(ctx->trailerRow, 0, "q)uit h)elp");
-		attroff(COLOR_PAIR(2));
-
-
-		char tail_a[160], tail_b[160], tail_c[160];
-		attron(COLOR_PAIR(1));
-
-		char s[64];
-		snprintf(s, sizeof(s), "%s", ctime(&now));
-		s[ strlen(s) - 1 ] = 0;
-		memset(tail_b, '-', sizeof(tail_b));
-		if (totalStreams == 1) {
-			snprintf(tail_a, sizeof(tail_a), "%s       T:%7.02f R:%7.02f %7.02f / %d stream", s, totalTxMbps, totalRxMbps, totalMbps, totalStreams);
-		} else {
-			snprintf(tail_a, sizeof(tail_a), "%s       T:%7.02f R:%7.02f %7.02f / %d streams", s, totalTxMbps, totalRxMbps, totalMbps, totalStreams);
+		if (nic_monitor_ui_is_ui_key(c)) {
+			struct ui_event_s ev = { .type = UI_EVENT_KEY, .key = c };
+			ui_event_queue_post(&ctx->uiEvents, &ev);
+			continue;
 		}
-		snprintf(tail_c, sizeof(tail_c), "Since: %s", ctime(&ctx->lastResetTime));
-		blen = 112 - (strlen(tail_a) + strlen(tail_c));
-		if (blen < 0) {
-			blen = 0;
-		} else if (blen > (int)sizeof(tail_b) - 1) {
-			blen = sizeof(tail_b) - 1;
-		}
-		memset(tail_b, 0x20, sizeof(tail_b));
-		tail_b[blen] = 0;
-
-		mvprintw(ctx->trailerRow + 1, 0, "%s%s%s", tail_a, tail_b, tail_c);
-
-		attroff(COLOR_PAIR(1));
-
-		/* -- */
-		refresh();
-		pthread_mutex_unlock(&ctx->ui_threadLock);
-
-		usleep(50 * 1000);
+		if (nic_monitor_ui_command(ctx, c))
+			ui_post_redraw(ctx);
 	}
-
-	if (items) {
-		ltntstools_proc_net_udp_item_free(ctx->procNetUDPContext, items);
-		items = NULL;
-	}
-
-	ctx->ui_threadTerminated = 1;
-
-	pthread_exit(NULL);
-	return 0;
 }
 
 static void *json_thread_func(void *p)
@@ -1386,6 +456,12 @@ static void *stats_thread_func(void *p)
 		}
 
 		time(&now);
+
+		/* Once a second: model-driven PCR pids, H.264 slice pid, SCTE-35
+		 * pruning. Runs with or without -M.
+		 */
+		discovered_items_periodic(ctx, now);
+
 		if (ctx->file_prefix && ctx->file_prefix_next_write_time <= now) {
 			ctx->file_prefix_next_write_time = now + ctx->file_write_interval;
 			discovered_items_file_summary(ctx, write_file_banner[0]);
@@ -1761,7 +837,7 @@ static void usage(const char *progname)
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -t <#seconds>. Stop after N seconds [def: 0 - unlimited]\n");
-	printf("  -M Display an interactive console with stats.\n");
+	printf("  -M Display an interactive console with stats. Press h inside it for keys.\n");
 	printf("  -a <url> Issue an IGMP join for this multicast UDP URL. May be repeated. Eg: udp://234.1.1.1:4160\n");
 	printf("  -D <dir> Write any PCAP recordings in this target directory prefix. [def: %s else /tmp]\n", DEFAULT_STORAGE_LOCATION);
 	printf("  -d <dir> Write summary stats per stream in this target directory prefix, every -n seconds.\n");
@@ -1787,6 +863,8 @@ static void usage(const char *progname)
 	printf("  --report-memory-usage                Report memory usage and growth every 5 seconds.\n");
 	printf("  --measure-scheduling-stalls          Test the scheduling system for 1000us sleeps that lasted more than 3000us.\n");
 	printf("  --measure-microbursts                In the IAT report, show 10ms and 100ms microburst measurements.\n");
+	printf("  --no-mouse                           -M: don't capture the mouse (m toggles it at runtime). While captured,\n");
+	printf("                                       hold Shift (Option in some macOS terminals) to select text.\n");
 }
 
 static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
@@ -1836,6 +914,7 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 		{ "measure-microbursts", 		no_argument,		0, 0 },
 		{ "rest-api-port",				required_argument,	0, 0 },
 		{ "join",						required_argument,	0, 'a' },
+		{ "no-mouse",					no_argument,		0, 0 },
 
 		{ 0, 0, 0, 0 }
 	};	
@@ -2064,6 +1143,9 @@ static int processArguments(struct tool_context_s *ctx, int argc, char *argv[])
 			case 28: /* measure-microbursts */
 				ctx->reportMicrobursts = 1;
 				break;
+			case 31: /* no-mouse */
+				ctx->uiDisableMouse = 1;
+				break;
 			case 29: /* rest-api-port */
 				ctx->rest_api_port = atoi(optarg);
 				if (ctx->rest_api_port < 1 || ctx->rest_api_port > 65535) {
@@ -2141,6 +1223,25 @@ int nic_monitor(int argc, char *argv[])
 		exit(1);
 	}
 
+	ui_event_queue_init(&ctx->uiEvents);
+	ui_message_init(&ctx->uiMessage);
+
+	if (ctx->monitor) {
+		/* Block SIGWINCH before any thread is created, so every thread
+		 * inherits the mask. The main thread unblocks it once the UI is up
+		 * (rule R3): worker threads never see EINTR from terminal resizes.
+		 */
+		sigset_t winch;
+		sigemptyset(&winch);
+		sigaddset(&winch, SIGWINCH);
+		pthread_sigmask(SIG_BLOCK, &winch, NULL);
+
+		/* Thousands separators in the UI. Process wide, so set before any
+		 * thread exists (it was previously set by the UI thread at startup).
+		 */
+		setlocale(LC_NUMERIC, "");
+	}
+
 	if (ctx->verbose) {
 		printf("  iface: %s\n", ctx->ifname);
 	}
@@ -2211,12 +1312,38 @@ int nic_monitor(int argc, char *argv[])
 
 	if (ctx->monitor) {
 		initscr();
-		pthread_create(&ctx->ui_threadId, 0, ui_thread_func, ctx);
+
+		/* All curses setup happens here, before the UI thread exists and
+		 * under the lock every later curses call uses.
+		 */
+		pthread_mutex_lock(&ctx->ui_threadLock);
+		cbreak();
+		noecho();
+		curs_set(0);
+		keypad(stdscr, TRUE);
+		nodelay(stdscr, TRUE);   /* getch() never blocks; see ui_syncronized_getch() */
+		set_escdelay(25);        /* Esc responds immediately */
+		ui_screen_init_colors();
+		pthread_mutex_unlock(&ctx->ui_threadLock);
+
+		if (!ctx->uiDisableMouse) {
+			ui_mouse_set(ctx, 1);
+			ui_post(ctx, 8, "Mouse on: hold Shift (Option in some macOS terminals) to select text, m to turn off");
+		}
+
+		pthread_create(&ctx->ui_threadId, 0, nic_monitor_ui_thread_func, ctx);
+
+		/* Every thread is created: SIGWINCH may now reach this thread only,
+		 * the one that calls getch(), where ncurses handles the resize.
+		 */
+		sigset_t winch;
+		sigemptyset(&winch);
+		sigaddset(&winch, SIGWINCH);
+		pthread_sigmask(SIG_UNBLOCK, &winch, NULL);
 	}
 
 	/* Start any threads, main loop processes keybaord. */
 	signal(SIGINT, signal_handler);
-	timeout(300);
 
 	if (ctx->reportProcessMemoryUsage) {
 		/* Measure the memory used by this process */
@@ -2224,7 +1351,8 @@ int nic_monitor(int argc, char *argv[])
 	}
 
 	time(&ctx->lastResetTime);
-	while (gRunning) {
+	int autoResetDone = 0;
+	while (gRunning && !__atomic_load_n(&gQuitRequested, __ATOMIC_ACQUIRE)) {
 
 		if (ctx->reportProcessMemoryUsage) {
 			process_memory_update(&ctx->memUsage, 5);
@@ -2235,137 +1363,17 @@ int nic_monitor(int argc, char *argv[])
 			}
 		}
 
-		char c = ui_syncronized_getch(ctx);
-
-		if (ctx->startTime + 2 == time(NULL)) {
-			c = 'r';
-		}
-		if (c == 'F') {
-			ctx->showForwardOptions = 1;
-			while (gRunning) {
-				char c = ui_syncronized_getch(ctx);
-				if (c == '7') {
-					/* Forward to location slot 7 */
-					discovered_items_select_forward_toggle(ctx, 7);
-					break;
-				} else
-				if (c == '8') {
-					discovered_items_select_forward_toggle(ctx, 8);
-					break;
-				} else
-				if (c == '9') {
-					discovered_items_select_forward_toggle(ctx, 9);
-					break;
-				} else
-				if (c == 'q') {
-					break;
-				} else {
-					usleep(50 * 1000);
-					continue;
-				}
-			}
-			ctx->showForwardOptions = 0;
+		/* Start a fresh measurement period once startup settles. */
+		if (!autoResetDone && time(NULL) >= ctx->startTime + 2) {
+			autoResetDone = 1;
+			stats_reset(ctx);
 		}
 
-		if (c == 'q')
-			break;
-		if (c == 'f') {
-			__atomic_fetch_add(&ctx->freezeDisplay, 1, __ATOMIC_RELAXED);
-		}
-		if (c == 'r') {
-			time(&ctx->lastResetTime);
-			discovered_items_stats_reset(ctx);
-			if (ctx->procNetUDPContext) {
-				ltntstools_proc_net_udp_items_reset_drops(ctx->procNetUDPContext);
-			}
-#if MEASURE_PCAP_CALLBACK_PERFORMANCE
-			pcap_cb_intervals_reset = 1;
-#endif
-			ctx->lastSocketReport = 0;
-		}
-		if (c == 'C') {
-			discovered_items_select_show_clocks_toggle(ctx);
-		}
-		if (c == 'D') {
-			discovered_items_select_none(ctx);
-		}
-		if (c == 'S') {
-			discovered_items_select_all(ctx);
-		}
-		if (c == 'T') {
-			discovered_items_select_show_tr101290_toggle(ctx);
-		}
-		if (c == 'R') {
-			discovered_items_select_record_toggle(ctx);
-		}
-		if (c == 's') {
-			discovered_items_select_show_processes_toggle(ctx);
-		}
-		if (c == 'P') {
-			discovered_items_select_show_pids_toggle(ctx);
-		}
-		if (c == 'I') {
-			discovered_items_select_show_iats_toggle(ctx);
-		}
-		if (c == 'J') {
-			discovered_items_select_json_probe_toggle(ctx);
-		}
-		if (c == 'L') {
-			discovered_items_select_show_stream_log_toggle(ctx);
-		}
-		if (c == 'H') {
-			discovered_items_select_hide(ctx);
-		}
-		if (c == 'U') {
-			discovered_items_unhide_all(ctx);
-		}
-		if (c == 'M') {
-			discovered_items_select_show_streammodel_toggle(ctx);
-		}
-		if (c == '$') {
-			ctx->recordAsTS = (ctx->recordAsTS + 1) & 0x1;
-		}
-		if (c == '@') {
-			ctx->recordWithSegments = (ctx->recordWithSegments + 1) & 0x1;
-		}
-		if (c == 'h') {
-			__atomic_store_n(&ctx->showUIOptions, ~ctx->showUIOptions, __ATOMIC_RELAXED);
-		}
-		if (c == '3') {
-			discovered_items_select_scte35_toggle(ctx);
-		}
-		/* Cursor key support */
-		if (c == 0x1b) {
-			c = ui_syncronized_getch(ctx);
-			if (c == 0x5b) {
-				c = ui_syncronized_getch(ctx);
-				if (c == 0x41) { /* Up */
-					discovered_items_select_prev(ctx);
-				} else
-				if (c == 0x42) { /* Down */
-					discovered_items_select_next(ctx);
-				} else
-				if (c == 0x43) { /* Right */
-					discovered_items_select_first(ctx);
-				} else
-				if (c == 0x44) { /* Left */
-					discovered_items_select_none(ctx);
-				}
-				else
-				if (c == 0x35) { /* Page Up */
-					//printf("0x%02x up\n", c);
-					discovered_items_select_show_stream_log_pageup(ctx);
-					discovered_items_select_scte35_pageup(ctx);
-				} else
-				if (c == 0x36) { /* Page Down */
-					//printf("0x%02x dn\n", c);
-					discovered_items_select_show_stream_log_pagedown(ctx);
-					discovered_items_select_scte35_pagedown(ctx);
-				}
-			}
-		}
+		/* Without -M there is no terminal UI and no curses calls (rule H3). */
+		if (ctx->monitor)
+			ui_process_input(ctx);
 
-		usleep(50 * 1000);
+		usleep(20 * 1000);
 	}
 
 	discovered_items_abort(ctx);
@@ -2383,7 +1391,7 @@ int nic_monitor(int argc, char *argv[])
 	time_t periodEnds = time(NULL);
 
 	/* Shutdown stats collection */
-	ctx->ui_threadTerminate = 1;
+	__atomic_store_n(&ctx->ui_threadTerminate, 1, __ATOMIC_RELEASE);
 	ctx->pcap_threadTerminate = 1;
 	ctx->stats_threadTerminate = 1;
 	ctx->json_threadTerminate = 1;
@@ -2400,11 +1408,13 @@ int nic_monitor(int argc, char *argv[])
 
 	/* Shutdown ui */
 	if (ctx->monitor) {
-		while (!ctx->ui_threadTerminated) {
+		while (!__atomic_load_n(&ctx->ui_threadTerminated, __ATOMIC_ACQUIRE)) {
 			usleep(50 * 1000);
-			printf("Blocked on ui\n");
 		}
+		pthread_mutex_lock(&ctx->ui_threadLock);
+		mousemask(0, NULL);
 		endwin();
+		pthread_mutex_unlock(&ctx->ui_threadLock);
 	}
 
 	/* Prepare stats window messages for later print. */

@@ -107,14 +107,19 @@ void discovered_item_free(struct discovered_item_s *di)
 	kafka_free(di);
 #endif
 
+	pthread_mutex_destroy(&di->pcrPidLock);
+
 	free(di);
 }
 
 struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, struct ether_header *ethhdr, struct iphdr *iphdr, struct udphdr *udphdr, uint16_t hash)
 {
+	static uint32_t nextId = 0;
+
 	struct discovered_item_s *di = calloc(1, sizeof(*di));
 	if (di) {
 		di->ctx = ctx;
+		di->id = __atomic_add_fetch(&nextId, 1, __ATOMIC_RELAXED);
 
 		time(&di->firstSeen);
 		di->lastUpdated = di->firstSeen;
@@ -220,6 +225,7 @@ struct discovered_item_s *discovered_item_alloc(struct tool_context_s *ctx, stru
 		pthread_mutex_init(&di->h265_metadataLock, NULL);
 
 		pthread_mutex_init(&di->scte35Lock, NULL);
+		pthread_mutex_init(&di->pcrPidLock, NULL);
 		xorg_list_init(&di->listSCTE35Pids);
 		xorg_list_init(&di->listSCTE35Messages);
 
@@ -1327,99 +1333,123 @@ void discovered_items_stats_reset(struct tool_context_s *ctx)
 
 void discovered_item_state_set(struct discovered_item_s *di, unsigned int state)
 {
-	di->state |= state;
+	__atomic_fetch_or(&di->state, state, __ATOMIC_SEQ_CST);
 }
 
 void discovered_item_state_clr(struct discovered_item_s *di, unsigned int state)
 {
-	di->state &= ~(state);
+	__atomic_fetch_and(&di->state, ~(state), __ATOMIC_SEQ_CST);
 }
 
 unsigned int discovered_item_state_get(struct discovered_item_s *di, unsigned int state)
 {
-	return di->state & state;
+	return __atomic_load_n(&di->state, __ATOMIC_SEQ_CST) & state;
 }
 
-void discovered_items_select_first(struct tool_context_s *ctx)
+int discovered_items_any_tagged_locked(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_state_get(e, DI_STATE_TAGGED))
+			return 1;
+	}
+	return 0;
+}
+
+int discovered_item_is_target_locked(struct tool_context_s *ctx, struct discovered_item_s *di, int anyTagged)
+{
+	if (anyTagged)
+		return discovered_item_state_get(di, DI_STATE_TAGGED) != 0;
+
+	uint32_t cursorId = __atomic_load_n(&ctx->uiCursorId, __ATOMIC_ACQUIRE);
+	return cursorId != 0 && di->id == cursorId;
+}
+
+int discovered_items_target_count(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+	int count = 0;
+
+	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (discovered_item_is_target_locked(ctx, e, anyTagged))
+			count++;
+	}
+	pthread_mutex_unlock(&ctx->lock);
+
+	return count;
+}
+
+void discovered_items_tag_all(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		discovered_item_state_set(e, DI_STATE_SELECTED);
+		discovered_item_state_set(e, DI_STATE_TAGGED);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_items_tag_none(struct tool_context_s *ctx)
+{
+	struct discovered_item_s *e = NULL;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		discovered_item_state_clr(e, DI_STATE_TAGGED);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+int discovered_items_show_streammodel_id(struct tool_context_s *ctx, uint32_t id)
+{
+	struct discovered_item_s *e = NULL;
+	int ret = -1;
+
+	if (id == 0)
+		return -1;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(e, &ctx->list, list) {
+		if (e->id != id)
+			continue;
+		ret = discovered_item_state_get(e, DI_STATE_SHOW_STREAMMODEL) ? 0 : 1;
+		discovered_item_state_set(e, DI_STATE_SHOW_STREAMMODEL);
 		break;
 	}
 	pthread_mutex_unlock(&ctx->lock);
+
+	return ret;
 }
 
-void discovered_items_select_next(struct tool_context_s *ctx)
+/* Returns 1 if the stream is now tagged, 0 if untagged, -1 if no such stream. */
+int discovered_items_tag_toggle_id(struct tool_context_s *ctx, uint32_t id)
 {
 	struct discovered_item_s *e = NULL;
+	int ret = -1;
 
-	int doSelect = 0;
+	if (id == 0)
+		return -1;
+
 	pthread_mutex_lock(&ctx->lock);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_HIDDEN))
+		if (e->id != id)
 			continue;
-		if (discovered_item_state_get(e, DI_STATE_SELECTED)) {
-
-			/* Only clear the current entry, if it's NOT the last entry in the list */
-			if (e->list.next != &ctx->list)
-				discovered_item_state_clr(e, DI_STATE_SELECTED);
-			doSelect = 1;
-		} else
-		if (doSelect) {
-			discovered_item_state_set(e, DI_STATE_SELECTED);
-			break;
+		if (discovered_item_state_get(e, DI_STATE_TAGGED)) {
+			discovered_item_state_clr(e, DI_STATE_TAGGED);
+			ret = 0;
+		} else {
+			discovered_item_state_set(e, DI_STATE_TAGGED);
+			ret = 1;
 		}
+		break;
 	}
 	pthread_mutex_unlock(&ctx->lock);
 
-#if 0
-	if (!doSelect)
-		discovered_items_select_first(ctx);
-#endif
-}
-
-void discovered_items_select_prev(struct tool_context_s *ctx)
-{
-	struct discovered_item_s *e = NULL;
-	struct discovered_item_s *p = NULL;
-
-	pthread_mutex_lock(&ctx->lock);
-	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_HIDDEN))
-			continue;
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) && p) {
-			discovered_item_state_clr(e, DI_STATE_SELECTED);
-			discovered_item_state_set(p, DI_STATE_SELECTED);
-			break;
-		}
-		p = e;
-	}
-	pthread_mutex_unlock(&ctx->lock);
-}
-
-void discovered_items_select_all(struct tool_context_s *ctx)
-{
-	struct discovered_item_s *e = NULL;
-
-	pthread_mutex_lock(&ctx->lock);
-	xorg_list_for_each_entry(e, &ctx->list, list) {
-		discovered_item_state_set(e, DI_STATE_SELECTED);
-	}
-	pthread_mutex_unlock(&ctx->lock);
-}
-
-void discovered_items_select_none(struct tool_context_s *ctx)
-{
-	struct discovered_item_s *e = NULL;
-
-	pthread_mutex_lock(&ctx->lock);
-	xorg_list_for_each_entry(e, &ctx->list, list) {
-		discovered_item_state_clr(e, DI_STATE_SELECTED);
-	}
-	pthread_mutex_unlock(&ctx->lock);
+	return ret;
 }
 
 void discovered_items_select_record_toggle(struct tool_context_s *ctx)
@@ -1427,8 +1457,9 @@ void discovered_items_select_record_toggle(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_PCAP_RECORDING) || discovered_item_state_get(e, DI_STATE_PCAP_RECORD_START)) {
@@ -1461,8 +1492,9 @@ void discovered_items_select_show_pids_toggle(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_SHOW_PIDS)) {
@@ -1479,8 +1511,9 @@ void discovered_items_select_show_tr101290_toggle(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_SHOW_TR101290)) {
@@ -1497,8 +1530,9 @@ void discovered_items_select_show_iats_toggle(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_SHOW_IAT_HISTOGRAM)) {
@@ -1515,8 +1549,9 @@ void discovered_items_select_hide(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		/* No hiding if recording */
@@ -1557,8 +1592,9 @@ void discovered_items_select_show_streammodel_toggle(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_SHOW_STREAMMODEL)) {
@@ -1575,8 +1611,9 @@ void discovered_items_select_show_clocks_toggle(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_SHOW_CLOCKS)) {
@@ -1596,8 +1633,9 @@ void discovered_items_select_show_processes_toggle(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_SHOW_PROCESSES)) {
@@ -1614,8 +1652,9 @@ void discovered_items_select_forward_toggle(struct tool_context_s *ctx, int slot
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_STREAM_FORWARDING) || discovered_item_state_get(e, DI_STATE_STREAM_FORWARD_START)) {
@@ -1634,8 +1673,9 @@ void discovered_items_select_json_probe_toggle(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_JSON_PROBE_ACTIVE)) {
@@ -1652,8 +1692,9 @@ void discovered_items_select_scte35_toggle(struct tool_context_s *ctx)
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_SHOW_SCTE35)) {
@@ -1665,41 +1706,14 @@ void discovered_items_select_scte35_toggle(struct tool_context_s *ctx)
 	pthread_mutex_unlock(&ctx->lock);
 }
 
-void discovered_items_select_scte35_pageup(struct tool_context_s *ctx)
-{
-	struct discovered_item_s *e = NULL;
-
-	pthread_mutex_lock(&ctx->lock);
-	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
-			continue;
-
-		display_doc_page_up(&e->doc_scte35);
-	}
-	pthread_mutex_unlock(&ctx->lock);
-}
-
-void discovered_items_select_scte35_pagedown(struct tool_context_s *ctx)
-{
-	struct discovered_item_s *e = NULL;
-
-	pthread_mutex_lock(&ctx->lock);
-	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
-			continue;
-
-		display_doc_page_down(&e->doc_scte35);
-	}
-	pthread_mutex_unlock(&ctx->lock);
-}
-
 void discovered_items_select_show_stream_log_toggle(struct tool_context_s *ctx)
 {
 	struct discovered_item_s *e = NULL;
 
 	pthread_mutex_lock(&ctx->lock);
+	int anyTagged = discovered_items_any_tagged_locked(ctx);
 	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
+		if (!discovered_item_is_target_locked(ctx, e, anyTagged))
 			continue;
 
 		if (discovered_item_state_get(e, DI_STATE_SHOW_STREAM_LOG)) {
@@ -1707,34 +1721,6 @@ void discovered_items_select_show_stream_log_toggle(struct tool_context_s *ctx)
 		} else {
 			discovered_item_state_set(e, DI_STATE_SHOW_STREAM_LOG);
 		}
-	}
-	pthread_mutex_unlock(&ctx->lock);
-}
-
-void discovered_items_select_show_stream_log_pageup(struct tool_context_s *ctx)
-{
-	struct discovered_item_s *e = NULL;
-
-	pthread_mutex_lock(&ctx->lock);
-	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
-			continue;
-
-		display_doc_page_up(&e->doc_stream_log);
-	}
-	pthread_mutex_unlock(&ctx->lock);
-}
-
-void discovered_items_select_show_stream_log_pagedown(struct tool_context_s *ctx)
-{
-	struct discovered_item_s *e = NULL;
-
-	pthread_mutex_lock(&ctx->lock);
-	xorg_list_for_each_entry(e, &ctx->list, list) {
-		if (discovered_item_state_get(e, DI_STATE_SELECTED) == 0)
-			continue;
-
-		display_doc_page_down(&e->doc_stream_log);
 	}
 	pthread_mutex_unlock(&ctx->lock);
 }
@@ -1851,38 +1837,100 @@ int display_doc_append_with_time(struct display_doc_s *doc, const char *msg, tim
 	return ret;
 }
 
-void display_doc_page_up(struct display_doc_s *doc)
+
+/* Collects the PCR pids and the H.264 elementary pids from the stream model. */
+static int streammodel_pids(struct discovered_item_s *di, uint16_t *pcrPids, int *pcrCount,
+	uint16_t *h264Pids, int *h264Count, int max)
 {
-	doc->displayLineFrom -= doc->pageSize;
-	if (doc->displayLineFrom < 0)
-		doc->displayLineFrom = 0;
+	struct ltntstools_pat_s *m = NULL;
 
-	return;
-}
+	*pcrCount = 0;
+	*h264Count = 0;
+	if (!di->streamModel || ltntstools_streammodel_query_model(di->streamModel, &m) != 0 || !m)
+		return -1;
 
-void display_doc_page_down(struct display_doc_s *doc)
-{
-	doc->displayLineFrom += doc->pageSize;
-	if (doc->displayLineFrom + doc->pageSize >= doc->lineCount)
-		doc->displayLineFrom = doc->lineCount - doc->pageSize - 1;
+	for (unsigned int p = 0; p < m->program_count; p++) {
+		if (m->programs[p].program_number > 0 && m->programs[p].pmt.PCR_PID && *pcrCount < max)
+			pcrPids[(*pcrCount)++] = m->programs[p].pmt.PCR_PID;
 
-	if (doc->displayLineFrom < 0)
-		doc->displayLineFrom = 0;
-		
-	return;
-}
-
-void display_doc_render(struct display_doc_s *doc, int row, int col)
-{
-	int l = 0;
-
-	for (int i = doc->displayLineFrom; i < doc->displayLineFrom + doc->maxPageSize; i++) {
-		if (i >= doc->lineCount)
-			break;
-
-		uint8_t *ptr = doc->lines[i];
-		mvprintw(row + l, col, "%s", ptr);
-		l++;
+		for (unsigned int s = 0; s < m->programs[p].pmt.stream_count; s++) {
+			if (m->programs[p].pmt.streams[s].stream_type == 0x1b /* H.264 */ && *h264Count < max)
+				h264Pids[(*h264Count)++] = m->programs[p].pmt.streams[s].elementary_PID;
+		}
 	}
-	mvprintw(row - 1, col + 22, "[%d of %d]", doc->displayLineFrom, doc->lineCount);
+
+	ltntstools_pat_free(m);
+	return 0;
+}
+
+void discovered_items_periodic(struct tool_context_s *ctx, time_t now)
+{
+	static time_t last = 0;
+	struct discovered_item_s *di = NULL;
+
+	/* Only ever called from the stats thread, so `last` needs no lock. */
+	if (last == now)
+		return;
+	last = now;
+
+	pthread_mutex_lock(&ctx->lock);
+	xorg_list_for_each_entry(di, &ctx->list, list) {
+
+		/* PCR pids are registered with the stats (enabling the clock report)
+		 * while the model or clock report is open, as the UI used to do while
+		 * drawing the model report.
+		 */
+		if (discovered_item_state_get(di, DI_STATE_SHOW_STREAMMODEL | DI_STATE_SHOW_CLOCKS)) {
+			uint16_t pcrPids[DI_PCR_PIDS_MAX], h264Pids[DI_PCR_PIDS_MAX];
+			int pcrCount = 0, h264Count = 0;
+
+			if (streammodel_pids(di, pcrPids, &pcrCount, h264Pids, &h264Count, DI_PCR_PIDS_MAX) == 0) {
+				if (pcrCount) {
+					pthread_mutex_lock(&di->pcrPidLock);
+					memcpy(di->pcrPidPending, pcrPids, pcrCount * sizeof(pcrPids[0]));
+					di->pcrPidPendingCount = pcrCount;
+					pthread_mutex_unlock(&di->pcrPidLock);
+					__atomic_store_n(&di->pcrPidPendingReady, 1, __ATOMIC_RELEASE);
+				}
+
+				/* Point the slice counter at an H.264 pid from the model. */
+				pthread_mutex_lock(&di->h264_sliceLock);
+				if (di->h264_slices && h264Count) {
+					uint16_t cur = h264_slice_counter_get_pid(di->h264_slices);
+					int found = 0;
+					for (int i = 0; i < h264Count; i++) {
+						if (h264Pids[i] == cur)
+							found = 1;
+					}
+					if (!found)
+						h264_slice_counter_reset_pid(di->h264_slices, h264Pids[0]);
+				}
+				pthread_mutex_unlock(&di->h264_sliceLock);
+			}
+		}
+
+		/* Expire old SCTE-35 history even when no new messages arrive. */
+		pthread_mutex_lock(&di->scte35Lock);
+		scte35_monitor_prune(di, now);
+		pthread_mutex_unlock(&di->scte35Lock);
+	}
+	pthread_mutex_unlock(&ctx->lock);
+}
+
+void discovered_item_apply_pending_pcr(struct discovered_item_s *di)
+{
+	if (__atomic_load_n(&di->pcrPidPendingReady, __ATOMIC_ACQUIRE) == 0)
+		return;
+
+	uint16_t pids[DI_PCR_PIDS_MAX];
+	int count;
+
+	pthread_mutex_lock(&di->pcrPidLock);
+	count = di->pcrPidPendingCount;
+	memcpy(pids, di->pcrPidPending, count * sizeof(pids[0]));
+	__atomic_store_n(&di->pcrPidPendingReady, 0, __ATOMIC_RELEASE);
+	pthread_mutex_unlock(&di->pcrPidLock);
+
+	for (int i = 0; i < count; i++)
+		ltntstools_pid_stats_pid_set_contains_pcr(di->stats, pids[i]);
 }
