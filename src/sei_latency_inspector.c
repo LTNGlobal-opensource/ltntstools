@@ -286,13 +286,12 @@ static void _maintain_clocks(struct stream_s *stream, struct ltn_pes_packet_s *p
 
 	*trueLatency_ms = stream->trueLatency;
 
-#if 1
+	if (ctx->verbose)
 	printf("stream%d: drift_ms %6" PRIi64 ", driftPTS_ms %6" PRIi64 ", trueLatency %6" PRIi64 "\n",
 		stream->nr,
 		stream->drift_ms,
 		stream->driftPTS_ms,
 		stream->trueLatency);
-#endif
 }
 
 static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
