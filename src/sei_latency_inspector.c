@@ -314,6 +314,12 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 		return NULL; /* No timing information, skip this pes */
 	}
 
+	uint32_t framenumber = 0;
+	if (ltntstools_probe_ltnencoder_get_frame_number(stream->probe_hdl, &framenumber) != 0) {
+		ltn_pes_packet_free(pes);
+		return NULL;
+	}
+
 	/* Establish walltimes vs PTS,s and keep them current. */
 	int64_t trueLatency_ms;
 	_maintain_clocks(stream, pes, &trueLatency_ms);
@@ -329,6 +335,7 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 	}
 
 	e->trueLatency = trueLatency_ms;
+	e->sei_framenumber = framenumber;
 	e->PTS = pes->PTS;
 	e->DTS = pes->DTS;
 #if 0
