@@ -113,6 +113,7 @@ struct tool_ctx_s
 	int verbose;
 	int totalElements;
 	int compareMode;
+	int rawMode; /* Report arrival time delta, not corrected for PTS burstiness */
 
 	char *instanceName;
 
@@ -199,7 +200,7 @@ static int _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, stru
 				return -1;
 			}
 
-			int64_t finalLatency_ms = b->trueLatency - a->trueLatency;
+			int64_t finalLatency_ms = ctx->rawMode ? ms : b->trueLatency - a->trueLatency;
 
 			pthread_mutex_lock(&ctx->console_mutex);
 
@@ -623,6 +624,8 @@ static void usage(const char *progname)
                "             192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
 	printf("  -I <url#2> Eg: rtp|udp://227.1.20.45:4001?localaddr=192.168.20.45\n"
                "             192.168.20.45 is the IP addr where we'll issue a IGMP join\n");
+	printf("  -R Compare mode: report the raw arrival time difference between the two streams\n"
+               "     for each matched frame, instead of the PTS corrected latency [def: disabled]\n");
 	printf("  -v Increase level of verbosity.\n");
 	printf("  -h Display command line help.\n");
 	printf("  -n <instancename> [def: %s]\n", DEFAULT_INSTANCE_NAME);
@@ -766,7 +769,7 @@ int sei_latency_inspector(int argc, char *argv[])
 	struct stream_s *dst = &ctx->src[1];
 
 	int ch, ret;
-	while ((ch = getopt(argc, argv, "?hvi:f:F:I:n:N:p:P:s:S:U:")) != -1) {
+	while ((ch = getopt(argc, argv, "?hvRi:f:F:I:n:N:p:P:s:S:U:")) != -1) {
 		switch (ch) {
 		case '?':
 		case 'h':
@@ -826,6 +829,9 @@ int sei_latency_inspector(int argc, char *argv[])
 				exit(1);
 			}
 			ctx->udpOutput = 1;
+			break;
+		case 'R':
+			ctx->rawMode = 1;
 			break;
 		case 'v':
 			ctx->verbose++;
