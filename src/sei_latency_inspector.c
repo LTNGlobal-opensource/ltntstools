@@ -676,7 +676,10 @@ static int start_source(struct tool_ctx_s *ctx, int nr)
 	return 0;
 }
 
-static void destroy_source(struct tool_ctx_s *ctx, int nr)
+/* Stop the input, no more callbacks arrive after this returns. Both streams must be
+ * stopped before either is destroyed, because each callback reads the other stream's cache.
+ */
+static void stop_source(struct tool_ctx_s *ctx, int nr)
 {
 	if (nr > MAX_STREAM_SOURCES)
 		return;
@@ -689,6 +692,14 @@ static void destroy_source(struct tool_ctx_s *ctx, int nr)
 	if (src->mode == MODE_SOURCE_PCAP) {
 		ltntstools_source_pcap_free(src->src_pcap);
 	}
+}
+
+static void destroy_source(struct tool_ctx_s *ctx, int nr)
+{
+	if (nr > MAX_STREAM_SOURCES)
+		return;
+
+	struct stream_s *src = &ctx->src[nr - 1];
 
 	pthread_mutex_lock(&src->lockElements);
 	while(!xorg_list_is_empty(&src->listElements)) {
@@ -842,6 +853,12 @@ int sei_latency_inspector(int argc, char *argv[])
 
 	while (g_running) {
 		usleep(50 * 1000);
+	}
+
+	stop_source(ctx, 1);
+
+	if (ctx->compareMode) {
+		stop_source(ctx, 2);
 	}
 
 	destroy_source(ctx, 1);
