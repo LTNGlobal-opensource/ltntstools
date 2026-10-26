@@ -147,10 +147,16 @@ void _printList(struct tool_ctx_s *ctx, struct stream_s *stream)
 	}
 }
 
-/* Seach the elements in stream for e->sei_framenumber */
-static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, struct timing_element_s *element)
+/* Search the elements in stream for the frame number in element. The list is
+ * in arrival order, so the newest frames are at the tail.
+ * Returns 1 if the frame was matched and reported, 0 if there was no match,
+ * and -1 on failure.
+ */
+static int _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, struct timing_element_s *element, int elementStreamNr)
 {
 	struct timing_element_s *e = NULL;
+
+	pthread_mutex_lock(&stream->lockElements);
 
 	xorg_list_for_each_entry_reverse(e, &stream->listElements, list) {
 		if (!e->valid)
@@ -158,29 +164,48 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 
 		//printf("framenumber %d, wanted %d\n", e->sei_framenumber, element->sei_framenumber);
 		if (e->sei_framenumber == element->sei_framenumber) {
-			int ms = ltn_timeval_subtract_ms(&element->ts_seen, &e->ts_seen);
+			/* Both streams look for each other's copy, so a frame is compared once, by whichever
+			 * saw it last. Equal arrival times are resolved in favour of stream 2.
+			 */
+			int cmp = ltn_timeval_subtract_us(&element->ts_seen, &e->ts_seen);
+			if (cmp < 0 || (cmp == 0 && elementStreamNr == 1)) {
+				pthread_mutex_unlock(&stream->lockElements);
+				return 0;
+			}
+
+			/* Always report stream 2 relative to stream 1, whichever stream saw the frame last */
+			struct timing_element_s *a = (elementStreamNr == 2) ? e : element;
+			struct timing_element_s *b = (elementStreamNr == 2) ? element : e;
+
+			int ms = ltn_timeval_subtract_ms(&b->ts_seen, &a->ts_seen);
 
 			if (ctx->verbose) {
-
 				printf("Frame %12d taking %5d ms between sampling points, P1->vPTS %13" PRIi64 ", P1->vDTS %13" PRIi64 ", P2->vPTS %13" PRIi64 ", P2->vDTS %13" PRIi64
 					", 1:%" PRIi64 " 2:%" PRIi64 "\n",
 					element->sei_framenumber,
 					ms,
-					e->PTS,
-					e->DTS,
-					element->PTS,
-					element->DTS,
-					element->trueLatency,
-					e->trueLatency);
+					a->PTS,
+					a->DTS,
+					b->PTS,
+					b->DTS,
+					b->trueLatency,
+					a->trueLatency);
 			}
 
 			char *msg = malloc(512);
+			if (!msg) {
+				fprintf(stderr, "Failed to allocate the output message buffer\n");
+				pthread_mutex_unlock(&stream->lockElements);
+				return -1;
+			}
 
-			int64_t finalLatency_ms = element->trueLatency - e->trueLatency;
+			int64_t finalLatency_ms = b->trueLatency - a->trueLatency;
+
+			pthread_mutex_lock(&ctx->console_mutex);
 
 			char *t1, *t2;
-			ISO8601_UTC_CreateTimestamp(&e->ts_seen, &t1);
-			ISO8601_UTC_CreateTimestamp(&element->ts_seen, &t2);
+			ISO8601_UTC_CreateTimestamp(&a->ts_seen, &t1);
+			ISO8601_UTC_CreateTimestamp(&b->ts_seen, &t2);
 
 			// { "instance": "BBC1", "upstream":{ "uri": "udp://233.1.1.1:11111", "pts":12345, "timestamp":"2023-01-02T12:23:34.12345Z" }, "downstream":{ "uri": "udp://233.1.1.2:22222", "pts":23456, "timestamp":"2023-01-02T12:23:34.22345Z" }, "latency": 1000 }
 			snprintf(msg, 512, "{ \"instance\": \"%s\", \"upstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
@@ -188,10 +213,10 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 					", \"timestamp\":\"%s\" }, \"latency\":%" PRIi64 " }\n",
 				ctx->instanceName,
 				ctx->src[0].iname,
-				e->PTS,
+				a->PTS,
 				t1,
 				ctx->src[1].iname,
-				element->PTS,
+				b->PTS,
 				t2,
 				finalLatency_ms);
 
@@ -209,13 +234,15 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 			free(t1);
 			free(t2);
 
-			//_printList(ctx, &ctx->src[1]);
-
-			return;
+			pthread_mutex_unlock(&ctx->console_mutex);
+			pthread_mutex_unlock(&stream->lockElements);
+			return 1;
 		}
 
 	}
 
+	pthread_mutex_unlock(&stream->lockElements);
+	return 0;
 }
 
 static void _maintain_clocks(struct stream_s *stream, struct ltn_pes_packet_s *pes, int64_t *trueLatency_ms)
@@ -372,9 +399,11 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 	pthread_mutex_unlock(&ctx->console_mutex);
 #endif
 
-	if (ctx->compareMode && stream->nr == 2) {
-		/* Comparing times between two probe stream 1 and probe stream 2 */
+	struct timing_element_s snapshot;
+	int doCompare = 0;
 
+	if (ctx->compareMode) {
+		/* Whichever stream sees a frame last compares it against the other stream's cache */
 		if (time(NULL) >= stream->trueLatencyComputeAfter) {
 
 			if (stream->trueLatency < stream->trueLatency_lwm)
@@ -382,8 +411,8 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 			if (stream->trueLatency > stream->trueLatency_hwm)
 				stream->trueLatency_hwm = stream->trueLatency;
 
-			/* Lookup framenumber in cached list for stream 1 */
-			_compareStreams(ctx, &ctx->src[0], e);
+			snapshot = *e;
+			doCompare = 1;
 		}
 
 	} else
@@ -426,6 +455,11 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 	} /* (!ctx->compareMode && stream->nr == 1) */
 
 	pthread_mutex_unlock(&stream->lockElements);
+
+	/* Our own lock is released first, the two streams never hold each other's lock together */
+	if (doCompare)
+		_compareStreams(ctx, &ctx->src[(stream->nr == 1) ? 1 : 0], &snapshot, stream->nr);
+
 	ltn_pes_packet_free(pes);
 
 	return NULL;
