@@ -52,6 +52,7 @@ struct timing_element_s
 	uint8_t data[128];
 
 	uint32_t sei_framenumber;
+	int valid; /* Element holds a frame, as opposed to never having been used */
 
 	struct timeval ts_seen; /* Timestamp from walltime when we saw this frame from the network */
 
@@ -152,6 +153,8 @@ static void _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, str
 	struct timing_element_s *e = NULL;
 
 	xorg_list_for_each_entry_reverse(e, &stream->listElements, list) {
+		if (!e->valid)
+			break; /* Never used elements are at the head, nothing older to find */
 
 		//printf("framenumber %d, wanted %d\n", e->sei_framenumber, element->sei_framenumber);
 		if (e->sei_framenumber == element->sei_framenumber) {
@@ -336,6 +339,7 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 
 	e->trueLatency = trueLatency_ms;
 	e->sei_framenumber = framenumber;
+	e->valid = 1;
 	e->PTS = pes->PTS;
 	e->DTS = pes->DTS;
 #if 0
@@ -350,22 +354,10 @@ static void *pe_callback(void *userContext, struct ltn_pes_packet_s *pes)
 	xorg_list_del(&e->list);
 
 
-#if 1
-	/* Search the list backwards, insert into the list but keep the list sorted by framenumber */
-	/* Order by PTS, framenumber will have dups but be correctly ordered */
-	/* Order by DTS, framenumber will have dups but be INcorrectly ordered */
-	struct timing_element_s *item = NULL;
-	xorg_list_for_each_entry_reverse(item, &stream->listElements, list) {
-		/* TODO: THis fails when the frame number wraps */
-		if (e->sei_framenumber >= item->sei_framenumber) {
-		//if (e->PTS >= item->PTS) {
-			__xorg_list_add(&e->list, &item->list, item->list.next);
-			break;
-		}
-	}
-#else
+	/* Arrival order, the oldest element (the head) is recycled for each new frame.
+	 * Frame numbers are matched by exact value so counter resets and wraps are harmless.
+	 */
 	xorg_list_append(&e->list, &stream->listElements);
-#endif
 
 #if 0
 	pthread_mutex_lock(&ctx->console_mutex);
