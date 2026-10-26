@@ -210,7 +210,7 @@ static int _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, stru
 			// { "instance": "BBC1", "upstream":{ "uri": "udp://233.1.1.1:11111", "pts":12345, "timestamp":"2023-01-02T12:23:34.12345Z" }, "downstream":{ "uri": "udp://233.1.1.2:22222", "pts":23456, "timestamp":"2023-01-02T12:23:34.22345Z" }, "latency": 1000 }
 			snprintf(msg, 512, "{ \"instance\": \"%s\", \"upstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
 					", \"timestamp\":\"%s\" }, \"downstream\":{ \"uri\": \"%s\", \"pts\":%" PRIi64
-					", \"timestamp\":\"%s\" }, \"latency\":%" PRIi64 " }\n",
+					", \"timestamp\":\"%s\" }, \"latency\":%" PRIi64 ", \"frame\":%u }\n",
 				ctx->instanceName,
 				ctx->src[0].iname,
 				a->PTS,
@@ -218,7 +218,8 @@ static int _compareStreams(struct tool_ctx_s *ctx, struct stream_s *stream, stru
 				ctx->src[1].iname,
 				b->PTS,
 				t2,
-				finalLatency_ms);
+				finalLatency_ms,
+				element->sei_framenumber);
 
 			if (ctx->verbose) {
 				printf("%s", msg);
