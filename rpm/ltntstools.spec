@@ -82,6 +82,8 @@ A tool to capture, inspect or monitor MPEG-TS files and streams.
   tstools_nic_monitor: Added a curses SCTE-35 report on selected streams, toggled with the 3 key.
   tstools_nic_monitor: Added repeatable -a/--join IGMP joins so multicast groups can be requested directly by the monitor.
   tstools_nic_monitor: Expanded OpenAPI and README documentation for REST, MCP setup, and Codex MCP registration.
+  tstools_sei_latency_inspector: add -R for raw arrival delay
+  tstools_sei_latency_inspector: other fixes and stability improvements
   all: migrated away from autotools and converted entire repo to cmake and git submodules
 
 * Tue Sep 29 2026 Steven Toth <steven.toth@ltnglobal.com> 
